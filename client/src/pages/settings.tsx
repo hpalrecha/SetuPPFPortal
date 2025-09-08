@@ -5,8 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Building, Store, Users, Edit, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ApiClient } from "@/lib/api";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -36,6 +41,59 @@ export default function SettingsPage() {
   const [systemSettings, setSystemSettings] = useState({
     theme: "light",
     language: "en"
+  });
+
+  const queryClient = useQueryClient();
+  const [activeOrgTab, setActiveOrgTab] = useState("oems");
+  const [showCreateOEMModal, setShowCreateOEMModal] = useState(false);
+  const [showCreateDealershipModal, setShowCreateDealershipModal] = useState(false);
+  const [showCreateShowroomModal, setShowCreateShowroomModal] = useState(false);
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+
+  // Fetch data for organization management
+  const { data: oems = [] } = useQuery({
+    queryKey: ["/api/oems"],
+    queryFn: async () => {
+      const response = await fetch('/api/oems', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch OEMs');
+      return response.json();
+    },
+    enabled: user?.role === 'SUPER_ADMIN',
+  });
+
+  const { data: dealerships = [] } = useQuery({
+    queryKey: ["/api/dealerships"],
+    queryFn: async () => {
+      const response = await fetch('/api/dealerships', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch dealerships');
+      return response.json();
+    },
+    enabled: user?.role === 'SUPER_ADMIN',
+  });
+
+  const { data: showrooms = [] } = useQuery({
+    queryKey: ["/api/showrooms"],
+    queryFn: async () => {
+      const response = await fetch('/api/showrooms', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch showrooms');
+      return response.json();
+    },
+    enabled: user?.role === 'SUPER_ADMIN',
   });
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
@@ -100,12 +158,181 @@ export default function SettingsPage() {
     }
   };
 
+  const handleCreateOEM = async (oemData: any) => {
+    try {
+      await ApiClient.post('/api/oems', oemData);
+      toast({
+        title: "Success",
+        description: "OEM created successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/oems"] });
+      setShowCreateOEMModal(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create OEM",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const isSupperAdmin = user?.role === 'SUPER_ADMIN';
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold text-foreground">Settings</h2>
         <p className="text-muted-foreground mt-1">Manage your account and system preferences</p>
       </div>
+
+      {/* Organization Management for Super Admin */}
+      {isSupperAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building className="h-5 w-5" />
+              Organization Management
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={activeOrgTab} onValueChange={setActiveOrgTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="oems">OEMs</TabsTrigger>
+                <TabsTrigger value="dealerships">Dealerships</TabsTrigger>
+                <TabsTrigger value="showrooms">Showrooms</TabsTrigger>
+                <TabsTrigger value="users">Users</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="oems" className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium">OEMs</h3>
+                  <Button onClick={() => setShowCreateOEMModal(true)} data-testid="button-create-oem">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add OEM
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {oems.map((oem: any) => (
+                    <Card key={oem.id} className="border">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-foreground">{oem.name}</h4>
+                          <Badge variant={oem.active ? "default" : "secondary"}>
+                            {oem.active ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-3">{oem.brandCode}</p>
+                        <div className="flex space-x-2">
+                          <Button size="sm" variant="outline" data-testid={`button-edit-oem-${oem.id}`}>
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button size="sm" variant="outline" data-testid={`button-delete-oem-${oem.id}`}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {oems.length === 0 && (
+                    <div className="col-span-full text-center py-8 text-muted-foreground">
+                      No OEMs found. Add your first OEM to get started.
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="dealerships" className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium">Dealerships</h3>
+                  <Button onClick={() => setShowCreateDealershipModal(true)} data-testid="button-create-dealership">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Dealership
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {dealerships.map((dealership: any) => (
+                    <Card key={dealership.id} className="border">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-foreground">{dealership.name}</h4>
+                          <Badge variant={dealership.active ? "default" : "secondary"}>
+                            {dealership.active ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-3">{dealership.location}</p>
+                        <div className="flex space-x-2">
+                          <Button size="sm" variant="outline" data-testid={`button-edit-dealership-${dealership.id}`}>
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button size="sm" variant="outline" data-testid={`button-delete-dealership-${dealership.id}`}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {dealerships.length === 0 && (
+                    <div className="col-span-full text-center py-8 text-muted-foreground">
+                      No dealerships found. Add your first dealership to get started.
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="showrooms" className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium">Showrooms</h3>
+                  <Button onClick={() => setShowCreateShowroomModal(true)} data-testid="button-create-showroom">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Showroom
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {showrooms.map((showroom: any) => (
+                    <Card key={showroom.id} className="border">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-foreground">{showroom.name}</h4>
+                          <Badge variant={showroom.active ? "default" : "secondary"}>
+                            {showroom.active ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-3">{showroom.location}</p>
+                        <div className="flex space-x-2">
+                          <Button size="sm" variant="outline" data-testid={`button-edit-showroom-${showroom.id}`}>
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button size="sm" variant="outline" data-testid={`button-delete-showroom-${showroom.id}`}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {showrooms.length === 0 && (
+                    <div className="col-span-full text-center py-8 text-muted-foreground">
+                      No showrooms found. Add your first showroom to get started.
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="users" className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium">System Users</h3>
+                  <Button onClick={() => setShowCreateUserModal(true)} data-testid="button-create-user">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add User
+                  </Button>
+                </div>
+                <div className="text-center py-8 text-muted-foreground">
+                  User management functionality coming soon...
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Profile Settings */}

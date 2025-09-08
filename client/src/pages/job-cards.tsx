@@ -24,14 +24,28 @@ export default function JobCardsPage() {
 
   const { data: jobCards = [], isLoading } = useQuery<JobCard[]>({
     queryKey: ["/api/job-cards"],
+    queryFn: async () => {
+      const response = await fetch('/api/job-cards', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch job cards');
+      }
+      
+      return response.json();
+    },
     refetchInterval: 30000
   });
 
   const groupedJobCards = {
     AWAITING_ACK: jobCards.filter(jc => jc.status === 'AWAITING_ACK'),
-    IN_PROGRESS: jobCards.filter(jc => ['ACKNOWLEDGED', 'SCHEDULED', 'IN_PROGRESS'].includes(jc.status)),
-    PENDING_APPROVAL: jobCards.filter(jc => ['COMPLETED', 'PENDING_APPROVAL'].includes(jc.status)),
-    COMPLETED: jobCards.filter(jc => ['APPROVED', 'CLOSED'].includes(jc.status))
+    IN_PROGRESS: jobCards.filter(jc => jc.status && ['ACKNOWLEDGED', 'SCHEDULED', 'IN_PROGRESS'].includes(jc.status)),
+    PENDING_APPROVAL: jobCards.filter(jc => jc.status && ['COMPLETED', 'PENDING_APPROVAL'].includes(jc.status)),
+    COMPLETED: jobCards.filter(jc => jc.status && ['APPROVED', 'CLOSED'].includes(jc.status))
   };
 
   const handleSendReminder = (jobCardId: string) => {
