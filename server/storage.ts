@@ -8,6 +8,7 @@ import {
   allocations,
   vehicleBrands,
   vehicleModels,
+  vehicleVariants,
   services,
   pricingRules,
   commissionRules,
@@ -31,7 +32,13 @@ import {
   type PricingRule,
   type InsertPricingRule,
   type CommissionRule,
-  type InsertCommissionRule
+  type InsertCommissionRule,
+  type VehicleBrand,
+  type InsertVehicleBrand,
+  type VehicleModel,
+  type InsertVehicleModel,
+  type VehicleVariant,
+  type InsertVehicleVariant
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count, avg, sum } from "drizzle-orm";
@@ -87,6 +94,27 @@ export interface IStorage {
   getCommissionRules(filters?: { showroomId?: string }): Promise<CommissionRule[]>;
   createCommissionRule(rule: InsertCommissionRule): Promise<CommissionRule>;
   updateCommissionRule(id: string, updates: Partial<InsertCommissionRule>): Promise<CommissionRule | undefined>;
+
+  // Vehicle Brand management
+  getVehicleBrands(filters?: { oemId?: string }): Promise<VehicleBrand[]>;
+  getVehicleBrand(id: string): Promise<VehicleBrand | undefined>;
+  createVehicleBrand(brand: InsertVehicleBrand): Promise<VehicleBrand>;
+  updateVehicleBrand(id: string, updates: Partial<InsertVehicleBrand>): Promise<VehicleBrand | undefined>;
+  deleteVehicleBrand(id: string): Promise<boolean>;
+
+  // Vehicle Model management
+  getVehicleModels(filters?: { brandId?: string }): Promise<VehicleModel[]>;
+  getVehicleModel(id: string): Promise<VehicleModel | undefined>;
+  createVehicleModel(model: InsertVehicleModel): Promise<VehicleModel>;
+  updateVehicleModel(id: string, updates: Partial<InsertVehicleModel>): Promise<VehicleModel | undefined>;
+  deleteVehicleModel(id: string): Promise<boolean>;
+
+  // Vehicle Variant management
+  getVehicleVariants(filters?: { modelId?: string }): Promise<VehicleVariant[]>;
+  getVehicleVariant(id: string): Promise<VehicleVariant | undefined>;
+  createVehicleVariant(variant: InsertVehicleVariant): Promise<VehicleVariant>;
+  updateVehicleVariant(id: string, updates: Partial<InsertVehicleVariant>): Promise<VehicleVariant | undefined>;
+  deleteVehicleVariant(id: string): Promise<boolean>;
 
   // Dashboard metrics
   getDashboardMetrics(oemId: string, showroomId?: string): Promise<{
@@ -332,6 +360,132 @@ export class DatabaseStorage implements IStorage {
       .where(eq(commissionRules.id, id))
       .returning();
     return rule || undefined;
+  }
+
+  // Vehicle Brand methods
+  async getVehicleBrands(filters?: { oemId?: string }): Promise<VehicleBrand[]> {
+    let query = db.select().from(vehicleBrands).where(eq(vehicleBrands.active, true));
+    
+    if (filters?.oemId) {
+      query = query.where(and(eq(vehicleBrands.active, true), eq(vehicleBrands.oemId, filters.oemId)));
+    }
+
+    return await query.orderBy(vehicleBrands.name);
+  }
+
+  async getVehicleBrand(id: string): Promise<VehicleBrand | undefined> {
+    const [brand] = await db.select().from(vehicleBrands).where(eq(vehicleBrands.id, id));
+    return brand || undefined;
+  }
+
+  async createVehicleBrand(insertBrand: InsertVehicleBrand): Promise<VehicleBrand> {
+    const [brand] = await db
+      .insert(vehicleBrands)
+      .values(insertBrand)
+      .returning();
+    return brand;
+  }
+
+  async updateVehicleBrand(id: string, updates: Partial<InsertVehicleBrand>): Promise<VehicleBrand | undefined> {
+    const [brand] = await db
+      .update(vehicleBrands)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(vehicleBrands.id, id))
+      .returning();
+    return brand || undefined;
+  }
+
+  async deleteVehicleBrand(id: string): Promise<boolean> {
+    const [brand] = await db
+      .update(vehicleBrands)
+      .set({ active: false, updatedAt: new Date() })
+      .where(eq(vehicleBrands.id, id))
+      .returning();
+    return !!brand;
+  }
+
+  // Vehicle Model methods
+  async getVehicleModels(filters?: { brandId?: string }): Promise<VehicleModel[]> {
+    let query = db.select().from(vehicleModels).where(eq(vehicleModels.active, true));
+    
+    if (filters?.brandId) {
+      query = query.where(and(eq(vehicleModels.active, true), eq(vehicleModels.brandId, filters.brandId)));
+    }
+
+    return await query.orderBy(vehicleModels.modelName);
+  }
+
+  async getVehicleModel(id: string): Promise<VehicleModel | undefined> {
+    const [model] = await db.select().from(vehicleModels).where(eq(vehicleModels.id, id));
+    return model || undefined;
+  }
+
+  async createVehicleModel(insertModel: InsertVehicleModel): Promise<VehicleModel> {
+    const [model] = await db
+      .insert(vehicleModels)
+      .values(insertModel)
+      .returning();
+    return model;
+  }
+
+  async updateVehicleModel(id: string, updates: Partial<InsertVehicleModel>): Promise<VehicleModel | undefined> {
+    const [model] = await db
+      .update(vehicleModels)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(vehicleModels.id, id))
+      .returning();
+    return model || undefined;
+  }
+
+  async deleteVehicleModel(id: string): Promise<boolean> {
+    const [model] = await db
+      .update(vehicleModels)
+      .set({ active: false, updatedAt: new Date() })
+      .where(eq(vehicleModels.id, id))
+      .returning();
+    return !!model;
+  }
+
+  // Vehicle Variant methods
+  async getVehicleVariants(filters?: { modelId?: string }): Promise<VehicleVariant[]> {
+    let query = db.select().from(vehicleVariants).where(eq(vehicleVariants.active, true));
+    
+    if (filters?.modelId) {
+      query = query.where(and(eq(vehicleVariants.active, true), eq(vehicleVariants.modelId, filters.modelId)));
+    }
+
+    return await query.orderBy(vehicleVariants.variantName);
+  }
+
+  async getVehicleVariant(id: string): Promise<VehicleVariant | undefined> {
+    const [variant] = await db.select().from(vehicleVariants).where(eq(vehicleVariants.id, id));
+    return variant || undefined;
+  }
+
+  async createVehicleVariant(insertVariant: InsertVehicleVariant): Promise<VehicleVariant> {
+    const [variant] = await db
+      .insert(vehicleVariants)
+      .values(insertVariant)
+      .returning();
+    return variant;
+  }
+
+  async updateVehicleVariant(id: string, updates: Partial<InsertVehicleVariant>): Promise<VehicleVariant | undefined> {
+    const [variant] = await db
+      .update(vehicleVariants)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(vehicleVariants.id, id))
+      .returning();
+    return variant || undefined;
+  }
+
+  async deleteVehicleVariant(id: string): Promise<boolean> {
+    const [variant] = await db
+      .update(vehicleVariants)
+      .set({ active: false, updatedAt: new Date() })
+      .where(eq(vehicleVariants.id, id))
+      .returning();
+    return !!variant;
   }
 
   async getDashboardMetrics(oemId: string, showroomId?: string): Promise<{

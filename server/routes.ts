@@ -6,7 +6,10 @@ import {
   insertJobCardSchema,
   insertPartnerSchema,
   insertPricingRuleSchema,
-  insertCommissionRuleSchema 
+  insertCommissionRuleSchema,
+  insertVehicleBrandSchema,
+  insertVehicleModelSchema,
+  insertVehicleVariantSchema
 } from "@shared/schema";
 import { storage } from "./storage";
 import { authService } from "./auth";
@@ -54,6 +57,240 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch OEMs" });
     }
   });
+
+  // Vehicle Brand Routes
+  app.get("/api/vehicle-brands", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
+    try {
+      const { oemId } = req.query;
+      
+      const filters: any = {};
+      if (oemId) filters.oemId = oemId as string;
+
+      const brands = await storage.getVehicleBrands(filters);
+      res.json(brands);
+    } catch (error) {
+      console.error("Get vehicle brands error:", error);
+      res.status(500).json({ error: "Failed to fetch vehicle brands" });
+    }
+  });
+
+  app.post("/api/vehicle-brands", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('vehicle_brand', 'create'),
+    async (req, res) => {
+      try {
+        const brandData = insertVehicleBrandSchema.parse(req.body);
+        const brand = await storage.createVehicleBrand(brandData);
+        res.status(201).json(brand);
+      } catch (error) {
+        console.error("Create vehicle brand error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid vehicle brand data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to create vehicle brand" });
+      }
+    }
+  );
+
+  app.put("/api/vehicle-brands/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('vehicle_brand', 'update'),
+    async (req, res) => {
+      try {
+        const updates = req.body;
+        delete updates.id;
+        
+        const brand = await storage.updateVehicleBrand(req.params.id, updates);
+        
+        if (!brand) {
+          return res.status(404).json({ error: "Vehicle brand not found" });
+        }
+
+        res.json(brand);
+      } catch (error) {
+        console.error("Update vehicle brand error:", error);
+        res.status(500).json({ error: "Failed to update vehicle brand" });
+      }
+    }
+  );
+
+  app.delete("/api/vehicle-brands/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('vehicle_brand', 'delete'),
+    async (req, res) => {
+      try {
+        const success = await storage.deleteVehicleBrand(req.params.id);
+        
+        if (!success) {
+          return res.status(404).json({ error: "Vehicle brand not found" });
+        }
+
+        res.json({ message: "Vehicle brand deleted successfully" });
+      } catch (error) {
+        console.error("Delete vehicle brand error:", error);
+        res.status(500).json({ error: "Failed to delete vehicle brand" });
+      }
+    }
+  );
+
+  // Vehicle Model Routes
+  app.get("/api/vehicle-models", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
+    try {
+      const { brandId } = req.query;
+      
+      const filters: any = {};
+      if (brandId) filters.brandId = brandId as string;
+
+      const models = await storage.getVehicleModels(filters);
+      res.json(models);
+    } catch (error) {
+      console.error("Get vehicle models error:", error);
+      res.status(500).json({ error: "Failed to fetch vehicle models" });
+    }
+  });
+
+  app.post("/api/vehicle-models", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('vehicle_model', 'create'),
+    async (req, res) => {
+      try {
+        const modelData = insertVehicleModelSchema.parse(req.body);
+        const model = await storage.createVehicleModel(modelData);
+        res.status(201).json(model);
+      } catch (error) {
+        console.error("Create vehicle model error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid vehicle model data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to create vehicle model" });
+      }
+    }
+  );
+
+  app.put("/api/vehicle-models/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('vehicle_model', 'update'),
+    async (req, res) => {
+      try {
+        const updates = req.body;
+        delete updates.id;
+        
+        const model = await storage.updateVehicleModel(req.params.id, updates);
+        
+        if (!model) {
+          return res.status(404).json({ error: "Vehicle model not found" });
+        }
+
+        res.json(model);
+      } catch (error) {
+        console.error("Update vehicle model error:", error);
+        res.status(500).json({ error: "Failed to update vehicle model" });
+      }
+    }
+  );
+
+  app.delete("/api/vehicle-models/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('vehicle_model', 'delete'),
+    async (req, res) => {
+      try {
+        const success = await storage.deleteVehicleModel(req.params.id);
+        
+        if (!success) {
+          return res.status(404).json({ error: "Vehicle model not found" });
+        }
+
+        res.json({ message: "Vehicle model deleted successfully" });
+      } catch (error) {
+        console.error("Delete vehicle model error:", error);
+        res.status(500).json({ error: "Failed to delete vehicle model" });
+      }
+    }
+  );
+
+  // Vehicle Variant Routes
+  app.get("/api/vehicle-variants", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
+    try {
+      const { modelId } = req.query;
+      
+      const filters: any = {};
+      if (modelId) filters.modelId = modelId as string;
+
+      const variants = await storage.getVehicleVariants(filters);
+      res.json(variants);
+    } catch (error) {
+      console.error("Get vehicle variants error:", error);
+      res.status(500).json({ error: "Failed to fetch vehicle variants" });
+    }
+  });
+
+  app.post("/api/vehicle-variants", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('vehicle_variant', 'create'),
+    async (req, res) => {
+      try {
+        const variantData = insertVehicleVariantSchema.parse(req.body);
+        const variant = await storage.createVehicleVariant(variantData);
+        res.status(201).json(variant);
+      } catch (error) {
+        console.error("Create vehicle variant error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid vehicle variant data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to create vehicle variant" });
+      }
+    }
+  );
+
+  app.put("/api/vehicle-variants/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('vehicle_variant', 'update'),
+    async (req, res) => {
+      try {
+        const updates = req.body;
+        delete updates.id;
+        
+        const variant = await storage.updateVehicleVariant(req.params.id, updates);
+        
+        if (!variant) {
+          return res.status(404).json({ error: "Vehicle variant not found" });
+        }
+
+        res.json(variant);
+      } catch (error) {
+        console.error("Update vehicle variant error:", error);
+        res.status(500).json({ error: "Failed to update vehicle variant" });
+      }
+    }
+  );
+
+  app.delete("/api/vehicle-variants/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('vehicle_variant', 'delete'),
+    async (req, res) => {
+      try {
+        const success = await storage.deleteVehicleVariant(req.params.id);
+        
+        if (!success) {
+          return res.status(404).json({ error: "Vehicle variant not found" });
+        }
+
+        res.json({ message: "Vehicle variant deleted successfully" });
+      } catch (error) {
+        console.error("Delete vehicle variant error:", error);
+        res.status(500).json({ error: "Failed to delete vehicle variant" });
+      }
+    }
+  );
 
   // Dashboard Routes
   app.get("/api/dashboard/metrics", authenticate, requireOEMAccess, async (req, res) => {
