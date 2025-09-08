@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Clock, Wrench, CheckCircle2, Trophy, FileText, Zap, Target } from "lucide-react";
 import type { JobCard } from "@shared/schema";
 import ApprovalModal from "@/components/job-cards/approval-modal";
 import { useState } from "react";
@@ -77,26 +77,52 @@ export default function JobCardsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-foreground">Job Cards</h2>
-          <p className="text-muted-foreground mt-1">Track installation progress and approvals</p>
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Job Cards
+          </h2>
+          <p className="text-muted-foreground mt-1 text-lg">Track installation progress and approvals</p>
+        </div>
+        <div className="flex items-center gap-2 mt-4 sm:mt-0">
+          <Badge variant="outline" className="text-sm">
+            <Target className="h-3 w-3 mr-1" />
+            Live Tracking
+          </Badge>
+          <Badge variant="outline" className="text-sm">
+            <Zap className="h-3 w-3 mr-1" />
+            Auto-Refresh
+          </Badge>
         </div>
       </div>
 
       {/* Job Cards Kanban View */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Awaiting Acknowledgment */}
-        <Card>
+        <Card className="border-l-4 border-l-red-500 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-red-50 to-orange-50">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Awaiting Acknowledgment</CardTitle>
-              <Badge className="bg-red-100 text-red-800" data-testid="count-awaiting-ack">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <Clock className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-base text-red-700">Awaiting Acknowledgment</CardTitle>
+                  <p className="text-xs text-red-500 mt-1">Needs immediate attention</p>
+                </div>
+              </div>
+              <Badge className="bg-red-500 text-white font-semibold" data-testid="count-awaiting-ack">
                 {groupedJobCards.AWAITING_ACK.length}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {groupedJobCards.AWAITING_ACK.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No pending acknowledgments</p>
+              <div className="text-center py-12">
+                <div className="p-4 bg-green-50 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                  <CheckCircle2 className="h-8 w-8 text-green-500" />
+                </div>
+                <p className="text-sm font-medium text-green-700 mb-1">All Clear!</p>
+                <p className="text-xs text-green-600">No pending acknowledgments</p>
+              </div>
             ) : (
               groupedJobCards.AWAITING_ACK.map((job) => (
                 <Card key={job.id} className="border" data-testid={`card-job-${job.id}`}>
@@ -125,18 +151,32 @@ export default function JobCardsPage() {
         </Card>
 
         {/* In Progress */}
-        <Card>
+        <Card className="border-l-4 border-l-blue-500 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-blue-50 to-cyan-50">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">In Progress</CardTitle>
-              <Badge className="bg-blue-100 text-blue-800" data-testid="count-in-progress">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Wrench className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-base text-blue-700">In Progress</CardTitle>
+                  <p className="text-xs text-blue-500 mt-1">Active installations</p>
+                </div>
+              </div>
+              <Badge className="bg-blue-500 text-white font-semibold" data-testid="count-in-progress">
                 {groupedJobCards.IN_PROGRESS.length}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {groupedJobCards.IN_PROGRESS.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No jobs in progress</p>
+              <div className="text-center py-12">
+                <div className="p-4 bg-blue-50 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                  <FileText className="h-8 w-8 text-blue-500" />
+                </div>
+                <p className="text-sm font-medium text-blue-700 mb-1">Ready to Work</p>
+                <p className="text-xs text-blue-600">No active installations</p>
+              </div>
             ) : (
               groupedJobCards.IN_PROGRESS.map((job) => (
                 <Card key={job.id} className="border" data-testid={`card-job-${job.id}`}>
@@ -159,18 +199,32 @@ export default function JobCardsPage() {
         </Card>
 
         {/* Pending Approval */}
-        <Card>
+        <Card className="border-l-4 border-l-orange-500 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-orange-50 to-yellow-50">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Pending Approval</CardTitle>
-              <Badge className="bg-orange-100 text-orange-800" data-testid="count-pending-approval">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <AlertCircle className="h-5 w-5 text-orange-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-base text-orange-700">Pending Approval</CardTitle>
+                  <p className="text-xs text-orange-500 mt-1">Awaiting review</p>
+                </div>
+              </div>
+              <Badge className="bg-orange-500 text-white font-semibold" data-testid="count-pending-approval">
                 {groupedJobCards.PENDING_APPROVAL.length}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {groupedJobCards.PENDING_APPROVAL.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No approvals pending</p>
+              <div className="text-center py-12">
+                <div className="p-4 bg-gray-50 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                  <Clock className="h-8 w-8 text-gray-500" />
+                </div>
+                <p className="text-sm font-medium text-gray-700 mb-1">All Reviewed</p>
+                <p className="text-xs text-gray-600">No approvals pending</p>
+              </div>
             ) : (
               groupedJobCards.PENDING_APPROVAL.map((job) => (
                 <Card key={job.id} className="border" data-testid={`card-job-${job.id}`}>
@@ -198,18 +252,32 @@ export default function JobCardsPage() {
         </Card>
 
         {/* Completed */}
-        <Card>
+        <Card className="border-l-4 border-l-green-500 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-green-50 to-emerald-50">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Completed</CardTitle>
-              <Badge className="bg-green-100 text-green-800" data-testid="count-completed">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <Trophy className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-base text-green-700">Completed</CardTitle>
+                  <p className="text-xs text-green-500 mt-1">Successfully finished</p>
+                </div>
+              </div>
+              <Badge className="bg-green-500 text-white font-semibold" data-testid="count-completed">
                 {groupedJobCards.COMPLETED.length}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {groupedJobCards.COMPLETED.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No completed jobs</p>
+              <div className="text-center py-12">
+                <div className="p-4 bg-yellow-50 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                  <Target className="h-8 w-8 text-yellow-500" />
+                </div>
+                <p className="text-sm font-medium text-yellow-700 mb-1">Ready to Achieve</p>
+                <p className="text-xs text-yellow-600">No completed jobs yet</p>
+              </div>
             ) : (
               groupedJobCards.COMPLETED.map((job) => (
                 <Card key={job.id} className="border" data-testid={`card-job-${job.id}`}>
