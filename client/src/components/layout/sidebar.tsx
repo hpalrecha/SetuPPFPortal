@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 import { 
   BarChart3, 
   ClipboardList, 
@@ -11,24 +12,103 @@ import {
   PieChart, 
   History, 
   Settings,
-  Shield
+  Shield,
+  Building,
+  Store
 } from "lucide-react";
 
-const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: BarChart3 },
-  { name: "Work Orders", href: "/work-orders", icon: ClipboardList },
-  { name: "Job Cards", href: "/job-cards", icon: CheckSquare },
-  { name: "Partners", href: "/partners", icon: Handshake },
-  { name: "Pricing Rules", href: "/pricing", icon: DollarSign },
-  { name: "Commissions", href: "/commissions", icon: Percent },
-  { name: "Reports", href: "/reports", icon: PieChart },
-  { name: "Audit Logs", href: "/audit", icon: History },
-  { name: "Settings", href: "/settings", icon: Settings },
-];
+// Define navigation items with role-based access
+const getNavigationForRole = (role: string) => {
+  const baseNav = [
+    { name: "Dashboard", href: "/dashboard", icon: BarChart3 }
+  ];
+
+  switch (role) {
+    case 'SUPER_ADMIN':
+      return [
+        ...baseNav,
+        { name: "Work Orders", href: "/work-orders", icon: ClipboardList },
+        { name: "Job Cards", href: "/job-cards", icon: CheckSquare },
+        { name: "Partners", href: "/partners", icon: Handshake },
+        { name: "OEMs", href: "/oems", icon: Building },
+        { name: "Dealerships", href: "/dealerships", icon: Store },
+        { name: "Showrooms", href: "/showrooms", icon: Store },
+        { name: "Pricing Rules", href: "/pricing", icon: DollarSign },
+        { name: "Commissions", href: "/commissions", icon: Percent },
+        { name: "Reports", href: "/reports", icon: PieChart },
+        { name: "Audit Logs", href: "/audit", icon: History },
+        { name: "Settings", href: "/settings", icon: Settings },
+      ];
+    
+    case 'OEM_ADMIN':
+      return [
+        ...baseNav,
+        { name: "Work Orders", href: "/work-orders", icon: ClipboardList },
+        { name: "Job Cards", href: "/job-cards", icon: CheckSquare },
+        { name: "Partners", href: "/partners", icon: Handshake },
+        { name: "Dealerships", href: "/dealerships", icon: Store },
+        { name: "Showrooms", href: "/showrooms", icon: Store },
+        { name: "Pricing Rules", href: "/pricing", icon: DollarSign },
+        { name: "Commissions", href: "/commissions", icon: Percent },
+        { name: "Reports", href: "/reports", icon: PieChart },
+        { name: "Audit Logs", href: "/audit", icon: History },
+        { name: "Settings", href: "/settings", icon: Settings },
+      ];
+
+    case 'DEALERSHIP_ADMIN':
+      return [
+        ...baseNav,
+        { name: "Work Orders", href: "/work-orders", icon: ClipboardList },
+        { name: "Job Cards", href: "/job-cards", icon: CheckSquare },
+        { name: "Partners", href: "/partners", icon: Handshake },
+        { name: "Showrooms", href: "/showrooms", icon: Store },
+        { name: "Reports", href: "/reports", icon: PieChart },
+        { name: "Settings", href: "/settings", icon: Settings },
+      ];
+
+    case 'SHOWROOM_MANAGER':
+      return [
+        ...baseNav,
+        { name: "Work Orders", href: "/work-orders", icon: ClipboardList },
+        { name: "Job Cards", href: "/job-cards", icon: CheckSquare },
+        { name: "Partners", href: "/partners", icon: Handshake },
+        { name: "Reports", href: "/reports", icon: PieChart },
+        { name: "Settings", href: "/settings", icon: Settings },
+      ];
+
+    case 'SALES_PERSON':
+      return [
+        ...baseNav,
+        { name: "Work Orders", href: "/work-orders", icon: ClipboardList },
+        { name: "Job Cards", href: "/job-cards", icon: CheckSquare },
+        { name: "Reports", href: "/reports", icon: PieChart },
+      ];
+
+    case 'PARTNER_ADMIN':
+      return [
+        ...baseNav,
+        { name: "Job Cards", href: "/job-cards", icon: CheckSquare },
+        { name: "Reports", href: "/reports", icon: PieChart },
+        { name: "Settings", href: "/settings", icon: Settings },
+      ];
+
+    case 'PARTNER_STAFF':
+      return [
+        ...baseNav,
+        { name: "Job Cards", href: "/job-cards", icon: CheckSquare },
+      ];
+
+    default:
+      return baseNav;
+  }
+};
 
 export default function Sidebar() {
   const [location] = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const { user } = useAuth();
+  
+  const navigation = user ? getNavigationForRole(user.role) : [];
 
   return (
     <>
