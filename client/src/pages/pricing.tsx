@@ -1,13 +1,21 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, X } from "lucide-react";
+import { Plus, Edit, X, Trash2 } from "lucide-react";
 import type { PricingRule } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import { CreatePricingRuleModal } from "@/components/modals/CreatePricingRuleModal";
 
 export default function PricingPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingRule, setEditingRule] = useState<any>(null);
   
   // Only admins can access pricing rules
   const canAccessPricing = user && ['SUPER_ADMIN', 'OEM_ADMIN'].includes(user.role);
@@ -33,18 +41,55 @@ export default function PricingPage() {
   });
 
   const handleAddPricingRule = () => {
-    // TODO: Open pricing rule creation modal
-    alert("Pricing rule creation form would open here");
+    setEditingRule(null);
+    setShowCreateModal(true);
   };
 
-  const handleEditPricingRule = (id: string) => {
-    // TODO: Open pricing rule edit modal
-    alert(`Edit pricing rule ${id}`);
+  const handleEditPricingRule = (rule: any) => {
+    setEditingRule(rule);
+    setShowCreateModal(true);
   };
 
-  const handleDeactivatePricingRule = (id: string) => {
-    // TODO: Deactivate pricing rule
-    alert(`Deactivate pricing rule ${id}`);
+  const handleDeletePricingRule = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this pricing rule?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/pricing-rules/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete pricing rule');
+      }
+
+      toast({
+        title: "Success",
+        description: "Pricing rule deleted successfully",
+      });
+
+      // Refresh the data
+      queryClient.invalidateQueries({ queryKey: ["/api/pricing-rules"] });
+    } catch (error) {
+      console.error('Error deleting pricing rule:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete pricing rule",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleModalSuccess = () => {
+    setShowCreateModal(false);
+    setEditingRule(null);
+    // Refresh the data
+    queryClient.invalidateQueries({ queryKey: ["/api/pricing-rules"] });
   };
 
   const formatCurrency = (amount: string) => {
@@ -168,7 +213,7 @@ export default function PricingPage() {
                           <Button 
                             variant="ghost" 
                             size="sm"
-                            onClick={() => handleEditPricingRule(rule.id)}
+                            onClick={() => handleEditPricingRule(rule)}
                             data-testid={`button-edit-${rule.id}`}
                           >
                             <Edit className="h-4 w-4" />
@@ -176,10 +221,10 @@ export default function PricingPage() {
                           <Button 
                             variant="ghost" 
                             size="sm"
-                            onClick={() => handleDeactivatePricingRule(rule.id)}
-                            data-testid={`button-deactivate-${rule.id}`}
+                            onClick={() => handleDeletePricingRule(rule.id)}
+                            data-testid={`button-delete-${rule.id}`}
                           >
-                            <X className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </td>
@@ -191,6 +236,14 @@ export default function PricingPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Pricing Rule Modal */}
+      <CreatePricingRuleModal 
+        open={showCreateModal}
+        onOpenChange={setShowCreateModal}
+        onSuccess={handleModalSuccess}
+        editingRule={editingRule}
+      />
     </div>
   );
 }

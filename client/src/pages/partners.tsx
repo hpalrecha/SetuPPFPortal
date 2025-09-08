@@ -1,11 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Store, User, MapPin, Phone, Star, BarChart3, Edit } from "lucide-react";
 import type { Partner } from "@shared/schema";
+import { EditPartnerModal } from "@/components/modals/EditPartnerModal";
 
 export default function PartnersPage() {
+  const queryClient = useQueryClient();
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingPartner, setEditingPartner] = useState<any>(null);
+  
   const { data: partners = [], isLoading } = useQuery<Partner[]>({
     queryKey: ["/api/partners"],
     queryFn: async () => {
@@ -26,18 +32,25 @@ export default function PartnersPage() {
   });
 
   const handleAddPartner = () => {
-    // TODO: Open partner creation modal
-    alert("Partner creation form would open here");
+    setEditingPartner(null);
+    setShowEditModal(true);
   };
 
-  const handleEditPartner = (id: string) => {
-    // TODO: Open partner edit modal
-    alert(`Edit partner ${id}`);
+  const handleEditPartner = (partner: any) => {
+    setEditingPartner(partner);
+    setShowEditModal(true);
   };
 
   const handleViewPartner = (id: string) => {
     // TODO: Navigate to partner detail view
     alert(`View partner ${id} dashboard`);
+  };
+
+  const handleModalSuccess = () => {
+    setShowEditModal(false);
+    setEditingPartner(null);
+    // Refresh the data
+    queryClient.invalidateQueries({ queryKey: ["/api/partners"] });
   };
 
   if (isLoading) {
@@ -151,7 +164,7 @@ export default function PartnersPage() {
                   <Button 
                     variant="secondary" 
                     className="flex-1 text-sm"
-                    onClick={() => handleEditPartner(partner.id)}
+                    onClick={() => handleEditPartner(partner)}
                     data-testid={`button-edit-${partner.id}`}
                   >
                     <Edit className="mr-1 h-3 w-3" />
@@ -171,6 +184,14 @@ export default function PartnersPage() {
           ))
         )}
       </div>
+
+      {/* Edit Partner Modal */}
+      <EditPartnerModal 
+        open={showEditModal}
+        onOpenChange={setShowEditModal}
+        onSuccess={handleModalSuccess}
+        partner={editingPartner}
+      />
     </div>
   );
 }
