@@ -35,8 +35,8 @@ export default function WorkOrdersPage() {
     offset: 0
   });
 
-  // Check if user can create work orders (only showroom managers and sales persons)
-  const canCreateWorkOrder = user && ['SHOWROOM_MANAGER', 'SALES_PERSON'].includes(user.role);
+  // Check if user can create work orders (showroom managers, sales persons, and super admin)
+  const canCreateWorkOrder = user && ['SHOWROOM_MANAGER', 'SALES_PERSON', 'SUPER_ADMIN'].includes(user.role);
 
   const { data: workOrders = [], isLoading } = useQuery<WorkOrder[]>({
     queryKey: ["/api/work-orders", filters],

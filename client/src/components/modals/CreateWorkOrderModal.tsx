@@ -32,15 +32,27 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { ApiClient } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
+import { Badge } from "@/components/ui/badge";
+import { Building, Store, Users } from "lucide-react";
 
 const workOrderSchema = z.object({
+  // Organization fields (for Super Admin)
+  oemId: z.string().optional(),
+  dealershipId: z.string().optional(), 
+  showroomId: z.string().optional(),
+  
+  // Vehicle Information
   vehicleBrandId: z.string().min(1, "Vehicle brand is required"),
   vehicleModelId: z.string().min(1, "Vehicle model is required"),
   variant: z.string().optional(),
   regNo: z.string().optional(),
+  
+  // Service Information
   serviceId: z.string().min(1, "Service is required"),
   quantity: z.number().min(1, "Quantity must be at least 1"),
   salesPersonId: z.string().optional(),
+  
+  // Customer Information
   customerName: z.string().min(1, "Customer name is required"),
   customerPhone: z.string().min(1, "Customer phone is required"),
   customerAddress: z.string().optional(),
@@ -63,6 +75,7 @@ export function CreateWorkOrderModal({
   const { user } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   const form = useForm<WorkOrderFormData>({
     resolver: zodResolver(workOrderSchema),
@@ -73,7 +86,60 @@ export function CreateWorkOrderModal({
       serviceId: "",
       customerName: "",
       customerPhone: "",
+      oemId: "",
+      dealershipId: "",
+      showroomId: "",
     },
+  });
+
+  // Fetch OEMs for Super Admin
+  const { data: oems = [] } = useQuery({
+    queryKey: ["/api/oems"],
+    queryFn: async () => {
+      const response = await fetch('/api/oems', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch OEMs');
+      return response.json();
+    },
+    enabled: isSuperAdmin,
+  });
+
+  // Watch OEM selection to fetch dealerships
+  const selectedOemId = form.watch("oemId");
+  const { data: dealerships = [] } = useQuery({
+    queryKey: ["/api/dealerships", selectedOemId],
+    queryFn: async () => {
+      const response = await fetch(`/api/dealerships?oemId=${selectedOemId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch dealerships');
+      return response.json();
+    },
+    enabled: isSuperAdmin && !!selectedOemId,
+  });
+
+  // Watch dealership selection to fetch showrooms  
+  const selectedDealershipId = form.watch("dealershipId");
+  const { data: showrooms = [] } = useQuery({
+    queryKey: ["/api/showrooms", selectedDealershipId],
+    queryFn: async () => {
+      const response = await fetch(`/api/showrooms?dealershipId=${selectedDealershipId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch showrooms');
+      return response.json();
+    },
+    enabled: isSuperAdmin && !!selectedDealershipId,
   });
 
   // Mock data for now - in a real app these would come from APIs
@@ -108,27 +174,48 @@ export function CreateWorkOrderModal({
   ];
 
   const onSubmit = async (data: WorkOrderFormData) => {
-    if (!user?.showroomId || !user?.dealershipId || !user?.oemId) {
-      toast({
-        title: "Error",
-        description: "User context missing",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await ApiClient.post("/api/work-orders", {
+    // For Super Admin, use selected values; for others, use user context
+    let workOrderData;
+    
+    if (isSuperAdmin) {
+      if (!data.oemId || !data.dealershipId || !data.showroomId) {
+        toast({
+          title: "Error", 
+          description: "Please select OEM, Dealership, and Showroom",
+          variant: "destructive",
+        });
+        return;
+      }
+      workOrderData = {
+        ...data,
+        oemId: data.oemId,
+        dealershipId: data.dealershipId, 
+        showroomId: data.showroomId,
+      };
+    } else {
+      if (!user?.showroomId || !user?.dealershipId || !user?.oemId) {
+        toast({
+          title: "Error",
+          description: "User context missing",
+          variant: "destructive",
+        });
+        return;
+      }
+      workOrderData = {
         ...data,
         oemId: user.oemId,
         dealershipId: user.dealershipId,
         showroomId: user.showroomId,
-      });
+      };
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await ApiClient.post("/api/work-orders", workOrderData);
 
       toast({
         title: "Success",
-        description: "Work order created successfully",
+        description: "Work order created successfully and job card assigned to partner",
       });
 
       form.reset();
@@ -154,6 +241,115 @@ export function CreateWorkOrderModal({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Organization Selection (Super Admin Only) */}
+            {isSuperAdmin && (
+              <div className="space-y-4 p-4 border border-blue-200 rounded-lg bg-blue-50">
+                <div className="flex items-center gap-2 mb-4">
+                  <Building className="h-5 w-5 text-blue-600" />
+                  <h3 className="text-lg font-medium text-blue-800">Organization Selection</h3>
+                  <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700">Admin Only</Badge>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="oemId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-blue-700">OEM</FormLabel>
+                        <Select
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            form.setValue("dealershipId", "");
+                            form.setValue("showroomId", "");
+                          }}
+                          value={field.value}
+                          data-testid="select-oem"
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select OEM" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {oems?.map((oem: any) => (
+                              <SelectItem key={oem.id} value={oem.id}>
+                                {oem.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="dealershipId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-blue-700">Dealership</FormLabel>
+                        <Select
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            form.setValue("showroomId", "");
+                          }}
+                          value={field.value}
+                          disabled={!selectedOemId}
+                          data-testid="select-dealership"
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select Dealership" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {dealerships?.map((dealership: any) => (
+                              <SelectItem key={dealership.id} value={dealership.id}>
+                                {dealership.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="showroomId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-blue-700">Showroom</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                          disabled={!selectedDealershipId}
+                          data-testid="select-showroom"
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select Showroom" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {showrooms?.map((showroom: any) => (
+                              <SelectItem key={showroom.id} value={showroom.id}>
+                                {showroom.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Vehicle Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Vehicle Information</h3>
