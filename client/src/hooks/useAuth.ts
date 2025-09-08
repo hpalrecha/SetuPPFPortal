@@ -72,16 +72,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const contextValue = {
+    user,
+    isLoading,
+    login,
+    logout,
+    refreshUser,
+  };
+
   return (
-    <AuthContext.Provider 
-      value={{
-        user,
-        isLoading,
-        login,
-        logout,
-        refreshUser,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
