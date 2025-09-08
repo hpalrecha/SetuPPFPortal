@@ -17,7 +17,8 @@ import {
   Building2,
   Store,
   MapPin,
-  Users
+  Users,
+  Car
 } from "lucide-react";
 
 interface SidebarProps {
@@ -40,6 +41,7 @@ const organizationNavigation = [
   { name: "Dealerships", href: "/dealerships", icon: Store, roles: ["SUPER_ADMIN"] },
   { name: "Showrooms", href: "/showrooms", icon: MapPin, roles: ["SUPER_ADMIN"] },
   { name: "Sales Persons", href: "/sales-persons", icon: Users, roles: ["SUPER_ADMIN"] },
+  { name: "Vehicles", href: "/vehicles", icon: Car, roles: ["SUPER_ADMIN"] },
 ];
 
 const systemNavigation = [
