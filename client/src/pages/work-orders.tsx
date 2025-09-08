@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Eye, Edit } from "lucide-react";
 import type { WorkOrder } from "@shared/schema";
+import { useAuth } from "@/hooks/useAuth";
 
 const statusColors = {
   DRAFT: "bg-gray-100 text-gray-800",
@@ -22,6 +23,7 @@ const statusColors = {
 
 export default function WorkOrdersPage() {
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
   const [filters, setFilters] = useState({
     status: "",
     partnerId: "",
@@ -29,6 +31,9 @@ export default function WorkOrdersPage() {
     limit: 50,
     offset: 0
   });
+
+  // Check if user can create work orders (only showroom managers and sales persons)
+  const canCreateWorkOrder = user && ['SHOWROOM_MANAGER', 'SALES_PERSON'].includes(user.role);
 
   const { data: workOrders = [], isLoading } = useQuery<WorkOrder[]>({
     queryKey: ["/api/work-orders", filters],
@@ -67,10 +72,12 @@ export default function WorkOrdersPage() {
           <h2 className="text-2xl font-semibold text-foreground">Work Orders</h2>
           <p className="text-muted-foreground mt-1">Manage PPF installation requests</p>
         </div>
-        <Button onClick={handleCreateWorkOrder} data-testid="button-create-work-order">
-          <Plus className="mr-2 h-4 w-4" />
-          Create Work Order
-        </Button>
+        {canCreateWorkOrder && (
+          <Button onClick={handleCreateWorkOrder} data-testid="button-create-work-order">
+            <Plus className="mr-2 h-4 w-4" />
+            Create Work Order
+          </Button>
+        )}
       </div>
 
       {/* Filters */}

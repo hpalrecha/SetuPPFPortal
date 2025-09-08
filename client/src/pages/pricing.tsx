@@ -4,11 +4,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, X } from "lucide-react";
 import type { PricingRule } from "@shared/schema";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function PricingPage() {
+  const { user } = useAuth();
+  
+  // Only admins can access pricing rules
+  const canAccessPricing = user && ['SUPER_ADMIN', 'OEM_ADMIN'].includes(user.role);
+  
   const { data: pricingRules = [], isLoading } = useQuery<PricingRule[]>({
     queryKey: ["/api/pricing-rules"],
-    refetchInterval: 30000
+    refetchInterval: 30000,
+    enabled: canAccessPricing // Only fetch if user has access
   });
 
   const handleAddPricingRule = () => {
@@ -34,6 +41,26 @@ export default function PricingPage() {
       maximumFractionDigits: 0
     }).format(Number(amount));
   };
+
+  // Show access denied for non-admin users
+  if (!canAccessPricing) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="text-center space-y-4">
+            <h2 className="text-2xl font-semibold text-foreground">Access Restricted</h2>
+            <p className="text-muted-foreground max-w-md">
+              Pricing rules management is only available to administrators. 
+              Contact your system administrator if you need access.
+            </p>
+            <div className="text-sm text-muted-foreground">
+              Current role: {user?.role || 'Unknown'}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
