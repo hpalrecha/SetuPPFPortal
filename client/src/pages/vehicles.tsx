@@ -5,15 +5,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Search, Edit, Trash2, Car, Building2, Factory } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Car, Building2, Factory, Upload, Download, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { insertVehicleBrandSchema, insertVehicleModelSchema, insertVehicleVariantSchema } from '@shared/schema';
+import * as XLSX from 'xlsx';
 
 type VehicleBrand = {
   id: string;
@@ -63,9 +66,13 @@ export default function VehiclesPage() {
   const [showBrandDialog, setShowBrandDialog] = useState(false);
   const [showModelDialog, setShowModelDialog] = useState(false);
   const [showVariantDialog, setShowVariantDialog] = useState(false);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [editingBrand, setEditingBrand] = useState<VehicleBrand | null>(null);
   const [editingModel, setEditingModel] = useState<VehicleModel | null>(null);
   const [editingVariant, setEditingVariant] = useState<VehicleVariant | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadResults, setUploadResults] = useState<any>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
 
   // Fetch OEMs
@@ -219,6 +226,44 @@ export default function VehiclesPage() {
     }
   });
 
+  // Excel Upload Mutation
+  const uploadExcelMutation = useMutation({
+    mutationFn: async ({ file, oemId }: { file: File; oemId: string }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('oemId', oemId);
+
+      const response = await fetch('/api/vehicle-brands/upload-excel', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setUploadResults(data);
+      setIsUploading(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/vehicle-brands'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/vehicle-models'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/vehicle-variants'] });
+      toast({ title: 'Upload completed', description: data.message });
+    },
+    onError: (error) => {
+      setIsUploading(false);
+      toast({ 
+        title: 'Upload failed', 
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive'
+      });
+    }
+  });
+
   // Filter functions
   const filteredBrands = useMemo(() => {
     return brands.filter(brand =>
@@ -326,6 +371,56 @@ export default function VehiclesPage() {
     }
   };
 
+  const handleUpload = () => {
+    if (!uploadFile || !selectedOemId) {
+      toast({ 
+        title: 'Missing requirements', 
+        description: 'Please select an OEM and choose a file',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadResults(null);
+    uploadExcelMutation.mutate({ file: uploadFile, oemId: selectedOemId });
+  };
+
+  const downloadTemplate = () => {
+    // Create sample Excel template
+    const templateData = [
+      {
+        brand_name: 'Maruti Suzuki',
+        model_name: 'Swift',
+        variant_name: 'VXI',
+        fuel_type: 'PETROL',
+        transmission: 'MANUAL',
+        engine_capacity: '1.2L'
+      },
+      {
+        brand_name: 'Maruti Suzuki',
+        model_name: 'Swift',
+        variant_name: 'ZXI',
+        fuel_type: 'PETROL',
+        transmission: 'AUTOMATIC',
+        engine_capacity: '1.2L'
+      },
+      {
+        brand_name: 'Tata Motors',
+        model_name: 'Nexon',
+        variant_name: 'XM',
+        fuel_type: 'PETROL',
+        transmission: 'MANUAL',
+        engine_capacity: '1.2L'
+      }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Vehicles');
+    XLSX.writeFile(wb, 'vehicle_upload_template.xlsx');
+  };
+
   return (
     <div className="space-y-6" data-testid="vehicles-page">
       {/* Header */}
@@ -337,6 +432,24 @@ export default function VehiclesPage() {
           <p className="text-gray-600 dark:text-gray-400">
             Manage vehicle brands, models, and variants linked to OEMs
           </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={downloadTemplate}
+            data-testid="download-template-btn"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Download Template
+          </Button>
+          <Button
+            onClick={() => setShowUploadDialog(true)}
+            disabled={!selectedOemId}
+            data-testid="upload-excel-btn"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Upload Excel
+          </Button>
         </div>
       </div>
 
@@ -823,6 +936,165 @@ export default function VehiclesPage() {
               </div>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Excel Upload Dialog */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent className="max-w-2xl" data-testid="upload-dialog">
+          <DialogHeader>
+            <DialogTitle>Upload Vehicle Data</DialogTitle>
+            <DialogDescription>
+              Upload an Excel file to bulk import vehicle brands, models, and variants for {oems.find(o => o.id === selectedOemId)?.name}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            {/* File Upload */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Select Excel File
+                </label>
+                <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6">
+                  <div className="text-center">
+                    <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                    <div className="mt-4">
+                      <label className="cursor-pointer">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          Click to upload or drag and drop
+                        </span>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept=".xlsx,.xls"
+                          onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                          data-testid="file-input"
+                        />
+                      </label>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Excel files only (XLSX, XLS)
+                    </p>
+                  </div>
+                </div>
+                
+                {uploadFile && (
+                  <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-800 rounded text-sm">
+                    Selected: {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
+                  </div>
+                )}
+              </div>
+
+              {/* Expected Format */}
+              <div>
+                <h4 className="text-sm font-medium mb-2">Expected Excel Format:</h4>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded p-3 text-xs font-mono">
+                  <div className="grid grid-cols-6 gap-2 font-semibold border-b border-gray-300 dark:border-gray-600 pb-1">
+                    <span>brand_name</span>
+                    <span>model_name</span>
+                    <span>variant_name</span>
+                    <span>fuel_type</span>
+                    <span>transmission</span>
+                    <span>engine_capacity</span>
+                  </div>
+                  <div className="grid grid-cols-6 gap-2 pt-1">
+                    <span>Maruti Suzuki</span>
+                    <span>Swift</span>
+                    <span>VXI</span>
+                    <span>PETROL</span>
+                    <span>MANUAL</span>
+                    <span>1.2L</span>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  * brand_name and model_name are required. Other fields are optional.
+                </p>
+              </div>
+            </div>
+
+            {/* Upload Progress */}
+            {isUploading && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span>Uploading and processing...</span>
+                </div>
+                <Progress value={undefined} className="h-2" />
+              </div>
+            )}
+
+            {/* Upload Results */}
+            {uploadResults && (
+              <div className="space-y-4">
+                <Alert>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {uploadResults.message}
+                  </AlertDescription>
+                </Alert>
+
+                {uploadResults.results.created.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-green-700 dark:text-green-400 mb-2">
+                      Successfully Created:
+                    </h4>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {uploadResults.results.created.map((item: any, index: number) => (
+                        <div key={index} className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-2 text-xs">
+                          <div className="font-medium">Brand: {item.brand}</div>
+                          {item.models.length > 0 && (
+                            <div>Models: {item.models.join(', ')}</div>
+                          )}
+                          {item.variants.length > 0 && (
+                            <div>Variants: {item.variants.map((v: any) => `${v.model} - ${v.variant}`).join(', ')}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {uploadResults.results.errors.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-red-700 dark:text-red-400 mb-2">
+                      Errors ({uploadResults.results.errors.length}):
+                    </h4>
+                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                      {uploadResults.results.errors.map((error: any, index: number) => (
+                        <div key={index} className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2 text-xs">
+                          <div className="font-medium">Row {error.row}: {error.error}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => {
+                  setShowUploadDialog(false);
+                  setUploadFile(null);
+                  setUploadResults(null);
+                }}
+              >
+                {uploadResults ? 'Close' : 'Cancel'}
+              </Button>
+              {!uploadResults && (
+                <Button 
+                  onClick={handleUpload}
+                  disabled={!uploadFile || isUploading}
+                  data-testid="upload-btn"
+                >
+                  {isUploading ? 'Uploading...' : 'Upload'}
+                </Button>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

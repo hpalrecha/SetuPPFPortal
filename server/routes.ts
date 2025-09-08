@@ -15,6 +15,24 @@ import { storage } from "./storage";
 import { authService } from "./auth";
 import { authenticate, requireRole, requireOEMAccess, auditLog } from "./middleware";
 import { ObjectStorageService } from "./objectStorage";
+import multer from "multer";
+import * as XLSX from "xlsx";
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+        file.mimetype === 'application/vnd.ms-excel') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only Excel files are allowed'));
+    }
+  }
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication Routes
@@ -288,6 +306,157 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Delete vehicle variant error:", error);
         res.status(500).json({ error: "Failed to delete vehicle variant" });
+      }
+    }
+  );
+
+  // Vehicle Excel Upload Route
+  app.post("/api/vehicle-brands/upload-excel",
+    authenticate,
+    requireRole(['SUPER_ADMIN']),
+    upload.single('file'),
+    auditLog('vehicle_brand', 'bulk_upload'),
+    async (req, res) => {
+      try {
+        if (!req.file) {
+          return res.status(400).json({ error: "No file uploaded" });
+        }
+
+        const { oemId } = req.body;
+        if (!oemId) {
+          return res.status(400).json({ error: "OEM ID is required" });
+        }
+
+        // Verify OEM exists
+        const oem = await storage.getOem(oemId);
+        if (!oem) {
+          return res.status(400).json({ error: "Invalid OEM ID" });
+        }
+
+        // Parse Excel file
+        const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const data = XLSX.utils.sheet_to_json(worksheet);
+
+        const results = {
+          success: 0,
+          errors: [] as Array<{ row: number; error: string; data: any }>,
+          created: [] as Array<{ brand: string; models: string[]; variants: Array<{ model: string; variant: string }> }>
+        };
+
+        // Process each row
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i] as any;
+          const rowNum = i + 2; // Excel row number (starting from 2, assuming row 1 is headers)
+
+          try {
+            // Validate required fields
+            if (!row.brand_name || typeof row.brand_name !== 'string') {
+              results.errors.push({
+                row: rowNum,
+                error: 'Brand name is required',
+                data: row
+              });
+              continue;
+            }
+
+            if (!row.model_name || typeof row.model_name !== 'string') {
+              results.errors.push({
+                row: rowNum,
+                error: 'Model name is required',
+                data: row
+              });
+              continue;
+            }
+
+            const brandName = row.brand_name.trim();
+            const modelName = row.model_name.trim();
+            const variantName = row.variant_name?.trim() || '';
+            const fuelType = row.fuel_type?.trim() || '';
+            const transmission = row.transmission?.trim() || '';
+            const engineCapacity = row.engine_capacity?.trim() || '';
+
+            // Check if brand already exists for this OEM
+            let brand = (await storage.getVehicleBrands({ oemId }))
+              .find(b => b.name.toLowerCase() === brandName.toLowerCase());
+
+            // Create brand if it doesn't exist
+            if (!brand) {
+              brand = await storage.createVehicleBrand({
+                oemId,
+                name: brandName,
+                active: true
+              });
+
+              const brandResult = results.created.find(r => r.brand === brandName);
+              if (!brandResult) {
+                results.created.push({ brand: brandName, models: [], variants: [] });
+              }
+            }
+
+            // Check if model already exists for this brand
+            let model = (await storage.getVehicleModels({ brandId: brand.id }))
+              .find(m => m.modelName.toLowerCase() === modelName.toLowerCase());
+
+            // Create model if it doesn't exist
+            if (!model) {
+              model = await storage.createVehicleModel({
+                brandId: brand.id,
+                modelName: modelName,
+                active: true
+              });
+
+              const brandResult = results.created.find(r => r.brand === brandName);
+              if (brandResult && !brandResult.models.includes(modelName)) {
+                brandResult.models.push(modelName);
+              }
+            }
+
+            // Create variant if specified and doesn't exist
+            if (variantName) {
+              const existingVariant = (await storage.getVehicleVariants({ modelId: model.id }))
+                .find(v => v.variantName.toLowerCase() === variantName.toLowerCase());
+
+              if (!existingVariant) {
+                await storage.createVehicleVariant({
+                  modelId: model.id,
+                  variantName: variantName,
+                  fuelType: fuelType || undefined,
+                  transmission: transmission || undefined,
+                  engineCapacity: engineCapacity || undefined,
+                  active: true
+                });
+
+                const brandResult = results.created.find(r => r.brand === brandName);
+                if (brandResult) {
+                  brandResult.variants.push({ model: modelName, variant: variantName });
+                }
+              }
+            }
+
+            results.success++;
+
+          } catch (error) {
+            results.errors.push({
+              row: rowNum,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              data: row
+            });
+          }
+        }
+
+        res.json({
+          message: `Upload completed. ${results.success} records processed successfully.`,
+          results
+        });
+
+      } catch (error) {
+        console.error("Excel upload error:", error);
+        res.status(500).json({ 
+          error: "Failed to process Excel file",
+          details: error instanceof Error ? error.message : 'Unknown error'
+        });
       }
     }
   );
