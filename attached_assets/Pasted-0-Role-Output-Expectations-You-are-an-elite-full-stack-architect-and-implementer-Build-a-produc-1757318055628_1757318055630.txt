@@ -1,0 +1,552 @@
+0) Role & Output Expectations
+
+You are an elite full-stack architect and implementer. Build a production-grade, multi-tenant web app that lets Vehicle OEMs and their stakeholders place PPF installation orders from showrooms and get them automatically assigned to detailers/installers with pricing, commissions, proofs, and approvals.
+
+Deliverables (in one repository)
+
+README.md with setup, env vars, tenant bootstrap, and run commands.
+
+docker-compose.yml for DB + app + worker + cache.
+
+Backend service with:
+
+OpenAPI 3.1 spec (/openapi.yaml) covering all endpoints.
+
+Database migrations & seeders.
+
+RBAC middleware & policy files.
+
+Webhooks (outbound events) + inbound webhook handler.
+
+Background workers/queues for notifications & SLAs.
+
+Unit/integration tests (cover status transitions & money math).
+
+Frontend app with:
+
+Role-based dashboards and CRUD screens per spec below.
+
+Status-driven job cards, image upload, approval flows.
+
+Audit views & activity timeline on Work Orders.
+
+Infra & security:
+
+JWT/OAuth2 auth, multi-tenant isolation by OEM.
+
+Field-level validation, idempotency keys for write ops, optimistic locking.
+
+File storage abstraction (S3/local) with signed URLs.
+
+Dev extras:
+
+Postman/Insomnia collection.
+
+ERD diagram (/docs/erd.mmd) and BPMN diagrams for flows (/docs/flows.mmd).
+
+Sample .env.example.
+
+Prefer TypeScript, PostgreSQL, Prisma/TypeORM, NestJS (or FastAPI) + Next.js. Use queues (e.g., BullMQ/RQ) and Redis. Clean, testable code.
+
+1) Business Context & Actors
+
+Entities and roles (each with login & permissions):
+
+Super Admin (platform owner): global settings, tenants, pricing templates, global reports.
+
+OEM Admin (e.g., Tata, Kia): manages its dealerships, brand vehicles, visibility on metrics.
+
+Dealership Admin: manages its showrooms, assigns Sales Persons, sets per-partner pricing overrides.
+
+Showroom Manager: raises Work Orders, verifies & approves completed jobs, sets Sales Person commissions (fixed or %).
+
+Sales Person (under Showroom): visible only to its showroom; earns commission per installation order.
+
+Detailer Studio (partner): a studio business that can be allocated to one or more showrooms/dealerships.
+
+Installer (partner): an individual/freelancer who can be allocated similarly; can be linked to a studio or separate.
+
+Partner Admin/Staff (for Detailer/Installer): sees assigned jobs, acknowledges, schedules, starts, completes, uploads proof.
+
+Multi-allocation rules:
+
+A showroom can allocate multiple detailers/installers.
+
+Allocation can be done at dealership level (applies to all its showrooms) or per showroom.
+
+Pricing is configurable per partner × showroom/dealership × vehicle × service.
+
+Sales Person commission is configurable per showroom (amount or %).
+
+2) Core Definitions & Status Machines
+2.1 Work Order (WO)
+
+Raised only by Showroom (not OEM or Dealership).
+
+Purpose: request a PPF installation on a specific vehicle/service bundle.
+
+WO Statuses:
+
+DRAFT → SUBMITTED → ASSIGNED → (reflected from Job Card states) → COMPLETED_PENDING_APPROVAL → APPROVED → CLOSED
+
+Cancellation: CANCELLED (if WO withdrawn before approval).
+
+Rework path: REWORK_REQUESTED → back to job in progress → returns to COMPLETED_PENDING_APPROVAL.
+
+Assignment:
+
+Auto-assign to the highest-priority allocated partner (see allocation table) OR manual selection by Showroom Manager.
+
+On assignment, create Job Card.
+
+2.2 Job Card (JC) — owned by Partner (Detailer/Installer)
+
+Mirrors execution; linked 1:1 to a WO.
+
+JC Statuses:
+
+AWAITING_ACK (partner must acknowledge) → ACKNOWLEDGED → SCHEDULED (visit_date/time) → IN_PROGRESS → COMPLETED (proof uploaded) → PENDING_APPROVAL (awaiting showroom approval) → APPROVED (locks pricing & commission) → CLOSED
+
+Failure paths:
+
+NO_SHOW / CANCELLED_BY_CUSTOMER / PARTS_PENDING (optional) → may transition to RESCHEDULED.
+
+REWORK_REQUESTED (adds rework child JC or re-opens to IN_PROGRESS).
+
+Proof Requirements:
+
+Minimum N images (configurable), remarks, optional video, and checklist (quality gates).
+
+Approval:
+
+Only Showroom Manager (or configured approver) can approve.
+
+On approval, trigger payouts computation & commission calculation.
+
+3) Data Model (propose SQL tables & key fields)
+3.1 Organization & Users
+
+oems (id, name, brand_code, logo_url, active)
+
+dealerships (id, oem_id, name, code, active)
+
+showrooms (id, dealership_id, name, code, address, city, state, pincode, active)
+
+users (id, email, phone, password_hash, role, oem_id?, dealership_id?, showroom_id?, partner_id?, is_active)
+
+roles (id, name, scope) and user_role_assignments (user_id, role_id, scope_ids)
+
+sales_persons (id, showroom_id, name, phone, email, active)
+
+3.2 Partners (Detailers/Installers)
+
+partners (id, type: STUDIO|INSTALLER, display_name, gstin?, pan?, address, active)
+
+partner_members (id, partner_id, user_id, role: ADMIN|STAFF)
+
+allocations (id, level: DEALERSHIP|SHOWROOM, level_id, partner_id, priority INT, active)
+
+3.3 Catalog & Pricing
+
+vehicle_brands (id, oem_id, name)
+
+vehicle_models (id, brand_id, model_name, variant?)
+
+services (id, name, code: e.g., PPF_FULL, PPF_PARTIAL, WINDOW_FILM, meta json)
+
+pricing_rules (
+id, partner_id, scope: SHOWROOM|DEALERSHIP,
+scope_id, vehicle_model_id?, service_id,
+price_amount, currency,
+effective_from, effective_to, status
+)
+
+commission_rules (
+id, showroom_id, sales_person_id?, service_id?,
+type: PERCENT|AMOUNT, value_numeric, cap_amount?, floor_amount?, effective_from, effective_to, status
+)
+
+3.4 Work Execution
+
+work_orders (
+id, oem_id, dealership_id, showroom_id,
+created_by_user_id, status,
+vehicle_brand_id, vehicle_model_id, variant?, reg_no?,
+service_id, quantity, notes, sales_person_id?,
+assigned_partner_id?, assigned_job_card_id?, customer_name?, customer_phone?, customer_address?,
+created_at, updated_at
+)
+
+job_cards (
+id, work_order_id, partner_id,
+status, scheduled_at?, started_at?, completed_at?,
+checklist_json, remarks, approval_requested_at?, approved_at?, approved_by_user_id?,
+pricing_snapshot_json, commission_snapshot_json,
+created_at, updated_at
+)
+
+job_card_media (id, job_card_id, type: IMAGE|VIDEO, url, caption?)
+
+approvals (id, job_card_id, approver_user_id, status, remarks, decided_at)
+
+3.5 Money & Reporting
+
+payouts (id, job_card_id, partner_id, gross_amount, adjustments_json, net_amount, status, paid_at)
+
+commissions (id, job_card_id, showroom_id, sales_person_id, basis, value, computed_amount, status, paid_at)
+
+invoices (optional, if needed for OEM billing) (id, org_id, amount, status…)
+
+3.6 System
+
+notifications (id, actor_id, channel, payload_json, sent_at, status)
+
+audit_logs (id, actor_user_id, entity, entity_id, action, diff_json, created_at)
+
+webhook_subscriptions (id, tenant_scope, event, target_url, secret, is_active)
+
+idempotency_keys (key, first_seen_at, response_hash)
+
+Add indexes for: tenant keys, status, foreign keys, and frequently queried fields.
+
+4) RBAC Matrix (high-level)
+
+Super Admin: everything.
+
+OEM Admin: CRUD dealerships/showrooms under OEM; view all metrics for OEM; cannot raise WOs.
+
+Dealership Admin: CRUD showrooms under dealership, manage allocations (dealership scope), pricing overrides at dealership scope; view dealership metrics.
+
+Showroom Manager: raise & manage WOs, approve Job Cards, manage showroom allocations and pricing overrides at showroom scope, set Sales Person commissions, view showroom metrics.
+
+Sales Person: view their orders/earnings only (no approvals).
+
+Partner Admin/Staff: view assigned WOs/JCs, acknowledge/schedule/start/complete, upload proofs; no access to showroom private data.
+
+Enforce strict tenant isolation (OEM boundary). All queries scoped to OEM unless Super Admin.
+
+5) Business Rules
+5.1 Allocation & Assignment
+
+On WO SUBMITTED, system selects partner:
+
+If a manual partner is chosen by Showroom Manager, honor that.
+
+Else pick highest-priority active allocation at showroom level.
+
+Else fallback to dealership level allocations.
+
+Create JC with AWAITING_ACK. Notify partner.
+
+5.2 Job Flow & Approval
+
+Partner must move states in order: AWAITING_ACK → ACKNOWLEDGED → set SCHEDULED (with datetime) → IN_PROGRESS → upload proofs → COMPLETED → PENDING_APPROVAL.
+
+Showroom can APPROVE, REJECT (with reason and optional rework), or REQUEST_REWORK.
+
+On APPROVED, freeze pricing snapshot and commission snapshot and compute payouts.
+
+5.3 Pricing
+
+Resolve price in this order:
+
+Exact match rule: (partner, showroom, vehicle_model, service)
+
+Fallback: (partner, showroom, service)
+
+Fallback: (partner, dealership, vehicle_model, service)
+
+Fallback: (partner, dealership, service)
+
+Else error: “No pricing rule found”.
+
+Support future-dated rules (effective_from/to).
+
+5.4 Commission
+
+Resolve commission rule in this order:
+
+Exact match: (showroom, sales_person, service)
+
+Fallback: (showroom, sales_person)
+
+Fallback: (showroom, service)
+
+Fallback: (showroom default)
+
+Else: 0
+
+Compute amount = min(max(basis_value, floor), cap) where basis is % of (approved price) or flat amount.
+
+5.5 SLAs & Notifications
+
+SLA: AWAITING_ACK > X hours → alert showroom + partner supervisor.
+
+SLA: SCHEDULED but not IN_PROGRESS by schedule time → alert.
+
+Events send notifications (email/SMS/WhatsApp/push) via queue.
+
+6) APIs (OpenAPI should include these routes)
+6.1 Auth & Tenancy
+
+POST /auth/login
+
+POST /auth/impersonate (Super Admin only)
+
+Tenancy via headers: X-OEM-ID (required for OEM-scoped sessions)
+
+6.2 Org & Master Data
+
+CRUD: /oems, /dealerships, /showrooms, /sales-persons
+
+Catalog: /vehicle-brands, /vehicle-models, /services
+
+Partners: /partners, /partners/{id}/members, /allocations
+
+6.3 Pricing & Commission
+
+/pricing-rules (CRUD, search with resolution preview)
+
+/commission-rules (CRUD, preview calculation)
+
+6.4 Work Orders & Job Cards
+
+POST /work-orders (Showroom only)
+
+GET /work-orders?status=&showroom_id=&partner_id=&sales_person_id=
+
+POST /work-orders/{id}/submit
+
+POST /work-orders/{id}/assign (optional manual)
+
+GET /work-orders/{id}
+
+POST /job-cards/{id}/acknowledge
+
+POST /job-cards/{id}/schedule (datetime)
+
+POST /job-cards/{id}/start
+
+POST /job-cards/{id}/upload-proof (multi file)
+
+POST /job-cards/{id}/complete
+
+POST /job-cards/{id}/request-approval
+
+POST /job-cards/{id}/approve
+
+POST /job-cards/{id}/reject (reason)
+
+POST /job-cards/{id}/request-rework (reason)
+
+6.5 Money
+
+GET /payouts?partner_id=&status=
+
+GET /commissions?sales_person_id=&status=
+
+6.6 Reports & Dashboards
+
+/dashboards/oem
+
+/dashboards/dealership
+
+/dashboards/showroom
+
+/dashboards/partner
+
+/reports/export.csv?type=...
+
+6.7 Webhooks (Outbound)
+
+Emit events (with idempotency + HMAC signature):
+
+work_order.created|submitted|assigned|status_changed
+
+job_card.created|scheduled|in_progress|completed|approved|rework_requested
+
+payout.computed|paid
+
+commission.computed|paid
+
+6.8 Inbound Webhook
+
+POST /webhooks/inbound/{source} (for WhatsApp uploads, scanning apps, etc.)
+
+7) Validation & Edge Cases
+
+Mandatory proofs: at least N images before COMPLETE.
+
+Rescheduling requires future datetime.
+
+Prevent concurrent state jumps (optimistic locking).
+
+Prevent price/commission changes after approval (snapshots).
+
+File type/size limits; virus scan hook.
+
+Soft delete for most masters; preserve referential integrity.
+
+8) Dashboards & KPIs (examples)
+OEM Dashboard
+
+Total WOs by status, avg TAT, approval rates, by dealership/showroom.
+
+Partner performance (ack time, first-attempt pass rate).
+
+Top vehicle models/services.
+
+Dealership Dashboard
+
+WOs by showroom, SLA breaches, rework %, average cost.
+
+Showroom Dashboard
+
+Open WOs, today’s schedules, pending approvals, Sales Person earnings.
+
+Conversion funnel: Submitted → Assigned → In-Progress → Approved.
+
+Partner Dashboard (Detailer/Installer)
+
+Today’s jobs, SLA alerts, approval pending list, payout pipeline.
+
+9) Frontend Screens (minimum)
+
+Login/forgot/password reset.
+
+Master management (OEM→Dealership→Showroom).
+
+Partner & allocation screens with priority ordering (drag-drop).
+
+Vehicle/Service catalog.
+
+Pricing rule editor with preview resolution pane.
+
+Commission rule editor with preview.
+
+Work Order creation (Showroom): vehicle details, service, Sales Person, customer info.
+
+Job Card execution view: acknowledge, schedule (calendar), start, checklist, upload proofs, complete.
+
+Approval screen with side-by-side proofs & remarks; approve/reject/rework.
+
+Payouts & Commissions list/detail.
+
+Audit log viewer on WO/JC.
+
+10) ERD & Flow Diagrams (Mermaid—generate .mmd files)
+10.1 ERD (save as /docs/erd.mmd)
+erDiagram
+  OEMS ||--o{ DEALERSHIPS : has
+  DEALERSHIPS ||--o{ SHOWROOMS : has
+  SHOWROOMS ||--o{ SALES_PERSONS : has
+  PARTNERS ||--o{ PARTNER_MEMBERS : has
+  SHOWROOMS ||--o{ ALLOCATIONS : defines
+  DEALERSHIPS ||--o{ ALLOCATIONS : defines
+  VEHICLE_BRANDS ||--o{ VEHICLE_MODELS : has
+  WORK_ORDERS ||--|{ JOB_CARDS : creates
+  JOB_CARDS ||--o{ JOB_CARD_MEDIA : has
+  SHOWROOMS ||--o{ WORK_ORDERS : raises
+  PARTNERS ||--o{ JOB_CARDS : executes
+  PARTNERS ||--o{ PRICING_RULES : sets
+  SHOWROOMS ||--o{ COMMISSION_RULES : sets
+  JOB_CARDS ||--o{ PAYOUTS : yields
+  JOB_CARDS ||--o{ COMMISSIONS : yields
+
+  OEMS {int id}
+  DEALERSHIPS {int id oem_id}
+  SHOWROOMS {int id dealership_id}
+  SALES_PERSONS {int id showroom_id}
+  PARTNERS {int id type}
+  ALLOCATIONS {int id level level_id partner_id priority}
+  VEHICLE_BRANDS {int id oem_id}
+  VEHICLE_MODELS {int id brand_id}
+  SERVICES {int id code}
+  PRICING_RULES {int id partner_id scope scope_id vehicle_model_id service_id price}
+  COMMISSION_RULES {int id showroom_id sales_person_id type value}
+  WORK_ORDERS {int id showroom_id service_id vehicle_model_id status}
+  JOB_CARDS {int id work_order_id partner_id status}
+  JOB_CARD_MEDIA {int id job_card_id url}
+  PAYOUTS {int id job_card_id net_amount}
+  COMMISSIONS {int id job_card_id computed_amount}
+
+10.2 BPMN (save as /docs/flows.mmd)
+flowchart LR
+A[Showroom raises Work Order] --> B[Submit WO]
+B --> C{Auto/Manual Assign Partner}
+C -->|Assigned| D[Create Job Card (AWAITING_ACK)]
+D --> E[Acknowledge]
+E --> F[Schedule Visit]
+F --> G[Start (IN_PROGRESS)]
+G --> H[Complete & Upload Proofs]
+H --> I[Request Approval (PENDING_APPROVAL)]
+I --> J{Showroom Review}
+J -->|Approve| K[Freeze price & commission → Compute payouts → CLOSED]
+J -->|Reject| L[REJECTED → close or re-raise]
+J -->|Rework| M[REWORK_REQUESTED → back to IN_PROGRESS]
+
+11) Seed Data
+
+2 OEMs (Tata, Kia) → 3 dealerships each → 2 showrooms each.
+
+4 partners (2 studios, 2 installers) with allocations at different priorities.
+
+6 vehicle models per OEM, 3 services.
+
+Pricing rules covering all resolution tiers.
+
+Commission rules: showroom default + per Sales Person override.
+
+10 sample Work Orders across statuses.
+
+12) Testing Checklist
+
+Price resolution precedence & time-bounded rules.
+
+Commission precedence & caps/floors.
+
+State transition guards & optimistic locking.
+
+Approval immutability of money snapshots.
+
+Multi-tenant scoping & RBAC denial cases.
+
+Webhook HMAC verification & idempotency.
+
+13) Integration Hooks (optional but helpful)
+
+Outbound webhooks for n8n flows on key events.
+
+Inbound media via WhatsApp API (map to job_card_media).
+
+Email/SMS providers abstracted behind a NotificationService interface.
+
+14) Non-Functional
+
+Pagination, filtering, sorting on list endpoints.
+
+Full-text search on Work Orders by reg_no/customer.
+
+Metrics endpoints cache with TTL.
+
+GDPR-like deletion/anonymization for customer PII.
+
+Config flags: min proof images, SLA hours, allowed file types.
+
+Now generate the repository with the above structure:
+
+Propose the stack (TS/NestJS + Next.js + Postgres), then scaffold code.
+
+Output the OpenAPI spec and DB migrations.
+
+Implement core endpoints, RBAC, and flows.
+
+Provide the ERD and BPMN .mmd files.
+
+Include seeders and fixtures.
+
+Provide sample .env.example and Docker Compose.
+
+Ship tests and a Postman collection.
+
+If something is ambiguous, choose the most enterprise-sane default and document it in README.
