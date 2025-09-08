@@ -233,8 +233,16 @@ export default function VehiclesPage() {
       formData.append('file', file);
       formData.append('oemId', oemId);
 
+      // Get auth token from localStorage
+      const token = localStorage.getItem('auth_token');
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch('/api/vehicle-brands/upload-excel', {
         method: 'POST',
+        headers,
         body: formData,
         credentials: 'include',
       });
