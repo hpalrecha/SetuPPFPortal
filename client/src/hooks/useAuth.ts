@@ -56,7 +56,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(null);
     } catch (error) {
       console.error("Logout error:", error);
-      // Still clear the user state even if logout fails
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -73,16 +72,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const value: AuthContextType = {
-    user,
-    isLoading,
-    login,
-    logout,
-    refreshUser,
-  };
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider 
+      value={{
+        user,
+        isLoading,
+        login,
+        logout,
+        refreshUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
