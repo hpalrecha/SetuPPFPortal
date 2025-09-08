@@ -122,7 +122,6 @@ export default function WorkOrdersPage() {
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Status</SelectItem>
                 <SelectItem value="DRAFT">Draft</SelectItem>
                 <SelectItem value="SUBMITTED">Submitted</SelectItem>
                 <SelectItem value="ASSIGNED">Assigned</SelectItem>
@@ -141,7 +140,6 @@ export default function WorkOrdersPage() {
                 <SelectValue placeholder="All Partners" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Partners</SelectItem>
                 <SelectItem value="partner1">DetailCare Studio</SelectItem>
                 <SelectItem value="partner2">ProShield Installers</SelectItem>
               </SelectContent>
