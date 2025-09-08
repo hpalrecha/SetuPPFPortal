@@ -1,0 +1,751 @@
+{
+  "info": {
+    "name": "SetuPPF API",
+    "description": "Complete API collection for SetuPPF - PPF Installation Management Portal",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "oemId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{authToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('authToken', response.token);",
+                  "    pm.collectionVariables.set('oemId', response.user.oemId);",
+                  "    console.log('Login successful, token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"manager@tatacp.com\",\n  \"password\": \"password123\",\n  \"oemId\": \"tata-oem-id\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Get Dashboard Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-OEM-ID",
+                "value": "{{oemId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/metrics",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "metrics"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Work Orders",
+      "item": [
+        {
+          "name": "List Work Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-OEM-ID",
+                "value": "{{oemId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/work-orders?limit=50&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["work-orders"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "status",
+                  "value": "SUBMITTED",
+                  "disabled": true
+                },
+                {
+                  "key": "partnerId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Work Order",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-OEM-ID",
+                "value": "{{oemId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/work-orders/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["work-orders", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "work-order-id"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Work Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-OEM-ID",
+                "value": "{{oemId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicleBrandId\": \"brand-id\",\n  \"vehicleModelId\": \"model-id\",\n  \"variant\": \"XZ+\",\n  \"regNo\": \"MH12AB1234\",\n  \"serviceId\": \"service-id\",\n  \"quantity\": 1,\n  \"salesPersonId\": \"sales-person-id\",\n  \"customerName\": \"John Doe\",\n  \"customerPhone\": \"+919876543210\",\n  \"customerAddress\": \"123 Main Street, Mumbai\",\n  \"notes\": \"Customer requested premium PPF\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/work-orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["work-orders"]
+            }
+          }
+        },
+        {
+          "name": "Update Work Order",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-OEM-ID",
+                "value": "{{oemId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"SUBMITTED\",\n  \"assignedPartnerId\": \"partner-id\",\n  \"notes\": \"Updated notes\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/work-orders/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["work-orders", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "work-order-id"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Job Cards",
+      "item": [
+        {
+          "name": "List Job Cards",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/job-cards?limit=50&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["job-cards"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "status",
+                  "value": "PENDING_APPROVAL",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Job Card",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_PROGRESS\",\n  \"remarks\": \"Work has been started\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/job-cards/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["job-cards", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "job-card-id"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Acknowledge Job Card",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/job-cards/:id/acknowledge",
+              "host": ["{{baseUrl}}"],
+              "path": ["job-cards", ":id", "acknowledge"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "job-card-id"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Schedule Job Card",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scheduledAt\": \"2024-12-15T10:00:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/job-cards/:id/schedule",
+              "host": ["{{baseUrl}}"],
+              "path": ["job-cards", ":id", "schedule"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "job-card-id"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Start Job Card",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/job-cards/:id/start",
+              "host": ["{{baseUrl}}"],
+              "path": ["job-cards", ":id", "start"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "job-card-id"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Complete Job Card",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"remarks\": \"Installation completed successfully. All quality checks passed.\",\n  \"checklistJson\": {\n    \"surfacePrep\": true,\n    \"bubbleFree\": true,\n    \"edgesSealed\": true,\n    \"qualityCheck\": true,\n    \"customerSatisfied\": true\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/job-cards/:id/complete",
+              "host": ["{{baseUrl}}"],
+              "path": ["job-cards", ":id", "complete"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "job-card-id"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Request Approval",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/job-cards/:id/request-approval",
+              "host": ["{{baseUrl}}"],
+              "path": ["job-cards", ":id", "request-approval"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "job-card-id"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Approve Job Card",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"remarks\": \"Work approved. Excellent quality.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/job-cards/:id/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["job-cards", ":id", "approve"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "job-card-id"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reject Job Card",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Quality issues found. Please redo the installation.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/job-cards/:id/reject",
+              "host": ["{{baseUrl}}"],
+              "path": ["job-cards", ":id", "reject"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "job-card-id"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Request Rework",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Minor bubbles found on the hood. Please fix.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/job-cards/:id/request-rework",
+              "host": ["{{baseUrl}}"],
+              "path": ["job-cards", ":id", "request-rework"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "job-card-id"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Partners",
+      "item": [
+        {
+          "name": "List Partners",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-OEM-ID",
+                "value": "{{oemId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/partners",
+              "host": ["{{baseUrl}}"],
+              "path": ["partners"]
+            }
+          }
+        },
+        {
+          "name": "Create Partner",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"STUDIO\",\n  \"displayName\": \"Premium PPF Studio\",\n  \"gstin\": \"GST123456789\",\n  \"pan\": \"ABCDE1234F\",\n  \"address\": \"123 Business Park, Sector 18\",\n  \"city\": \"Noida\",\n  \"state\": \"Uttar Pradesh\",\n  \"phone\": \"+919876543210\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/partners",
+              "host": ["{{baseUrl}}"],
+              "path": ["partners"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pricing Rules",
+      "item": [
+        {
+          "name": "List Pricing Rules",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-OEM-ID",
+                "value": "{{oemId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pricing-rules",
+              "host": ["{{baseUrl}}"],
+              "path": ["pricing-rules"],
+              "query": [
+                {
+                  "key": "partnerId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "scopeId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Pricing Rule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"partnerId\": \"partner-id\",\n  \"scope\": \"SHOWROOM\",\n  \"scopeId\": \"showroom-id\",\n  \"vehicleModelId\": \"model-id\",\n  \"serviceId\": \"service-id\",\n  \"priceAmount\": \"45000.00\",\n  \"currency\": \"INR\",\n  \"effectiveFrom\": \"2024-01-01T00:00:00.000Z\",\n  \"effectiveTo\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pricing-rules",
+              "host": ["{{baseUrl}}"],
+              "path": ["pricing-rules"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Commission Rules",
+      "item": [
+        {
+          "name": "List Commission Rules",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-OEM-ID",
+                "value": "{{oemId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/commission-rules",
+              "host": ["{{baseUrl}}"],
+              "path": ["commission-rules"],
+              "query": [
+                {
+                  "key": "showroomId",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Commission Rule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"showroomId\": \"showroom-id\",\n  \"salesPersonId\": \"sales-person-id\",\n  \"serviceId\": \"service-id\",\n  \"type\": \"PERCENT\",\n  \"valueNumeric\": \"8.00\",\n  \"capAmount\": \"5000.00\",\n  \"floorAmount\": \"1000.00\",\n  \"effectiveFrom\": \"2024-01-01T00:00:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/commission-rules",
+              "host": ["{{baseUrl}}"],
+              "path": ["commission-rules"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "File Upload",
+      "item": [
+        {
+          "name": "Get Upload URL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('uploadURL', response.uploadURL);",
+                  "    console.log('Upload URL obtained:', response.uploadURL);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/objects/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["objects", "upload"]
+            }
+          }
+        },
+        {
+          "name": "Upload Job Card Media",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mediaUrls\": [\n    \"https://storage.googleapis.com/bucket/proof1.jpg\",\n    \"https://storage.googleapis.com/bucket/proof2.jpg\",\n    \"https://storage.googleapis.com/bucket/proof3.jpg\",\n    \"https://storage.googleapis.com/bucket/proof4.jpg\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/job-cards/:id/media",
+              "host": ["{{baseUrl}}"],
+              "path": ["job-cards", ":id", "media"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "job-card-id"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "OEMs",
+      "item": [
+        {
+          "name": "List OEMs",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/oems",
+              "host": ["{{baseUrl}}"],
+              "path": ["oems"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-add authentication header if token exists",
+          "const token = pm.collectionVariables.get('authToken');",
+          "if (token) {",
+          "    pm.request.headers.add({",
+          "        key: 'Authorization',",
+          "        value: 'Bearer ' + token",
+          "    });",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global response validation",
+          "pm.test('Response time is less than 2000ms', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+          "});",
+          "",
+          "// Check for common error codes",
+          "if (pm.response.code === 401) {",
+          "    pm.test('Authentication required', function () {",
+          "        pm.expect(pm.response.json().error).to.include('Authentication');",
+          "    });",
+          "}",
+          "",
+          "if (pm.response.code === 403) {",
+          "    pm.test('Access forbidden', function () {",
+          "        pm.expect(pm.response.json().error).to.include('Forbidden');",
+          "    });",
+          "}"
+        ]
+      }
+    }
+  ]
+}

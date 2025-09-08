@@ -1,0 +1,1489 @@
+openapi: 3.1.0
+info:
+  title: SetuPPF API
+  description: PPF Installation Management Portal API
+  version: 1.0.0
+  contact:
+    name: SetuPPF Support
+    email: support@setuppf.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5000
+    description: Development server
+  - url: https://api.setuppf.com
+    description: Production server
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        details:
+          type: array
+          items:
+            type: object
+          description: Validation error details
+      required:
+        - error
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [SUPER_ADMIN, OEM_ADMIN, DEALERSHIP_ADMIN, SHOWROOM_MANAGER, SALES_PERSON, PARTNER_ADMIN, PARTNER_STAFF]
+        oemId:
+          type: string
+          format: uuid
+          nullable: true
+        dealershipId:
+          type: string
+          format: uuid
+          nullable: true
+        showroomId:
+          type: string
+          format: uuid
+          nullable: true
+        partnerId:
+          type: string
+          format: uuid
+          nullable: true
+        isActive:
+          type: boolean
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    WorkOrder:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        oemId:
+          type: string
+          format: uuid
+        dealershipId:
+          type: string
+          format: uuid
+        showroomId:
+          type: string
+          format: uuid
+        createdByUserId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [DRAFT, SUBMITTED, ASSIGNED, IN_PROGRESS, COMPLETED_PENDING_APPROVAL, APPROVED, CLOSED, CANCELLED, REWORK_REQUESTED]
+        vehicleBrandId:
+          type: string
+          format: uuid
+        vehicleModelId:
+          type: string
+          format: uuid
+        variant:
+          type: string
+          nullable: true
+        regNo:
+          type: string
+          nullable: true
+        serviceId:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+        notes:
+          type: string
+          nullable: true
+        salesPersonId:
+          type: string
+          format: uuid
+          nullable: true
+        assignedPartnerId:
+          type: string
+          format: uuid
+          nullable: true
+        assignedJobCardId:
+          type: string
+          format: uuid
+          nullable: true
+        customerName:
+          type: string
+          nullable: true
+        customerPhone:
+          type: string
+          nullable: true
+        customerAddress:
+          type: string
+          nullable: true
+        estimatedPrice:
+          type: string
+          nullable: true
+        finalPrice:
+          type: string
+          nullable: true
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        assignedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    JobCard:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        workOrderId:
+          type: string
+          format: uuid
+        partnerId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [AWAITING_ACK, ACKNOWLEDGED, SCHEDULED, IN_PROGRESS, COMPLETED, PENDING_APPROVAL, APPROVED, CLOSED, NO_SHOW, CANCELLED_BY_CUSTOMER, PARTS_PENDING, RESCHEDULED, REWORK_REQUESTED]
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        checklistJson:
+          type: object
+          nullable: true
+        remarks:
+          type: string
+          nullable: true
+        partnerRemarks:
+          type: string
+          nullable: true
+        approvalRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        approvedByUserId:
+          type: string
+          format: uuid
+          nullable: true
+        pricingSnapshotJson:
+          type: object
+          nullable: true
+        commissionSnapshotJson:
+          type: object
+          nullable: true
+        acknowledgedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rejectedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rejectionReason:
+          type: string
+          nullable: true
+        reworkRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reworkReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Partner:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [STUDIO, INSTALLER]
+        displayName:
+          type: string
+        gstin:
+          type: string
+          nullable: true
+        pan:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        pincode:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          format: email
+          nullable: true
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PricingRule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        partnerId:
+          type: string
+          format: uuid
+        scope:
+          type: string
+          enum: [SHOWROOM, DEALERSHIP]
+        scopeId:
+          type: string
+          format: uuid
+        vehicleModelId:
+          type: string
+          format: uuid
+          nullable: true
+        serviceId:
+          type: string
+          format: uuid
+        priceAmount:
+          type: string
+        currency:
+          type: string
+          default: INR
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          default: ACTIVE
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CommissionRule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        showroomId:
+          type: string
+          format: uuid
+        salesPersonId:
+          type: string
+          format: uuid
+          nullable: true
+        serviceId:
+          type: string
+          format: uuid
+          nullable: true
+        type:
+          type: string
+          enum: [PERCENT, AMOUNT]
+        valueNumeric:
+          type: string
+        capAmount:
+          type: string
+          nullable: true
+        floorAmount:
+          type: string
+          nullable: true
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          default: ACTIVE
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DashboardStats:
+      type: object
+      properties:
+        totalWorkOrders:
+          type: integer
+        activeWorkOrders:
+          type: integer
+        pendingApprovals:
+          type: integer
+        completedWorkOrders:
+          type: integer
+        totalRevenue:
+          type: number
+        avgTat:
+          type: number
+          nullable: true
+        statusDistribution:
+          type: array
+          items:
+            type: object
+            properties:
+              status:
+                type: string
+              count:
+                type: integer
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        oemId:
+          type: string
+          nullable: true
+      required:
+        - email
+        - password
+
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: string
+      required:
+        - user
+        - token
+
+    CreateWorkOrderRequest:
+      type: object
+      properties:
+        oemId:
+          type: string
+          format: uuid
+        dealershipId:
+          type: string
+          format: uuid
+        showroomId:
+          type: string
+          format: uuid
+        vehicleBrandId:
+          type: string
+          format: uuid
+        vehicleModelId:
+          type: string
+          format: uuid
+        variant:
+          type: string
+          nullable: true
+        regNo:
+          type: string
+          nullable: true
+        serviceId:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+          default: 1
+        salesPersonId:
+          type: string
+          format: uuid
+          nullable: true
+        customerName:
+          type: string
+        customerPhone:
+          type: string
+        customerAddress:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required:
+        - oemId
+        - dealershipId
+        - showroomId
+        - vehicleBrandId
+        - vehicleModelId
+        - serviceId
+        - customerName
+        - customerPhone
+
+    PaginatedResponse:
+      type: object
+      properties:
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required:
+        - total
+
+    WorkOrdersResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponse'
+        - type: object
+          properties:
+            workOrders:
+              type: array
+              items:
+                $ref: '#/components/schemas/WorkOrder'
+
+    JobCardsResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponse'
+        - type: object
+          properties:
+            jobCards:
+              type: array
+              items:
+                $ref: '#/components/schemas/JobCard'
+
+    PartnersResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponse'
+        - type: object
+          properties:
+            partners:
+              type: array
+              items:
+                $ref: '#/components/schemas/Partner'
+
+paths:
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and return JWT token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      description: Logout user and invalidate session
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /api/users/me:
+    get:
+      tags:
+        - Users
+      summary: Get current user
+      description: Get current authenticated user information
+      responses:
+        '200':
+          description: User information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/work-orders:
+    get:
+      tags:
+        - Work Orders
+      summary: Get work orders
+      description: Retrieve work orders with filtering and pagination
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+          description: Filter by status
+        - name: partnerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by partner ID
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Number of items to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Number of items to skip
+      responses:
+        '200':
+          description: Work orders retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrdersResponse'
+
+    post:
+      tags:
+        - Work Orders
+      summary: Create work order
+      description: Create a new work order (Showroom Manager only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkOrderRequest'
+      responses:
+        '201':
+          description: Work order created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrder'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/work-orders/{id}:
+    get:
+      tags:
+        - Work Orders
+      summary: Get work order by ID
+      description: Retrieve a specific work order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Work order ID
+      responses:
+        '200':
+          description: Work order retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrder'
+        '404':
+          description: Work order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/work-orders/{id}/submit:
+    post:
+      tags:
+        - Work Orders
+      summary: Submit work order
+      description: Submit work order for assignment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Work order ID
+      responses:
+        '200':
+          description: Work order submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrder'
+
+  /api/work-orders/{id}/assign:
+    post:
+      tags:
+        - Work Orders
+      summary: Assign work order
+      description: Manually assign work order to a partner
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Work order ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                partnerId:
+                  type: string
+                  format: uuid
+              required:
+                - partnerId
+      responses:
+        '200':
+          description: Work order assigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrder'
+
+  /api/job-cards:
+    get:
+      tags:
+        - Job Cards
+      summary: Get job cards
+      description: Retrieve job cards with filtering and pagination
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+          description: Filter by status
+        - name: partnerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by partner ID
+        - name: workOrderId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by work order ID
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Number of items to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Number of items to skip
+      responses:
+        '200':
+          description: Job cards retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobCardsResponse'
+
+  /api/job-cards/{id}/acknowledge:
+    post:
+      tags:
+        - Job Cards
+      summary: Acknowledge job card
+      description: Partner acknowledges the job assignment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Job card ID
+      responses:
+        '200':
+          description: Job card acknowledged successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobCard'
+
+  /api/job-cards/{id}/schedule:
+    post:
+      tags:
+        - Job Cards
+      summary: Schedule job card
+      description: Partner schedules the installation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Job card ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scheduledAt:
+                  type: string
+                  format: date-time
+              required:
+                - scheduledAt
+      responses:
+        '200':
+          description: Job card scheduled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobCard'
+
+  /api/job-cards/{id}/start:
+    post:
+      tags:
+        - Job Cards
+      summary: Start job card
+      description: Partner starts the installation work
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Job card ID
+      responses:
+        '200':
+          description: Job card started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobCard'
+
+  /api/job-cards/{id}/complete:
+    post:
+      tags:
+        - Job Cards
+      summary: Complete job card
+      description: Partner completes the installation and uploads proof
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Job card ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                remarks:
+                  type: string
+                checklistJson:
+                  type: object
+              required:
+                - remarks
+      responses:
+        '200':
+          description: Job card completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobCard'
+
+  /api/job-cards/{id}/approve:
+    post:
+      tags:
+        - Job Cards
+      summary: Approve job card
+      description: Showroom manager approves the completed work
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Job card ID
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                remarks:
+                  type: string
+      responses:
+        '200':
+          description: Job card approved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobCard'
+
+  /api/job-cards/{id}/reject:
+    post:
+      tags:
+        - Job Cards
+      summary: Reject job card
+      description: Showroom manager rejects the completed work
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Job card ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                remarks:
+                  type: string
+              required:
+                - remarks
+      responses:
+        '200':
+          description: Job card rejected successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobCard'
+
+  /api/job-cards/{id}/request-rework:
+    post:
+      tags:
+        - Job Cards
+      summary: Request rework on job card
+      description: Showroom manager requests rework on the completed work
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Job card ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+              required:
+                - reason
+      responses:
+        '200':
+          description: Rework requested successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobCard'
+
+  /api/objects/upload:
+    post:
+      tags:
+        - File Upload
+      summary: Get upload URL
+      description: Get presigned URL for file upload
+      responses:
+        '200':
+          description: Upload URL generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadURL:
+                    type: string
+                    format: uri
+
+  /api/job-cards/{id}/upload-media:
+    post:
+      tags:
+        - File Upload
+      summary: Upload job card media
+      description: Upload proof images/videos for job card
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Job card ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mediaUrl:
+                  type: string
+                  format: uri
+                type:
+                  type: string
+                  enum: [IMAGE, VIDEO]
+                caption:
+                  type: string
+              required:
+                - mediaUrl
+                - type
+      responses:
+        '200':
+          description: Media uploaded successfully
+
+  /api/partners:
+    get:
+      tags:
+        - Partners
+      summary: Get partners
+      description: Retrieve partners with filtering and pagination
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [STUDIO, INSTALLER]
+          description: Filter by partner type
+        - name: active
+          in: query
+          schema:
+            type: boolean
+          description: Filter by active status
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Number of items to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Number of items to skip
+      responses:
+        '200':
+          description: Partners retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnersResponse'
+
+    post:
+      tags:
+        - Partners
+      summary: Create partner
+      description: Create a new partner (OEM Admin, Dealership Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [STUDIO, INSTALLER]
+                displayName:
+                  type: string
+                gstin:
+                  type: string
+                pan:
+                  type: string
+                address:
+                  type: string
+                city:
+                  type: string
+                state:
+                  type: string
+                pincode:
+                  type: string
+                phone:
+                  type: string
+                email:
+                  type: string
+                  format: email
+              required:
+                - type
+                - displayName
+      responses:
+        '201':
+          description: Partner created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Partner'
+
+  /api/pricing-rules:
+    get:
+      tags:
+        - Pricing Rules
+      summary: Get pricing rules
+      description: Retrieve pricing rules with filtering and pagination
+      parameters:
+        - name: partnerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by partner ID
+        - name: serviceId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by service ID
+        - name: status
+          in: query
+          schema:
+            type: string
+          description: Filter by status
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Number of items to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Number of items to skip
+      responses:
+        '200':
+          description: Pricing rules retrieved successfully
+
+    post:
+      tags:
+        - Pricing Rules
+      summary: Create pricing rule
+      description: Create a new pricing rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                partnerId:
+                  type: string
+                  format: uuid
+                scope:
+                  type: string
+                  enum: [SHOWROOM, DEALERSHIP]
+                scopeId:
+                  type: string
+                  format: uuid
+                vehicleModelId:
+                  type: string
+                  format: uuid
+                serviceId:
+                  type: string
+                  format: uuid
+                priceAmount:
+                  type: string
+                currency:
+                  type: string
+                  default: INR
+                effectiveFrom:
+                  type: string
+                  format: date-time
+                effectiveTo:
+                  type: string
+                  format: date-time
+              required:
+                - partnerId
+                - scope
+                - scopeId
+                - serviceId
+                - priceAmount
+      responses:
+        '201':
+          description: Pricing rule created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingRule'
+
+  /api/commission-rules:
+    get:
+      tags:
+        - Commission Rules
+      summary: Get commission rules
+      description: Retrieve commission rules with filtering and pagination
+      parameters:
+        - name: showroomId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by showroom ID
+        - name: salesPersonId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by sales person ID
+        - name: serviceId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by service ID
+        - name: status
+          in: query
+          schema:
+            type: string
+          description: Filter by status
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Number of items to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Number of items to skip
+      responses:
+        '200':
+          description: Commission rules retrieved successfully
+
+    post:
+      tags:
+        - Commission Rules
+      summary: Create commission rule
+      description: Create a new commission rule (Showroom Manager only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                showroomId:
+                  type: string
+                  format: uuid
+                salesPersonId:
+                  type: string
+                  format: uuid
+                serviceId:
+                  type: string
+                  format: uuid
+                type:
+                  type: string
+                  enum: [PERCENT, AMOUNT]
+                valueNumeric:
+                  type: string
+                capAmount:
+                  type: string
+                floorAmount:
+                  type: string
+                effectiveFrom:
+                  type: string
+                  format: date-time
+                effectiveTo:
+                  type: string
+                  format: date-time
+              required:
+                - showroomId
+                - type
+                - valueNumeric
+      responses:
+        '201':
+          description: Commission rule created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionRule'
+
+  /api/oems:
+    get:
+      tags:
+        - Organization
+      summary: Get OEMs
+      description: Retrieve list of OEMs
+      responses:
+        '200':
+          description: OEMs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    name:
+                      type: string
+                    brandCode:
+                      type: string
+                    logoUrl:
+                      type: string
+                    active:
+                      type: boolean
+
+  /api/dealerships:
+    get:
+      tags:
+        - Organization
+      summary: Get dealerships
+      description: Retrieve dealerships, optionally filtered by OEM
+      parameters:
+        - name: oemId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by OEM ID
+      responses:
+        '200':
+          description: Dealerships retrieved successfully
+
+  /api/showrooms:
+    get:
+      tags:
+        - Organization
+      summary: Get showrooms
+      description: Retrieve showrooms, optionally filtered by dealership
+      parameters:
+        - name: dealershipId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by dealership ID
+      responses:
+        '200':
+          description: Showrooms retrieved successfully
+
+  /api/sales-persons:
+    get:
+      tags:
+        - Organization
+      summary: Get sales persons
+      description: Retrieve sales persons, optionally filtered by showroom
+      parameters:
+        - name: showroomId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by showroom ID
+      responses:
+        '200':
+          description: Sales persons retrieved successfully
+
+  /api/vehicle-brands:
+    get:
+      tags:
+        - Catalog
+      summary: Get vehicle brands
+      description: Retrieve vehicle brands, optionally filtered by OEM
+      parameters:
+        - name: oemId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by OEM ID
+      responses:
+        '200':
+          description: Vehicle brands retrieved successfully
+
+  /api/vehicle-models:
+    get:
+      tags:
+        - Catalog
+      summary: Get vehicle models
+      description: Retrieve vehicle models, optionally filtered by brand
+      parameters:
+        - name: brandId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by brand ID
+      responses:
+        '200':
+          description: Vehicle models retrieved successfully
+
+  /api/services:
+    get:
+      tags:
+        - Catalog
+      summary: Get services
+      description: Retrieve available services
+      responses:
+        '200':
+          description: Services retrieved successfully
+
+  /api/dashboard/stats:
+    get:
+      tags:
+        - Dashboard
+      summary: Get dashboard statistics
+      description: Retrieve dashboard statistics based on user role and permissions
+      responses:
+        '200':
+          description: Dashboard statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardStats'
+
+tags:
+  - name: Authentication
+    description: User authentication endpoints
+  - name: Users
+    description: User management endpoints
+  - name: Work Orders
+    description: Work order management endpoints
+  - name: Job Cards
+    description: Job card management endpoints
+  - name: Partners
+    description: Partner management endpoints
+  - name: Pricing Rules
+    description: Pricing rule management endpoints
+  - name: Commission Rules
+    description: Commission rule management endpoints
+  - name: Organization
+    description: Organization data endpoints (OEMs, dealerships, showrooms)
+  - name: Catalog
+    description: Catalog data endpoints (vehicles, services)
+  - name: File Upload
+    description: File upload and media management endpoints
+  - name: Dashboard
+    description: Dashboard and analytics endpoints

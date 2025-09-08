@@ -1,0 +1,81 @@
+flowchart TD
+    A[Showroom raises Work Order] --> B[Submit WO]
+    B --> C{Auto/Manual Assign Partner}
+    C -->|Auto Assignment| D[Find highest priority partner]
+    C -->|Manual Assignment| E[Showroom selects partner]
+    D --> F[Create Job Card - AWAITING_ACK]
+    E --> F
+    F --> G[Partner Acknowledges]
+    G --> H[Schedule Visit Date/Time]
+    H --> I[Start Work - IN_PROGRESS]
+    I --> J[Complete Work & Upload Proofs]
+    J --> K[Request Approval - PENDING_APPROVAL]
+    K --> L{Showroom Review}
+    L -->|Approve| M[Freeze pricing & commission snapshots]
+    M --> N[Compute payouts]
+    N --> O[APPROVED status]
+    O --> P[Generate commission records]
+    P --> Q[CLOSED]
+    L -->|Reject| R[REJECTED - Work Order closed]
+    L -->|Request Rework| S[REWORK_REQUESTED]
+    S --> T[Back to IN_PROGRESS]
+    T --> J
+
+    %% Partner Allocation Flow
+    AA[Partner Allocation] --> BB{Level}
+    BB -->|Showroom Level| CC[Assign to specific showroom]
+    BB -->|Dealership Level| DD[Assign to all showrooms in dealership]
+    CC --> EE[Set priority order]
+    DD --> EE
+    EE --> FF[Partner allocation active]
+
+    %% Pricing Resolution Flow
+    GG[Price Resolution] --> HH{Exact Match Rule?}
+    HH -->|Yes| II[Partner + Showroom + Vehicle + Service]
+    HH -->|No| JJ{Showroom + Service?}
+    JJ -->|Yes| KK[Partner + Showroom + Service]
+    JJ -->|No| LL{Dealership + Vehicle + Service?}
+    LL -->|Yes| MM[Partner + Dealership + Vehicle + Service]
+    LL -->|No| NN{Dealership + Service?}
+    NN -->|Yes| OO[Partner + Dealership + Service]
+    NN -->|No| PP[ERROR: No pricing rule found]
+
+    %% Commission Resolution Flow
+    QQ[Commission Resolution] --> RR{Exact Match?}
+    RR -->|Yes| SS[Showroom + Sales Person + Service]
+    RR -->|No| TT{Sales Person Default?}
+    TT -->|Yes| UU[Showroom + Sales Person]
+    TT -->|No| VV{Service Default?}
+    VV -->|Yes| WW[Showroom + Service]
+    VV -->|No| XX{Showroom Default?}
+    XX -->|Yes| YY[Showroom Default Rate]
+    XX -->|No| ZZ[Zero Commission]
+
+    %% SLA Monitoring
+    AAA[SLA Monitor] --> BBB{AWAITING_ACK > X hours?}
+    BBB -->|Yes| CCC[Alert Showroom + Partner]
+    BBB -->|No| DDD{SCHEDULED but not started?}
+    DDD -->|Yes| EEE[Alert about missed schedule]
+    DDD -->|No| FFF[Continue monitoring]
+
+    %% Audit Trail
+    GGG[User Action] --> HHH[Create Audit Log]
+    HHH --> III[Store: Actor, Entity, Action, Diff]
+    III --> JJJ[Audit Trail Complete]
+
+    %% Multi-tenant Security
+    KKK[API Request] --> LLL{Valid JWT?}
+    LLL -->|No| MMM[401 Unauthorized]
+    LLL -->|Yes| NNN{OEM Access Check}
+    NNN -->|Fail| OOO[403 Forbidden]
+    NNN -->|Pass| PPP{Role Permission Check}
+    PPP -->|Fail| OOO
+    PPP -->|Pass| QQQ[Process Request]
+
+    style A fill:#e1f5fe
+    style Q fill:#c8e6c9
+    style R fill:#ffcdd2
+    style PP fill:#ffcdd2
+    style ZZ fill:#fff3e0
+    style MMM fill:#ffcdd2
+    style OOO fill:#ffcdd2

@@ -1,0 +1,281 @@
+erDiagram
+  OEMS ||--o{ DEALERSHIPS : has
+  DEALERSHIPS ||--o{ SHOWROOMS : has
+  SHOWROOMS ||--o{ SALES_PERSONS : has
+  PARTNERS ||--o{ PARTNER_MEMBERS : has
+  SHOWROOMS ||--o{ ALLOCATIONS : defines
+  DEALERSHIPS ||--o{ ALLOCATIONS : defines
+  VEHICLE_BRANDS ||--o{ VEHICLE_MODELS : has
+  WORK_ORDERS ||--|{ JOB_CARDS : creates
+  JOB_CARDS ||--o{ JOB_CARD_MEDIA : has
+  SHOWROOMS ||--o{ WORK_ORDERS : raises
+  PARTNERS ||--o{ JOB_CARDS : executes
+  PARTNERS ||--o{ PRICING_RULES : sets
+  SHOWROOMS ||--o{ COMMISSION_RULES : sets
+  JOB_CARDS ||--o{ PAYOUTS : yields
+  JOB_CARDS ||--o{ COMMISSIONS : yields
+  USERS ||--o{ WORK_ORDERS : creates
+  USERS ||--o{ AUDIT_LOGS : generates
+
+  OEMS {
+    uuid id
+    string name
+    string brand_code
+    string logo_url
+    boolean active
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  DEALERSHIPS {
+    uuid id
+    uuid oem_id
+    string name
+    string code
+    boolean active
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  SHOWROOMS {
+    uuid id
+    uuid dealership_id
+    string name
+    string code
+    string address
+    string city
+    string state
+    string pincode
+    boolean active
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  USERS {
+    uuid id
+    string email
+    string phone
+    string password_hash
+    enum role
+    uuid oem_id
+    uuid dealership_id
+    uuid showroom_id
+    uuid partner_id
+    boolean is_active
+    string name
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  SALES_PERSONS {
+    uuid id
+    uuid showroom_id
+    string name
+    string phone
+    string email
+    boolean active
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  PARTNERS {
+    uuid id
+    enum type
+    string display_name
+    string gstin
+    string pan
+    string address
+    string city
+    string state
+    string phone
+    boolean active
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  PARTNER_MEMBERS {
+    uuid id
+    uuid partner_id
+    uuid user_id
+    string role
+    timestamp created_at
+  }
+
+  ALLOCATIONS {
+    uuid id
+    enum level
+    uuid level_id
+    uuid partner_id
+    int priority
+    boolean active
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  VEHICLE_BRANDS {
+    uuid id
+    uuid oem_id
+    string name
+    timestamp created_at
+  }
+
+  VEHICLE_MODELS {
+    uuid id
+    uuid brand_id
+    string model_name
+    string variant
+    timestamp created_at
+  }
+
+  SERVICES {
+    uuid id
+    string name
+    string code
+    string description
+    jsonb meta
+    timestamp created_at
+  }
+
+  PRICING_RULES {
+    uuid id
+    uuid partner_id
+    enum scope
+    uuid scope_id
+    uuid vehicle_model_id
+    uuid service_id
+    decimal price_amount
+    string currency
+    timestamp effective_from
+    timestamp effective_to
+    string status
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  COMMISSION_RULES {
+    uuid id
+    uuid showroom_id
+    uuid sales_person_id
+    uuid service_id
+    enum type
+    decimal value_numeric
+    decimal cap_amount
+    decimal floor_amount
+    timestamp effective_from
+    timestamp effective_to
+    string status
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  WORK_ORDERS {
+    uuid id
+    uuid oem_id
+    uuid dealership_id
+    uuid showroom_id
+    uuid created_by_user_id
+    enum status
+    uuid vehicle_brand_id
+    uuid vehicle_model_id
+    string variant
+    string reg_no
+    uuid service_id
+    int quantity
+    string notes
+    uuid sales_person_id
+    uuid assigned_partner_id
+    uuid assigned_job_card_id
+    string customer_name
+    string customer_phone
+    string customer_address
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  JOB_CARDS {
+    uuid id
+    uuid work_order_id
+    uuid partner_id
+    enum status
+    timestamp scheduled_at
+    timestamp started_at
+    timestamp completed_at
+    jsonb checklist_json
+    string remarks
+    timestamp approval_requested_at
+    timestamp approved_at
+    uuid approved_by_user_id
+    jsonb pricing_snapshot_json
+    jsonb commission_snapshot_json
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  JOB_CARD_MEDIA {
+    uuid id
+    uuid job_card_id
+    string type
+    string url
+    string caption
+    timestamp created_at
+  }
+
+  APPROVALS {
+    uuid id
+    uuid job_card_id
+    uuid approver_user_id
+    string status
+    string remarks
+    timestamp decided_at
+  }
+
+  PAYOUTS {
+    uuid id
+    uuid job_card_id
+    uuid partner_id
+    decimal gross_amount
+    jsonb adjustments_json
+    decimal net_amount
+    string status
+    timestamp paid_at
+    timestamp created_at
+  }
+
+  COMMISSIONS {
+    uuid id
+    uuid job_card_id
+    uuid showroom_id
+    uuid sales_person_id
+    string basis
+    decimal value
+    decimal computed_amount
+    string status
+    timestamp paid_at
+    timestamp created_at
+  }
+
+  AUDIT_LOGS {
+    uuid id
+    uuid actor_user_id
+    string entity
+    uuid entity_id
+    string action
+    jsonb diff_json
+    timestamp created_at
+  }
+
+  WEBHOOK_SUBSCRIPTIONS {
+    uuid id
+    string tenant_scope
+    string event
+    string target_url
+    string secret
+    boolean is_active
+    timestamp created_at
+  }
+
+  IDEMPOTENCY_KEYS {
+    string key
+    timestamp first_seen_at
+    string response_hash
+  }
