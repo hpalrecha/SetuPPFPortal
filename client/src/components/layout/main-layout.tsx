@@ -40,7 +40,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
           onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} 
           className="fixed left-0 top-16 h-[calc(100vh-4rem)] md:relative md:top-0 md:h-screen"
         />
-        <main className={`flex-1 p-6 transition-all duration-300 ${sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'}`} data-testid="main-content">
+        <main className="flex-1 p-4 transition-all duration-300" data-testid="main-content">
           {children}
         </main>
       </div>
