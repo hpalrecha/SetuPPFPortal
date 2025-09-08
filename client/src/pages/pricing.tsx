@@ -14,6 +14,20 @@ export default function PricingPage() {
   
   const { data: pricingRules = [], isLoading } = useQuery<PricingRule[]>({
     queryKey: ["/api/pricing-rules"],
+    queryFn: async () => {
+      const response = await fetch('/api/pricing-rules', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch pricing rules');
+      }
+      
+      return response.json();
+    },
     refetchInterval: 30000,
     enabled: !!canAccessPricing // Only fetch if user has access
   });

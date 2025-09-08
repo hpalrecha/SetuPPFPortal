@@ -8,6 +8,20 @@ import type { Partner } from "@shared/schema";
 export default function PartnersPage() {
   const { data: partners = [], isLoading } = useQuery<Partner[]>({
     queryKey: ["/api/partners"],
+    queryFn: async () => {
+      const response = await fetch('/api/partners', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch partners');
+      }
+      
+      return response.json();
+    },
     refetchInterval: 30000
   });
 
