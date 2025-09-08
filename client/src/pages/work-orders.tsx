@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Eye, Edit } from "lucide-react";
 import type { WorkOrder } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
+import { CreateWorkOrderModal } from "@/components/modals/CreateWorkOrderModal";
 
 const statusColors = {
   DRAFT: "bg-gray-100 text-gray-800",
@@ -24,6 +25,8 @@ const statusColors = {
 export default function WorkOrdersPage() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [filters, setFilters] = useState({
     status: "",
     partnerId: "",
@@ -37,12 +40,38 @@ export default function WorkOrdersPage() {
 
   const { data: workOrders = [], isLoading } = useQuery<WorkOrder[]>({
     queryKey: ["/api/work-orders", filters],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams();
+      if (filters.status) searchParams.append('status', filters.status);
+      if (filters.partnerId) searchParams.append('partnerId', filters.partnerId);
+      if (filters.dateFrom) searchParams.append('dateFrom', filters.dateFrom);
+      searchParams.append('limit', filters.limit.toString());
+      searchParams.append('offset', filters.offset.toString());
+      
+      const response = await fetch(`/api/work-orders?${searchParams}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch work orders');
+      }
+      
+      return response.json();
+    },
     refetchInterval: 30000
   });
 
   const handleCreateWorkOrder = () => {
-    // TODO: Open work order creation modal
-    alert("Work Order creation form would open here");
+    setShowCreateModal(true);
+  };
+
+  const handleCreateSuccess = () => {
+    setShowCreateModal(false);
+    // Invalidate and refetch work orders
+    queryClient.invalidateQueries({ queryKey: ["/api/work-orders"] });
   };
 
   const handleViewWorkOrder = (id: string) => {
@@ -218,6 +247,13 @@ export default function WorkOrdersPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Create Work Order Modal */}
+      <CreateWorkOrderModal 
+        open={showCreateModal}
+        onOpenChange={setShowCreateModal}
+        onSuccess={handleCreateSuccess}
+      />
     </div>
   );
 }

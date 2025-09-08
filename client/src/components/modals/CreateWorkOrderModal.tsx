@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { api } from "@/lib/api";
+import { ApiClient } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 
 const workOrderSchema = z.object({
@@ -76,30 +76,36 @@ export function CreateWorkOrderModal({
     },
   });
 
-  // Fetch vehicle brands
-  const { data: vehicleBrands } = useQuery({
-    queryKey: ["/api/vehicle-brands"],
-    enabled: open,
-  });
+  // Mock data for now - in a real app these would come from APIs
+  const vehicleBrands = [
+    { id: "maruti", name: "Maruti Suzuki" },
+    { id: "hyundai", name: "Hyundai" },
+    { id: "tata", name: "Tata Motors" },
+    { id: "kia", name: "Kia" },
+    { id: "mahindra", name: "Mahindra" }
+  ];
 
-  // Fetch vehicle models based on selected brand
   const selectedBrandId = form.watch("vehicleBrandId");
-  const { data: vehicleModels } = useQuery({
-    queryKey: ["/api/vehicle-models", selectedBrandId],
-    enabled: !!selectedBrandId,
-  });
+  const vehicleModels = selectedBrandId ? [
+    { id: "swift", name: "Swift", brandId: "maruti" },
+    { id: "baleno", name: "Baleno", brandId: "maruti" },
+    { id: "i20", name: "i20", brandId: "hyundai" },
+    { id: "creta", name: "Creta", brandId: "hyundai" },
+    { id: "nexon", name: "Nexon", brandId: "tata" },
+    { id: "harrier", name: "Harrier", brandId: "tata" }
+  ].filter(model => model.brandId === selectedBrandId) : [];
 
-  // Fetch services
-  const { data: services } = useQuery({
-    queryKey: ["/api/services"],
-    enabled: open,
-  });
+  const services = [
+    { id: "full-body", name: "Full Body PPF", price: 45000 },
+    { id: "front-end", name: "Front End PPF", price: 15000 },
+    { id: "headlights", name: "Headlight PPF", price: 5000 },
+    { id: "door-handles", name: "Door Handle PPF", price: 3000 }
+  ];
 
-  // Fetch sales persons for the showroom
-  const { data: salesPersons } = useQuery({
-    queryKey: ["/api/sales-persons", user?.showroomId],
-    enabled: open && !!user?.showroomId,
-  });
+  const salesPersons = [
+    { id: "sp1", name: "John Doe", showroomId: user?.showroomId },
+    { id: "sp2", name: "Jane Smith", showroomId: user?.showroomId }
+  ];
 
   const onSubmit = async (data: WorkOrderFormData) => {
     if (!user?.showroomId || !user?.dealershipId || !user?.oemId) {
@@ -113,7 +119,7 @@ export function CreateWorkOrderModal({
 
     setIsLoading(true);
     try {
-      await api.post("/api/work-orders", {
+      await ApiClient.post("/api/work-orders", {
         ...data,
         oemId: user.oemId,
         dealershipId: user.dealershipId,
