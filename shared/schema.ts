@@ -162,15 +162,30 @@ export const vehicleBrands = pgTable("vehicle_brands", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   oemId: uuid("oem_id").references(() => oems.id).notNull(),
   name: text("name").notNull(),
-  createdAt: timestamp("created_at").defaultNow()
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
 });
 
 export const vehicleModels = pgTable("vehicle_models", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   brandId: uuid("brand_id").references(() => vehicleBrands.id).notNull(),
   modelName: text("model_name").notNull(),
-  variant: text("variant"),
-  createdAt: timestamp("created_at").defaultNow()
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+export const vehicleVariants = pgTable("vehicle_variants", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  modelId: uuid("model_id").references(() => vehicleModels.id).notNull(),
+  variantName: text("variant_name").notNull(),
+  fuelType: text("fuel_type"), // PETROL, DIESEL, ELECTRIC, HYBRID
+  transmission: text("transmission"), // MANUAL, AUTOMATIC, CVT
+  engineCapacity: text("engine_capacity"), // 1.2L, 1.5L, etc.
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
 });
 
 export const services = pgTable("services", {
@@ -189,6 +204,7 @@ export const pricingRules = pgTable("pricing_rules", {
   scope: scopeEnum("scope").notNull(),
   scopeId: uuid("scope_id").notNull(), // dealership_id or showroom_id
   vehicleModelId: uuid("vehicle_model_id").references(() => vehicleModels.id),
+  vehicleVariantId: uuid("vehicle_variant_id").references(() => vehicleVariants.id),
   serviceId: uuid("service_id").references(() => services.id).notNull(),
   priceAmount: decimal("price_amount", { precision: 10, scale: 2 }).notNull(),
   currency: text("currency").default("INR"),
@@ -225,7 +241,7 @@ export const workOrders = pgTable("work_orders", {
   status: workOrderStatusEnum("status").default("DRAFT"),
   vehicleBrandId: uuid("vehicle_brand_id").references(() => vehicleBrands.id).notNull(),
   vehicleModelId: uuid("vehicle_model_id").references(() => vehicleModels.id).notNull(),
-  variant: text("variant"),
+  vehicleVariantId: uuid("vehicle_variant_id").references(() => vehicleVariants.id),
   regNo: text("reg_no"),
   serviceId: uuid("service_id").references(() => services.id).notNull(),
   quantity: integer("quantity").default(1),
@@ -373,6 +389,25 @@ export const partnersRelations = relations(partners, ({ many }) => ({
   payouts: many(payouts)
 }));
 
+export const vehicleBrandsRelations = relations(vehicleBrands, ({ one, many }) => ({
+  oem: one(oems, { fields: [vehicleBrands.oemId], references: [oems.id] }),
+  models: many(vehicleModels),
+  workOrders: many(workOrders)
+}));
+
+export const vehicleModelsRelations = relations(vehicleModels, ({ one, many }) => ({
+  brand: one(vehicleBrands, { fields: [vehicleModels.brandId], references: [vehicleBrands.id] }),
+  variants: many(vehicleVariants),
+  workOrders: many(workOrders),
+  pricingRules: many(pricingRules)
+}));
+
+export const vehicleVariantsRelations = relations(vehicleVariants, ({ one, many }) => ({
+  model: one(vehicleModels, { fields: [vehicleVariants.modelId], references: [vehicleModels.id] }),
+  workOrders: many(workOrders),
+  pricingRules: many(pricingRules)
+}));
+
 export const workOrdersRelations = relations(workOrders, ({ one, many }) => ({
   oem: one(oems, { fields: [workOrders.oemId], references: [oems.id] }),
   dealership: one(dealerships, { fields: [workOrders.dealershipId], references: [dealerships.id] }),
@@ -380,6 +415,7 @@ export const workOrdersRelations = relations(workOrders, ({ one, many }) => ({
   createdBy: one(users, { fields: [workOrders.createdByUserId], references: [users.id] }),
   vehicleBrand: one(vehicleBrands, { fields: [workOrders.vehicleBrandId], references: [vehicleBrands.id] }),
   vehicleModel: one(vehicleModels, { fields: [workOrders.vehicleModelId], references: [vehicleModels.id] }),
+  vehicleVariant: one(vehicleVariants, { fields: [workOrders.vehicleVariantId], references: [vehicleVariants.id] }),
   service: one(services, { fields: [workOrders.serviceId], references: [services.id] }),
   salesPerson: one(salesPersons, { fields: [workOrders.salesPersonId], references: [salesPersons.id] }),
   assignedPartner: one(partners, { fields: [workOrders.assignedPartnerId], references: [partners.id] }),
@@ -431,3 +467,18 @@ export const insertCommissionRuleSchema = createInsertSchema(commissionRules).om
 export const selectCommissionRuleSchema = createSelectSchema(commissionRules);
 export type InsertCommissionRule = z.infer<typeof insertCommissionRuleSchema>;
 export type CommissionRule = z.infer<typeof selectCommissionRuleSchema>;
+
+export const insertVehicleBrandSchema = createInsertSchema(vehicleBrands).omit({ id: true, createdAt: true, updatedAt: true });
+export const selectVehicleBrandSchema = createSelectSchema(vehicleBrands);
+export type InsertVehicleBrand = z.infer<typeof insertVehicleBrandSchema>;
+export type VehicleBrand = z.infer<typeof selectVehicleBrandSchema>;
+
+export const insertVehicleModelSchema = createInsertSchema(vehicleModels).omit({ id: true, createdAt: true, updatedAt: true });
+export const selectVehicleModelSchema = createSelectSchema(vehicleModels);
+export type InsertVehicleModel = z.infer<typeof insertVehicleModelSchema>;
+export type VehicleModel = z.infer<typeof selectVehicleModelSchema>;
+
+export const insertVehicleVariantSchema = createInsertSchema(vehicleVariants).omit({ id: true, createdAt: true, updatedAt: true });
+export const selectVehicleVariantSchema = createSelectSchema(vehicleVariants);
+export type InsertVehicleVariant = z.infer<typeof insertVehicleVariantSchema>;
+export type VehicleVariant = z.infer<typeof selectVehicleVariantSchema>;
