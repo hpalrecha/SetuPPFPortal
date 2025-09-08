@@ -14,6 +14,10 @@ import CommissionsPage from "./pages/commissions";
 import ReportsPage from "./pages/reports";
 import AuditPage from "./pages/audit";
 import SettingsPage from "./pages/settings";
+import OEMsPage from "./pages/oems";
+import DealershipsPage from "./pages/dealerships";
+import ShowroomsPage from "./pages/showrooms";
+import SalesPersonsPage from "./pages/sales-persons";
 import MainLayout from "./components/layout/main-layout";
 import NotFound from "@/pages/not-found";
 
@@ -36,6 +40,10 @@ function Router() {
       <Route path="/partners" component={() => <ProtectedRoute component={PartnersPage} />} />
       <Route path="/pricing" component={() => <ProtectedRoute component={PricingPage} />} />
       <Route path="/commissions" component={() => <ProtectedRoute component={CommissionsPage} />} />
+      <Route path="/oems" component={() => <ProtectedRoute component={OEMsPage} />} />
+      <Route path="/dealerships" component={() => <ProtectedRoute component={DealershipsPage} />} />
+      <Route path="/showrooms" component={() => <ProtectedRoute component={ShowroomsPage} />} />
+      <Route path="/sales-persons" component={() => <ProtectedRoute component={SalesPersonsPage} />} />
       <Route path="/reports" component={() => <ProtectedRoute component={ReportsPage} />} />
       <Route path="/audit" component={() => <ProtectedRoute component={AuditPage} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
