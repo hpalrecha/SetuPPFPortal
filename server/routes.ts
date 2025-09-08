@@ -351,28 +351,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const rowNum = i + 2; // Excel row number (starting from 2, assuming row 1 is headers)
 
           try {
+            // Only extract the fields we care about, ignore all other columns
+            const brandName = row.brand_name?.toString().trim();
+            const modelName = row.model_name?.toString().trim();
+            const variantName = row.variant_name?.toString().trim() || '';
+
             // Validate required fields
-            if (!row.brand_name || typeof row.brand_name !== 'string') {
+            if (!brandName) {
               results.errors.push({
                 row: rowNum,
                 error: 'Brand name is required',
-                data: row
+                data: { brand_name: row.brand_name, model_name: row.model_name, variant_name: row.variant_name }
               });
               continue;
             }
 
-            if (!row.model_name || typeof row.model_name !== 'string') {
+            if (!modelName) {
               results.errors.push({
                 row: rowNum,
-                error: 'Model name is required',
-                data: row
+                error: 'Model name is required', 
+                data: { brand_name: row.brand_name, model_name: row.model_name, variant_name: row.variant_name }
               });
               continue;
             }
-
-            const brandName = row.brand_name.trim();
-            const modelName = row.model_name.trim();
-            const variantName = row.variant_name?.trim() || '';
 
             // Check if brand already exists for this OEM
             let brand = (await storage.getVehicleBrands({ oemId }))
