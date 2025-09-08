@@ -400,26 +400,17 @@ export default function VehiclesPage() {
       {
         brand_name: 'Maruti Suzuki',
         model_name: 'Swift',
-        variant_name: 'VXI',
-        fuel_type: 'PETROL',
-        transmission: 'MANUAL',
-        engine_capacity: '1.2L'
+        variant_name: 'VXI'
       },
       {
         brand_name: 'Maruti Suzuki',
         model_name: 'Swift',
-        variant_name: 'ZXI',
-        fuel_type: 'PETROL',
-        transmission: 'AUTOMATIC',
-        engine_capacity: '1.2L'
+        variant_name: 'ZXI'
       },
       {
         brand_name: 'Tata Motors',
         model_name: 'Nexon',
-        variant_name: 'XM',
-        fuel_type: 'PETROL',
-        transmission: 'MANUAL',
-        engine_capacity: '1.2L'
+        variant_name: 'XM'
       }
     ];
 
@@ -998,25 +989,19 @@ export default function VehiclesPage() {
               <div>
                 <h4 className="text-sm font-medium mb-2">Expected Excel Format:</h4>
                 <div className="bg-gray-50 dark:bg-gray-800 rounded p-3 text-xs font-mono">
-                  <div className="grid grid-cols-6 gap-2 font-semibold border-b border-gray-300 dark:border-gray-600 pb-1">
+                  <div className="grid grid-cols-3 gap-4 font-semibold border-b border-gray-300 dark:border-gray-600 pb-1">
                     <span>brand_name</span>
                     <span>model_name</span>
                     <span>variant_name</span>
-                    <span>fuel_type</span>
-                    <span>transmission</span>
-                    <span>engine_capacity</span>
                   </div>
-                  <div className="grid grid-cols-6 gap-2 pt-1">
+                  <div className="grid grid-cols-3 gap-4 pt-1">
                     <span>Maruti Suzuki</span>
                     <span>Swift</span>
                     <span>VXI</span>
-                    <span>PETROL</span>
-                    <span>MANUAL</span>
-                    <span>1.2L</span>
                   </div>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  * brand_name and model_name are required. Other fields are optional.
+                  * brand_name and model_name are required. variant_name is optional.
                 </p>
               </div>
             </div>

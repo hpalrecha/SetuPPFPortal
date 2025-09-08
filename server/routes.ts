@@ -373,9 +373,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const brandName = row.brand_name.trim();
             const modelName = row.model_name.trim();
             const variantName = row.variant_name?.trim() || '';
-            const fuelType = row.fuel_type?.trim() || '';
-            const transmission = row.transmission?.trim() || '';
-            const engineCapacity = row.engine_capacity?.trim() || '';
 
             // Check if brand already exists for this OEM
             let brand = (await storage.getVehicleBrands({ oemId }))
@@ -422,9 +419,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 await storage.createVehicleVariant({
                   modelId: model.id,
                   variantName: variantName,
-                  fuelType: fuelType || undefined,
-                  transmission: transmission || undefined,
-                  engineCapacity: engineCapacity || undefined,
                   active: true
                 });
 
