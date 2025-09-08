@@ -178,7 +178,7 @@ export default function WorkOrdersPage() {
                       </td>
                       <td className="py-3 px-4">
                         <Badge 
-                          className={statusColors[order.status] || "bg-gray-100 text-gray-800"}
+                          className={statusColors[order.status as keyof typeof statusColors] || "bg-gray-100 text-gray-800"}
                           data-testid={`status-${order.id}`}
                         >
                           {order.status?.replace(/_/g, " ")}

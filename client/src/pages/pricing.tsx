@@ -15,7 +15,7 @@ export default function PricingPage() {
   const { data: pricingRules = [], isLoading } = useQuery<PricingRule[]>({
     queryKey: ["/api/pricing-rules"],
     refetchInterval: 30000,
-    enabled: canAccessPricing // Only fetch if user has access
+    enabled: !!canAccessPricing // Only fetch if user has access
   });
 
   const handleAddPricingRule = () => {
@@ -105,7 +105,7 @@ export default function PricingPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {pricingRules.length === 0 ? (
+                {(pricingRules || []).length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-12 text-center">
                       <div className="space-y-3">
@@ -121,7 +121,7 @@ export default function PricingPage() {
                     </td>
                   </tr>
                 ) : (
-                  pricingRules.map((rule) => (
+                  (pricingRules || []).map((rule: PricingRule) => (
                     <tr key={rule.id} className="hover:bg-accent" data-testid={`row-pricing-rule-${rule.id}`}>
                       <td className="py-3 px-4 text-sm text-foreground">
                         Partner Name
