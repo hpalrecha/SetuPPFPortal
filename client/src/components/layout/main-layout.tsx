@@ -1,8 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
-import Header from "./Header";
-import Sidebar from "./Sidebar";
+import { Header } from "./Header";
+import { Sidebar } from "./Sidebar";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -11,6 +11,7 @@ interface MainLayoutProps {
 export default function MainLayout({ children }: MainLayoutProps) {
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -32,10 +33,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)} />
       <div className="flex">
-        <Sidebar />
-        <main className="flex-1 p-6 md:ml-64" data-testid="main-content">
+        <Sidebar 
+          collapsed={sidebarCollapsed} 
+          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} 
+          className="fixed left-0 top-16 h-[calc(100vh-4rem)] md:relative md:top-0 md:h-screen"
+        />
+        <main className={`flex-1 p-6 transition-all duration-300 ${sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'}`} data-testid="main-content">
           {children}
         </main>
       </div>
