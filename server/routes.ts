@@ -833,19 +833,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/work-orders", 
     authenticate, 
-    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'OEM_ADMIN']),
+    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'OEM_ADMIN', 'SUPER_ADMIN']),
     auditLog('work_order', 'create'),
     async (req, res) => {
       try {
         const workOrderData = insertWorkOrderSchema.parse(req.body);
         
-        // Ensure user can only create for their OEM/showroom
-        workOrderData.oemId = req.user!.oemId!;
-        workOrderData.createdByUserId = req.user!.id;
-        
-        if (req.user!.showroomId) {
-          workOrderData.showroomId = req.user!.showroomId;
+        // Ensure user can only create for their OEM/showroom (except Super Admin)
+        if (req.user!.role !== 'SUPER_ADMIN') {
+          workOrderData.oemId = req.user!.oemId!;
+          if (req.user!.showroomId) {
+            workOrderData.showroomId = req.user!.showroomId;
+          }
         }
+        workOrderData.createdByUserId = req.user!.id;
 
         const workOrder = await storage.createWorkOrder(workOrderData);
         res.status(201).json(workOrder);
@@ -1264,6 +1265,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   );
+
+  // Services Routes
+  app.get("/api/services", authenticate, async (req, res) => {
+    try {
+      const services = await storage.getServices();
+      res.json(services);
+    } catch (error) {
+      console.error("Get services error:", error);
+      res.status(500).json({ error: "Failed to fetch services" });
+    }
+  });
 
   // Commission Rules Routes
   app.get("/api/commission-rules", authenticate, requireOEMAccess, async (req, res) => {

@@ -55,6 +55,9 @@ export interface IStorage {
   updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
 
+  // Services management
+  getServices(): Promise<any[]>;
+
   // OEM management
   getOems(): Promise<Oem[]>;
   getOem(id: string): Promise<Oem | undefined>;
@@ -224,6 +227,11 @@ export class DatabaseStorage implements IStorage {
       .delete(users)
       .where(eq(users.id, id));
     return (result.rowCount ?? 0) > 0;
+  }
+
+  // Services management
+  async getServices(): Promise<any[]> {
+    return await db.select().from(services);
   }
 
   async getOems(): Promise<Oem[]> {
