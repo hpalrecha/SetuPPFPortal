@@ -159,7 +159,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { oemId } = req.query;
       const dealerships = await storage.getDealerships(oemId as string);
-      res.json(dealerships);
+      
+      // Add counts for each dealership
+      const dealershipsWithCounts = await Promise.all(
+        dealerships.map(async (dealership) => {
+          const showrooms = await storage.getShowrooms(dealership.id);
+          const showroomsCount = showrooms.length;
+          
+          // Count sales staff for this dealership (users with SALES_PERSON role)
+          const salesStaff = await storage.getUsers({ dealershipId: dealership.id, role: 'SALES_PERSON' });
+          const salesStaffCount = salesStaff ? salesStaff.length : 0;
+          
+          return {
+            ...dealership,
+            showroomsCount,
+            salesStaffCount
+          };
+        })
+      );
+      
+      res.json(dealershipsWithCounts);
     } catch (error) {
       console.error("Get dealerships error:", error);
       res.status(500).json({ error: "Failed to fetch dealerships" });

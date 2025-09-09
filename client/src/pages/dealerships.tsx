@@ -189,11 +189,11 @@ export default function DealershipsPage() {
                 {/* Stats */}
                 <div className="grid grid-cols-2 gap-2 text-center text-sm mb-4">
                   <div>
-                    <p className="font-semibold text-foreground">8</p>
+                    <p className="font-semibold text-foreground">{dealership.showroomsCount || 0}</p>
                     <p className="text-muted-foreground">Showrooms</p>
                   </div>
                   <div>
-                    <p className="font-semibold text-foreground">45</p>
+                    <p className="font-semibold text-foreground">{dealership.salesStaffCount || 0}</p>
                     <p className="text-muted-foreground">Sales Staff</p>
                   </div>
                 </div>

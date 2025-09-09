@@ -44,6 +44,7 @@ export interface IStorage {
   // User management
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUsers(filters?: { oemId?: string; dealershipId?: string; showroomId?: string; role?: string }): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined>;
 
@@ -158,6 +159,24 @@ export class DatabaseStorage implements IStorage {
       .values(insertUser)
       .returning();
     return user;
+  }
+
+  async getUsers(filters?: { oemId?: string; dealershipId?: string; showroomId?: string; role?: string }): Promise<User[]> {
+    let query = db.select().from(users);
+    
+    if (filters) {
+      const conditions = [];
+      if (filters.oemId) conditions.push(eq(users.oemId, filters.oemId));
+      if (filters.dealershipId) conditions.push(eq(users.dealershipId, filters.dealershipId));
+      if (filters.showroomId) conditions.push(eq(users.showroomId, filters.showroomId));
+      if (filters.role) conditions.push(eq(users.role, filters.role as any));
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+    }
+    
+    return await query;
   }
 
   async updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined> {
