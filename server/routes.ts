@@ -347,21 +347,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Process each row
         for (let i = 0; i < data.length; i++) {
-          const row = data[i] as any;
+          const originalRow = data[i] as any;
           const rowNum = i + 2; // Excel row number (starting from 2, assuming row 1 is headers)
 
           try {
-            // Only extract the fields we care about, ignore all other columns
-            const brandName = row.brand_name?.toString().trim();
-            const modelName = row.model_name?.toString().trim();
-            const variantName = row.variant_name?.toString().trim() || '';
+            // Only extract the fields we care about, completely ignore all other columns
+            const brandName = originalRow.brand_name?.toString().trim();
+            const modelName = originalRow.model_name?.toString().trim();
+            const variantName = originalRow.variant_name?.toString().trim() || '';
+
+            // Create a clean row object with only our 3 fields
+            const cleanRowData = {
+              brand_name: brandName || '',
+              model_name: modelName || '',
+              variant_name: variantName || ''
+            };
 
             // Validate required fields
             if (!brandName) {
               results.errors.push({
                 row: rowNum,
                 error: 'Brand name is required',
-                data: { brand_name: row.brand_name, model_name: row.model_name, variant_name: row.variant_name }
+                data: cleanRowData
               });
               continue;
             }
@@ -370,7 +377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               results.errors.push({
                 row: rowNum,
                 error: 'Model name is required', 
-                data: { brand_name: row.brand_name, model_name: row.model_name, variant_name: row.variant_name }
+                data: cleanRowData
               });
               continue;
             }
@@ -442,7 +449,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             results.errors.push({
               row: rowNum,
               error: error instanceof Error ? error.message : 'Unknown error',
-              data: row
+              data: {
+                brand_name: originalRow.brand_name || '',
+                model_name: originalRow.model_name || '',
+                variant_name: originalRow.variant_name || ''
+              }
             });
           }
         }
