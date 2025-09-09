@@ -42,9 +42,18 @@ export default function ServicesPage() {
   // Delete service mutation
   const deleteServiceMutation = useMutation({
     mutationFn: async (serviceId: string) => {
-      await apiRequest(`/api/services/${serviceId}`, {
+      const response = await fetch(`/api/services/${serviceId}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
       });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete service');
+      }
+      return response.json();
     },
     onSuccess: () => {
       toast({

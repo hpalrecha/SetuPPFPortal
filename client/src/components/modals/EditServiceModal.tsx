@@ -102,11 +102,20 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
 
   const updateServiceMutation = useMutation({
     mutationFn: async (data: ServiceFormData) => {
-      return await apiRequest(`/api/services/${service.id}`, {
+      const response = await fetch(`/api/services/${service.id}`, {
         method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
         body: JSON.stringify(data),
-        headers: { 'Content-Type': 'application/json' },
       });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update service');
+      }
+      return response.json();
     },
     onSuccess: () => {
       toast({
