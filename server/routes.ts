@@ -381,11 +381,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Create brand if it doesn't exist
             if (!brand) {
-              brand = await storage.createVehicleBrand({
-                oemId,
-                name: brandName,
-                active: true
-              });
+              // Only pass the exact fields needed, nothing extra
+              const brandData = {
+                oemId: oemId,
+                name: brandName
+              };
+              brand = await storage.createVehicleBrand(brandData);
 
               const brandResult = results.created.find(r => r.brand === brandName);
               if (!brandResult) {
@@ -399,11 +400,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Create model if it doesn't exist
             if (!model) {
-              model = await storage.createVehicleModel({
+              // Only pass the exact fields needed, nothing extra
+              const modelData = {
                 brandId: brand.id,
-                modelName: modelName,
-                active: true
-              });
+                modelName: modelName
+              };
+              model = await storage.createVehicleModel(modelData);
 
               const brandResult = results.created.find(r => r.brand === brandName);
               if (brandResult && !brandResult.models.includes(modelName)) {
@@ -417,11 +419,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 .find(v => v.variantName.toLowerCase() === variantName.toLowerCase());
 
               if (!existingVariant) {
-                await storage.createVehicleVariant({
+                // Only pass the exact fields needed, nothing extra
+                const variantData = {
                   modelId: model.id,
-                  variantName: variantName,
-                  active: true
-                });
+                  variantName: variantName
+                };
+                await storage.createVehicleVariant(variantData);
 
                 const brandResult = results.created.find(r => r.brand === brandName);
                 if (brandResult) {
