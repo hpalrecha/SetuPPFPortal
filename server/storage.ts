@@ -235,7 +235,7 @@ export class DatabaseStorage implements IStorage {
 
   // Services management
   async getServices(filters?: { oemId?: string; dealershipId?: string }): Promise<any[]> {
-    let query = db.select().from(services).where(eq(services.active, true));
+    let query = db.select().from(services);
     
     if (filters?.dealershipId) {
       // For dealership-specific services, include GLOBAL, OEM-specific, and dealership-specific
@@ -260,6 +260,8 @@ export class DatabaseStorage implements IStorage {
           )`
         )
       );
+    } else {
+      query = query.where(eq(services.active, true));
     }
     
     return await query.orderBy(services.name);
@@ -313,15 +315,6 @@ export class DatabaseStorage implements IStorage {
     const [oem] = await db
       .update(oems)
       .set({ ...updates, updatedAt: new Date() })
-      .where(eq(oems.id, id))
-      .returning();
-    return oem || undefined;
-  }
-
-  async updateOem(id: string, updates: Partial<InsertOem>): Promise<Oem | undefined> {
-    const [oem] = await db
-      .update(oems)
-      .set(updates)
       .where(eq(oems.id, id))
       .returning();
     return oem || undefined;
@@ -441,8 +434,8 @@ export class DatabaseStorage implements IStorage {
         let workOrdersCount = 0;
         try {
           // This might fail if work_orders table doesn't exist yet
-          const workOrders = await db.select().from(workOrders).where(eq(workOrders.showroomId, showroom.id));
-          workOrdersCount = workOrders.length;
+          const showroomOrders = await db.select().from(workOrders).where(eq(workOrders.showroomId, showroom.id));
+          workOrdersCount = showroomOrders.length;
         } catch (e) {
           // Table doesn't exist yet, keep count as 0
         }
@@ -675,10 +668,12 @@ export class DatabaseStorage implements IStorage {
 
   // Vehicle Model methods
   async getVehicleModels(filters?: { oemId?: string }): Promise<VehicleModel[]> {
-    let query = db.select().from(vehicleModels).where(eq(vehicleModels.active, true));
+    let query = db.select().from(vehicleModels);
     
     if (filters?.oemId) {
       query = query.where(and(eq(vehicleModels.active, true), eq(vehicleModels.oemId, filters.oemId)));
+    } else {
+      query = query.where(eq(vehicleModels.active, true));
     }
 
     return await query.orderBy(vehicleModels.modelName);
@@ -717,10 +712,12 @@ export class DatabaseStorage implements IStorage {
 
   // Vehicle Variant methods
   async getVehicleVariants(filters?: { modelId?: string }): Promise<VehicleVariant[]> {
-    let query = db.select().from(vehicleVariants).where(eq(vehicleVariants.active, true));
+    let query = db.select().from(vehicleVariants);
     
     if (filters?.modelId) {
       query = query.where(and(eq(vehicleVariants.active, true), eq(vehicleVariants.modelId, filters.modelId)));
+    } else {
+      query = query.where(eq(vehicleVariants.active, true));
     }
 
     return await query.orderBy(vehicleVariants.variantName);
