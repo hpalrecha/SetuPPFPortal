@@ -51,6 +51,22 @@ export interface IStorage {
   getOems(): Promise<Oem[]>;
   getOem(id: string): Promise<Oem | undefined>;
   createOem(oem: InsertOem): Promise<Oem>;
+  updateOem(id: string, updates: Partial<InsertOem>): Promise<Oem | undefined>;
+  deleteOem(id: string): Promise<boolean>;
+
+  // Dealership management
+  getDealerships(oemId?: string): Promise<any[]>;
+  getDealership(id: string): Promise<any | undefined>;
+  createDealership(dealership: any): Promise<any>;
+  updateDealership(id: string, updates: any): Promise<any | undefined>;
+  deleteDealership(id: string): Promise<boolean>;
+
+  // Showroom management
+  getShowrooms(dealershipId?: string, oemId?: string): Promise<any[]>;
+  getShowroom(id: string): Promise<any | undefined>;
+  createShowroom(showroom: any): Promise<any>;
+  updateShowroom(id: string, updates: any): Promise<any | undefined>;
+  deleteShowroom(id: string): Promise<boolean>;
 
   // Work Order management
   getWorkOrders(filters?: { 
@@ -179,6 +195,15 @@ export class DatabaseStorage implements IStorage {
     return oem || undefined;
   }
 
+  async updateOem(id: string, updates: Partial<InsertOem>): Promise<Oem | undefined> {
+    const [oem] = await db
+      .update(oems)
+      .set(updates)
+      .where(eq(oems.id, id))
+      .returning();
+    return oem || undefined;
+  }
+
   async deleteOem(id: string): Promise<boolean> {
     // Comprehensive cascading delete for OEM and all related data
     
@@ -212,6 +237,102 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(oems)
       .where(eq(oems.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // Dealership Management
+  async getDealerships(oemId?: string): Promise<any[]> {
+    const query = db.select().from(dealerships);
+    if (oemId) {
+      return await query.where(eq(dealerships.oemId, oemId));
+    }
+    return await query;
+  }
+
+  async getDealership(id: string): Promise<any | undefined> {
+    const [dealership] = await db
+      .select()
+      .from(dealerships)
+      .where(eq(dealerships.id, id));
+    return dealership || undefined;
+  }
+
+  async createDealership(dealership: any): Promise<any> {
+    const [newDealership] = await db
+      .insert(dealerships)
+      .values(dealership)
+      .returning();
+    return newDealership;
+  }
+
+  async updateDealership(id: string, updates: any): Promise<any | undefined> {
+    const [dealership] = await db
+      .update(dealerships)
+      .set(updates)
+      .where(eq(dealerships.id, id))
+      .returning();
+    return dealership || undefined;
+  }
+
+  async deleteDealership(id: string): Promise<boolean> {
+    // Delete associated showrooms first
+    await db.delete(showrooms).where(eq(showrooms.dealershipId, id));
+    
+    // Delete the dealership
+    const result = await db
+      .delete(dealerships)
+      .where(eq(dealerships.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // Showroom Management
+  async getShowrooms(dealershipId?: string, oemId?: string): Promise<any[]> {
+    if (dealershipId) {
+      return await db.select().from(showrooms).where(eq(showrooms.dealershipId, dealershipId));
+    }
+    
+    if (oemId) {
+      // Get showrooms for all dealerships under this OEM
+      const oemDealerships = await db.select({ id: dealerships.id }).from(dealerships).where(eq(dealerships.oemId, oemId));
+      const dealershipIds = oemDealerships.map(d => d.id);
+      
+      if (dealershipIds.length === 0) return [];
+      
+      return await db.select().from(showrooms).where(sql`${showrooms.dealershipId} = ANY(${dealershipIds})`);
+    }
+    
+    return await db.select().from(showrooms);
+  }
+
+  async getShowroom(id: string): Promise<any | undefined> {
+    const [showroom] = await db
+      .select()
+      .from(showrooms)
+      .where(eq(showrooms.id, id));
+    return showroom || undefined;
+  }
+
+  async createShowroom(showroom: any): Promise<any> {
+    const [newShowroom] = await db
+      .insert(showrooms)
+      .values(showroom)
+      .returning();
+    return newShowroom;
+  }
+
+  async updateShowroom(id: string, updates: any): Promise<any | undefined> {
+    const [showroom] = await db
+      .update(showrooms)
+      .set(updates)
+      .where(eq(showrooms.id, id))
+      .returning();
+    return showroom || undefined;
+  }
+
+  async deleteShowroom(id: string): Promise<boolean> {
+    const result = await db
+      .delete(showrooms)
+      .where(eq(showrooms.id, id));
     return (result.rowCount ?? 0) > 0;
   }
 

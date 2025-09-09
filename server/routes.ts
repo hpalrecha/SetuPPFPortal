@@ -154,6 +154,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Dealership Routes
+  app.get("/api/dealerships", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN']), async (req, res) => {
+    try {
+      const { oemId } = req.query;
+      const dealerships = await storage.getDealerships(oemId as string);
+      res.json(dealerships);
+    } catch (error) {
+      console.error("Get dealerships error:", error);
+      res.status(500).json({ error: "Failed to fetch dealerships" });
+    }
+  });
+
+  app.get("/api/dealerships/:id", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const dealership = await storage.getDealership(id);
+      
+      if (!dealership) {
+        return res.status(404).json({ error: "Dealership not found" });
+      }
+      
+      res.json(dealership);
+    } catch (error) {
+      console.error("Get dealership error:", error);
+      res.status(500).json({ error: "Failed to fetch dealership" });
+    }
+  });
+
+  app.post("/api/dealerships", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    auditLog('dealership', 'create'),
+    async (req, res) => {
+      try {
+        // Add brandCode field derived from dealership name
+        const dealershipData = {
+          ...req.body,
+          code: req.body.name.substring(0, 3).toUpperCase() + Math.floor(Math.random() * 1000)
+        };
+        
+        const dealership = await storage.createDealership(dealershipData);
+        res.status(201).json(dealership);
+      } catch (error) {
+        console.error("Create dealership error:", error);
+        res.status(500).json({ error: "Failed to create dealership" });
+      }
+    }
+  );
+
+  app.put("/api/dealerships/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    auditLog('dealership', 'update'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const dealership = await storage.updateDealership(id, req.body);
+        
+        if (!dealership) {
+          return res.status(404).json({ error: "Dealership not found" });
+        }
+        
+        res.json(dealership);
+      } catch (error) {
+        console.error("Update dealership error:", error);
+        res.status(500).json({ error: "Failed to update dealership" });
+      }
+    }
+  );
+
+  app.delete("/api/dealerships/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    auditLog('dealership', 'delete'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const success = await storage.deleteDealership(id);
+        
+        if (!success) {
+          return res.status(404).json({ error: "Dealership not found" });
+        }
+        
+        res.json({ message: "Dealership deleted successfully" });
+      } catch (error) {
+        console.error("Delete dealership error:", error);
+        res.status(500).json({ error: "Failed to delete dealership" });
+      }
+    }
+  );
+
+  // Showroom Routes
+  app.get("/api/showrooms", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']), async (req, res) => {
+    try {
+      const { dealershipId, oemId } = req.query;
+      const showrooms = await storage.getShowrooms(dealershipId as string, oemId as string);
+      res.json(showrooms);
+    } catch (error) {
+      console.error("Get showrooms error:", error);
+      res.status(500).json({ error: "Failed to fetch showrooms" });
+    }
+  });
+
+  app.post("/api/showrooms", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    auditLog('showroom', 'create'),
+    async (req, res) => {
+      try {
+        // Add code field derived from showroom name
+        const showroomData = {
+          ...req.body,
+          code: req.body.name.substring(0, 3).toUpperCase() + Math.floor(Math.random() * 1000)
+        };
+        
+        const showroom = await storage.createShowroom(showroomData);
+        res.status(201).json(showroom);
+      } catch (error) {
+        console.error("Create showroom error:", error);
+        res.status(500).json({ error: "Failed to create showroom" });
+      }
+    }
+  );
+
   // Vehicle Data Display Route (OEM = Brand structure)
   app.get("/api/vehicle-data/:oemId", authenticate, requireOEMAccess, async (req, res) => {
     try {
