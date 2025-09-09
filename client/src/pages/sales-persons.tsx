@@ -8,6 +8,64 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { CreateSalesPersonModal } from "@/components/modals/CreateSalesPersonModal";
 
+// Sales Person Metrics Component
+function SalesPersonMetrics({ salesPersonId }: { salesPersonId: string }) {
+  const { data: metrics, isLoading } = useQuery({
+    queryKey: ["/api/sales-persons", salesPersonId, "metrics"],
+    queryFn: async () => {
+      const response = await fetch(`/api/sales-persons/${salesPersonId}/metrics`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch sales person metrics');
+      }
+      
+      return response.json();
+    },
+    refetchInterval: 60000,
+    enabled: !!salesPersonId
+  });
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 gap-2 text-center text-sm mb-4">
+        <div className="animate-pulse">
+          <div className="h-4 bg-muted rounded w-8 mx-auto mb-1"></div>
+          <p className="text-muted-foreground">Active Orders</p>
+        </div>
+        <div className="animate-pulse">
+          <div className="h-4 bg-muted rounded w-12 mx-auto mb-1"></div>
+          <p className="text-muted-foreground">This Month</p>
+        </div>
+      </div>
+    );
+  }
+
+  const formatCurrency = (amount: number) => {
+    if (amount === 0) return '₹0';
+    if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
+    if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}K`;
+    return `₹${amount}`;
+  };
+
+  return (
+    <div className="grid grid-cols-2 gap-2 text-center text-sm mb-4">
+      <div>
+        <p className="font-semibold text-foreground">{metrics?.activeOrders || 0}</p>
+        <p className="text-muted-foreground">Active Orders</p>
+      </div>
+      <div>
+        <p className="font-semibold text-foreground">{formatCurrency(metrics?.thisMonthRevenue || 0)}</p>
+        <p className="text-muted-foreground">This Month</p>
+      </div>
+    </div>
+  );
+}
+
 export default function SalesPersonsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -214,16 +272,7 @@ export default function SalesPersonsPage() {
                 </div>
 
                 {/* Performance Stats */}
-                <div className="grid grid-cols-2 gap-2 text-center text-sm mb-4">
-                  <div>
-                    <p className="font-semibold text-foreground">23</p>
-                    <p className="text-muted-foreground">Active Orders</p>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-foreground">₹2.4L</p>
-                    <p className="text-muted-foreground">This Month</p>
-                  </div>
-                </div>
+                <SalesPersonMetrics salesPersonId={salesPerson.id} />
 
                 <div className="flex space-x-2">
                   <Button 
