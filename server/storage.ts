@@ -194,10 +194,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSalesPersons(showroomId?: string): Promise<User[]> {
-    let query = db.select().from(users).where(eq(users.role, 'SALES_PERSON'));
+    let query = db.select().from(users);
     
     if (showroomId) {
       query = query.where(and(eq(users.role, 'SALES_PERSON'), eq(users.showroomId, showroomId)));
+    } else {
+      query = query.where(eq(users.role, 'SALES_PERSON'));
     }
     
     return await query;
