@@ -180,6 +180,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteOem(id: string): Promise<boolean> {
+    // First delete all related dealerships and their showrooms
+    const oemDealerships = await db.select({ id: dealerships.id }).from(dealerships).where(eq(dealerships.oemId, id));
+    
+    for (const dealership of oemDealerships) {
+      // Delete showrooms for each dealership
+      await db.delete(showrooms).where(eq(showrooms.dealershipId, dealership.id));
+    }
+    
+    // Delete all dealerships for this OEM
+    await db.delete(dealerships).where(eq(dealerships.oemId, id));
+    
+    // Delete all vehicle models for this OEM
+    await db.delete(vehicleModels).where(eq(vehicleModels.oemId, id));
+    
+    // Finally delete the OEM
     const result = await db
       .delete(oems)
       .where(eq(oems.id, id));
