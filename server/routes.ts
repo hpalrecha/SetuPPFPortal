@@ -340,13 +340,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('showroom', 'create'),
     async (req, res) => {
       try {
+        // Extract createUser flag and admin user data
+        const { createUser, adminUserData, ...showroomFields } = req.body;
+        
         // Add code field derived from showroom name
         const showroomData = {
-          ...req.body,
-          code: req.body.name.substring(0, 3).toUpperCase() + Math.floor(Math.random() * 1000)
+          ...showroomFields,
+          code: showroomFields.name.substring(0, 3).toUpperCase() + Math.floor(Math.random() * 1000)
         };
         
+        // Create the showroom first
         const showroom = await storage.createShowroom(showroomData);
+        
+        // Create manager user if requested
+        if (createUser && adminUserData) {
+          try {
+            const bcrypt = require('bcryptjs');
+            const hashedPassword = await bcrypt.hash(adminUserData.password, 10);
+            
+            const managerData = {
+              name: adminUserData.name,
+              email: adminUserData.email,
+              phone: adminUserData.phone || '',
+              passwordHash: hashedPassword,
+              role: 'SHOWROOM_MANAGER',
+              oemId: showroom.oemId, // Link to the same OEM
+              dealershipId: showroom.dealershipId,
+              showroomId: showroom.id,
+              isActive: true
+            };
+            
+            const createdUser = await storage.createUser(managerData);
+            console.log(`Created showroom manager user: ${createdUser.email} for ${showroom.name}`);
+          } catch (userError) {
+            console.error("Failed to create showroom manager user:", userError);
+            // Don't fail the whole request if user creation fails
+          }
+        }
+        
         res.status(201).json(showroom);
       } catch (error) {
         console.error("Create showroom error:", error);
