@@ -35,7 +35,9 @@ export default function DealershipsPage() {
       
       return response.json();
     },
-    refetchInterval: 30000,
+    refetchInterval: 5000, // Refresh every 5 seconds to see changes quickly
+    staleTime: 0, // Always consider data stale
+    cacheTime: 0, // Don't cache data
     enabled: canAccessDealerships
   });
 
@@ -73,6 +75,7 @@ export default function DealershipsPage() {
       });
 
       queryClient.invalidateQueries({ queryKey: ["/api/dealerships"] });
+      queryClient.removeQueries({ queryKey: ["/api/dealerships"] }); // Force remove cache
     } catch (error) {
       console.error('Error deleting dealership:', error);
       toast({

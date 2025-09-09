@@ -317,7 +317,8 @@ export class DatabaseStorage implements IStorage {
       
       if (dealershipIds.length === 0) return [];
       
-      return await db.select().from(showrooms).where(sql`${showrooms.dealershipId} = ANY(${dealershipIds})`);
+      // Use drizzle's inArray instead of raw SQL
+      return await db.select().from(showrooms).where(sql`${showrooms.dealershipId} IN (${dealershipIds.map(id => `'${id}'`).join(',')})`);
     }
     
     return await db.select().from(showrooms);
