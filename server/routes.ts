@@ -1166,6 +1166,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Sales Persons Routes
+  app.get("/api/sales-persons", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']), 
+    async (req, res) => {
+      try {
+        const { showroomId } = req.query;
+        const salesPersons = await storage.getSalesPersons(showroomId as string);
+        res.json(salesPersons);
+      } catch (error) {
+        console.error("Get sales persons error:", error);
+        res.status(500).json({ error: "Failed to fetch sales persons" });
+      }
+    }
+  );
+
+  app.post("/api/sales-persons", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    auditLog('sales_person', 'create'),
+    async (req, res) => {
+      try {
+        const salesPersonData = {
+          name: req.body.name,
+          email: req.body.email,
+          phone: req.body.phone || '',
+          passwordHash: '',
+          role: 'SALES_PERSON' as const,
+          showroomId: req.body.showroomId || null,
+          isActive: req.body.active ?? true
+        };
+        
+        const salesPerson = await storage.createUser(salesPersonData);
+        res.status(201).json(salesPerson);
+      } catch (error) {
+        console.error("Create sales person error:", error);
+        res.status(500).json({ error: "Failed to create sales person" });
+      }
+    }
+  );
+
+  app.put("/api/sales-persons/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    auditLog('sales_person', 'update'),
+    async (req, res) => {
+      try {
+        const updateData = {
+          name: req.body.name,
+          email: req.body.email,
+          phone: req.body.phone,
+          showroomId: req.body.showroomId || null,
+          isActive: req.body.active
+        };
+        
+        const salesPerson = await storage.updateUser(req.params.id, updateData);
+        if (!salesPerson) {
+          return res.status(404).json({ error: "Sales person not found" });
+        }
+        res.json(salesPerson);
+      } catch (error) {
+        console.error("Update sales person error:", error);
+        res.status(500).json({ error: "Failed to update sales person" });
+      }
+    }
+  );
+
+  app.delete("/api/sales-persons/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    auditLog('sales_person', 'delete'),
+    async (req, res) => {
+      try {
+        const result = await storage.deleteUser(req.params.id);
+        if (!result) {
+          return res.status(404).json({ error: "Sales person not found" });
+        }
+        res.json({ message: "Sales person deleted successfully" });
+      } catch (error) {
+        console.error("Delete sales person error:", error);
+        res.status(500).json({ error: "Failed to delete sales person" });
+      }
+    }
+  );
+
   // Commission Rules Routes
   app.get("/api/commission-rules", authenticate, requireOEMAccess, async (req, res) => {
     try {

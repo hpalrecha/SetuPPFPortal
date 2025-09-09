@@ -179,6 +179,16 @@ export class DatabaseStorage implements IStorage {
     return await query;
   }
 
+  async getSalesPersons(showroomId?: string): Promise<User[]> {
+    let query = db.select().from(users).where(eq(users.role, 'SALES_PERSON'));
+    
+    if (showroomId) {
+      query = query.where(and(eq(users.role, 'SALES_PERSON'), eq(users.showroomId, showroomId)));
+    }
+    
+    return await query;
+  }
+
   async updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined> {
     const [user] = await db
       .update(users)
