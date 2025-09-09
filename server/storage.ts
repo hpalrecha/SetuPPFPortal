@@ -170,6 +170,22 @@ export class DatabaseStorage implements IStorage {
     return oem;
   }
 
+  async updateOem(id: string, updates: Partial<InsertOem>): Promise<Oem | undefined> {
+    const [oem] = await db
+      .update(oems)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(oems.id, id))
+      .returning();
+    return oem || undefined;
+  }
+
+  async deleteOem(id: string): Promise<boolean> {
+    const result = await db
+      .delete(oems)
+      .where(eq(oems.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async getWorkOrders(filters?: { 
     oemId?: string; 
     showroomId?: string; 

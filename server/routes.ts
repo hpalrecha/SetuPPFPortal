@@ -8,7 +8,8 @@ import {
   insertPricingRuleSchema,
   insertCommissionRuleSchema,
   insertVehicleModelSchema,
-  insertVehicleVariantSchema
+  insertVehicleVariantSchema,
+  insertOemSchema
 } from "@shared/schema";
 import { storage } from "./storage";
 import { authService } from "./auth";
@@ -74,6 +75,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch OEMs" });
     }
   });
+
+  app.post("/api/oems", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('oem', 'create'),
+    async (req, res) => {
+      try {
+        const oemData = insertOemSchema.parse(req.body);
+        const oem = await storage.createOem(oemData);
+        res.status(201).json(oem);
+      } catch (error) {
+        console.error("Create OEM error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid OEM data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to create OEM" });
+      }
+    }
+  );
+
+  app.put("/api/oems/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('oem', 'update'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const oemData = insertOemSchema.partial().parse(req.body);
+        const oem = await storage.updateOem(id, oemData);
+        
+        if (!oem) {
+          return res.status(404).json({ error: "OEM not found" });
+        }
+        
+        res.json(oem);
+      } catch (error) {
+        console.error("Update OEM error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid OEM data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to update OEM" });
+      }
+    }
+  );
+
+  app.delete("/api/oems/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('oem', 'delete'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const success = await storage.deleteOem(id);
+        
+        if (!success) {
+          return res.status(404).json({ error: "OEM not found" });
+        }
+        
+        res.json({ message: "OEM deleted successfully" });
+      } catch (error) {
+        console.error("Delete OEM error:", error);
+        res.status(500).json({ error: "Failed to delete OEM" });
+      }
+    }
+  );
 
   // Vehicle Data Display Route (OEM = Brand structure)
   app.get("/api/vehicle-data/:oemId", authenticate, requireOEMAccess, async (req, res) => {
