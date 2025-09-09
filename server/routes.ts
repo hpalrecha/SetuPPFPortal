@@ -76,6 +76,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Vehicle Data Display Route
+  app.get("/api/vehicle-data/:oemId", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { oemId } = req.params;
+      
+      // Get all brands for this OEM with their models and variants
+      const brands = await storage.getVehicleBrands({ oemId });
+      const vehicleData = [];
+
+      for (const brand of brands) {
+        const models = await storage.getVehicleModels({ brandId: brand.id });
+        const brandData = {
+          id: brand.id,
+          name: brand.name,
+          models: []
+        };
+
+        for (const model of models) {
+          const variants = await storage.getVehicleVariants({ modelId: model.id });
+          brandData.models.push({
+            id: model.id,
+            name: model.modelName,
+            variants: variants.map(v => ({
+              id: v.id,
+              name: v.variantName,
+              fuelType: v.fuelType,
+              transmission: v.transmission,
+              engineCapacity: v.engineCapacity
+            }))
+          });
+        }
+
+        vehicleData.push(brandData);
+      }
+
+      res.json(vehicleData);
+    } catch (error) {
+      console.error("Vehicle data fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch vehicle data" });
+    }
+  });
+
   // Vehicle Brand Routes
   app.get("/api/vehicle-brands", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
     try {
@@ -345,33 +387,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           created: [] as Array<{ brand: string; models: string[]; variants: Array<{ model: string; variant: string }> }>
         };
 
-        console.log("Raw Excel data sample:", JSON.stringify(data.slice(0, 2), null, 2));
-        
         // Process each row
         for (let i = 0; i < data.length; i++) {
           const originalRow = data[i] as any;
           const rowNum = i + 2; // Excel row number (starting from 2, assuming row 1 is headers)
-
-          console.log(`Processing row ${rowNum}:`, JSON.stringify(originalRow, null, 2));
-
-          // Check if this row has the dreaded "active" column that's causing errors
-          if ('active' in originalRow) {
-            console.log(`Row ${rowNum} contains 'active' column:`, originalRow.active);
-            results.errors.push({
-              row: rowNum,
-              error: 'column "active" does not exist',
-              data: { brand_name: originalRow.brand_name || '', model_name: originalRow.model_name || '', variant_name: originalRow.variant_name || '' }
-            });
-            continue;
-          }
 
           try {
             // Only extract the fields we care about, completely ignore all other columns
             const brandName = originalRow.brand_name?.toString().trim();
             const modelName = originalRow.model_name?.toString().trim();
             const variantName = originalRow.variant_name?.toString().trim() || '';
-
-            console.log(`Extracted data for row ${rowNum}:`, { brandName, modelName, variantName });
 
             // Create a clean row object with only our 3 fields
             const cleanRowData = {
@@ -382,7 +407,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Validate required fields
             if (!brandName) {
-              console.log(`Row ${rowNum}: Missing brand name`);
               results.errors.push({
                 row: rowNum,
                 error: 'Brand name is required',
@@ -392,7 +416,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
 
             if (!modelName) {
-              console.log(`Row ${rowNum}: Missing model name`);
               results.errors.push({
                 row: rowNum,
                 error: 'Model name is required', 
@@ -477,7 +500,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        console.log("Upload results being sent:", JSON.stringify(results, null, 2));
         res.json({
           message: `Upload completed. ${results.success} records processed successfully.`,
           results

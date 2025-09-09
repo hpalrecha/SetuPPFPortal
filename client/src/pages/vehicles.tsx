@@ -17,6 +17,22 @@ type Oem = {
   active: boolean;
 };
 
+type VehicleData = {
+  id: string;
+  name: string;
+  models: {
+    id: string;
+    name: string;
+    variants: {
+      id: string;
+      name: string;
+      fuelType?: string;
+      transmission?: string;
+      engineCapacity?: string;
+    }[];
+  }[];
+};
+
 
 export default function VehiclesPage() {
   const [selectedOemId, setSelectedOemId] = useState('');
@@ -30,6 +46,12 @@ export default function VehiclesPage() {
   const { data: oems = [], isLoading: oemsLoading } = useQuery<Oem[]>({
     queryKey: ['/api/oems'],
     enabled: true,
+  });
+
+  // Fetch vehicle data for selected OEM
+  const { data: vehicleData = [], isLoading: vehicleLoading, refetch: refetchVehicleData } = useQuery<VehicleData[]>({
+    queryKey: ['/api/vehicle-data', selectedOemId],
+    enabled: !!selectedOemId,
   });
 
 
@@ -64,7 +86,7 @@ export default function VehiclesPage() {
     onSuccess: (data) => {
       setUploadResults(data);
       setIsUploading(false);
-      // Refresh will happen automatically after successful upload
+      refetchVehicleData(); // Refresh the vehicle data display
       toast({ title: 'Upload completed', description: data.message });
     },
     onError: (error) => {
@@ -223,23 +245,71 @@ export default function VehiclesPage() {
         </Card>
       )}
 
-      {/* Instructions */}
+      {/* Vehicle Data Display */}
       {selectedOemId && (
         <Card>
           <CardHeader>
-            <CardTitle>Ready to Upload</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Factory className="h-5 w-5" />
+              Vehicle Data for {oems.find(o => o.id === selectedOemId)?.name}
+            </CardTitle>
             <CardDescription>
-              Your vehicle data will be linked to {oems.find(o => o.id === selectedOemId)?.name}
+              {vehicleLoading ? 'Loading...' : `${vehicleData.reduce((total, brand) => total + brand.models.reduce((modelTotal, model) => modelTotal + model.variants.length, 0), 0)} vehicle records found`}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8 text-gray-600 dark:text-gray-400">
-              <FileSpreadsheet className="h-16 w-16 mx-auto mb-4 opacity-50" />
-              <p className="text-lg mb-2">Upload your vehicle data via Excel</p>
-              <p className="text-sm">
-                Download the template, fill it with your data, and upload to get started
-              </p>
-            </div>
+            {vehicleLoading ? (
+              <div className="text-center py-8">
+                <Progress value={undefined} className="h-2 w-32 mx-auto mb-4" />
+                <p className="text-sm text-gray-600 dark:text-gray-400">Loading vehicle data...</p>
+              </div>
+            ) : vehicleData.length === 0 ? (
+              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p className="text-lg">No vehicle data found</p>
+                <p className="text-sm">Upload an Excel file to add vehicle data</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {vehicleData.map((brand) => (
+                  <div key={brand.id} className="border rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400 mb-2">
+                      {brand.name}
+                    </h3>
+                    {brand.models.length === 0 ? (
+                      <p className="text-sm text-gray-500">No models found</p>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {brand.models.map((model) => (
+                          <div key={model.id} className="bg-gray-50 dark:bg-gray-800 rounded p-3">
+                            <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                              {model.name}
+                            </h4>
+                            {model.variants.length === 0 ? (
+                              <p className="text-xs text-gray-500">No variants</p>
+                            ) : (
+                              <div className="space-y-1">
+                                {model.variants.map((variant) => (
+                                  <div key={variant.id} className="text-xs bg-white dark:bg-gray-700 rounded px-2 py-1">
+                                    <span className="font-medium">{variant.name}</span>
+                                    {variant.fuelType && (
+                                      <span className="text-gray-500 ml-2">• {variant.fuelType}</span>
+                                    )}
+                                    {variant.transmission && (
+                                      <span className="text-gray-500 ml-1">• {variant.transmission}</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
