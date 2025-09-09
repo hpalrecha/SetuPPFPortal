@@ -244,20 +244,17 @@ export default function VehiclesPage() {
   };
 
   const downloadTemplate = () => {
-    // Create sample Excel template
+    // Create sample Excel template with new OEM-Model-Variant format
     const templateData = [
       {
-        brand_name: 'Maruti Suzuki',
         model_name: 'Swift',
         variant_name: 'VXI'
       },
       {
-        brand_name: 'Maruti Suzuki', 
         model_name: 'Swift',
         variant_name: 'ZXI'
       },
       {
-        brand_name: 'Tata Motors',
         model_name: 'Nexon',
         variant_name: 'XM'
       }
