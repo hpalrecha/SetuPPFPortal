@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { CreateServiceModal } from '@/components/modals/CreateServiceModal';
 import { EditServiceModal } from '@/components/modals/EditServiceModal';
 import { apiRequest } from '@/lib/queryClient';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function ServicesPage() {
   const { user } = useAuth();
