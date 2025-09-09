@@ -75,41 +75,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Vehicle Data Display Route
+  // Vehicle Data Display Route (OEM = Brand structure)
   app.get("/api/vehicle-data/:oemId", authenticate, requireOEMAccess, async (req, res) => {
     try {
       const { oemId } = req.params;
       
-      // Get all brands for this OEM with their models and variants
-      const brands = await storage.getVehicleBrands({ oemId });
-      const vehicleData = [];
-
-      for (const brand of brands) {
-        const models = await storage.getVehicleModels({ brandId: brand.id });
-        const brandData = {
-          id: brand.id,
-          name: brand.name,
-          models: []
-        };
-
-        for (const model of models) {
-          const variants = await storage.getVehicleVariants({ modelId: model.id });
-          (brandData.models as any[]).push({
-            id: model.id,
-            name: model.modelName,
-            variants: variants.map(v => ({
-              id: v.id,
-              name: v.variantName,
-              fuelType: v.fuelType || null,
-              transmission: v.transmission || null,
-              engineCapacity: v.engineCapacity || null
-            }))
-          });
-        }
-
-        vehicleData.push(brandData);
+      // Get OEM info
+      const oem = await storage.getOem(oemId);
+      if (!oem) {
+        return res.status(404).json({ error: "OEM not found" });
       }
 
+      // Get all models for this OEM with their variants
+      const models = await storage.getVehicleModels({ oemId });
+      const vehicleData = [];
+
+      // Since OEM = Brand, create a single brand entry with OEM's name
+      const brandData = {
+        id: oem.id,
+        name: oem.name,
+        models: []
+      };
+
+      for (const model of models) {
+        const variants = await storage.getVehicleVariants({ modelId: model.id });
+        (brandData.models as any[]).push({
+          id: model.id,
+          name: model.modelName,
+          variants: variants.map(v => ({
+            id: v.id,
+            name: v.variantName,
+            fuelType: v.fuelType || null,
+            transmission: v.transmission || null,
+            engineCapacity: v.engineCapacity || null
+          }))
+        });
+      }
+
+      vehicleData.push(brandData);
       res.json(vehicleData);
     } catch (error) {
       console.error("Vehicle data fetch error:", error);
@@ -117,115 +120,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Vehicle Brand Routes
-  app.get("/api/vehicle-brands", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
+  // Note: Brand endpoints removed - OEM serves as Brand directly
+
+
+
+  // Vehicle Model Routes (now using oemId instead of brandId)
+  app.get("/api/vehicle-models", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
     try {
       const { oemId } = req.query;
       
       const filters: any = {};
       if (oemId) filters.oemId = oemId as string;
-
-      const brands = await storage.getVehicleBrands(filters);
-      res.json(brands);
-    } catch (error) {
-      console.error("Get vehicle brands error:", error);
-      res.status(500).json({ error: "Failed to fetch vehicle brands" });
-    }
-  });
-
-  app.post("/api/vehicle-brands", 
-    authenticate, 
-    requireRole(['SUPER_ADMIN']),
-    auditLog('vehicle_brand', 'create'),
-    async (req, res) => {
-      try {
-        const brandData = insertVehicleBrandSchema.parse(req.body);
-        const brand = await storage.createVehicleBrand(brandData);
-        res.status(201).json(brand);
-      } catch (error) {
-        console.error("Create vehicle brand error:", error);
-        if (error instanceof z.ZodError) {
-          return res.status(400).json({ error: "Invalid vehicle brand data", details: error.errors });
-        }
-        res.status(500).json({ error: "Failed to create vehicle brand" });
-      }
-    }
-  );
-
-  app.put("/api/vehicle-brands/:id", 
-    authenticate, 
-    requireRole(['SUPER_ADMIN']),
-    auditLog('vehicle_brand', 'update'),
-    async (req, res) => {
-      try {
-        const { id } = req.params;
-        const brandData = insertVehicleBrandSchema.partial().parse(req.body);
-        const brand = await storage.updateVehicleBrand(id, brandData);
-        
-        if (!brand) {
-          return res.status(404).json({ error: "Brand not found" });
-        }
-        
-        res.json(brand);
-      } catch (error) {
-        console.error("Update vehicle brand error:", error);
-        if (error instanceof z.ZodError) {
-          return res.status(400).json({ error: "Invalid vehicle brand data", details: error.errors });
-        }
-        res.status(500).json({ error: "Failed to update vehicle brand" });
-      }
-    }
-  );
-
-  app.delete("/api/vehicle-brands/:id", 
-    authenticate, 
-    requireRole(['SUPER_ADMIN']),
-    auditLog('vehicle_brand', 'delete'),
-    async (req, res) => {
-      try {
-        const { id } = req.params;
-        const success = await storage.deleteVehicleBrand(id);
-        
-        if (!success) {
-          return res.status(404).json({ error: "Brand not found" });
-        }
-        
-        res.json({ message: "Brand deleted successfully" });
-      } catch (error) {
-        console.error("Delete vehicle brand error:", error);
-        res.status(500).json({ error: "Failed to delete vehicle brand" });
-      }
-    }
-  );
-
-
-  app.delete("/api/vehicle-brands/:id", 
-    authenticate, 
-    requireRole(['SUPER_ADMIN']),
-    auditLog('vehicle_brand', 'delete'),
-    async (req, res) => {
-      try {
-        const success = await storage.deleteVehicleBrand(req.params.id);
-        
-        if (!success) {
-          return res.status(404).json({ error: "Vehicle brand not found" });
-        }
-
-        res.json({ message: "Vehicle brand deleted successfully" });
-      } catch (error) {
-        console.error("Delete vehicle brand error:", error);
-        res.status(500).json({ error: "Failed to delete vehicle brand" });
-      }
-    }
-  );
-
-  // Vehicle Model Routes
-  app.get("/api/vehicle-models", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
-    try {
-      const { brandId } = req.query;
-      
-      const filters: any = {};
-      if (brandId) filters.brandId = brandId as string;
 
       const models = await storage.getVehicleModels(filters);
       res.json(models);
