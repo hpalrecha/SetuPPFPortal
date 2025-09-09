@@ -6,10 +6,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { Factory, Upload, Download, AlertTriangle, CheckCircle, FileSpreadsheet } from 'lucide-react';
+import { Factory, Upload, Download, AlertTriangle, CheckCircle, FileSpreadsheet, Plus, Edit, Trash2, Car } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import * as XLSX from 'xlsx';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 
 type Oem = {
   id: string;
@@ -33,6 +37,25 @@ type VehicleData = {
   }[];
 };
 
+// Form schemas
+const brandFormSchema = z.object({
+  name: z.string().min(1, 'Brand name is required'),
+  oemId: z.string().min(1, 'OEM is required')
+});
+
+const modelFormSchema = z.object({
+  modelName: z.string().min(1, 'Model name is required'),
+  brandId: z.string().min(1, 'Brand is required')
+});
+
+const variantFormSchema = z.object({
+  variantName: z.string().min(1, 'Variant name is required'),
+  modelId: z.string().min(1, 'Model is required'),
+  fuelType: z.string().optional(),
+  transmission: z.string().optional(),
+  engineCapacity: z.string().optional()
+});
+
 
 export default function VehiclesPage() {
   const [selectedOemId, setSelectedOemId] = useState('');
@@ -40,6 +63,12 @@ export default function VehiclesPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadResults, setUploadResults] = useState<any>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [showBrandDialog, setShowBrandDialog] = useState(false);
+  const [showModelDialog, setShowModelDialog] = useState(false);
+  const [showVariantDialog, setShowVariantDialog] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [selectedBrandId, setSelectedBrandId] = useState('');
+  const [selectedModelId, setSelectedModelId] = useState('');
   const { toast } = useToast();
 
   // Fetch OEMs
@@ -52,6 +81,22 @@ export default function VehiclesPage() {
   const { data: vehicleData = [], isLoading: vehicleLoading, refetch: refetchVehicleData } = useQuery<VehicleData[]>({
     queryKey: ['/api/vehicle-data', selectedOemId],
     enabled: !!selectedOemId,
+  });
+
+  // Form instances
+  const brandForm = useForm<z.infer<typeof brandFormSchema>>({
+    resolver: zodResolver(brandFormSchema),
+    defaultValues: { name: '', oemId: selectedOemId }
+  });
+
+  const modelForm = useForm<z.infer<typeof modelFormSchema>>({
+    resolver: zodResolver(modelFormSchema),
+    defaultValues: { modelName: '', brandId: '' }
+  });
+
+  const variantForm = useForm<z.infer<typeof variantFormSchema>>({
+    resolver: zodResolver(variantFormSchema),
+    defaultValues: { variantName: '', modelId: '', fuelType: '', transmission: '', engineCapacity: '' }
   });
 
 
@@ -96,6 +141,82 @@ export default function VehiclesPage() {
         description: error instanceof Error ? error.message : 'Unknown error',
         variant: 'destructive'
       });
+    }
+  });
+
+  // CRUD Mutations
+  const createBrandMutation = useMutation({
+    mutationFn: (data: z.infer<typeof brandFormSchema>) => 
+      apiRequest('/api/vehicle-brands', { method: 'POST', body: data }),
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Brand created successfully' });
+      setShowBrandDialog(false);
+      brandForm.reset();
+      refetchVehicleData();
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message || 'Failed to create brand', variant: 'destructive' });
+    }
+  });
+
+  const createModelMutation = useMutation({
+    mutationFn: (data: z.infer<typeof modelFormSchema>) => 
+      apiRequest('/api/vehicle-models', { method: 'POST', body: data }),
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Model created successfully' });
+      setShowModelDialog(false);
+      modelForm.reset();
+      refetchVehicleData();
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message || 'Failed to create model', variant: 'destructive' });
+    }
+  });
+
+  const createVariantMutation = useMutation({
+    mutationFn: (data: z.infer<typeof variantFormSchema>) => 
+      apiRequest('/api/vehicle-variants', { method: 'POST', body: data }),
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Variant created successfully' });
+      setShowVariantDialog(false);
+      variantForm.reset();
+      refetchVehicleData();
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message || 'Failed to create variant', variant: 'destructive' });
+    }
+  });
+
+  const deleteBrandMutation = useMutation({
+    mutationFn: (id: string) => apiRequest(`/api/vehicle-brands/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Brand deleted successfully' });
+      refetchVehicleData();
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message || 'Failed to delete brand', variant: 'destructive' });
+    }
+  });
+
+  const deleteModelMutation = useMutation({
+    mutationFn: (id: string) => apiRequest(`/api/vehicle-models/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Model deleted successfully' });
+      refetchVehicleData();
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message || 'Failed to delete model', variant: 'destructive' });
+    }
+  });
+
+  const deleteVariantMutation = useMutation({
+    mutationFn: (id: string) => apiRequest(`/api/vehicle-variants/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Variant deleted successfully' });
+      refetchVehicleData();
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message || 'Failed to delete variant', variant: 'destructive' });
     }
   });
 
@@ -249,9 +370,22 @@ export default function VehiclesPage() {
       {selectedOemId && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Factory className="h-5 w-5" />
-              Vehicle Data for {oems.find(o => o.id === selectedOemId)?.name}
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Factory className="h-5 w-5" />
+                Vehicle Data for {oems.find(o => o.id === selectedOemId)?.name}
+              </div>
+              <Button 
+                onClick={() => {
+                  brandForm.setValue('oemId', selectedOemId);
+                  setShowBrandDialog(true);
+                }}
+                className="flex items-center gap-2"
+                data-testid="button-add-brand"
+              >
+                <Plus className="h-4 w-4" />
+                Add Brand
+              </Button>
             </CardTitle>
             <CardDescription>
               {vehicleLoading ? 'Loading...' : `${vehicleData.reduce((total, brand) => total + brand.models.reduce((modelTotal, model) => modelTotal + model.variants.length, 0), 0)} vehicle records found`}
@@ -273,31 +407,99 @@ export default function VehiclesPage() {
               <div className="space-y-4">
                 {vehicleData.map((brand) => (
                   <div key={brand.id} className="border rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400 mb-2">
-                      {brand.name}
-                    </h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+                        {brand.name}
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            modelForm.setValue('brandId', brand.id);
+                            setSelectedBrandId(brand.id);
+                            setShowModelDialog(true);
+                          }}
+                          className="flex items-center gap-1"
+                          data-testid={`button-add-model-${brand.name}`}
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add Model
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => deleteBrandMutation.mutate(brand.id)}
+                          disabled={deleteBrandMutation.isPending}
+                          className="text-red-600 hover:text-red-700"
+                          data-testid={`button-delete-brand-${brand.name}`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
                     {brand.models.length === 0 ? (
                       <p className="text-sm text-gray-500">No models found</p>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {brand.models.map((model) => (
                           <div key={model.id} className="bg-gray-50 dark:bg-gray-800 rounded p-3">
-                            <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-2">
-                              {model.name}
-                            </h4>
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                                {model.name}
+                              </h4>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    variantForm.setValue('modelId', model.id);
+                                    setSelectedModelId(model.id);
+                                    setShowVariantDialog(true);
+                                  }}
+                                  className="h-6 px-2 text-xs"
+                                  data-testid={`button-add-variant-${model.name}`}
+                                >
+                                  <Plus className="h-2 w-2 mr-1" />
+                                  Add Variant
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => deleteModelMutation.mutate(model.id)}
+                                  disabled={deleteModelMutation.isPending}
+                                  className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
+                                  data-testid={`button-delete-model-${model.name}`}
+                                >
+                                  <Trash2 className="h-2 w-2" />
+                                </Button>
+                              </div>
+                            </div>
                             {model.variants.length === 0 ? (
                               <p className="text-xs text-gray-500">No variants</p>
                             ) : (
                               <div className="space-y-1">
                                 {model.variants.map((variant) => (
-                                  <div key={variant.id} className="text-xs bg-white dark:bg-gray-700 rounded px-2 py-1">
-                                    <span className="font-medium">{variant.name}</span>
-                                    {variant.fuelType && (
-                                      <span className="text-gray-500 ml-2">• {variant.fuelType}</span>
-                                    )}
-                                    {variant.transmission && (
-                                      <span className="text-gray-500 ml-1">• {variant.transmission}</span>
-                                    )}
+                                  <div key={variant.id} className="text-xs bg-white dark:bg-gray-700 rounded px-2 py-1 flex items-center justify-between">
+                                    <div>
+                                      <span className="font-medium">{variant.name}</span>
+                                      {variant.fuelType && (
+                                        <span className="text-gray-500 ml-2">• {variant.fuelType}</span>
+                                      )}
+                                      {variant.transmission && (
+                                        <span className="text-gray-500 ml-1">• {variant.transmission}</span>
+                                      )}
+                                    </div>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => deleteVariantMutation.mutate(variant.id)}
+                                      disabled={deleteVariantMutation.isPending}
+                                      className="h-4 w-4 p-0 text-red-600 hover:text-red-700"
+                                      data-testid={`button-delete-variant-${variant.name}`}
+                                    >
+                                      <Trash2 className="h-2 w-2" />
+                                    </Button>
                                   </div>
                                 ))}
                               </div>
@@ -466,6 +668,156 @@ export default function VehiclesPage() {
               )}
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Brand Dialog */}
+      <Dialog open={showBrandDialog} onOpenChange={setShowBrandDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Brand</DialogTitle>
+            <DialogDescription>
+              Create a new vehicle brand for {oems.find(o => o.id === selectedOemId)?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...brandForm}>
+            <form onSubmit={brandForm.handleSubmit(data => createBrandMutation.mutate(data))} className="space-y-4">
+              <FormField
+                control={brandForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Brand Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter brand name" {...field} data-testid="input-brand-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="outline" onClick={() => setShowBrandDialog(false)} data-testid="button-cancel-brand">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createBrandMutation.isPending} data-testid="button-save-brand">
+                  {createBrandMutation.isPending ? 'Creating...' : 'Create Brand'}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Model Dialog */}
+      <Dialog open={showModelDialog} onOpenChange={setShowModelDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Model</DialogTitle>
+            <DialogDescription>
+              Create a new vehicle model
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...modelForm}>
+            <form onSubmit={modelForm.handleSubmit(data => createModelMutation.mutate(data))} className="space-y-4">
+              <FormField
+                control={modelForm.control}
+                name="modelName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Model Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter model name" {...field} data-testid="input-model-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="outline" onClick={() => setShowModelDialog(false)} data-testid="button-cancel-model">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createModelMutation.isPending} data-testid="button-save-model">
+                  {createModelMutation.isPending ? 'Creating...' : 'Create Model'}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Variant Dialog */}
+      <Dialog open={showVariantDialog} onOpenChange={setShowVariantDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Variant</DialogTitle>
+            <DialogDescription>
+              Create a new vehicle variant
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...variantForm}>
+            <form onSubmit={variantForm.handleSubmit(data => createVariantMutation.mutate(data))} className="space-y-4">
+              <FormField
+                control={variantForm.control}
+                name="variantName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Variant Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter variant name" {...field} data-testid="input-variant-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={variantForm.control}
+                name="fuelType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Fuel Type (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Petrol, Diesel, Electric" {...field} data-testid="input-fuel-type" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={variantForm.control}
+                name="transmission"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Transmission (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Manual, Automatic, CVT" {...field} data-testid="input-transmission" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={variantForm.control}
+                name="engineCapacity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Engine Capacity (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., 1.2L, 1500cc" {...field} data-testid="input-engine-capacity" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="outline" onClick={() => setShowVariantDialog(false)} data-testid="button-cancel-variant">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createVariantMutation.isPending} data-testid="button-save-variant">
+                  {createVariantMutation.isPending ? 'Creating...' : 'Create Variant'}
+                </Button>
+              </div>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>
