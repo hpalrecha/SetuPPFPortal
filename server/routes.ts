@@ -95,15 +95,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         for (const model of models) {
           const variants = await storage.getVehicleVariants({ modelId: model.id });
-          brandData.models.push({
+          (brandData.models as any[]).push({
             id: model.id,
             name: model.modelName,
             variants: variants.map(v => ({
               id: v.id,
               name: v.variantName,
-              fuelType: v.fuelType,
-              transmission: v.transmission,
-              engineCapacity: v.engineCapacity
+              fuelType: v.fuelType || null,
+              transmission: v.transmission || null,
+              engineCapacity: v.engineCapacity || null
             }))
           });
         }
@@ -159,22 +159,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('vehicle_brand', 'update'),
     async (req, res) => {
       try {
-        const updates = req.body;
-        delete updates.id;
-        
-        const brand = await storage.updateVehicleBrand(req.params.id, updates);
+        const { id } = req.params;
+        const brandData = insertVehicleBrandSchema.partial().parse(req.body);
+        const brand = await storage.updateVehicleBrand(id, brandData);
         
         if (!brand) {
-          return res.status(404).json({ error: "Vehicle brand not found" });
+          return res.status(404).json({ error: "Brand not found" });
         }
-
+        
         res.json(brand);
       } catch (error) {
         console.error("Update vehicle brand error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid vehicle brand data", details: error.errors });
+        }
         res.status(500).json({ error: "Failed to update vehicle brand" });
       }
     }
   );
+
+  app.delete("/api/vehicle-brands/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('vehicle_brand', 'delete'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const success = await storage.deleteVehicleBrand(id);
+        
+        if (!success) {
+          return res.status(404).json({ error: "Brand not found" });
+        }
+        
+        res.json({ message: "Brand deleted successfully" });
+      } catch (error) {
+        console.error("Delete vehicle brand error:", error);
+        res.status(500).json({ error: "Failed to delete vehicle brand" });
+      }
+    }
+  );
+
 
   app.delete("/api/vehicle-brands/:id", 
     authenticate, 
@@ -237,18 +261,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('vehicle_model', 'update'),
     async (req, res) => {
       try {
-        const updates = req.body;
-        delete updates.id;
-        
-        const model = await storage.updateVehicleModel(req.params.id, updates);
+        const { id } = req.params;
+        const modelData = insertVehicleModelSchema.partial().parse(req.body);
+        const model = await storage.updateVehicleModel(id, modelData);
         
         if (!model) {
-          return res.status(404).json({ error: "Vehicle model not found" });
+          return res.status(404).json({ error: "Model not found" });
         }
-
+        
         res.json(model);
       } catch (error) {
         console.error("Update vehicle model error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid vehicle model data", details: error.errors });
+        }
         res.status(500).json({ error: "Failed to update vehicle model" });
       }
     }
@@ -260,19 +286,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('vehicle_model', 'delete'),
     async (req, res) => {
       try {
-        const success = await storage.deleteVehicleModel(req.params.id);
+        const { id } = req.params;
+        const success = await storage.deleteVehicleModel(id);
         
         if (!success) {
-          return res.status(404).json({ error: "Vehicle model not found" });
+          return res.status(404).json({ error: "Model not found" });
         }
-
-        res.json({ message: "Vehicle model deleted successfully" });
+        
+        res.json({ message: "Model deleted successfully" });
       } catch (error) {
         console.error("Delete vehicle model error:", error);
         res.status(500).json({ error: "Failed to delete vehicle model" });
       }
     }
   );
+
 
   // Vehicle Variant Routes
   app.get("/api/vehicle-variants", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
@@ -289,6 +317,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch vehicle variants" });
     }
   });
+
+  app.post("/api/vehicle-variants", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('vehicle_variant', 'create'),
+    async (req, res) => {
+      try {
+        const variantData = insertVehicleVariantSchema.parse(req.body);
+        const variant = await storage.createVehicleVariant(variantData);
+        res.status(201).json(variant);
+      } catch (error) {
+        console.error("Create vehicle variant error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid vehicle variant data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to create vehicle variant" });
+      }
+    }
+  );
+
+  app.put("/api/vehicle-variants/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('vehicle_variant', 'update'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const variantData = insertVehicleVariantSchema.partial().parse(req.body);
+        const variant = await storage.updateVehicleVariant(id, variantData);
+        
+        if (!variant) {
+          return res.status(404).json({ error: "Variant not found" });
+        }
+        
+        res.json(variant);
+      } catch (error) {
+        console.error("Update vehicle variant error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid vehicle variant data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to update vehicle variant" });
+      }
+    }
+  );
+
+  app.delete("/api/vehicle-variants/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('vehicle_variant', 'delete'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const success = await storage.deleteVehicleVariant(id);
+        
+        if (!success) {
+          return res.status(404).json({ error: "Variant not found" });
+        }
+        
+        res.json({ message: "Variant deleted successfully" });
+      } catch (error) {
+        console.error("Delete vehicle variant error:", error);
+        res.status(500).json({ error: "Failed to delete vehicle variant" });
+      }
+    }
+  );
 
   app.post("/api/vehicle-variants", 
     authenticate, 
