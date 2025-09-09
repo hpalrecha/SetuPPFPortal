@@ -56,7 +56,11 @@ export interface IStorage {
   deleteUser(id: string): Promise<boolean>;
 
   // Services management
-  getServices(): Promise<any[]>;
+  getServices(filters?: { oemId?: string; dealershipId?: string }): Promise<any[]>;
+  getService(id: string): Promise<any>;
+  createService(service: any): Promise<any>;
+  updateService(id: string, updates: any): Promise<any>;
+  deleteService(id: string): Promise<boolean>;
 
   // OEM management
   getOems(): Promise<Oem[]>;
@@ -230,8 +234,62 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Services management
-  async getServices(): Promise<any[]> {
-    return await db.select().from(services);
+  async getServices(filters?: { oemId?: string; dealershipId?: string }): Promise<any[]> {
+    let query = db.select().from(services).where(eq(services.active, true));
+    
+    if (filters?.dealershipId) {
+      // For dealership-specific services, include GLOBAL, OEM-specific, and dealership-specific
+      query = query.where(
+        and(
+          eq(services.active, true),
+          sql`(
+            ${services.availabilityScope} = 'GLOBAL' OR 
+            (${services.availabilityScope} = 'DEALERSHIP' AND ${services.dealershipId} = ${filters.dealershipId}) OR
+            (${services.availabilityScope} = 'OEM' AND ${services.oemId} = (SELECT oem_id FROM dealerships WHERE id = ${filters.dealershipId}))
+          )`
+        )
+      );
+    } else if (filters?.oemId) {
+      // For OEM-specific services, include GLOBAL and OEM-specific
+      query = query.where(
+        and(
+          eq(services.active, true),
+          sql`(
+            ${services.availabilityScope} = 'GLOBAL' OR 
+            (${services.availabilityScope} = 'OEM' AND ${services.oemId} = ${filters.oemId})
+          )`
+        )
+      );
+    }
+    
+    return await query.orderBy(services.name);
+  }
+
+  async getService(id: string): Promise<any> {
+    const [service] = await db.select().from(services).where(eq(services.id, id));
+    return service;
+  }
+
+  async createService(serviceData: any): Promise<any> {
+    const [service] = await db.insert(services).values(serviceData).returning();
+    return service;
+  }
+
+  async updateService(id: string, updates: any): Promise<any> {
+    const [service] = await db
+      .update(services)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(services.id, id))
+      .returning();
+    return service;
+  }
+
+  async deleteService(id: string): Promise<boolean> {
+    const result = await db
+      .update(services)
+      .set({ active: false, updatedAt: new Date() })
+      .where(eq(services.id, id));
+    return (result.rowCount ?? 0) > 0;
   }
 
   async getOems(): Promise<Oem[]> {

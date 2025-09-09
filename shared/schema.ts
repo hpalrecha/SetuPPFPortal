@@ -184,8 +184,14 @@ export const services = pgTable("services", {
   name: text("name").notNull(),
   code: text("code").notNull().unique(),
   description: text("description"),
+  productBrand: text("product_brand"), // Brand used for this service (e.g., 3M, XPEL, etc.)
+  availabilityScope: text("availability_scope").default("GLOBAL"), // GLOBAL, OEM, DEALERSHIP
+  oemId: uuid("oem_id").references(() => oems.id), // Required if scope is OEM or DEALERSHIP
+  dealershipId: uuid("dealership_id").references(() => dealerships.id), // Required if scope is DEALERSHIP
+  active: boolean("active").default(true),
   meta: jsonb("meta"),
-  createdAt: timestamp("created_at").defaultNow()
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
 });
 
 // Pricing and Commission Rules

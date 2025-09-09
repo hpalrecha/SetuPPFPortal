@@ -1269,13 +1269,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Services Routes
   app.get("/api/services", authenticate, async (req, res) => {
     try {
-      const services = await storage.getServices();
+      const { oemId, dealershipId } = req.query;
+      
+      // If user is not Super Admin, filter by their context
+      const filters: any = {};
+      if (oemId) filters.oemId = oemId as string;
+      else if (dealershipId) filters.dealershipId = dealershipId as string;
+      else if (req.user!.dealershipId) filters.dealershipId = req.user!.dealershipId;
+      else if (req.user!.oemId) filters.oemId = req.user!.oemId;
+
+      const services = await storage.getServices(filters);
       res.json(services);
     } catch (error) {
       console.error("Get services error:", error);
       res.status(500).json({ error: "Failed to fetch services" });
     }
   });
+
+  app.get("/api/services/:id", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const service = await storage.getService(id);
+      
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+      
+      res.json(service);
+    } catch (error) {
+      console.error("Get service error:", error);
+      res.status(500).json({ error: "Failed to fetch service" });
+    }
+  });
+
+  app.post("/api/services", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    auditLog('service', 'create'),
+    async (req, res) => {
+      try {
+        const serviceData = req.body;
+        
+        // Set user context if not Super Admin
+        if (req.user!.role !== 'SUPER_ADMIN') {
+          serviceData.oemId = req.user!.oemId;
+          if (serviceData.availabilityScope === 'DEALERSHIP') {
+            serviceData.dealershipId = req.user!.dealershipId;
+          }
+        }
+        
+        const service = await storage.createService(serviceData);
+        res.status(201).json(service);
+      } catch (error) {
+        console.error("Create service error:", error);
+        res.status(500).json({ error: "Failed to create service" });
+      }
+    }
+  );
+
+  app.put("/api/services/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    auditLog('service', 'update'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const updates = req.body;
+        
+        // Prevent unauthorized updates
+        const existingService = await storage.getService(id);
+        if (!existingService) {
+          return res.status(404).json({ error: "Service not found" });
+        }
+        
+        if (req.user!.role !== 'SUPER_ADMIN' && existingService.oemId !== req.user!.oemId) {
+          return res.status(403).json({ error: "Unauthorized to update this service" });
+        }
+        
+        const service = await storage.updateService(id, updates);
+        res.json(service);
+      } catch (error) {
+        console.error("Update service error:", error);
+        res.status(500).json({ error: "Failed to update service" });
+      }
+    }
+  );
+
+  app.delete("/api/services/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    auditLog('service', 'delete'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        
+        // Prevent unauthorized deletion
+        const existingService = await storage.getService(id);
+        if (!existingService) {
+          return res.status(404).json({ error: "Service not found" });
+        }
+        
+        if (req.user!.role !== 'SUPER_ADMIN' && existingService.oemId !== req.user!.oemId) {
+          return res.status(403).json({ error: "Unauthorized to delete this service" });
+        }
+        
+        const success = await storage.deleteService(id);
+        if (!success) {
+          return res.status(404).json({ error: "Service not found" });
+        }
+        
+        res.json({ message: "Service deleted successfully" });
+      } catch (error) {
+        console.error("Delete service error:", error);
+        res.status(500).json({ error: "Failed to delete service" });
+      }
+    }
+  );
 
   // Commission Rules Routes
   app.get("/api/commission-rules", authenticate, requireOEMAccess, async (req, res) => {
