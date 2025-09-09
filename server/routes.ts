@@ -95,8 +95,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('oem', 'create'),
     async (req, res) => {
       try {
-        const oemData = insertOemSchema.parse(req.body);
+        // Extract createUser flag and admin user data
+        const { createUser, adminUserData, ...oemData } = req.body;
+        
+        // Create the OEM first
         const oem = await storage.createOem(oemData);
+        
+        // Create admin user if requested
+        if (createUser && adminUserData) {
+          try {
+            const bcrypt = require('bcryptjs');
+            const hashedPassword = await bcrypt.hash(adminUserData.password, 10);
+            
+            const adminData = {
+              name: adminUserData.name,
+              email: adminUserData.email,
+              phone: adminUserData.phone || '',
+              passwordHash: hashedPassword,
+              role: 'OEM_ADMIN',
+              oemId: oem.id,
+              isActive: true
+            };
+            
+            const createdUser = await storage.createUser(adminData);
+            console.log(`Created admin user for OEM: ${oem.name} - Email: ${createdUser.email}`);
+          } catch (userError) {
+            console.error("Failed to create admin user:", userError);
+            // Don't fail the whole request if user creation fails
+          }
+        }
+        
         res.status(201).json(oem);
       } catch (error) {
         console.error("Create OEM error:", error);
