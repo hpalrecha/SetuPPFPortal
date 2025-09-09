@@ -179,11 +179,11 @@ export default function OEMsPage() {
                 {/* Stats */}
                 <div className="grid grid-cols-2 gap-2 text-center text-sm mb-4">
                   <div>
-                    <p className="font-semibold text-foreground">5</p>
+                    <p className="font-semibold text-foreground">{oem.dealershipsCount || 0}</p>
                     <p className="text-muted-foreground">Dealerships</p>
                   </div>
                   <div>
-                    <p className="font-semibold text-foreground">23</p>
+                    <p className="font-semibold text-foreground">{oem.showroomsCount || 0}</p>
                     <p className="text-muted-foreground">Showrooms</p>
                   </div>
                 </div>

@@ -69,7 +69,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/oems", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
     try {
       const oems = await storage.getOems();
-      res.json(oems);
+      
+      // Get counts for each OEM
+      const oemsWithCounts = await Promise.all(oems.map(async (oem) => {
+        const dealerships = await storage.getDealerships(oem.id);
+        const showrooms = await storage.getShowrooms(undefined, oem.id);
+        
+        return {
+          ...oem,
+          dealershipsCount: dealerships.length,
+          showroomsCount: showrooms.length
+        };
+      }));
+      
+      res.json(oemsWithCounts);
     } catch (error) {
       console.error("Get OEMs error:", error);
       res.status(500).json({ error: "Failed to fetch OEMs" });
