@@ -7,7 +7,6 @@ import {
   insertPartnerSchema,
   insertPricingRuleSchema,
   insertCommissionRuleSchema,
-  insertVehicleBrandSchema,
   insertVehicleModelSchema,
   insertVehicleVariantSchema
 } from "@shared/schema";

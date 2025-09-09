@@ -6,7 +6,6 @@ import {
   salesPersons,
   partners,
   allocations,
-  vehicleBrands,
   vehicleModels,
   vehicleVariants,
   services,
@@ -33,8 +32,6 @@ import {
   type InsertPricingRule,
   type CommissionRule,
   type InsertCommissionRule,
-  type VehicleBrand,
-  type InsertVehicleBrand,
   type VehicleModel,
   type InsertVehicleModel,
   type VehicleVariant,
@@ -95,15 +92,9 @@ export interface IStorage {
   createCommissionRule(rule: InsertCommissionRule): Promise<CommissionRule>;
   updateCommissionRule(id: string, updates: Partial<InsertCommissionRule>): Promise<CommissionRule | undefined>;
 
-  // Vehicle Brand management
-  getVehicleBrands(filters?: { oemId?: string }): Promise<VehicleBrand[]>;
-  getVehicleBrand(id: string): Promise<VehicleBrand | undefined>;
-  createVehicleBrand(brand: InsertVehicleBrand): Promise<VehicleBrand>;
-  updateVehicleBrand(id: string, updates: Partial<InsertVehicleBrand>): Promise<VehicleBrand | undefined>;
-  deleteVehicleBrand(id: string): Promise<boolean>;
 
   // Vehicle Model management
-  getVehicleModels(filters?: { brandId?: string }): Promise<VehicleModel[]>;
+  getVehicleModels(filters?: { oemId?: string }): Promise<VehicleModel[]>;
   getVehicleModel(id: string): Promise<VehicleModel | undefined>;
   createVehicleModel(model: InsertVehicleModel): Promise<VehicleModel>;
   updateVehicleModel(id: string, updates: Partial<InsertVehicleModel>): Promise<VehicleModel | undefined>;
@@ -362,54 +353,12 @@ export class DatabaseStorage implements IStorage {
     return rule || undefined;
   }
 
-  // Vehicle Brand methods
-  async getVehicleBrands(filters?: { oemId?: string }): Promise<VehicleBrand[]> {
-    let query = db.select().from(vehicleBrands).where(eq(vehicleBrands.active, true));
-    
-    if (filters?.oemId) {
-      query = query.where(and(eq(vehicleBrands.active, true), eq(vehicleBrands.oemId, filters.oemId)));
-    }
-
-    return await query.orderBy(vehicleBrands.name);
-  }
-
-  async getVehicleBrand(id: string): Promise<VehicleBrand | undefined> {
-    const [brand] = await db.select().from(vehicleBrands).where(eq(vehicleBrands.id, id));
-    return brand || undefined;
-  }
-
-  async createVehicleBrand(insertBrand: InsertVehicleBrand): Promise<VehicleBrand> {
-    const [brand] = await db
-      .insert(vehicleBrands)
-      .values(insertBrand)
-      .returning();
-    return brand;
-  }
-
-  async updateVehicleBrand(id: string, updates: Partial<InsertVehicleBrand>): Promise<VehicleBrand | undefined> {
-    const [brand] = await db
-      .update(vehicleBrands)
-      .set({ ...updates, updatedAt: new Date() })
-      .where(eq(vehicleBrands.id, id))
-      .returning();
-    return brand || undefined;
-  }
-
-  async deleteVehicleBrand(id: string): Promise<boolean> {
-    const [brand] = await db
-      .update(vehicleBrands)
-      .set({ active: false, updatedAt: new Date() })
-      .where(eq(vehicleBrands.id, id))
-      .returning();
-    return !!brand;
-  }
-
   // Vehicle Model methods
-  async getVehicleModels(filters?: { brandId?: string }): Promise<VehicleModel[]> {
+  async getVehicleModels(filters?: { oemId?: string }): Promise<VehicleModel[]> {
     let query = db.select().from(vehicleModels).where(eq(vehicleModels.active, true));
     
-    if (filters?.brandId) {
-      query = query.where(and(eq(vehicleModels.active, true), eq(vehicleModels.brandId, filters.brandId)));
+    if (filters?.oemId) {
+      query = query.where(and(eq(vehicleModels.active, true), eq(vehicleModels.oemId, filters.oemId)));
     }
 
     return await query.orderBy(vehicleModels.modelName);

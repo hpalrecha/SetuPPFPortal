@@ -157,19 +157,10 @@ export const allocations = pgTable("allocations", {
   updatedAt: timestamp("updated_at").defaultNow()
 });
 
-// Vehicle and Service Catalog
-export const vehicleBrands = pgTable("vehicle_brands", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  oemId: uuid("oem_id").references(() => oems.id).notNull(),
-  name: text("name").notNull(),
-  active: boolean("active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow()
-});
-
+// Vehicle and Service Catalog  
 export const vehicleModels = pgTable("vehicle_models", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  brandId: uuid("brand_id").references(() => vehicleBrands.id).notNull(),
+  oemId: uuid("oem_id").references(() => oems.id).notNull(),
   modelName: text("model_name").notNull(),
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -239,7 +230,6 @@ export const workOrders = pgTable("work_orders", {
   showroomId: uuid("showroom_id").references(() => showrooms.id).notNull(),
   createdByUserId: uuid("created_by_user_id").references(() => users.id).notNull(),
   status: workOrderStatusEnum("status").default("DRAFT"),
-  vehicleBrandId: uuid("vehicle_brand_id").references(() => vehicleBrands.id).notNull(),
   vehicleModelId: uuid("vehicle_model_id").references(() => vehicleModels.id).notNull(),
   vehicleVariantId: uuid("vehicle_variant_id").references(() => vehicleVariants.id),
   regNo: text("reg_no"),
@@ -349,7 +339,7 @@ export const idempotencyKeys = pgTable("idempotency_keys", {
 // Relations
 export const oemsRelations = relations(oems, ({ many }) => ({
   dealerships: many(dealerships),
-  vehicleBrands: many(vehicleBrands),
+  vehicleModels: many(vehicleModels),
   users: many(users),
   workOrders: many(workOrders)
 }));
@@ -389,14 +379,8 @@ export const partnersRelations = relations(partners, ({ many }) => ({
   payouts: many(payouts)
 }));
 
-export const vehicleBrandsRelations = relations(vehicleBrands, ({ one, many }) => ({
-  oem: one(oems, { fields: [vehicleBrands.oemId], references: [oems.id] }),
-  models: many(vehicleModels),
-  workOrders: many(workOrders)
-}));
-
 export const vehicleModelsRelations = relations(vehicleModels, ({ one, many }) => ({
-  brand: one(vehicleBrands, { fields: [vehicleModels.brandId], references: [vehicleBrands.id] }),
+  oem: one(oems, { fields: [vehicleModels.oemId], references: [oems.id] }),
   variants: many(vehicleVariants),
   workOrders: many(workOrders),
   pricingRules: many(pricingRules)
@@ -413,7 +397,6 @@ export const workOrdersRelations = relations(workOrders, ({ one, many }) => ({
   dealership: one(dealerships, { fields: [workOrders.dealershipId], references: [dealerships.id] }),
   showroom: one(showrooms, { fields: [workOrders.showroomId], references: [showrooms.id] }),
   createdBy: one(users, { fields: [workOrders.createdByUserId], references: [users.id] }),
-  vehicleBrand: one(vehicleBrands, { fields: [workOrders.vehicleBrandId], references: [vehicleBrands.id] }),
   vehicleModel: one(vehicleModels, { fields: [workOrders.vehicleModelId], references: [vehicleModels.id] }),
   vehicleVariant: one(vehicleVariants, { fields: [workOrders.vehicleVariantId], references: [vehicleVariants.id] }),
   service: one(services, { fields: [workOrders.serviceId], references: [services.id] }),
@@ -467,11 +450,6 @@ export const insertCommissionRuleSchema = createInsertSchema(commissionRules).om
 export const selectCommissionRuleSchema = createSelectSchema(commissionRules);
 export type InsertCommissionRule = z.infer<typeof insertCommissionRuleSchema>;
 export type CommissionRule = z.infer<typeof selectCommissionRuleSchema>;
-
-export const insertVehicleBrandSchema = createInsertSchema(vehicleBrands).omit({ id: true, createdAt: true, updatedAt: true });
-export const selectVehicleBrandSchema = createSelectSchema(vehicleBrands);
-export type InsertVehicleBrand = z.infer<typeof insertVehicleBrandSchema>;
-export type VehicleBrand = z.infer<typeof selectVehicleBrandSchema>;
 
 export const insertVehicleModelSchema = createInsertSchema(vehicleModels).omit({ id: true, createdAt: true, updatedAt: true });
 export const selectVehicleModelSchema = createSelectSchema(vehicleModels);
