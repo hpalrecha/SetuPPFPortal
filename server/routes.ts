@@ -1182,6 +1182,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  app.get("/api/sales-persons/:id/metrics", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']), 
+    async (req, res) => {
+      try {
+        const metrics = await storage.getSalesPersonMetrics(req.params.id);
+        res.json(metrics);
+      } catch (error) {
+        console.error("Get sales person metrics error:", error);
+        res.status(500).json({ error: "Failed to fetch sales person metrics" });
+      }
+    }
+  );
+
   app.post("/api/sales-persons", 
     authenticate, 
     requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),

@@ -39,6 +39,29 @@ export default function SalesPersonsPage() {
     enabled: canAccessSalesPersons
   });
 
+  // Hook to get sales person metrics
+  const getSalesPersonMetrics = (salesPersonId: string) => {
+    return useQuery({
+      queryKey: ["/api/sales-persons", salesPersonId, "metrics"],
+      queryFn: async () => {
+        const response = await fetch(`/api/sales-persons/${salesPersonId}/metrics`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          },
+          credentials: 'include',
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch sales person metrics');
+        }
+        
+        return response.json();
+      },
+      refetchInterval: 60000,
+      enabled: canAccessSalesPersons && !!salesPersonId
+    });
+  };
+
   const handleAddSalesPerson = () => {
     setEditingSalesPerson(null);
     setShowCreateModal(true);
