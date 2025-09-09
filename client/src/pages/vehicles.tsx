@@ -115,7 +115,7 @@ export default function VehiclesPage() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch('/api/vehicle-brands/upload-excel', {
+      const response = await fetch('/api/vehicle-data/upload-excel', {
         method: 'POST',
         headers,
         body: formData,
@@ -523,7 +523,7 @@ export default function VehiclesPage() {
           <DialogHeader>
             <DialogTitle>Upload Vehicle Data</DialogTitle>
             <DialogDescription>
-              Upload an Excel file to bulk import vehicle brands, models, and variants for {oems.find(o => o.id === selectedOemId)?.name}
+              Upload an Excel file to bulk import vehicle models and variants for {oems.find(o => o.id === selectedOemId)?.name}
             </DialogDescription>
           </DialogHeader>
 
@@ -571,14 +571,12 @@ export default function VehiclesPage() {
                 <table className="text-sm border-collapse">
                   <thead>
                     <tr className="bg-blue-100 dark:bg-blue-900/50">
-                      <th className="border border-blue-200 dark:border-blue-700 px-4 py-2 text-left">brand_name</th>
                       <th className="border border-blue-200 dark:border-blue-700 px-4 py-2 text-left">model_name</th>
                       <th className="border border-blue-200 dark:border-blue-700 px-4 py-2 text-left">variant_name</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <td className="border border-blue-200 dark:border-blue-700 px-4 py-2">Maruti Suzuki</td>
                       <td className="border border-blue-200 dark:border-blue-700 px-4 py-2">Swift</td>
                       <td className="border border-blue-200 dark:border-blue-700 px-4 py-2">VXI</td>
                     </tr>
@@ -586,7 +584,7 @@ export default function VehiclesPage() {
                 </table>
               </div>
               <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
-                * brand_name and model_name are required. variant_name is optional.
+                * model_name is required. variant_name is optional.
               </p>
             </div>
 
@@ -619,7 +617,7 @@ export default function VehiclesPage() {
                     <div className="space-y-2 max-h-40 overflow-y-auto">
                       {uploadResults.results.created.map((item: any, index: number) => (
                         <div key={index} className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-2 text-xs">
-                          <div className="font-medium">Brand: {item.brand}</div>
+                          <div className="font-medium">OEM: {item.oem}</div>
                           {item.models.length > 0 && (
                             <div>Models: {item.models.join(', ')}</div>
                           )}

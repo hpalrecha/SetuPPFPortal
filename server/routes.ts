@@ -349,12 +349,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // Vehicle Excel Upload Route
-  app.post("/api/vehicle-brands/upload-excel",
+  // Vehicle Excel Upload Route (OEM-Model-Variant structure)
+  app.post("/api/vehicle-data/upload-excel",
     authenticate,
     requireRole(['SUPER_ADMIN']),
     upload.single('file'),
-    auditLog('vehicle_brand', 'bulk_upload'),
+    auditLog('vehicle_data', 'bulk_upload'),
     async (req, res) => {
       try {
         if (!req.file) {
@@ -381,8 +381,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const results = {
           success: 0,
           errors: [] as Array<{ row: number; error: string; data: any }>,
-          created: [] as Array<{ brand: string; models: string[]; variants: Array<{ model: string; variant: string }> }>
+          created: [] as Array<{ oem: string; models: string[]; variants: Array<{ model: string; variant: string }> }>
         };
+
+        // Initialize results with OEM name
+        results.created.push({ oem: oem.name, models: [], variants: [] });
 
         // Process each row
         for (let i = 0; i < data.length; i++) {
@@ -390,28 +393,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const rowNum = i + 2; // Excel row number (starting from 2, assuming row 1 is headers)
 
           try {
-            // Only extract the fields we care about, completely ignore all other columns
-            const brandName = originalRow.brand_name?.toString().trim();
+            // Extract fields - now only model_name and variant_name (OEM is already specified)
             const modelName = originalRow.model_name?.toString().trim();
             const variantName = originalRow.variant_name?.toString().trim() || '';
 
-            // Create a clean row object with only our 3 fields
+            // Create a clean row object
             const cleanRowData = {
-              brand_name: brandName || '',
               model_name: modelName || '',
               variant_name: variantName || ''
             };
 
             // Validate required fields
-            if (!brandName) {
-              results.errors.push({
-                row: rowNum,
-                error: 'Brand name is required',
-                data: cleanRowData
-              });
-              continue;
-            }
-
             if (!modelName) {
               results.errors.push({
                 row: rowNum,
@@ -421,43 +413,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
               continue;
             }
 
-            // Check if brand already exists for this OEM
-            let brand = (await storage.getVehicleBrands({ oemId }))
-              .find(b => b.name.toLowerCase() === brandName.toLowerCase());
-
-            // Create brand if it doesn't exist
-            if (!brand) {
-              // Only pass the exact fields needed, nothing extra
-              const brandData = {
-                oemId: oemId,
-                name: brandName,
-                active: true
-              };
-              brand = await storage.createVehicleBrand(brandData);
-
-              const brandResult = results.created.find(r => r.brand === brandName);
-              if (!brandResult) {
-                results.created.push({ brand: brandName, models: [], variants: [] });
-              }
-            }
-
-            // Check if model already exists for this brand
-            let model = (await storage.getVehicleModels({ brandId: brand.id }))
+            // Check if model already exists for this OEM
+            let model = (await storage.getVehicleModels({ oemId }))
               .find(m => m.modelName.toLowerCase() === modelName.toLowerCase());
 
             // Create model if it doesn't exist
             if (!model) {
-              // Only pass the exact fields needed, nothing extra
               const modelData = {
-                brandId: brand.id,
+                oemId: oemId,
                 modelName: modelName,
                 active: true
               };
               model = await storage.createVehicleModel(modelData);
 
-              const brandResult = results.created.find(r => r.brand === brandName);
-              if (brandResult && !brandResult.models.includes(modelName)) {
-                brandResult.models.push(modelName);
+              const oemResult = results.created.find(r => r.oem === oem.name);
+              if (oemResult && !oemResult.models.includes(modelName)) {
+                oemResult.models.push(modelName);
               }
             }
 
@@ -467,7 +438,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 .find(v => v.variantName.toLowerCase() === variantName.toLowerCase());
 
               if (!existingVariant) {
-                // Only pass the exact fields needed, nothing extra
                 const variantData = {
                   modelId: model.id,
                   variantName: variantName,
@@ -475,9 +445,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 };
                 await storage.createVehicleVariant(variantData);
 
-                const brandResult = results.created.find(r => r.brand === brandName);
-                if (brandResult) {
-                  brandResult.variants.push({ model: modelName, variant: variantName });
+                const oemResult = results.created.find(r => r.oem === oem.name);
+                if (oemResult) {
+                  oemResult.variants.push({ model: modelName, variant: variantName });
                 }
               }
             }
@@ -489,7 +459,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               row: rowNum,
               error: error instanceof Error ? error.message : 'Unknown error',
               data: {
-                brand_name: originalRow.brand_name || '',
                 model_name: originalRow.model_name || '',
                 variant_name: originalRow.variant_name || ''
               }
