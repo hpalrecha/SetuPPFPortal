@@ -313,12 +313,16 @@ export class DatabaseStorage implements IStorage {
     if (oemId) {
       // Get showrooms for all dealerships under this OEM
       const oemDealerships = await db.select({ id: dealerships.id }).from(dealerships).where(eq(dealerships.oemId, oemId));
-      const dealershipIds = oemDealerships.map(d => d.id);
       
-      if (dealershipIds.length === 0) return [];
+      if (oemDealerships.length === 0) return [];
       
-      // Use drizzle's inArray instead of raw SQL
-      return await db.select().from(showrooms).where(sql`${showrooms.dealershipId} IN (${dealershipIds.map(id => `'${id}'`).join(',')})`);
+      // Get all showrooms for these dealerships using individual queries (simpler and safer)
+      const allShowrooms = [];
+      for (const dealership of oemDealerships) {
+        const dealershipShowrooms = await db.select().from(showrooms).where(eq(showrooms.dealershipId, dealership.id));
+        allShowrooms.push(...dealershipShowrooms);
+      }
+      return allShowrooms;
     }
     
     return await db.select().from(showrooms);
