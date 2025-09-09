@@ -142,36 +142,68 @@ export function CreateWorkOrderModal({
     enabled: isSuperAdmin && !!selectedDealershipId,
   });
 
-  // Mock data for now - in a real app these would come from APIs
-  const vehicleBrands = [
-    { id: "maruti", name: "Maruti Suzuki" },
-    { id: "hyundai", name: "Hyundai" },
-    { id: "tata", name: "Tata Motors" },
-    { id: "kia", name: "Kia" },
-    { id: "mahindra", name: "Mahindra" }
-  ];
+  // Get the OEM ID for vehicle data fetching
+  const finalOemId = isSuperAdmin ? selectedOemId : user?.oemId;
+  
+  // Fetch vehicle data (brands and models) based on OEM
+  const { data: vehicleData = [] } = useQuery({
+    queryKey: ["/api/vehicle-data", finalOemId],
+    queryFn: async () => {
+      const response = await fetch(`/api/vehicle-data/${finalOemId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch vehicle data');
+      return response.json();
+    },
+    enabled: !!finalOemId,
+  });
+
+  // Extract vehicle brands from vehicle data
+  const vehicleBrands = vehicleData?.map((brand: any) => ({
+    id: brand.id,
+    name: brand.name
+  })) || [];
 
   const selectedBrandId = form.watch("vehicleBrandId");
-  const vehicleModels = selectedBrandId ? [
-    { id: "swift", name: "Swift", brandId: "maruti" },
-    { id: "baleno", name: "Baleno", brandId: "maruti" },
-    { id: "i20", name: "i20", brandId: "hyundai" },
-    { id: "creta", name: "Creta", brandId: "hyundai" },
-    { id: "nexon", name: "Nexon", brandId: "tata" },
-    { id: "harrier", name: "Harrier", brandId: "tata" }
-  ].filter(model => model.brandId === selectedBrandId) : [];
+  // Extract vehicle models based on selected brand
+  const vehicleModels = selectedBrandId ? 
+    (vehicleData?.find((brand: any) => brand.id === selectedBrandId)?.models || []) : [];
 
-  const services = [
-    { id: "full-body", name: "Full Body PPF", price: 45000 },
-    { id: "front-end", name: "Front End PPF", price: 15000 },
-    { id: "headlights", name: "Headlight PPF", price: 5000 },
-    { id: "door-handles", name: "Door Handle PPF", price: 3000 }
-  ];
+  // Fetch services
+  const { data: services = [] } = useQuery({
+    queryKey: ["/api/services"],
+    queryFn: async () => {
+      const response = await fetch('/api/services', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch services');
+      return response.json();
+    },
+  });
 
-  const salesPersons = [
-    { id: "sp1", name: "John Doe", showroomId: user?.showroomId },
-    { id: "sp2", name: "Jane Smith", showroomId: user?.showroomId }
-  ];
+  // Fetch sales persons based on selected showroom
+  const finalShowroomId = isSuperAdmin ? form.watch("showroomId") : user?.showroomId;
+  const { data: salesPersons = [] } = useQuery({
+    queryKey: ["/api/sales-persons", finalShowroomId],
+    queryFn: async () => {
+      const url = finalShowroomId ? `/api/sales-persons?showroomId=${finalShowroomId}` : '/api/sales-persons';
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch sales persons');
+      return response.json();
+    },
+    enabled: !!finalShowroomId,
+  });
 
   const onSubmit = async (data: WorkOrderFormData) => {
     // For Super Admin, use selected values; for others, use user context
@@ -262,6 +294,8 @@ export function CreateWorkOrderModal({
                             field.onChange(value);
                             form.setValue("dealershipId", "");
                             form.setValue("showroomId", "");
+                            form.setValue("vehicleBrandId", "");
+                            form.setValue("vehicleModelId", "");
                           }}
                           value={field.value}
                           data-testid="select-oem"
@@ -407,8 +441,7 @@ export function CreateWorkOrderModal({
                         <SelectContent>
                           {vehicleModels?.map((model: any) => (
                             <SelectItem key={model.id} value={model.id}>
-                              {model.modelName}
-                              {model.variant && ` - ${model.variant}`}
+                              {model.modelName || model.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -443,10 +476,10 @@ export function CreateWorkOrderModal({
                   name="regNo"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Registration Number (Optional)</FormLabel>
+                      <FormLabel>Registration Number / VIN Number (Optional)</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="Enter reg. number"
+                          placeholder="Enter registration or VIN number"
                           {...field}
                           data-testid="input-reg-no"
                         />
