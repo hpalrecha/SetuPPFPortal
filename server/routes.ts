@@ -112,7 +112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               email: adminUserData.email,
               phone: adminUserData.phone || '',
               passwordHash: hashedPassword,
-              role: 'OEM_ADMIN',
+              role: 'OEM_ADMIN' as const,
               oemId: oem.id,
               isActive: true
             };
@@ -258,7 +258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               email: adminUserData.email,
               phone: adminUserData.phone || '',
               passwordHash: hashedPassword,
-              role: 'DEALERSHIP_ADMIN',
+              role: 'DEALERSHIP_ADMIN' as const,
               oemId: dealership.oemId, // Link to the same OEM
               dealershipId: dealership.id,
               isActive: true
@@ -355,7 +355,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Create manager user if requested
         if (createUser && adminUserData) {
           try {
-            const bcrypt = require('bcryptjs');
+            const bcrypt = await import('bcryptjs');
             const hashedPassword = await bcrypt.hash(adminUserData.password, 10);
             
             const managerData = {
@@ -363,7 +363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               email: adminUserData.email,
               phone: adminUserData.phone || '',
               passwordHash: hashedPassword,
-              role: 'SHOWROOM_MANAGER',
+              role: 'SHOWROOM_MANAGER' as const,
               oemId: showroom.oemId, // Link to the same OEM
               dealershipId: showroom.dealershipId,
               showroomId: showroom.id,

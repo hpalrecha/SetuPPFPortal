@@ -193,11 +193,11 @@ export default function ShowroomsPage() {
                 {/* Stats */}
                 <div className="grid grid-cols-2 gap-2 text-center text-sm mb-4">
                   <div>
-                    <p className="font-semibold text-foreground">12</p>
+                    <p className="font-semibold text-foreground">{showroom.salesStaffCount || 0}</p>
                     <p className="text-muted-foreground">Sales Staff</p>
                   </div>
                   <div>
-                    <p className="font-semibold text-foreground">89</p>
+                    <p className="font-semibold text-foreground">{showroom.workOrdersCount || 0}</p>
                     <p className="text-muted-foreground">Work Orders</p>
                   </div>
                 </div>

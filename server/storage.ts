@@ -306,11 +306,11 @@ export class DatabaseStorage implements IStorage {
 
   // Showroom Management
   async getShowrooms(dealershipId?: string, oemId?: string): Promise<any[]> {
-    if (dealershipId) {
-      return await db.select().from(showrooms).where(eq(showrooms.dealershipId, dealershipId));
-    }
+    let showroomsList;
     
-    if (oemId) {
+    if (dealershipId) {
+      showroomsList = await db.select().from(showrooms).where(eq(showrooms.dealershipId, dealershipId));
+    } else if (oemId) {
       // Get showrooms for all dealerships under this OEM
       const oemDealerships = await db.select({ id: dealerships.id }).from(dealerships).where(eq(dealerships.oemId, oemId));
       
@@ -322,10 +322,36 @@ export class DatabaseStorage implements IStorage {
         const dealershipShowrooms = await db.select().from(showrooms).where(eq(showrooms.dealershipId, dealership.id));
         allShowrooms.push(...dealershipShowrooms);
       }
-      return allShowrooms;
+      showroomsList = allShowrooms;
+    } else {
+      showroomsList = await db.select().from(showrooms);
     }
     
-    return await db.select().from(showrooms);
+    // Add counts for each showroom
+    const showroomsWithCounts = await Promise.all(
+      showroomsList.map(async (showroom) => {
+        // Count sales staff (users) for this showroom
+        const staffCount = await db.select().from(users).where(eq(users.showroomId, showroom.id));
+        
+        // Count work orders for this showroom (when work_orders table exists)
+        let workOrdersCount = 0;
+        try {
+          // This might fail if work_orders table doesn't exist yet
+          const workOrders = await db.select().from(workOrders).where(eq(workOrders.showroomId, showroom.id));
+          workOrdersCount = workOrders.length;
+        } catch (e) {
+          // Table doesn't exist yet, keep count as 0
+        }
+        
+        return {
+          ...showroom,
+          salesStaffCount: staffCount.length,
+          workOrdersCount
+        };
+      })
+    );
+    
+    return showroomsWithCounts;
   }
 
   async getShowroom(id: string): Promise<any | undefined> {
