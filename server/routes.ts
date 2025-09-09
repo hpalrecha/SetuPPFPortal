@@ -345,16 +345,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
           created: [] as Array<{ brand: string; models: string[]; variants: Array<{ model: string; variant: string }> }>
         };
 
+        console.log("Raw Excel data sample:", JSON.stringify(data.slice(0, 2), null, 2));
+        
         // Process each row
         for (let i = 0; i < data.length; i++) {
           const originalRow = data[i] as any;
           const rowNum = i + 2; // Excel row number (starting from 2, assuming row 1 is headers)
+
+          console.log(`Processing row ${rowNum}:`, JSON.stringify(originalRow, null, 2));
+
+          // Check if this row has the dreaded "active" column that's causing errors
+          if ('active' in originalRow) {
+            console.log(`Row ${rowNum} contains 'active' column:`, originalRow.active);
+            results.errors.push({
+              row: rowNum,
+              error: 'column "active" does not exist',
+              data: { brand_name: originalRow.brand_name || '', model_name: originalRow.model_name || '', variant_name: originalRow.variant_name || '' }
+            });
+            continue;
+          }
 
           try {
             // Only extract the fields we care about, completely ignore all other columns
             const brandName = originalRow.brand_name?.toString().trim();
             const modelName = originalRow.model_name?.toString().trim();
             const variantName = originalRow.variant_name?.toString().trim() || '';
+
+            console.log(`Extracted data for row ${rowNum}:`, { brandName, modelName, variantName });
 
             // Create a clean row object with only our 3 fields
             const cleanRowData = {
@@ -365,6 +382,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Validate required fields
             if (!brandName) {
+              console.log(`Row ${rowNum}: Missing brand name`);
               results.errors.push({
                 row: rowNum,
                 error: 'Brand name is required',
@@ -374,6 +392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
 
             if (!modelName) {
+              console.log(`Row ${rowNum}: Missing model name`);
               results.errors.push({
                 row: rowNum,
                 error: 'Model name is required', 
