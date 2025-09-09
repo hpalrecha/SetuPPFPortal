@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -85,6 +85,40 @@ export function CreateOEMModal({
       userPassword: "",
     },
   });
+
+  // Reset form when OEM data changes (for editing)
+  useEffect(() => {
+    if (oem) {
+      form.reset({
+        name: oem.name || "",
+        brandCode: oem.brandCode || "",
+        description: oem.description || "",
+        contactEmail: oem.contactEmail || "",
+        contactPhone: oem.contactPhone || "",
+        address: oem.address || "",
+        createUser: false,
+        userName: "",
+        userEmail: "",
+        userPhone: "",
+        userPassword: "",
+      });
+    } else {
+      // Reset to empty values for new OEM
+      form.reset({
+        name: "",
+        brandCode: "",
+        description: "",
+        contactEmail: "",
+        contactPhone: "",
+        address: "",
+        createUser: false,
+        userName: "",
+        userEmail: "",
+        userPhone: "",
+        userPassword: "",
+      });
+    }
+  }, [oem, form]);
 
   const onSubmit = async (data: OEMFormData) => {
     setIsLoading(true);

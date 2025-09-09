@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -98,6 +98,46 @@ export function CreateDealershipModal({
       userPassword: "",
     },
   });
+
+  // Reset form when dealership data changes (for editing)
+  useEffect(() => {
+    if (dealership) {
+      form.reset({
+        name: dealership.name || "",
+        oemId: dealership.oemId || "",
+        contactPersonName: dealership.contactPersonName || "",
+        contactEmail: dealership.contactEmail || "",
+        contactPhone: dealership.contactPhone || "",
+        address: dealership.address || "",
+        city: dealership.city || "",
+        state: dealership.state || "",
+        pincode: dealership.pincode || "",
+        createUser: false,
+        userName: "",
+        userEmail: "",
+        userPhone: "",
+        userPassword: "",
+      });
+    } else {
+      // Reset to empty values for new dealership
+      form.reset({
+        name: "",
+        oemId: "",
+        contactPersonName: "",
+        contactEmail: "",
+        contactPhone: "",
+        address: "",
+        city: "",
+        state: "",
+        pincode: "",
+        createUser: false,
+        userName: "",
+        userEmail: "",
+        userPhone: "",
+        userPassword: "",
+      });
+    }
+  }, [dealership, form]);
 
   // Fetch OEMs
   const { data: oems = [] } = useQuery({

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -98,6 +98,46 @@ export function CreateShowroomModal({
       userPassword: "",
     },
   });
+
+  // Reset form when showroom data changes (for editing)
+  useEffect(() => {
+    if (showroom) {
+      form.reset({
+        name: showroom.name || "",
+        dealershipId: showroom.dealershipId || "",
+        managerName: showroom.managerName || "",
+        contactEmail: showroom.contactEmail || "",
+        contactPhone: showroom.contactPhone || "",
+        address: showroom.address || "",
+        city: showroom.city || "",
+        state: showroom.state || "",
+        pincode: showroom.pincode || "",
+        createUser: false,
+        userName: "",
+        userEmail: "",
+        userPhone: "",
+        userPassword: "",
+      });
+    } else {
+      // Reset to empty values for new showroom
+      form.reset({
+        name: "",
+        dealershipId: "",
+        managerName: "",
+        contactEmail: "",
+        contactPhone: "",
+        address: "",
+        city: "",
+        state: "",
+        pincode: "",
+        createUser: false,
+        userName: "",
+        userEmail: "",
+        userPhone: "",
+        userPassword: "",
+      });
+    }
+  }, [showroom, form]);
 
   // Fetch dealerships
   const { data: dealerships = [] } = useQuery({
