@@ -45,8 +45,10 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUsers(filters?: { oemId?: string; dealershipId?: string; showroomId?: string; role?: string }): Promise<User[]>;
+  getSalesPersons(showroomId?: string): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined>;
+  deleteUser(id: string): Promise<boolean>;
 
   // OEM management
   getOems(): Promise<Oem[]>;
