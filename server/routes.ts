@@ -458,6 +458,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        console.log("Upload results being sent:", JSON.stringify(results, null, 2));
         res.json({
           message: `Upload completed. ${results.success} records processed successfully.`,
           results
