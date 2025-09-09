@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const oemSchema = z.object({
   name: z.string().min(1, "OEM name is required"),
+  brandCode: z.string().min(1, "Brand code is required"),
   description: z.string().optional(),
   contactEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
   contactPhone: z.string().optional(),
@@ -72,6 +73,7 @@ export function CreateOEMModal({
     resolver: zodResolver(oemSchema),
     defaultValues: {
       name: oem?.name || "",
+      brandCode: oem?.brandCode || "",
       description: oem?.description || "",
       contactEmail: oem?.contactEmail || "",
       contactPhone: oem?.contactPhone || "",
@@ -93,6 +95,7 @@ export function CreateOEMModal({
       // Prepare OEM data (exclude user creation fields)
       const oemData = {
         name: data.name,
+        brandCode: data.brandCode,
         description: data.description,
         contactEmail: data.contactEmail,
         contactPhone: data.contactPhone,
@@ -169,23 +172,43 @@ export function CreateOEMModal({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>OEM Name</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Enter OEM name"
-                      {...field}
-                      data-testid="input-oem-name"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>OEM Name</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter OEM name"
+                        {...field}
+                        data-testid="input-oem-name"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="brandCode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Brand Code</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter brand code (e.g., HYD, TAT)"
+                        {...field}
+                        data-testid="input-brand-code"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}
