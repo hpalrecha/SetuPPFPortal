@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Factory, Upload, Download, AlertTriangle, CheckCircle, FileSpreadsheet, Plus, Edit, Trash2, Car } from 'lucide-react';
@@ -147,7 +148,7 @@ export default function VehiclesPage() {
   // CRUD Mutations
   const createBrandMutation = useMutation({
     mutationFn: (data: z.infer<typeof brandFormSchema>) => 
-      apiRequest('/api/vehicle-brands', { method: 'POST', body: data }),
+      apiRequest('POST', '/api/vehicle-brands', data),
     onSuccess: () => {
       toast({ title: 'Success', description: 'Brand created successfully' });
       setShowBrandDialog(false);
@@ -161,7 +162,7 @@ export default function VehiclesPage() {
 
   const createModelMutation = useMutation({
     mutationFn: (data: z.infer<typeof modelFormSchema>) => 
-      apiRequest('/api/vehicle-models', { method: 'POST', body: data }),
+      apiRequest('POST', '/api/vehicle-models', data),
     onSuccess: () => {
       toast({ title: 'Success', description: 'Model created successfully' });
       setShowModelDialog(false);
@@ -175,7 +176,7 @@ export default function VehiclesPage() {
 
   const createVariantMutation = useMutation({
     mutationFn: (data: z.infer<typeof variantFormSchema>) => 
-      apiRequest('/api/vehicle-variants', { method: 'POST', body: data }),
+      apiRequest('POST', '/api/vehicle-variants', data),
     onSuccess: () => {
       toast({ title: 'Success', description: 'Variant created successfully' });
       setShowVariantDialog(false);
@@ -188,7 +189,7 @@ export default function VehiclesPage() {
   });
 
   const deleteBrandMutation = useMutation({
-    mutationFn: (id: string) => apiRequest(`/api/vehicle-brands/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => apiRequest('DELETE', `/api/vehicle-brands/${id}`),
     onSuccess: () => {
       toast({ title: 'Success', description: 'Brand deleted successfully' });
       refetchVehicleData();
@@ -199,7 +200,7 @@ export default function VehiclesPage() {
   });
 
   const deleteModelMutation = useMutation({
-    mutationFn: (id: string) => apiRequest(`/api/vehicle-models/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => apiRequest('DELETE', `/api/vehicle-models/${id}`),
     onSuccess: () => {
       toast({ title: 'Success', description: 'Model deleted successfully' });
       refetchVehicleData();
@@ -210,7 +211,7 @@ export default function VehiclesPage() {
   });
 
   const deleteVariantMutation = useMutation({
-    mutationFn: (id: string) => apiRequest(`/api/vehicle-variants/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => apiRequest('DELETE', `/api/vehicle-variants/${id}`),
     onSuccess: () => {
       toast({ title: 'Success', description: 'Variant deleted successfully' });
       refetchVehicleData();
