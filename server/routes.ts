@@ -384,7 +384,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Only pass the exact fields needed, nothing extra
               const brandData = {
                 oemId: oemId,
-                name: brandName
+                name: brandName,
+                active: true
               };
               brand = await storage.createVehicleBrand(brandData);
 
@@ -403,7 +404,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Only pass the exact fields needed, nothing extra
               const modelData = {
                 brandId: brand.id,
-                modelName: modelName
+                modelName: modelName,
+                active: true
               };
               model = await storage.createVehicleModel(modelData);
 
@@ -422,7 +424,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 // Only pass the exact fields needed, nothing extra
                 const variantData = {
                   modelId: model.id,
-                  variantName: variantName
+                  variantName: variantName,
+                  active: true
                 };
                 await storage.createVehicleVariant(variantData);
 
