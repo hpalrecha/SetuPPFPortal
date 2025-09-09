@@ -235,13 +235,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('dealership', 'create'),
     async (req, res) => {
       try {
-        // Add brandCode field derived from dealership name
+        // Extract createUser flag and admin user data
+        const { createUser, adminUserData, ...dealershipFields } = req.body;
+        
+        // Add code field derived from dealership name
         const dealershipData = {
-          ...req.body,
-          code: req.body.name.substring(0, 3).toUpperCase() + Math.floor(Math.random() * 1000)
+          ...dealershipFields,
+          code: dealershipFields.name.substring(0, 3).toUpperCase() + Math.floor(Math.random() * 1000)
         };
         
+        // Create the dealership first
         const dealership = await storage.createDealership(dealershipData);
+        
+        // Create admin user if requested
+        if (createUser && adminUserData) {
+          try {
+            const bcrypt = require('bcryptjs');
+            const hashedPassword = await bcrypt.hash(adminUserData.password, 10);
+            
+            const adminData = {
+              name: adminUserData.name,
+              email: adminUserData.email,
+              phone: adminUserData.phone || '',
+              passwordHash: hashedPassword,
+              role: 'DEALERSHIP_ADMIN',
+              oemId: dealership.oemId, // Link to the same OEM
+              dealershipId: dealership.id,
+              isActive: true
+            };
+            
+            const createdUser = await storage.createUser(adminData);
+            console.log(`Created dealership admin user: ${createdUser.email} for ${dealership.name}`);
+          } catch (userError) {
+            console.error("Failed to create dealership admin user:", userError);
+            // Don't fail the whole request if user creation fails
+          }
+        }
+        
         res.status(201).json(dealership);
       } catch (error) {
         console.error("Create dealership error:", error);

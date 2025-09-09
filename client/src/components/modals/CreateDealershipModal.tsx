@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const dealershipSchema = z.object({
   name: z.string().min(1, "Dealership name is required"),
@@ -40,6 +41,23 @@ const dealershipSchema = z.object({
   city: z.string().min(1, "City is required"),
   state: z.string().min(1, "State is required"),
   pincode: z.string().min(1, "Pincode is required"),
+  
+  // Admin user creation fields
+  createUser: z.boolean().default(false),
+  userName: z.string().optional(),
+  userEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
+  userPhone: z.string().optional(),
+  userPassword: z.string().optional(),
+}).refine((data) => {
+  if (data.createUser) {
+    return data.userName && data.userName.length > 0 && 
+           data.userEmail && data.userEmail.length > 0 &&
+           data.userPassword && data.userPassword.length >= 6;
+  }
+  return true;
+}, {
+  message: "When creating a user, name, email, and password (min 6 chars) are required",
+  path: ["createUser"]
 });
 
 type DealershipFormData = z.infer<typeof dealershipSchema>;
@@ -73,6 +91,11 @@ export function CreateDealershipModal({
       city: dealership?.city || "",
       state: dealership?.state || "",
       pincode: dealership?.pincode || "",
+      createUser: false,
+      userName: "",
+      userEmail: "",
+      userPhone: "",
+      userPassword: "",
     },
   });
 
@@ -98,6 +121,22 @@ export function CreateDealershipModal({
       const endpoint = isEditing ? `/api/dealerships/${dealership.id}` : "/api/dealerships";
       const method = isEditing ? "PUT" : "POST";
       
+      // Prepare request body with admin user data if creating user
+      const requestBody = {
+        ...data,
+        ...(data.createUser && !isEditing ? {
+          adminUserData: {
+            name: data.userName,
+            email: data.userEmail,
+            phone: data.userPhone,
+            password: data.userPassword
+          }
+        } : {})
+      };
+
+      // Remove user fields from the main request body
+      const { userName, userEmail, userPhone, userPassword, ...dealershipData } = requestBody;
+      
       const response = await fetch(endpoint, {
         method,
         headers: {
@@ -105,7 +144,7 @@ export function CreateDealershipModal({
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         credentials: 'include',
-        body: JSON.stringify(data),
+        body: JSON.stringify(isEditing ? data : dealershipData),
       });
 
       if (!response.ok) {
@@ -330,6 +369,112 @@ export function CreateDealershipModal({
                 />
               </div>
             </div>
+
+            {/* Admin User Creation Section - Only show when creating new dealership */}
+            {!isEditing && (
+              <div className="space-y-4 border-t pt-4">
+                <FormField
+                  control={form.control}
+                  name="createUser"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="checkbox-create-admin"
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>
+                          Create Dealership Admin User
+                        </FormLabel>
+                        <p className="text-sm text-muted-foreground">
+                          Create an admin user account for this dealership
+                        </p>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
+                {form.watch("createUser") && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-7">
+                    <FormField
+                      control={form.control}
+                      name="userName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Admin Name</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter admin name"
+                              {...field}
+                              data-testid="input-admin-name"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="userEmail"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Admin Email</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter admin email"
+                              {...field}
+                              data-testid="input-admin-email"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="userPhone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Admin Phone</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter admin phone"
+                              {...field}
+                              data-testid="input-admin-phone"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="userPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Admin Password</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              placeholder="Enter password (min 6 chars)"
+                              {...field}
+                              data-testid="input-admin-password"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             <DialogFooter>
               <Button
