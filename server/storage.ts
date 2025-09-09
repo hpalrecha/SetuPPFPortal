@@ -180,21 +180,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteOem(id: string): Promise<boolean> {
-    // First delete all related dealerships and their showrooms
+    // Comprehensive cascading delete for OEM and all related data
+    
+    // 1. Delete work orders for this OEM
+    await db.delete(workOrders).where(eq(workOrders.oemId, id));
+    
+    // 2. Update users to remove OEM association (preserve user accounts)
+    await db.update(users)
+      .set({ oemId: null, dealershipId: null, showroomId: null })
+      .where(eq(users.oemId, id));
+    
+    // 3. Get all dealerships for this OEM
     const oemDealerships = await db.select({ id: dealerships.id }).from(dealerships).where(eq(dealerships.oemId, id));
     
+    // 4. Delete showrooms for each dealership
     for (const dealership of oemDealerships) {
-      // Delete showrooms for each dealership
       await db.delete(showrooms).where(eq(showrooms.dealershipId, dealership.id));
     }
     
-    // Delete all dealerships for this OEM
+    // 5. Delete all dealerships for this OEM
     await db.delete(dealerships).where(eq(dealerships.oemId, id));
     
-    // Delete all vehicle models for this OEM
+    // 6. Delete all vehicle models and their variants for this OEM
+    const oemModels = await db.select({ id: vehicleModels.id }).from(vehicleModels).where(eq(vehicleModels.oemId, id));
+    for (const model of oemModels) {
+      await db.delete(vehicleVariants).where(eq(vehicleVariants.modelId, model.id));
+    }
     await db.delete(vehicleModels).where(eq(vehicleModels.oemId, id));
     
-    // Finally delete the OEM
+    // 7. Finally delete the OEM itself
     const result = await db
       .delete(oems)
       .where(eq(oems.id, id));
