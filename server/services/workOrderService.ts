@@ -13,7 +13,7 @@ export class WorkOrderService {
     const workOrder = await storage.createWorkOrder({
       ...data,
       createdByUserId: userId,
-      status: 'DRAFT'
+      status: 'PENDING'
     });
 
     // Auto-assign partner and create job card immediately for showroom work orders
@@ -64,8 +64,8 @@ export class WorkOrderService {
       throw new Error('Work order not found');
     }
 
-    if (workOrder.status !== 'SUBMITTED' && workOrder.status !== 'ASSIGNED') {
-      throw new Error('Work order must be in SUBMITTED or ASSIGNED status to assign');
+    if (workOrder.status !== 'PENDING' && workOrder.status !== 'SUBMITTED' && workOrder.status !== 'ASSIGNED') {
+      throw new Error('Work order must be in PENDING, SUBMITTED or ASSIGNED status to assign');
     }
 
     // Get pricing for estimation
