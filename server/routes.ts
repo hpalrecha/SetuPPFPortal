@@ -866,7 +866,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           createdByUserId: z.string()
         }).parse(workOrderData);
 
-        const workOrder = await storage.createWorkOrder(validatedData);
+        // Use WorkOrderService for proper business logic
+        const { workOrderService } = await import('./services/workOrderService');
+        const workOrder = await workOrderService.createWorkOrder(validatedData, req.user!.id);
         res.status(201).json(workOrder);
       } catch (error) {
         console.error("Create work order error:", error);

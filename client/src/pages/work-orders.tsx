@@ -192,11 +192,11 @@ export default function WorkOrdersPage() {
                       </td>
                       <td className="py-3 px-4">
                         <div>
-                          <p className="text-sm font-medium text-foreground">{order.vehicleModelId?.slice(-8) || "Vehicle Model"}</p>
+                          <p className="text-sm font-medium text-foreground">{(order as any).vehicleModelName || "Vehicle Model"}</p>
                           <p className="text-xs text-muted-foreground">{order.regNo || "Not specified"}</p>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-sm text-foreground">{order.serviceId?.slice(-8) || "Service Name"}</td>
+                      <td className="py-3 px-4 text-sm text-foreground">{(order as any).serviceName || "Service Name"}</td>
                       <td className="py-3 px-4">
                         <div>
                           <p className="text-sm font-medium text-foreground">{order.customerName || "N/A"}</p>
@@ -212,7 +212,7 @@ export default function WorkOrdersPage() {
                         </Badge>
                       </td>
                       <td className="py-3 px-4 text-sm text-foreground">
-                        {order.assignedPartnerId ? order.assignedPartnerId.slice(-8) : "Not assigned"}
+                        {order.assignedPartnerId ? ((order as any).partnerName || "Partner Assigned") : "Not assigned"}
                       </td>
                       <td className="py-3 px-4 text-sm text-muted-foreground">
                         {new Date(order.createdAt!).toLocaleDateString()}
