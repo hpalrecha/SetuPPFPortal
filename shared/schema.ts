@@ -58,6 +58,13 @@ export const jobCardStatusEnum = pgEnum('job_card_status', [
 
 export const allocationLevelEnum = pgEnum('allocation_level', ['DEALERSHIP', 'SHOWROOM']);
 export const commissionTypeEnum = pgEnum('commission_type', ['PERCENT', 'AMOUNT']);
+
+export const pricingTypeEnum = pgEnum('pricing_type', [
+  'PARTNER_PRICING',     // What partner charges for services (existing)
+  'DEALERSHIP_PRICING',  // What dealership is charged for services
+  'DETAILER_PRICING'     // What detailer/installer earns for completing jobs
+]);
+
 export const scopeEnum = pgEnum('scope', ['DEALERSHIP', 'SHOWROOM']);
 
 // Core Organization Tables
@@ -199,9 +206,20 @@ export const services = pgTable("services", {
 // Pricing and Commission Rules
 export const pricingRules = pgTable("pricing_rules", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  partnerId: uuid("partner_id").references(() => partners.id).notNull(),
-  scope: scopeEnum("scope").notNull(),
-  scopeId: uuid("scope_id").notNull(), // dealership_id or showroom_id
+  pricingType: pricingTypeEnum("pricing_type").notNull().default('PARTNER_PRICING'),
+  
+  // For PARTNER_PRICING (existing functionality)
+  partnerId: uuid("partner_id").references(() => partners.id),
+  scope: scopeEnum("scope"),
+  scopeId: uuid("scope_id"), // dealership_id or showroom_id for partner pricing
+  
+  // For DEALERSHIP_PRICING (Service + Vehicle Model + Dealership)
+  dealershipId: uuid("dealership_id").references(() => dealerships.id),
+  
+  // For DETAILER_PRICING (Detailer + Service + Vehicle Model)
+  detailerId: uuid("detailer_id").references(() => users.id), // References user with PARTNER_STAFF role
+  
+  // Common fields for all pricing types
   vehicleModelId: uuid("vehicle_model_id").references(() => vehicleModels.id),
   vehicleVariantId: uuid("vehicle_variant_id").references(() => vehicleVariants.id),
   serviceId: uuid("service_id").references(() => services.id).notNull(),
