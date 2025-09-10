@@ -228,9 +228,13 @@ export function CreatePricingRuleModal({
                             <SelectValue placeholder="Select dealership" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
+                        <SelectContent className="bg-white dark:bg-gray-800">
                           {dealerships?.map((dealership: any) => (
-                            <SelectItem key={dealership.id} value={dealership.id}>
+                            <SelectItem 
+                              key={dealership.id} 
+                              value={dealership.id}
+                              className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
                               {dealership.name}
                             </SelectItem>
                           ))}
@@ -255,9 +259,13 @@ export function CreatePricingRuleModal({
                             <SelectValue placeholder="Select detailer" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
+                        <SelectContent className="bg-white dark:bg-gray-800">
                           {detailers?.map((detailer: any) => (
-                            <SelectItem key={detailer.id} value={detailer.id}>
+                            <SelectItem 
+                              key={detailer.id} 
+                              value={detailer.id}
+                              className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
                               {detailer.name}
                             </SelectItem>
                           ))}
@@ -281,9 +289,13 @@ export function CreatePricingRuleModal({
                           <SelectValue placeholder="Select service" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent className="bg-white dark:bg-gray-800">
                         {services?.map((service: any) => (
-                          <SelectItem key={service.id} value={service.id}>
+                          <SelectItem 
+                            key={service.id} 
+                            value={service.id}
+                            className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                          >
                             {service.name}
                           </SelectItem>
                         ))}
@@ -308,9 +320,13 @@ export function CreatePricingRuleModal({
                           <SelectValue placeholder="Select vehicle model" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent className="bg-white dark:bg-gray-800">
                         {vehicleModels?.map((model: any) => (
-                          <SelectItem key={model.id} value={model.id}>
+                          <SelectItem 
+                            key={model.id} 
+                            value={model.id}
+                            className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                          >
                             {model.model_name}
                           </SelectItem>
                         ))}
