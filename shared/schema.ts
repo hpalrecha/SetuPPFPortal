@@ -217,7 +217,7 @@ export const pricingRules = pgTable("pricing_rules", {
   dealershipId: uuid("dealership_id").references(() => dealerships.id),
   
   // For DETAILER_PRICING (Detailer + Service + Vehicle Model)
-  detailerId: uuid("detailer_id").references(() => users.id), // References user with PARTNER_STAFF role
+  detailerId: uuid("detailer_id").references(() => partners.id), // References partner with INSTALLER type
   
   // Common fields for all pricing types
   vehicleModelId: uuid("vehicle_model_id").references(() => vehicleModels.id),
