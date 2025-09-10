@@ -468,3 +468,8 @@ export const insertVehicleVariantSchema = createInsertSchema(vehicleVariants).om
 export const selectVehicleVariantSchema = createSelectSchema(vehicleVariants);
 export type InsertVehicleVariant = z.infer<typeof insertVehicleVariantSchema>;
 export type VehicleVariant = z.infer<typeof selectVehicleVariantSchema>;
+
+export const insertServiceSchema = createInsertSchema(services).omit({ id: true, createdAt: true, updatedAt: true });
+export const selectServiceSchema = createSelectSchema(services);
+export type InsertService = z.infer<typeof insertServiceSchema>;
+export type Service = z.infer<typeof selectServiceSchema>;
