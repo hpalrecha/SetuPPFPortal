@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Eye, Edit } from "lucide-react";
 import type { WorkOrder } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { CreateWorkOrderModal } from "@/components/modals/CreateWorkOrderModal";
 
 const statusColors = {
@@ -26,6 +28,7 @@ export default function WorkOrdersPage() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [filters, setFilters] = useState({
     status: "",
