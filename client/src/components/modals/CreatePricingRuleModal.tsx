@@ -110,21 +110,37 @@ export function CreatePricingRuleModal({
     enabled: open && pricingType === 'DETAILER_PRICING',
   });
 
-  // Mock services data - in a real app this would come from API
-  const services = [
-    { id: "full-body", name: "Full Body PPF" },
-    { id: "front-end", name: "Front End PPF" },
-    { id: "headlights", name: "Headlight PPF" },
-    { id: "door-handles", name: "Door Handle PPF" },
-  ];
+  // Fetch services from API
+  const { data: services = [] } = useQuery({
+    queryKey: ["/api/services"],
+    queryFn: async () => {
+      const response = await fetch('/api/services', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch services');
+      return response.json();
+    },
+    enabled: open,
+  });
 
-  // Mock vehicle models - in a real app this would come from API
-  const vehicleModels = [
-    { id: "swift", name: "Swift" },
-    { id: "baleno", name: "Baleno" },
-    { id: "i20", name: "i20" },
-    { id: "creta", name: "Creta" },
-  ];
+  // Fetch vehicle models from API
+  const { data: vehicleModels = [] } = useQuery({
+    queryKey: ["/api/vehicle-models"],
+    queryFn: async () => {
+      const response = await fetch('/api/vehicle-models', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch vehicle models');
+      return response.json();
+    },
+    enabled: open,
+  });
 
   const onSubmit = async (data: PricingRuleFormData) => {
     setIsLoading(true);
@@ -275,7 +291,7 @@ export function CreatePricingRuleModal({
                         <SelectItem value="all">All Models</SelectItem>
                         {vehicleModels?.map((model: any) => (
                           <SelectItem key={model.id} value={model.id}>
-                            {model.name}
+                            {model.model_name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -308,25 +324,6 @@ export function CreatePricingRuleModal({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="priceAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Price Amount (₹)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        placeholder="Enter price amount"
-                        {...field}
-                        data-testid="input-price-amount"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
               <FormField
                 control={form.control}
                 name="effectiveFrom"

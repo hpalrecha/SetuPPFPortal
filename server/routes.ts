@@ -436,7 +436,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   // Vehicle Model Routes (now using oemId instead of brandId)
-  app.get("/api/vehicle-models", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
+  app.get("/api/vehicle-models", authenticate, requireOEMAccess, async (req, res) => {
     try {
       const { oemId } = req.query;
       
