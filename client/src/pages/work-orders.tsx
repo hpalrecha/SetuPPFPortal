@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, useRoute } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Eye, Edit } from "lucide-react";
+import { Plus, Search, Eye, Edit, ArrowLeft, Save } from "lucide-react";
 import type { WorkOrder } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +29,15 @@ export default function WorkOrdersPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  
+  // Route detection
+  const [, listRouteParams] = useRoute("/work-orders");
+  const [, viewRouteParams] = useRoute("/work-orders/:id");
+  const [, editRouteParams] = useRoute("/work-orders/:id/edit");
+  
+  // Determine current route and get work order ID
+  const currentView = editRouteParams ? 'edit' : (viewRouteParams ? 'view' : 'list');
+  const workOrderId = editRouteParams?.id || viewRouteParams?.id;
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [filters, setFilters] = useState({
     status: "",
@@ -41,6 +50,7 @@ export default function WorkOrdersPage() {
   // Check if user can create work orders (showroom managers, sales persons, and super admin)
   const canCreateWorkOrder = user && ['SHOWROOM_MANAGER', 'SALES_PERSON', 'SUPER_ADMIN'].includes(user.role);
 
+  // Query for work orders list
   const { data: workOrders = [], isLoading } = useQuery<WorkOrder[]>({
     queryKey: ["/api/work-orders", filters],
     queryFn: async () => {
@@ -64,7 +74,28 @@ export default function WorkOrdersPage() {
       
       return response.json();
     },
-    refetchInterval: 30000
+    refetchInterval: 30000,
+    enabled: currentView === 'list' // Only fetch when in list view
+  });
+
+  // Query for individual work order (for view/edit)
+  const { data: workOrder, isLoading: isLoadingWorkOrder } = useQuery<WorkOrder>({
+    queryKey: ["/api/work-orders", workOrderId],
+    queryFn: async () => {
+      const response = await fetch(`/api/work-orders/${workOrderId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch work order');
+      }
+      
+      return response.json();
+    },
+    enabled: currentView !== 'list' && !!workOrderId // Only fetch when not in list view and we have an ID
   });
 
   const handleCreateWorkOrder = () => {
@@ -116,7 +147,12 @@ export default function WorkOrdersPage() {
     }
   };
 
-  if (isLoading) {
+  const handleBackToList = () => {
+    setLocation('/work-orders');
+  };
+
+  // Show loading state
+  if (isLoading || isLoadingWorkOrder) {
     return (
       <div className="space-y-6">
         <div className="animate-pulse">
@@ -128,6 +164,120 @@ export default function WorkOrdersPage() {
     );
   }
 
+  // Render individual work order view
+  if (currentView === 'view' && workOrder) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center">
+          <Button variant="ghost" onClick={handleBackToList} className="mr-4">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Work Orders
+          </Button>
+          <div>
+            <h2 className="text-2xl font-semibold text-foreground">Work Order Details</h2>
+            <p className="text-muted-foreground mt-1">WO-{workOrder.id.slice(-6)}</p>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Work Order Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h3 className="font-medium">Status</h3>
+                <Badge className={statusColors[workOrder.status as keyof typeof statusColors] || "bg-gray-100 text-gray-800"}>
+                  {workOrder.status?.replace(/_/g, " ")}
+                </Badge>
+              </div>
+              <div>
+                <h3 className="font-medium">Registration Number</h3>
+                <p>{workOrder.regNo || "Not specified"}</p>
+              </div>
+              <div>
+                <h3 className="font-medium">Customer Name</h3>
+                <p>{workOrder.customerName || "N/A"}</p>
+              </div>
+              <div>
+                <h3 className="font-medium">Customer Phone</h3>
+                <p>{workOrder.customerPhone || "N/A"}</p>
+              </div>
+              <div>
+                <h3 className="font-medium">Customer Email</h3>
+                <p>{workOrder.customerEmail || "N/A"}</p>
+              </div>
+              <div>
+                <h3 className="font-medium">Partner Assignment</h3>
+                <p>{workOrder.assignedPartnerId ? "Partner Assigned" : "Not assigned"}</p>
+              </div>
+              <div>
+                <h3 className="font-medium">Quantity</h3>
+                <p>{workOrder.quantity || 1}</p>
+              </div>
+              <div>
+                <h3 className="font-medium">Created Date</h3>
+                <p>{new Date(workOrder.createdAt!).toLocaleDateString()}</p>
+              </div>
+            </div>
+            
+            {workOrder.notes && (
+              <div>
+                <h3 className="font-medium">Notes</h3>
+                <p className="text-muted-foreground">{workOrder.notes}</p>
+              </div>
+            )}
+
+            <div className="flex space-x-2 pt-4">
+              <Button onClick={() => setLocation(`/work-orders/${workOrder.id}/edit`)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Work Order
+              </Button>
+              {workOrder.status === 'PENDING' && (
+                <Button onClick={() => handleSubmitWorkOrder(workOrder.id)} variant="default">
+                  Submit Work Order
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Render edit work order view
+  if (currentView === 'edit' && workOrder) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center">
+          <Button variant="ghost" onClick={handleBackToList} className="mr-4">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Work Orders
+          </Button>
+          <div>
+            <h2 className="text-2xl font-semibold text-foreground">Edit Work Order</h2>
+            <p className="text-muted-foreground mt-1">WO-{workOrder.id.slice(-6)}</p>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Edit Work Order Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground mb-4">
+              Edit functionality is coming soon. For now, you can view work order details.
+            </p>
+            <Button onClick={() => setLocation(`/work-orders/${workOrder.id}`)}>
+              View Work Order
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Render work orders list (default view)
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
