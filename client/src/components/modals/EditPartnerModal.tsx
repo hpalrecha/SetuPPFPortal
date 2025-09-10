@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -68,18 +68,49 @@ export function EditPartnerModal({
   const form = useForm<PartnerFormData>({
     resolver: zodResolver(partnerSchema),
     defaultValues: {
-      displayName: partner?.displayName || "",
-      type: partner?.type || "INSTALLER",
-      contactPersonName: partner?.contactPersonName || "",
-      phone: partner?.phone || "",
-      email: partner?.email || "",
-      address: partner?.address || "",
-      city: partner?.city || "",
-      state: partner?.state || "",
-      pincode: partner?.pincode || "",
-      active: partner?.active ?? true,
+      displayName: "",
+      type: "INSTALLER",
+      contactPersonName: "",
+      phone: "",
+      email: "",
+      address: "",
+      city: "",
+      state: "",
+      pincode: "",
+      active: true,
     },
   });
+
+  // Update form when partner prop changes
+  useEffect(() => {
+    if (partner) {
+      form.reset({
+        displayName: partner.displayName || "",
+        type: partner.type || "INSTALLER",
+        contactPersonName: partner.contactPersonName || "",
+        phone: partner.phone || "",
+        email: partner.email || "",
+        address: partner.address || "",
+        city: partner.city || "",
+        state: partner.state || "",
+        pincode: partner.pincode || "",
+        active: partner.active ?? true,
+      });
+    } else {
+      form.reset({
+        displayName: "",
+        type: "INSTALLER",
+        contactPersonName: "",
+        phone: "",
+        email: "",
+        address: "",
+        city: "",
+        state: "",
+        pincode: "",
+        active: true,
+      });
+    }
+  }, [partner, form]);
 
   const onSubmit = async (data: PartnerFormData) => {
     setIsLoading(true);

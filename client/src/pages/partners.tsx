@@ -181,21 +181,6 @@ export default function PartnersPage() {
                   </div>
                 </div>
 
-                {/* Performance Metrics */}
-                <div className="grid grid-cols-3 gap-2 text-center text-sm mb-4">
-                  <div>
-                    <p className="font-semibold text-foreground">15</p>
-                    <p className="text-muted-foreground">Active Jobs</p>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-foreground">94%</p>
-                    <p className="text-muted-foreground">Success Rate</p>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-foreground">2.1d</p>
-                    <p className="text-muted-foreground">Avg TAT</p>
-                  </div>
-                </div>
 
                 <div className="flex space-x-2">
                   <Button 
