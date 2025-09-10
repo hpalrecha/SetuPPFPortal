@@ -667,7 +667,7 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(pricingRules)
       .where(eq(pricingRules.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   async getCommissionRules(filters?: { showroomId?: string }): Promise<CommissionRule[]> {
