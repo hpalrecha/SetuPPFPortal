@@ -17,8 +17,8 @@ export default function PricingPage() {
   
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingRule, setEditingRule] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState('partner'); // partner, dealership, detailer
-  const [selectedPricingType, setSelectedPricingType] = useState<'PARTNER_PRICING' | 'DEALERSHIP_PRICING' | 'DETAILER_PRICING'>('PARTNER_PRICING');
+  const [activeTab, setActiveTab] = useState('dealership'); // dealership, detailer
+  const [selectedPricingType, setSelectedPricingType] = useState<'DEALERSHIP_PRICING' | 'DETAILER_PRICING'>('DEALERSHIP_PRICING');
   
   // Only admins can access pricing rules
   const canAccessPricing = user && ['SUPER_ADMIN', 'OEM_ADMIN'].includes(user.role);
@@ -51,9 +51,7 @@ export default function PricingPage() {
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
-    if (value === 'partner') {
-      setSelectedPricingType('PARTNER_PRICING');
-    } else if (value === 'dealership') {
+    if (value === 'dealership') {
       setSelectedPricingType('DEALERSHIP_PRICING');
     } else if (value === 'detailer') {
       setSelectedPricingType('DETAILER_PRICING');
@@ -116,13 +114,11 @@ export default function PricingPage() {
     }).format(Number(amount));
   };
 
-  const renderPricingTable = (pricingType: 'PARTNER_PRICING' | 'DEALERSHIP_PRICING' | 'DETAILER_PRICING') => {
+  const renderPricingTable = (pricingType: 'DEALERSHIP_PRICING' | 'DETAILER_PRICING') => {
     const filteredRules = pricingRules.filter(rule => rule.pricingType === pricingType);
     
     const getColumns = () => {
       switch (pricingType) {
-        case 'PARTNER_PRICING':
-          return ['Partner', 'Scope', 'Vehicle Model', 'Service', 'Price', 'Effective From', 'Status', 'Actions'];
         case 'DEALERSHIP_PRICING':
           return ['Dealership', 'Vehicle Model', 'Service', 'Price', 'Effective From', 'Status', 'Actions'];
         case 'DETAILER_PRICING':
@@ -134,16 +130,6 @@ export default function PricingPage() {
 
     const getRowData = (rule: PricingRule) => {
       switch (pricingType) {
-        case 'PARTNER_PRICING':
-          return [
-            'Partner Name', // TODO: Fetch partner name
-            rule.scope ? `${rule.scope} - Scope Name` : 'Global',
-            'Vehicle Model', // TODO: Fetch vehicle model name
-            'Service Name', // TODO: Fetch service name
-            formatCurrency(rule.priceAmount),
-            new Date(rule.effectiveFrom).toLocaleDateString(),
-            rule.status
-          ];
         case 'DEALERSHIP_PRICING':
           return [
             'Dealership Name', // TODO: Fetch dealership name
@@ -292,11 +278,7 @@ export default function PricingPage() {
 
       {/* Pricing Rules Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="partner" className="flex items-center gap-2">
-            <Wrench className="h-4 w-4" />
-            Partner Pricing
-          </TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="dealership" className="flex items-center gap-2">
             <Building className="h-4 w-4" />
             Dealership Pricing
@@ -307,24 +289,10 @@ export default function PricingPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="partner" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Partner Pricing Rules</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Configure what partners charge for services at different dealerships and showrooms
-              </p>
-            </CardHeader>
-            <CardContent>
-              {renderPricingTable('PARTNER_PRICING')}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         <TabsContent value="dealership" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Dealership Pricing Rules</CardTitle>
+              <CardTitle>Dealership Pricing List</CardTitle>
               <p className="text-sm text-muted-foreground">
                 Configure what dealerships are charged for services and vehicle combinations
               </p>
@@ -338,7 +306,7 @@ export default function PricingPage() {
         <TabsContent value="detailer" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Detailer/Installer Pricing Rules</CardTitle>
+              <CardTitle>Detailer/Installer Payout List</CardTitle>
               <p className="text-sm text-muted-foreground">
                 Configure what detailers and installers earn for completing jobs
               </p>
