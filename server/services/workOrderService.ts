@@ -16,6 +16,16 @@ export class WorkOrderService {
       status: 'DRAFT'
     });
 
+    // Auto-assign partner and create job card immediately for showroom work orders
+    if (workOrder.showroomId) {
+      try {
+        await this.autoAssignPartner(workOrder.id);
+      } catch (error) {
+        console.warn('Could not auto-assign partner for work order:', workOrder.id, error);
+        // Don't fail the work order creation if auto-assignment fails
+      }
+    }
+
     // Send notification
     await notificationService.sendWorkOrderCreated(workOrder);
 
