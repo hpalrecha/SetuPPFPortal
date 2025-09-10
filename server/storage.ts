@@ -129,6 +129,12 @@ export interface IStorage {
   getCommissionRules(filters?: { showroomId?: string }): Promise<CommissionRule[]>;
   createCommissionRule(rule: InsertCommissionRule): Promise<CommissionRule>;
   updateCommissionRule(id: string, updates: Partial<InsertCommissionRule>): Promise<CommissionRule | undefined>;
+  
+  // Pricing resolution
+  resolvePricingRule(partnerId: string, vehicleModelId: string, serviceId: string, dealershipId?: string, showroomId?: string): Promise<PricingRule | null>;
+  
+  // Notifications
+  createNotification(notification: any): Promise<any>;
 
 
   // Vehicle Model management
@@ -767,6 +773,27 @@ export class DatabaseStorage implements IStorage {
       .where(eq(commissionRules.id, id))
       .returning();
     return rule || undefined;
+  }
+
+  async resolvePricingRule(partnerId: string, vehicleModelId: string, serviceId: string, dealershipId?: string, showroomId?: string): Promise<PricingRule | null> {
+    // Try to find pricing rule with highest priority (Partner > Showroom > Dealership)
+    let query = db.select().from(pricingRules)
+      .where(and(
+        eq(pricingRules.serviceId, serviceId),
+        eq(pricingRules.vehicleModelId, vehicleModelId),
+        eq(pricingRules.status, 'ACTIVE')
+      ));
+
+    const rules = await query;
+    
+    // Return first matching rule (can be enhanced with priority logic)
+    return rules[0] || null;
+  }
+
+  async createNotification(notification: any): Promise<any> {
+    // For now, just log the notification (can be enhanced to store in DB)
+    console.log('Notification:', notification);
+    return { id: 'notification-' + Date.now(), ...notification };
   }
 
   // Vehicle Model methods
