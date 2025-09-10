@@ -1462,6 +1462,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Allocation Routes
+  app.get("/api/allocations", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { partnerId, level, levelId } = req.query;
+      
+      const filters: any = {};
+      if (partnerId) filters.partnerId = partnerId as string;
+      if (level) filters.level = level as string;
+      if (levelId) filters.levelId = levelId as string;
+
+      const allocations = await storage.getAllocations(filters);
+      res.json(allocations);
+    } catch (error) {
+      console.error("Get allocations error:", error);
+      res.status(500).json({ error: "Failed to fetch allocations" });
+    }
+  });
+
+  app.get("/api/allocations/:id", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const allocation = await storage.getAllocation(req.params.id);
+      if (!allocation) {
+        return res.status(404).json({ error: "Allocation not found" });
+      }
+      res.json(allocation);
+    } catch (error) {
+      console.error("Get allocation error:", error);
+      res.status(500).json({ error: "Failed to fetch allocation" });
+    }
+  });
+
+  app.post("/api/allocations", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    auditLog('allocation', 'create'),
+    async (req, res) => {
+      try {
+        const allocationData = req.body;
+        
+        // Validate required fields
+        if (!allocationData.level || !allocationData.levelId || !allocationData.partnerId) {
+          return res.status(400).json({ 
+            error: "Level, levelId, and partnerId are required" 
+          });
+        }
+
+        const allocation = await storage.createAllocation(allocationData);
+        res.status(201).json(allocation);
+      } catch (error) {
+        console.error("Create allocation error:", error);
+        if (error.message.includes("already has an active allocation")) {
+          return res.status(409).json({ error: error.message });
+        }
+        res.status(500).json({ error: "Failed to create allocation" });
+      }
+    }
+  );
+
+  app.put("/api/allocations/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    auditLog('allocation', 'update'),
+    async (req, res) => {
+      try {
+        const allocation = await storage.updateAllocation(req.params.id, req.body);
+        if (!allocation) {
+          return res.status(404).json({ error: "Allocation not found" });
+        }
+        res.json(allocation);
+      } catch (error) {
+        console.error("Update allocation error:", error);
+        res.status(500).json({ error: "Failed to update allocation" });
+      }
+    }
+  );
+
+  app.delete("/api/allocations/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    auditLog('allocation', 'delete'),
+    async (req, res) => {
+      try {
+        const deleted = await storage.deleteAllocation(req.params.id);
+        if (!deleted) {
+          return res.status(404).json({ error: "Allocation not found" });
+        }
+        res.status(200).json({ message: "Allocation deleted successfully" });
+      } catch (error) {
+        console.error("Delete allocation error:", error);
+        res.status(500).json({ error: "Failed to delete allocation" });
+      }
+    }
+  );
+
   // Commission Rules Routes
   app.get("/api/commission-rules", authenticate, requireOEMAccess, async (req, res) => {
     try {

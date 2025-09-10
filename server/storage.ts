@@ -145,6 +145,13 @@ export interface IStorage {
   updateVehicleVariant(id: string, updates: Partial<InsertVehicleVariant>): Promise<VehicleVariant | undefined>;
   deleteVehicleVariant(id: string): Promise<boolean>;
 
+  // Allocation management
+  getAllocations(filters?: { oemId?: string; partnerId?: string; level?: string; levelId?: string }): Promise<any[]>;
+  getAllocation(id: string): Promise<any | undefined>;
+  createAllocation(allocation: any): Promise<any>;
+  updateAllocation(id: string, updates: any): Promise<any | undefined>;
+  deleteAllocation(id: string): Promise<boolean>;
+
   // Dashboard metrics
   getDashboardMetrics(oemId: string, showroomId?: string): Promise<{
     activeWorkOrders: number;
@@ -862,6 +869,126 @@ export class DatabaseStorage implements IStorage {
       thisMonthRevenue: Number(revenueResult?.total || 0),
       avgTAT: 3.2 // Placeholder calculation
     };
+  }
+
+  // Allocation management implementation
+  async getAllocations(filters?: { oemId?: string; partnerId?: string; level?: string; levelId?: string }): Promise<any[]> {
+    let query = db
+      .select({
+        id: allocations.id,
+        level: allocations.level,
+        levelId: allocations.levelId,
+        partnerId: allocations.partnerId,
+        priority: allocations.priority,
+        active: allocations.active,
+        createdAt: allocations.createdAt,
+        partner: {
+          id: partners.id,
+          displayName: partners.displayName,
+          type: partners.type,
+          phone: partners.phone,
+          email: partners.email
+        }
+      })
+      .from(allocations)
+      .leftJoin(partners, eq(allocations.partnerId, partners.id));
+
+    if (filters) {
+      const conditions = [];
+      
+      if (filters.partnerId) {
+        conditions.push(eq(allocations.partnerId, filters.partnerId));
+      }
+      
+      if (filters.level) {
+        conditions.push(eq(allocations.level, filters.level as any));
+      }
+      
+      if (filters.levelId) {
+        conditions.push(eq(allocations.levelId, filters.levelId));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+    }
+
+    return await query.orderBy(desc(allocations.createdAt));
+  }
+
+  async getAllocation(id: string): Promise<any | undefined> {
+    const [allocation] = await db
+      .select({
+        id: allocations.id,
+        level: allocations.level,
+        levelId: allocations.levelId,
+        partnerId: allocations.partnerId,
+        priority: allocations.priority,
+        active: allocations.active,
+        createdAt: allocations.createdAt,
+        partner: {
+          id: partners.id,
+          displayName: partners.displayName,
+          type: partners.type,
+          phone: partners.phone,
+          email: partners.email
+        }
+      })
+      .from(allocations)
+      .leftJoin(partners, eq(allocations.partnerId, partners.id))
+      .where(eq(allocations.id, id));
+    
+    return allocation || undefined;
+  }
+
+  async createAllocation(allocation: any): Promise<any> {
+    // Business rule: Check if there's already an active allocation for this dealership/showroom
+    const existingAllocation = await db
+      .select()
+      .from(allocations)
+      .where(and(
+        eq(allocations.levelId, allocation.levelId),
+        eq(allocations.level, allocation.level),
+        eq(allocations.active, true)
+      ));
+
+    if (existingAllocation.length > 0) {
+      throw new Error(`This ${allocation.level.toLowerCase()} already has an active allocation. Please remove the existing allocation first.`);
+    }
+
+    const [newAllocation] = await db
+      .insert(allocations)
+      .values({
+        level: allocation.level,
+        levelId: allocation.levelId,
+        partnerId: allocation.partnerId,
+        priority: allocation.priority || 1,
+        active: allocation.active ?? true
+      })
+      .returning();
+    
+    return newAllocation;
+  }
+
+  async updateAllocation(id: string, updates: any): Promise<any | undefined> {
+    const [allocation] = await db
+      .update(allocations)
+      .set({
+        ...updates,
+        updatedAt: sql`NOW()`
+      })
+      .where(eq(allocations.id, id))
+      .returning();
+    
+    return allocation || undefined;
+  }
+
+  async deleteAllocation(id: string): Promise<boolean> {
+    const result = await db
+      .delete(allocations)
+      .where(eq(allocations.id, id));
+    
+    return result.rowCount !== null && result.rowCount > 0;
   }
 
   async createAuditLog(log: {
