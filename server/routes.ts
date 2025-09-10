@@ -1134,11 +1134,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Pricing Rules Routes
   app.get("/api/pricing-rules", authenticate, requireOEMAccess, async (req, res) => {
     try {
-      const { partnerId, scopeId } = req.query;
+      const { partnerId, scopeId, pricingType, dealershipId, detailerId } = req.query;
       
       const filters: any = {};
       if (partnerId) filters.partnerId = partnerId as string;
       if (scopeId) filters.scopeId = scopeId as string;
+      if (pricingType) filters.pricingType = pricingType as string;
+      if (dealershipId) filters.dealershipId = dealershipId as string;
+      if (detailerId) filters.detailerId = detailerId as string;
 
       const rules = await storage.getPricingRules(filters);
       res.json(rules);
@@ -1163,6 +1166,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Invalid pricing rule data", details: error.errors });
         }
         res.status(500).json({ error: "Failed to create pricing rule" });
+      }
+    }
+  );
+
+  // Dealership Pricing Resolution
+  app.get("/api/pricing/dealership/:dealershipId/service/:serviceId", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    async (req, res) => {
+      try {
+        const { dealershipId, serviceId } = req.params;
+        const { vehicleModelId } = req.query;
+        
+        const pricingService = require('./services/pricing').pricingService;
+        const pricing = await pricingService.getDealershipPricing({
+          dealershipId,
+          serviceId,
+          vehicleModelId: vehicleModelId as string
+        });
+        
+        res.json(pricing);
+      } catch (error) {
+        console.error("Get dealership pricing error:", error);
+        res.status(404).json({ error: error.message || "Pricing not found" });
+      }
+    }
+  );
+
+  // Detailer Pricing Resolution
+  app.get("/api/pricing/detailer/:detailerId/service/:serviceId", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'PARTNER_ADMIN', 'PARTNER_STAFF']),
+    async (req, res) => {
+      try {
+        const { detailerId, serviceId } = req.params;
+        const { vehicleModelId } = req.query;
+        
+        const pricingService = require('./services/pricing').pricingService;
+        const pricing = await pricingService.getDetailerPricing({
+          detailerId,
+          serviceId,
+          vehicleModelId: vehicleModelId as string
+        });
+        
+        res.json(pricing);
+      } catch (error) {
+        console.error("Get detailer pricing error:", error);
+        res.status(404).json({ error: error.message || "Pricing not found" });
       }
     }
   );

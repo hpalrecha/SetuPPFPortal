@@ -114,7 +114,13 @@ export interface IStorage {
   updatePartner(id: string, updates: Partial<InsertPartner>): Promise<Partner | undefined>;
 
   // Pricing Rules
-  getPricingRules(filters?: { partnerId?: string; scopeId?: string }): Promise<PricingRule[]>;
+  getPricingRules(filters?: { 
+    partnerId?: string; 
+    scopeId?: string; 
+    pricingType?: string;
+    dealershipId?: string;
+    detailerId?: string;
+  }): Promise<PricingRule[]>;
   createPricingRule(rule: InsertPricingRule): Promise<PricingRule>;
   updatePricingRule(id: string, updates: Partial<InsertPricingRule>): Promise<PricingRule | undefined>;
 
@@ -620,12 +626,21 @@ export class DatabaseStorage implements IStorage {
     return partner || undefined;
   }
 
-  async getPricingRules(filters?: { partnerId?: string; scopeId?: string }): Promise<PricingRule[]> {
+  async getPricingRules(filters?: { 
+    partnerId?: string; 
+    scopeId?: string; 
+    pricingType?: string;
+    dealershipId?: string;
+    detailerId?: string;
+  }): Promise<PricingRule[]> {
     let query = db.select().from(pricingRules);
     
     const conditions = [eq(pricingRules.status, "ACTIVE")];
     if (filters?.partnerId) conditions.push(eq(pricingRules.partnerId, filters.partnerId));
     if (filters?.scopeId) conditions.push(eq(pricingRules.scopeId, filters.scopeId));
+    if (filters?.pricingType) conditions.push(eq(pricingRules.pricingType, filters.pricingType as any));
+    if (filters?.dealershipId) conditions.push(eq(pricingRules.dealershipId, filters.dealershipId));
+    if (filters?.detailerId) conditions.push(eq(pricingRules.detailerId, filters.detailerId));
 
     return await query.where(and(...conditions));
   }
