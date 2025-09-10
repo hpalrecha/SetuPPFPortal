@@ -141,6 +141,31 @@ export function CreatePricingRuleModal({
     }
   }, [dealershipId, form]);
 
+  // Update form when editingRule prop changes
+  useEffect(() => {
+    if (editingRule && open) {
+      form.reset({
+        pricingType: editingRule.pricingType || pricingType,
+        dealershipId: editingRule.dealershipId || undefined,
+        detailerId: editingRule.detailerId || undefined,
+        vehicleModelId: editingRule.vehicleModelId || "",
+        serviceId: editingRule.serviceId || "",
+        priceAmount: editingRule.priceAmount?.toString() || "",
+        effectiveFrom: editingRule.effectiveFrom ? new Date(editingRule.effectiveFrom).toISOString().split('T')[0] : "",
+      });
+    } else if (!editingRule && open) {
+      form.reset({
+        pricingType: pricingType,
+        dealershipId: undefined,
+        detailerId: undefined,
+        vehicleModelId: "",
+        serviceId: "",
+        priceAmount: "",
+        effectiveFrom: "",
+      });
+    }
+  }, [editingRule, open, pricingType, form]);
+
   // Fetch vehicle models from API (filtered by OEM for dealership pricing, all for detailer pricing)
   const { data: vehicleModels = [] } = useQuery({
     queryKey: ["/api/vehicle-models", pricingType === 'DEALERSHIP_PRICING' ? selectedOemId : 'ALL'],

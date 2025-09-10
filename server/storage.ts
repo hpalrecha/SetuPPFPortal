@@ -665,13 +665,13 @@ export class DatabaseStorage implements IStorage {
       dealershipName: dealerships.name,
       vehicleModelName: vehicleModels.modelName,
       serviceName: services.name,
-      detailerName: users.name,
+      detailerName: partners.displayName,
     })
     .from(pricingRules)
     .leftJoin(dealerships, eq(pricingRules.dealershipId, dealerships.id))
     .leftJoin(vehicleModels, eq(pricingRules.vehicleModelId, vehicleModels.id))
     .leftJoin(services, eq(pricingRules.serviceId, services.id))
-    .leftJoin(users, eq(pricingRules.detailerId, users.id));
+    .leftJoin(partners, eq(pricingRules.detailerId, partners.id));
     
     const conditions = [eq(pricingRules.status, "ACTIVE")];
     if (filters?.partnerId) conditions.push(eq(pricingRules.partnerId, filters.partnerId));
