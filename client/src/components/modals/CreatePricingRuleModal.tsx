@@ -128,7 +128,10 @@ export function CreatePricingRuleModal({
 
   // Get selected dealership's OEM ID
   const selectedDealership = dealerships?.find((d: any) => d.id === form.watch('dealershipId'));
-  const selectedOemId = selectedDealership?.oemId;
+  const selectedOemId = selectedDealership?.oemId || selectedDealership?.oem_id;
+  
+  console.log('Selected dealership:', selectedDealership);
+  console.log('Selected OEM ID:', selectedOemId);
 
   // Reset vehicle model when dealership changes
   const dealershipId = form.watch('dealershipId');
