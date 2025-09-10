@@ -110,7 +110,7 @@ export function EditPartnerModal({
         active: true,
       });
     }
-  }, [partner, form]);
+  }, [partner, open, form]);
 
   const onSubmit = async (data: PartnerFormData) => {
     setIsLoading(true);

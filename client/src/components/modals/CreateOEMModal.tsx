@@ -118,7 +118,7 @@ export function CreateOEMModal({
         userPassword: "",
       });
     }
-  }, [oem, form]);
+  }, [oem, open, form]);
 
   const onSubmit = async (data: OEMFormData) => {
     setIsLoading(true);

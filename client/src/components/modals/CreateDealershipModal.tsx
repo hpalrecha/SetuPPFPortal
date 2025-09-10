@@ -137,7 +137,7 @@ export function CreateDealershipModal({
         userPassword: "",
       });
     }
-  }, [dealership, form]);
+  }, [dealership, open, form]);
 
   // Fetch OEMs
   const { data: oems = [] } = useQuery({

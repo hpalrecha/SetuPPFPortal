@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -67,6 +67,27 @@ export function CreateSalesPersonModal({
       active: salesPerson?.active ?? true,
     },
   });
+
+  // Update form when salesPerson prop changes (for editing)
+  useEffect(() => {
+    if (salesPerson && open) {
+      form.reset({
+        name: salesPerson.name || "",
+        email: salesPerson.email || "",
+        phone: salesPerson.phone || "",
+        showroomId: salesPerson.showroomId || "",
+        active: salesPerson.active ?? true,
+      });
+    } else if (!salesPerson && open) {
+      form.reset({
+        name: "",
+        email: "",
+        phone: "",
+        showroomId: "",
+        active: true,
+      });
+    }
+  }, [salesPerson, open, form]);
 
   // Fetch showrooms
   const { data: showrooms = [] } = useQuery({

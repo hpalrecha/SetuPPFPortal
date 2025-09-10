@@ -137,7 +137,7 @@ export function CreateShowroomModal({
         userPassword: "",
       });
     }
-  }, [showroom, form]);
+  }, [showroom, open, form]);
 
   // Fetch dealerships
   const { data: dealerships = [] } = useQuery({
