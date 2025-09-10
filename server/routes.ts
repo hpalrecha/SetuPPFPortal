@@ -1104,7 +1104,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Partner Routes
   app.get("/api/partners", authenticate, requireOEMAccess, async (req, res) => {
     try {
-      const partners = await storage.getPartners({ oemId: req.user!.oemId });
+      const { type } = req.query;
+      const filters: any = { oemId: req.user!.oemId };
+      
+      if (type) {
+        filters.type = type as string;
+      }
+      
+      const partners = await storage.getPartners(filters);
       res.json(partners);
     } catch (error) {
       console.error("Get partners error:", error);

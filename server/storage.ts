@@ -108,7 +108,7 @@ export interface IStorage {
   updateJobCard(id: string, updates: Partial<InsertJobCard>): Promise<JobCard | undefined>;
 
   // Partner management
-  getPartners(filters?: { oemId?: string }): Promise<Partner[]>;
+  getPartners(filters?: { oemId?: string; type?: string }): Promise<Partner[]>;
   getPartner(id: string): Promise<Partner | undefined>;
   createPartner(partner: InsertPartner): Promise<Partner>;
   updatePartner(id: string, updates: Partial<InsertPartner>): Promise<Partner | undefined>;
@@ -601,8 +601,17 @@ export class DatabaseStorage implements IStorage {
     return jobCard || undefined;
   }
 
-  async getPartners(filters?: { oemId?: string }): Promise<Partner[]> {
-    return await db.select().from(partners).where(eq(partners.active, true));
+  async getPartners(filters?: { oemId?: string; type?: string }): Promise<Partner[]> {
+    let query = db.select().from(partners).where(eq(partners.active, true));
+    
+    if (filters?.type) {
+      query = query.where(eq(partners.type, filters.type as any));
+    }
+    
+    // Note: oemId filtering is not implemented in the current schema
+    // Partners are not directly associated with OEMs in the current data model
+    
+    return await query;
   }
 
   async getPartner(id: string): Promise<Partner | undefined> {

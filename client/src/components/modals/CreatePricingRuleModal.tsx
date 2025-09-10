@@ -94,11 +94,11 @@ export function CreatePricingRuleModal({
     enabled: open && pricingType === 'DEALERSHIP_PRICING',
   });
 
-  // Fetch detailers (users with PARTNER_STAFF role)
+  // Fetch detailers (partners with INSTALLER type)
   const { data: detailers = [] } = useQuery({
-    queryKey: ["/api/users", "PARTNER_STAFF"],
+    queryKey: ["/api/partners", "INSTALLER"],
     queryFn: async () => {
-      const response = await fetch('/api/users?role=PARTNER_STAFF', {
+      const response = await fetch('/api/partners?type=INSTALLER', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -141,11 +141,11 @@ export function CreatePricingRuleModal({
     }
   }, [dealershipId, form]);
 
-  // Fetch vehicle models from API (filtered by OEM)
+  // Fetch vehicle models from API (filtered by OEM for dealership pricing, all for detailer pricing)
   const { data: vehicleModels = [] } = useQuery({
-    queryKey: ["/api/vehicle-models", selectedOemId],
+    queryKey: ["/api/vehicle-models", pricingType === 'DEALERSHIP_PRICING' ? selectedOemId : 'ALL'],
     queryFn: async () => {
-      const url = selectedOemId 
+      const url = (pricingType === 'DEALERSHIP_PRICING' && selectedOemId) 
         ? `/api/vehicle-models?oemId=${selectedOemId}`
         : '/api/vehicle-models';
       
@@ -158,6 +158,7 @@ export function CreatePricingRuleModal({
       if (!response.ok) throw new Error('Failed to fetch vehicle models');
       const data = await response.json();
       console.log('Vehicle models data:', data);
+      console.log('Pricing type:', pricingType);
       console.log('Filtered for OEM:', selectedOemId);
       return data;
     },
@@ -274,7 +275,7 @@ export function CreatePricingRuleModal({
                               value={detailer.id}
                               className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                             >
-                              {detailer.name}
+                              {detailer.displayName}
                             </SelectItem>
                           ))}
                         </SelectContent>
