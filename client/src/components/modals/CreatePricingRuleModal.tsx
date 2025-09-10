@@ -170,7 +170,7 @@ export function CreatePricingRuleModal({
       const endpoint = isEditing ? `/api/pricing-rules/${editingRule.id}` : "/api/pricing-rules";
       const method = isEditing ? "PUT" : "POST";
       
-      await fetch(endpoint, {
+      const response = await fetch(endpoint, {
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -179,10 +179,17 @@ export function CreatePricingRuleModal({
         credentials: 'include',
         body: JSON.stringify({
           ...data,
-          priceAmount: parseFloat(data.priceAmount),
-          effectiveFrom: new Date(data.effectiveFrom).toISOString(),
+          priceAmount: data.priceAmount.toString(),
+          effectiveFrom: data.effectiveFrom,
+          // Remove detailerId if it's dealership pricing
+          ...(pricingType === 'DEALERSHIP_PRICING' ? { detailerId: undefined } : {}),
         }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save pricing rule');
+      }
 
       toast({
         title: "Success",
