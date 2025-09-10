@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, MapPin, Phone, Users } from "lucide-react";
+import { Plus, Edit, Trash2, MapPin, Phone, Users, Handshake } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { CreateShowroomModal } from "@/components/modals/CreateShowroomModal";
@@ -38,6 +38,31 @@ export default function ShowroomsPage() {
     refetchInterval: 30000,
     enabled: canAccessShowrooms
   });
+
+  // Fetch allocations to show assigned partners
+  const { data: allocations = [] } = useQuery<any[]>({
+    queryKey: ["/api/allocations"],
+    queryFn: async () => {
+      const response = await fetch('/api/allocations', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch allocations');
+      return response.json();
+    },
+    enabled: canAccessShowrooms
+  });
+
+  // Helper function to get assigned partner for a showroom
+  const getAssignedPartner = (showroomId: string) => {
+    return allocations.find(allocation => 
+      allocation.level === 'SHOWROOM' && 
+      allocation.levelId === showroomId && 
+      allocation.active
+    );
+  };
 
   const handleAddShowroom = () => {
     setEditingShowroom(null);
@@ -187,6 +212,15 @@ export default function ShowroomsPage() {
                   <div className="flex items-center text-sm text-muted-foreground">
                     <Users className="h-4 w-4 mr-2" />
                     <span>Manager: {showroom.managerName || 'Not assigned'}</span>
+                  </div>
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <Handshake className="h-4 w-4 mr-2" />
+                    <span>
+                      Partner: {(() => {
+                        const assignedPartner = getAssignedPartner(showroom.id);
+                        return assignedPartner ? assignedPartner.partner.displayName : 'Not assigned';
+                      })()}
+                    </span>
                   </div>
                 </div>
 

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Store, MapPin, Phone } from "lucide-react";
+import { Plus, Edit, Trash2, Store, MapPin, Phone, Handshake } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { CreateDealershipModal } from "@/components/modals/CreateDealershipModal";
@@ -40,6 +40,31 @@ export default function DealershipsPage() {
     cacheTime: 0, // Don't cache data
     enabled: canAccessDealerships
   });
+
+  // Fetch allocations to show assigned partners
+  const { data: allocations = [] } = useQuery<any[]>({
+    queryKey: ["/api/allocations"],
+    queryFn: async () => {
+      const response = await fetch('/api/allocations', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch allocations');
+      return response.json();
+    },
+    enabled: canAccessDealerships
+  });
+
+  // Helper function to get assigned partner for a dealership
+  const getAssignedPartner = (dealershipId: string) => {
+    return allocations.find(allocation => 
+      allocation.level === 'DEALERSHIP' && 
+      allocation.levelId === dealershipId && 
+      allocation.active
+    );
+  };
 
   const handleAddDealership = () => {
     setEditingDealership(null);
@@ -187,6 +212,15 @@ export default function DealershipsPage() {
                       <span>{dealership.contactPhone}</span>
                     </div>
                   )}
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <Handshake className="h-4 w-4 mr-2" />
+                    <span>
+                      Partner: {(() => {
+                        const assignedPartner = getAssignedPartner(dealership.id);
+                        return assignedPartner ? assignedPartner.partner.displayName : 'Not assigned';
+                      })()}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Stats */}
