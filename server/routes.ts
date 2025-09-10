@@ -1114,7 +1114,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/partners", 
     authenticate, 
-    requireRole(['OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
     auditLog('partner', 'create'),
     async (req, res) => {
       try {
