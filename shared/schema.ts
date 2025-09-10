@@ -467,7 +467,10 @@ export const selectPartnerSchema = createSelectSchema(partners);
 export type InsertPartner = z.infer<typeof insertPartnerSchema>;
 export type Partner = z.infer<typeof selectPartnerSchema>;
 
-export const insertPricingRuleSchema = createInsertSchema(pricingRules).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPricingRuleSchema = createInsertSchema(pricingRules).omit({ id: true, createdAt: true, updatedAt: true }).extend({
+  effectiveFrom: z.string().or(z.date()).transform((val) => typeof val === 'string' ? new Date(val) : val),
+  effectiveTo: z.string().or(z.date()).transform((val) => val ? (typeof val === 'string' ? new Date(val) : val) : null).optional(),
+});
 export const selectPricingRuleSchema = createSelectSchema(pricingRules);
 export type InsertPricingRule = z.infer<typeof insertPricingRuleSchema>;
 export type PricingRule = z.infer<typeof selectPricingRuleSchema>;

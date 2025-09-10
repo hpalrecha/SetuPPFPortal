@@ -180,7 +180,7 @@ export function CreatePricingRuleModal({
         body: JSON.stringify({
           ...data,
           priceAmount: data.priceAmount.toString(),
-          effectiveFrom: new Date(data.effectiveFrom),
+          effectiveFrom: data.effectiveFrom,
           // Remove detailerId if it's dealership pricing
           ...(pricingType === 'DEALERSHIP_PRICING' ? { detailerId: undefined } : {}),
         }),
