@@ -82,6 +82,26 @@ export default function WorkOrdersPage() {
     setLocation(`/work-orders/${id}/edit`);
   };
 
+  const handleSubmitWorkOrder = async (id: string) => {
+    try {
+      await apiRequest(`/api/work-orders/${id}/submit`, {
+        method: 'POST'
+      });
+      toast({
+        title: "Success",
+        description: "Work order submitted successfully"
+      });
+      // Refetch work orders
+      workOrdersQuery.refetch();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit work order",
+        variant: "destructive"
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -219,6 +239,16 @@ export default function WorkOrdersPage() {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex space-x-2">
+                          {order.status === 'PENDING' && (
+                            <Button 
+                              variant="default" 
+                              size="sm"
+                              onClick={() => handleSubmitWorkOrder(order.id)}
+                              data-testid={`button-submit-${order.id}`}
+                            >
+                              Submit
+                            </Button>
+                          )}
                           <Button 
                             variant="ghost" 
                             size="sm"
