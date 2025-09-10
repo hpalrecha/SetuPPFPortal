@@ -71,7 +71,7 @@ export class WorkOrderService {
     // Get pricing for estimation
     const pricing = await pricingService.resolvePricing(
       partnerId,
-      'SHOWROOM',
+      workOrder.dealershipId,
       workOrder.showroomId,
       workOrder.vehicleModelId,
       workOrder.serviceId

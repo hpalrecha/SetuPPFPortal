@@ -889,7 +889,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check access permissions
-      if (workOrder.oemId !== req.user!.oemId) {
+      if (!req.user!.oemId || workOrder.oemId !== req.user!.oemId) {
+        console.log(`Access denied: workOrder.oemId=${workOrder.oemId}, user.oemId=${req.user!.oemId}`);
         return res.status(403).json({ error: "Access denied" });
       }
 
