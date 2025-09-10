@@ -33,7 +33,7 @@ import { ApiClient } from "@/lib/api";
 
 const partnerSchema = z.object({
   displayName: z.string().min(1, "Partner name is required"),
-  type: z.enum(["INDIVIDUAL", "STUDIO"], {
+  type: z.enum(["STUDIO", "INSTALLER"], {
     required_error: "Partner type is required",
   }),
   contactPersonName: z.string().min(1, "Contact person name is required"),
@@ -69,7 +69,7 @@ export function EditPartnerModal({
     resolver: zodResolver(partnerSchema),
     defaultValues: {
       displayName: partner?.displayName || "",
-      type: partner?.type || "INDIVIDUAL",
+      type: partner?.type || "INSTALLER",
       contactPersonName: partner?.contactPersonName || "",
       phone: partner?.phone || "",
       email: partner?.email || "",
@@ -164,9 +164,19 @@ export function EditPartnerModal({
                             <SelectValue placeholder="Select type" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="INDIVIDUAL">Individual</SelectItem>
-                          <SelectItem value="STUDIO">Studio</SelectItem>
+                        <SelectContent className="bg-white dark:bg-gray-800">
+                          <SelectItem 
+                            value="INSTALLER"
+                            className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                          >
+                            Installer
+                          </SelectItem>
+                          <SelectItem 
+                            value="STUDIO"
+                            className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                          >
+                            Studio
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
