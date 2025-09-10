@@ -39,6 +39,8 @@ function Router() {
       <Route path="/" component={() => <ProtectedRoute component={DashboardPage} />} />
       <Route path="/dashboard" component={() => <ProtectedRoute component={DashboardPage} />} />
       <Route path="/work-orders" component={() => <ProtectedRoute component={WorkOrdersPage} />} />
+      <Route path="/work-orders/:id" component={() => <ProtectedRoute component={WorkOrdersPage} />} />
+      <Route path="/work-orders/:id/edit" component={() => <ProtectedRoute component={WorkOrdersPage} />} />
       <Route path="/job-cards" component={() => <ProtectedRoute component={JobCardsPage} />} />
       <Route path="/partners" component={() => <ProtectedRoute component={PartnersPage} />} />
       <Route path="/allocations" component={() => <ProtectedRoute component={AllocationsPage} />} />
