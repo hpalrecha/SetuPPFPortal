@@ -900,6 +900,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/work-orders/:id/submit", 
+    authenticate, 
+    requireOEMAccess,
+    auditLog('work_order', 'submit'),
+    async (req, res) => {
+      try {
+        const { workOrderService } = await import('./services/workOrderService');
+        const workOrder = await workOrderService.submitWorkOrder(req.params.id, req.user!.id);
+        res.json(workOrder);
+      } catch (error) {
+        console.error("Submit work order error:", error);
+        res.status(500).json({ error: "Failed to submit work order" });
+      }
+    }
+  );
+
   app.put("/api/work-orders/:id", 
     authenticate, 
     requireOEMAccess,
