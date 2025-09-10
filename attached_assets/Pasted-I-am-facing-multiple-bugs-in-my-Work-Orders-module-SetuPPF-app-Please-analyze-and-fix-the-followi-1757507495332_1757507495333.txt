@@ -1,0 +1,92 @@
+I am facing multiple bugs in my Work Orders module (SetuPPF app). Please analyze and fix the following issues step by step:
+
+1. Work Order Submission Fails
+
+When clicking on the Submit button, it throws:
+Error: Failed to submit work order
+
+Possible issues to check:
+
+API endpoint not being hit or wrong request method (POST/PUT mismatch).
+
+Missing required fields (vehicle model, service name, partner) causing backend validation failure.
+
+Auth/session token mismatch when sending request.
+
+Inspect browser console → check if payload is being sent and matches backend schema.
+
+Verify backend logs to confirm if the request reaches the server.
+
+✅ Fix: Ensure correct API endpoint, required fields mapping, and payload structure. Add validation error messages from backend instead of generic "Failed" message.
+
+2. Edit and View Buttons Don’t Work
+
+Clicking the eye (view) or pencil (edit) icons does nothing.
+
+Possible issues:
+
+Wrong onClick handler binding or missing routing/navigation logic.
+
+Missing route definitions for /work-orders/:id/view and /work-orders/:id/edit.
+
+Component not receiving correct Work Order ID.
+
+✅ Fix:
+
+Check React/JSX for proper onClick={() => handleView(woId)} and onClick={() => handleEdit(woId)}.
+
+Verify route configuration in react-router-dom.
+
+Pass WO ID as param and fetch correct data inside view/edit components.
+
+3. Partner / Detailer Not Assigned
+
+Even though conditions are set, Partner always shows Not Assigned.
+
+Possible issues:
+
+Assignment logic not triggered after creating work order.
+
+Wrong query/filter when fetching eligible partners.
+
+Field mapping mismatch between frontend and backend (partner_id vs partnerId).
+
+Async function for assignment not awaited, leading to null values.
+
+✅ Fix:
+
+Trace partner assignment logic in backend.
+
+Ensure partner ID is being saved to DB after assignment.
+
+Fix mapping in API response → frontend should correctly display partner name.
+
+4. Vehicle Model & Service Name Not Fetched
+
+Both fields show Not specified in list.
+
+Possible issues:
+
+Missing join/population in backend API (workOrder.vehicle and workOrder.service not being populated).
+
+Wrong field mapping in frontend table rendering.
+
+Data not passed correctly from create work order form.
+
+✅ Fix:
+
+Update backend API to populate vehicle model & service name before returning JSON.
+
+Double-check frontend table columns mapping:
+
+{ field: "vehicle.modelName" }  
+{ field: "service.serviceName" }
+
+
+Ensure creation form actually sends vehicle_id and service_id.
+
+5. Add Better Error Handling
+
+Replace generic toast "Failed to submit work order" with detailed error message from backend (res.message or error.details).
+
+Log errors in console for debugging.

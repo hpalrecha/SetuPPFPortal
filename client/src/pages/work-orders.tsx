@@ -87,19 +87,30 @@ export default function WorkOrdersPage() {
 
   const handleSubmitWorkOrder = async (id: string) => {
     try {
-      await apiRequest(`/api/work-orders/${id}/submit`, {
+      const response = await apiRequest(`/api/work-orders/${id}/submit`, {
         method: 'POST'
       });
       toast({
         title: "Success",
-        description: "Work order submitted successfully"
+        description: "Work order submitted successfully and assigned to partner"
       });
-      // Refetch work orders
+      // Refetch work orders to show updated status
       workOrdersQuery.refetch();
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Submit work order error:", error);
+      
+      // Extract detailed error message from backend
+      let errorMessage = "Failed to submit work order";
+      
+      if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
-        title: "Error",
-        description: "Failed to submit work order",
+        title: "Submission Failed",
+        description: errorMessage,
         variant: "destructive"
       });
     }
