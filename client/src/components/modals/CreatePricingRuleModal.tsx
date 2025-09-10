@@ -132,6 +132,8 @@ export function CreatePricingRuleModal({
   
   console.log('Selected dealership:', selectedDealership);
   console.log('Selected OEM ID:', selectedOemId);
+  console.log('Vehicle models data:', vehicleModels);
+  console.log('Filtered models:', filteredVehicleModels);
 
   // Reset vehicle model when dealership changes
   const dealershipId = form.watch('dealershipId');
@@ -327,7 +329,7 @@ export function CreatePricingRuleModal({
                             value={model.id}
                             className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                           >
-                            {model.model_name}
+                            {model.modelName}
                           </SelectItem>
                         ))}
                       </SelectContent>
