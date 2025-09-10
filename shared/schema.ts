@@ -73,6 +73,10 @@ export const oems = pgTable("oems", {
   name: text("name").notNull(),
   brandCode: text("brand_code").notNull().unique(),
   logoUrl: text("logo_url"),
+  contactPersonName: text("contact_person_name"),
+  contactEmail: text("contact_email"),
+  contactPhone: text("contact_phone"),
+  address: text("address"),
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
