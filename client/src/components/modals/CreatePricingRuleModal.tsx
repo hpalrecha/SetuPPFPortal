@@ -132,8 +132,6 @@ export function CreatePricingRuleModal({
   
   console.log('Selected dealership:', selectedDealership);
   console.log('Selected OEM ID:', selectedOemId);
-  console.log('Vehicle models data:', vehicleModels);
-  console.log('Filtered models:', filteredVehicleModels);
 
   // Reset vehicle model when dealership changes
   const dealershipId = form.watch('dealershipId');
@@ -160,6 +158,7 @@ export function CreatePricingRuleModal({
       if (!response.ok) throw new Error('Failed to fetch vehicle models');
       const data = await response.json();
       console.log('Vehicle models data:', data);
+      console.log('Filtered for OEM:', selectedOemId);
       return data;
     },
     enabled: open && (pricingType === 'DEALERSHIP_PRICING' ? !!selectedOemId : true),
