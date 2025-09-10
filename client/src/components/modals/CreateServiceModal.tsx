@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/hooks/use-auth';
@@ -19,9 +20,11 @@ const serviceSchema = z.object({
   code: z.string().min(1, 'Service code is required'),
   description: z.string().optional(),
   productBrand: z.string().optional(),
-  availabilityScope: z.enum(['GLOBAL', 'OEM', 'DEALERSHIP']),
+  availabilityScope: z.enum(['GLOBAL', 'OEM', 'DEALERSHIP', 'MULTIPLE']),
   oemId: z.string().optional(),
   dealershipId: z.string().optional(),
+  oemIds: z.array(z.string()).optional(),
+  dealershipIds: z.array(z.string()).optional(),
 });
 
 type ServiceFormData = z.infer<typeof serviceSchema>;
@@ -49,6 +52,8 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
       availabilityScope: 'GLOBAL',
       oemId: '',
       dealershipId: '',
+      oemIds: [],
+      dealershipIds: [],
     },
   });
 
@@ -254,6 +259,8 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
                       field.onChange(value);
                       form.setValue('oemId', '');
                       form.setValue('dealershipId', '');
+                      form.setValue('oemIds', []);
+                      form.setValue('dealershipIds', []);
                     }}
                     value={field.value}
                     data-testid="select-availability-scope"
@@ -267,6 +274,7 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
                       <SelectItem value="GLOBAL">Global - Available to All</SelectItem>
                       <SelectItem value="OEM">OEM Specific</SelectItem>
                       <SelectItem value="DEALERSHIP">Dealership Specific</SelectItem>
+                      <SelectItem value="MULTIPLE">Multiple OEMs/Dealerships</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

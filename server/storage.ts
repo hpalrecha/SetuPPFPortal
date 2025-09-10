@@ -240,25 +240,30 @@ export class DatabaseStorage implements IStorage {
     let query = db.select().from(services);
     
     if (filters?.dealershipId) {
-      // For dealership-specific services, include GLOBAL, OEM-specific, and dealership-specific
+      // For dealership-specific services, include GLOBAL, OEM-specific, dealership-specific, and MULTIPLE
       query = query.where(
         and(
           eq(services.active, true),
           sql`(
             ${services.availabilityScope} = 'GLOBAL' OR 
             (${services.availabilityScope} = 'DEALERSHIP' AND ${services.dealershipId} = ${filters.dealershipId}) OR
-            (${services.availabilityScope} = 'OEM' AND ${services.oemId} = (SELECT oem_id FROM dealerships WHERE id = ${filters.dealershipId}))
+            (${services.availabilityScope} = 'OEM' AND ${services.oemId} = (SELECT oem_id FROM dealerships WHERE id = ${filters.dealershipId})) OR
+            (${services.availabilityScope} = 'MULTIPLE' AND (
+              ${filters.dealershipId} = ANY(${services.dealershipIds}) OR
+              (SELECT oem_id FROM dealerships WHERE id = ${filters.dealershipId}) = ANY(${services.oemIds})
+            ))
           )`
         )
       );
     } else if (filters?.oemId) {
-      // For OEM-specific services, include GLOBAL and OEM-specific
+      // For OEM-specific services, include GLOBAL, OEM-specific, and MULTIPLE with matching OEMs
       query = query.where(
         and(
           eq(services.active, true),
           sql`(
             ${services.availabilityScope} = 'GLOBAL' OR 
-            (${services.availabilityScope} = 'OEM' AND ${services.oemId} = ${filters.oemId})
+            (${services.availabilityScope} = 'OEM' AND ${services.oemId} = ${filters.oemId}) OR
+            (${services.availabilityScope} = 'MULTIPLE' AND ${filters.oemId} = ANY(${services.oemIds}))
           )`
         )
       );
