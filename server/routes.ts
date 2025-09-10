@@ -840,10 +840,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // First get the request data without validation  
         const requestData = req.body;
         
-        // Set required system fields
+        // Set required system fields and clean optional fields
         const workOrderData = {
           ...requestData,
-          createdByUserId: req.user!.id
+          createdByUserId: req.user!.id,
+          // Handle optional fields - set to null if empty string
+          salesPersonId: requestData.salesPersonId && requestData.salesPersonId.trim() !== '' ? requestData.salesPersonId : null,
+          vehicleVariantId: requestData.vehicleVariantId && requestData.vehicleVariantId.trim() !== '' ? requestData.vehicleVariantId : null,
+          regNo: requestData.regNo && requestData.regNo.trim() !== '' ? requestData.regNo : null,
+          notes: requestData.notes && requestData.notes.trim() !== '' ? requestData.notes : null,
+          customerEmail: requestData.customerEmail && requestData.customerEmail.trim() !== '' ? requestData.customerEmail : null,
+          customerAddress: requestData.customerAddress && requestData.customerAddress.trim() !== '' ? requestData.customerAddress : null
         };
         
         // Ensure user can only create for their OEM/showroom (except Super Admin)
