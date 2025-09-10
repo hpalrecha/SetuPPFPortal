@@ -37,7 +37,7 @@ const pricingRuleSchema = z.object({
   }),
   dealershipId: z.string().optional(),
   detailerId: z.string().optional(),
-  vehicleModelId: z.string().optional(),
+  vehicleModelId: z.string().min(1, "Vehicle model is required"),
   serviceId: z.string().min(1, "Service is required"),
   priceAmount: z.string().min(1, "Price amount is required"),
   effectiveFrom: z.string().min(1, "Effective date is required"),
@@ -137,7 +137,9 @@ export function CreatePricingRuleModal({
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to fetch vehicle models');
-      return response.json();
+      const data = await response.json();
+      console.log('Vehicle models data:', data);
+      return data;
     },
     enabled: open,
   });
@@ -280,7 +282,7 @@ export function CreatePricingRuleModal({
                 name="vehicleModelId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Vehicle Model (Optional)</FormLabel>
+                    <FormLabel>Vehicle Model <span className="text-red-500">*</span></FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
@@ -288,7 +290,6 @@ export function CreatePricingRuleModal({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="all">All Models</SelectItem>
                         {vehicleModels?.map((model: any) => (
                           <SelectItem key={model.id} value={model.id}>
                             {model.model_name}
