@@ -3,12 +3,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Store, User, MapPin, Phone, Star, BarChart3, Edit } from "lucide-react";
+import { Plus, Store, User, MapPin, Phone, Star, BarChart3, Edit, Trash2 } from "lucide-react";
 import type { Partner } from "@shared/schema";
 import { EditPartnerModal } from "@/components/modals/EditPartnerModal";
+import { useToast } from "@/hooks/use-toast";
 
 export default function PartnersPage() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingPartner, setEditingPartner] = useState<any>(null);
   
@@ -44,6 +46,41 @@ export default function PartnersPage() {
   const handleViewPartner = (id: string) => {
     // TODO: Navigate to partner detail view
     alert(`View partner ${id} dashboard`);
+  };
+
+  const handleDeletePartner = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/partners/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete partner');
+      }
+
+      toast({
+        title: "Success",
+        description: `Partner "${name}" deleted successfully`,
+      });
+
+      // Refresh the data
+      queryClient.invalidateQueries({ queryKey: ["/api/partners"] });
+    } catch (error) {
+      console.error('Error deleting partner:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete partner",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleModalSuccess = () => {
@@ -177,6 +214,14 @@ export default function PartnersPage() {
                   >
                     <BarChart3 className="mr-1 h-3 w-3" />
                     View
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    size="sm"
+                    onClick={() => handleDeletePartner(partner.id, partner.name)}
+                    data-testid={`button-delete-${partner.id}`}
+                  >
+                    <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
               </CardContent>
