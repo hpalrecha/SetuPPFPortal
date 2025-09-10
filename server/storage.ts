@@ -518,36 +518,8 @@ export class DatabaseStorage implements IStorage {
     limit?: number;
     offset?: number;
   }): Promise<any[]> {
-    let query = db.select({
-      id: workOrders.id,
-      oemId: workOrders.oemId,
-      dealershipId: workOrders.dealershipId,
-      showroomId: workOrders.showroomId,
-      createdByUserId: workOrders.createdByUserId,
-      status: workOrders.status,
-      vehicleModelId: workOrders.vehicleModelId,
-      vehicleVariantId: workOrders.vehicleVariantId,
-      regNo: workOrders.regNo,
-      serviceId: workOrders.serviceId,
-      quantity: workOrders.quantity,
-      notes: workOrders.notes,
-      salesPersonId: workOrders.salesPersonId,
-      assignedPartnerId: workOrders.assignedPartnerId,
-      assignedJobCardId: workOrders.assignedJobCardId,
-      customerName: workOrders.customerName,
-      customerPhone: workOrders.customerPhone,
-      customerEmail: workOrders.customerEmail,
-      customerAddress: workOrders.customerAddress,
-      createdAt: workOrders.createdAt,
-      updatedAt: workOrders.updatedAt,
-      vehicleModelName: vehicleModels.modelName,
-      serviceName: services.name,
-      partnerName: partners.businessName
-    })
-    .from(workOrders)
-    .leftJoin(vehicleModels, eq(workOrders.vehicleModelId, vehicleModels.id))
-    .leftJoin(services, eq(workOrders.serviceId, services.id))
-    .leftJoin(partners, eq(workOrders.assignedPartnerId, partners.id));
+    // Simple query without complex field selection to avoid null object errors
+    let query = db.select().from(workOrders);
     
     const conditions = [];
     if (filters?.oemId) conditions.push(eq(workOrders.oemId, filters.oemId));
