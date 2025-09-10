@@ -73,12 +73,16 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
     enabled: isSuperAdmin && open,
   });
 
-  // Watch OEM selection to fetch dealerships
+  // Watch scope and OEM selection to fetch dealerships
   const selectedOemId = form.watch('oemId');
+  const watchedScope = form.watch('availabilityScope');
   const { data: dealerships = [] } = useQuery({
-    queryKey: ['/api/dealerships', selectedOemId],
+    queryKey: ['/api/dealerships', selectedOemId, watchedScope],
     queryFn: async () => {
-      const response = await fetch(`/api/dealerships?oemId=${selectedOemId}`, {
+      const url = watchedScope === 'MULTIPLE' 
+        ? '/api/dealerships' 
+        : `/api/dealerships?oemId=${selectedOemId}`;
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -87,7 +91,7 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
       if (!response.ok) throw new Error('Failed to fetch dealerships');
       return response.json();
     },
-    enabled: isSuperAdmin && open && !!selectedOemId,
+    enabled: isSuperAdmin && open && (watchedScope === 'MULTIPLE' || !!selectedOemId),
   });
 
   const createServiceMutation = useMutation({
@@ -147,21 +151,39 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
       setIsSubmitting(false);
       return;
     }
+    
+    if (data.availabilityScope === 'MULTIPLE' && (!data.oemIds?.length && !data.dealershipIds?.length)) {
+      toast({
+        title: 'Error',
+        description: 'At least one OEM or Dealership must be selected for multiple scope services',
+        variant: 'destructive',
+      });
+      setIsSubmitting(false);
+      return;
+    }
 
     // Clean up data based on scope
     const cleanData = { ...data };
     if (cleanData.availabilityScope === 'GLOBAL') {
       delete cleanData.oemId;
       delete cleanData.dealershipId;
+      delete cleanData.oemIds;
+      delete cleanData.dealershipIds;
     } else if (cleanData.availabilityScope === 'OEM') {
+      delete cleanData.dealershipId;
+      delete cleanData.oemIds;
+      delete cleanData.dealershipIds;
+    } else if (cleanData.availabilityScope === 'DEALERSHIP') {
+      delete cleanData.oemIds;
+      delete cleanData.dealershipIds;
+    } else if (cleanData.availabilityScope === 'MULTIPLE') {
+      delete cleanData.oemId;
       delete cleanData.dealershipId;
     }
 
     createServiceMutation.mutate(cleanData);
     setIsSubmitting(false);
   };
-
-  const watchedScope = form.watch('availabilityScope');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -345,6 +367,91 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {/* Multiple OEMs Selection (for MULTIPLE scope) */}
+            {isSuperAdmin && watchedScope === 'MULTIPLE' && (
+              <FormField
+                control={form.control}
+                name="oemIds"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Select OEMs</FormLabel>
+                    <FormControl>
+                      <div className="grid grid-cols-1 gap-3 max-h-40 overflow-y-auto border rounded-md p-3">
+                        {oems.map((oem: any) => (
+                          <div key={oem.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`oem-${oem.id}`}
+                              checked={field.value?.includes(oem.id) || false}
+                              onCheckedChange={(checked) => {
+                                const currentValue = field.value || [];
+                                if (checked) {
+                                  field.onChange([...currentValue, oem.id]);
+                                } else {
+                                  field.onChange(currentValue.filter((id: string) => id !== oem.id));
+                                }
+                              }}
+                              data-testid={`checkbox-oem-${oem.id}`}
+                            />
+                            <Label htmlFor={`oem-${oem.id}`} className="text-sm font-normal">
+                              {oem.name}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {/* Multiple Dealerships Selection (for MULTIPLE scope) */}
+            {isSuperAdmin && watchedScope === 'MULTIPLE' && oems.length > 0 && (
+              <FormField
+                control={form.control}
+                name="dealershipIds"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Select Dealerships</FormLabel>
+                    <FormControl>
+                      <div className="grid grid-cols-1 gap-3 max-h-40 overflow-y-auto border rounded-md p-3">
+                        {oems.map((oem: any) => (
+                          <div key={oem.id} className="space-y-2">
+                            <div className="font-medium text-sm text-muted-foreground border-b pb-1">
+                              {oem.name}
+                            </div>
+                            {dealerships
+                              .filter((dealership: any) => dealership.oemId === oem.id)
+                              .map((dealership: any) => (
+                                <div key={dealership.id} className="flex items-center space-x-2 ml-4">
+                                  <Checkbox
+                                    id={`dealership-${dealership.id}`}
+                                    checked={field.value?.includes(dealership.id) || false}
+                                    onCheckedChange={(checked) => {
+                                      const currentValue = field.value || [];
+                                      if (checked) {
+                                        field.onChange([...currentValue, dealership.id]);
+                                      } else {
+                                        field.onChange(currentValue.filter((id: string) => id !== dealership.id));
+                                      }
+                                    }}
+                                    data-testid={`checkbox-dealership-${dealership.id}`}
+                                  />
+                                  <Label htmlFor={`dealership-${dealership.id}`} className="text-sm font-normal">
+                                    {dealership.name}
+                                  </Label>
+                                </div>
+                              ))}
+                          </div>
+                        ))}
+                      </div>
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
