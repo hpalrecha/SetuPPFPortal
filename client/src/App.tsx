@@ -9,6 +9,7 @@ import DashboardPage from "./pages/dashboard";
 import WorkOrdersPage from "./pages/work-orders";
 import JobCardsPage from "./pages/job-cards";
 import PartnersPage from "./pages/partners";
+import AllocationsPage from "./pages/allocations";
 import PricingPage from "./pages/pricing";
 import CommissionsPage from "./pages/commissions";
 import ReportsPage from "./pages/reports";
@@ -40,6 +41,7 @@ function Router() {
       <Route path="/work-orders" component={() => <ProtectedRoute component={WorkOrdersPage} />} />
       <Route path="/job-cards" component={() => <ProtectedRoute component={JobCardsPage} />} />
       <Route path="/partners" component={() => <ProtectedRoute component={PartnersPage} />} />
+      <Route path="/allocations" component={() => <ProtectedRoute component={AllocationsPage} />} />
       <Route path="/pricing" component={() => <ProtectedRoute component={PricingPage} />} />
       <Route path="/commissions" component={() => <ProtectedRoute component={CommissionsPage} />} />
       <Route path="/oems" component={() => <ProtectedRoute component={OEMsPage} />} />
