@@ -55,6 +55,7 @@ const workOrderSchema = z.object({
   // Customer Information
   customerName: z.string().min(1, "Customer name is required"),
   customerPhone: z.string().min(1, "Customer phone is required"),
+  customerEmail: z.string().email("Please enter a valid email").optional(),
   customerAddress: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -86,6 +87,7 @@ export function CreateWorkOrderModal({
       serviceId: "",
       customerName: "",
       customerPhone: "",
+      customerEmail: "",
       oemId: "",
       dealershipId: "",
       showroomId: "",
@@ -617,6 +619,25 @@ export function CreateWorkOrderModal({
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name="customerEmail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Customer Email (Optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        placeholder="Enter email address"
+                        {...field}
+                        data-testid="input-customer-email"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}

@@ -837,7 +837,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('work_order', 'create'),
     async (req, res) => {
       try {
-        const workOrderData = insertWorkOrderSchema.parse(req.body);
+        // First get the request data without validation  
+        const requestData = req.body;
+        
+        // Set required system fields
+        const workOrderData = {
+          ...requestData,
+          createdByUserId: req.user!.id
+        };
         
         // Ensure user can only create for their OEM/showroom (except Super Admin)
         if (req.user!.role !== 'SUPER_ADMIN') {
@@ -846,9 +853,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             workOrderData.showroomId = req.user!.showroomId;
           }
         }
-        workOrderData.createdByUserId = req.user!.id;
 
-        const workOrder = await storage.createWorkOrder(workOrderData);
+        // Now validate the complete data including createdByUserId
+        const validatedData = insertWorkOrderSchema.extend({
+          createdByUserId: z.string()
+        }).parse(workOrderData);
+
+        const workOrder = await storage.createWorkOrder(validatedData);
         res.status(201).json(workOrder);
       } catch (error) {
         console.error("Create work order error:", error);

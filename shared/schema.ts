@@ -284,6 +284,7 @@ export const workOrders = pgTable("work_orders", {
   assignedJobCardId: uuid("assigned_job_card_id"),
   customerName: text("customer_name"),
   customerPhone: text("customer_phone"),
+  customerEmail: text("customer_email"),
   customerAddress: text("customer_address"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
@@ -469,7 +470,12 @@ export const selectUserSchema = createSelectSchema(users);
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = z.infer<typeof selectUserSchema>;
 
-export const insertWorkOrderSchema = createInsertSchema(workOrders).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertWorkOrderSchema = createInsertSchema(workOrders).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true,
+  createdByUserId: true // Frontend doesn't send this, backend sets it
+});
 export const selectWorkOrderSchema = createSelectSchema(workOrders);
 export type InsertWorkOrder = z.infer<typeof insertWorkOrderSchema>;
 export type WorkOrder = z.infer<typeof selectWorkOrderSchema>;
