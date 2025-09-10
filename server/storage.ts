@@ -633,8 +633,36 @@ export class DatabaseStorage implements IStorage {
     pricingType?: string;
     dealershipId?: string;
     detailerId?: string;
-  }): Promise<PricingRule[]> {
-    let query = db.select().from(pricingRules);
+  }): Promise<any[]> {
+    let query = db.select({
+      id: pricingRules.id,
+      pricingType: pricingRules.pricingType,
+      partnerId: pricingRules.partnerId,
+      scope: pricingRules.scope,
+      scopeId: pricingRules.scopeId,
+      dealershipId: pricingRules.dealershipId,
+      detailerId: pricingRules.detailerId,
+      vehicleModelId: pricingRules.vehicleModelId,
+      vehicleVariantId: pricingRules.vehicleVariantId,
+      serviceId: pricingRules.serviceId,
+      priceAmount: pricingRules.priceAmount,
+      currency: pricingRules.currency,
+      effectiveFrom: pricingRules.effectiveFrom,
+      effectiveTo: pricingRules.effectiveTo,
+      status: pricingRules.status,
+      createdAt: pricingRules.createdAt,
+      updatedAt: pricingRules.updatedAt,
+      // Join related data
+      dealershipName: dealerships.name,
+      vehicleModelName: vehicleModels.modelName,
+      serviceName: services.name,
+      detailerName: users.name,
+    })
+    .from(pricingRules)
+    .leftJoin(dealerships, eq(pricingRules.dealershipId, dealerships.id))
+    .leftJoin(vehicleModels, eq(pricingRules.vehicleModelId, vehicleModels.id))
+    .leftJoin(services, eq(pricingRules.serviceId, services.id))
+    .leftJoin(users, eq(pricingRules.detailerId, users.id));
     
     const conditions = [eq(pricingRules.status, "ACTIVE")];
     if (filters?.partnerId) conditions.push(eq(pricingRules.partnerId, filters.partnerId));

@@ -128,22 +128,22 @@ export default function PricingPage() {
       }
     };
 
-    const getRowData = (rule: PricingRule) => {
+    const getRowData = (rule: any) => {
       switch (pricingType) {
         case 'DEALERSHIP_PRICING':
           return [
-            'Dealership Name', // TODO: Fetch dealership name
-            'Vehicle Model', // TODO: Fetch vehicle model name
-            'Service Name', // TODO: Fetch service name
+            rule.dealershipName || 'Unknown Dealership',
+            rule.vehicleModelName || 'Unknown Vehicle Model',
+            rule.serviceName || 'Unknown Service',
             formatCurrency(rule.priceAmount),
             new Date(rule.effectiveFrom).toLocaleDateString(),
             rule.status
           ];
         case 'DETAILER_PRICING':
           return [
-            'Detailer Name', // TODO: Fetch detailer name
-            'Vehicle Model', // TODO: Fetch vehicle model name
-            'Service Name', // TODO: Fetch service name
+            rule.detailerName || 'Unknown Detailer',
+            rule.vehicleModelName || 'Unknown Vehicle Model', 
+            rule.serviceName || 'Unknown Service',
             formatCurrency(rule.priceAmount),
             new Date(rule.effectiveFrom).toLocaleDateString(),
             rule.status
