@@ -29,6 +29,7 @@ export const userRoleEnum = pgEnum('user_role', [
 export const partnerTypeEnum = pgEnum('partner_type', ['STUDIO', 'INSTALLER']);
 
 export const workOrderStatusEnum = pgEnum('work_order_status', [
+  'PENDING',
   'DRAFT',
   'SUBMITTED', 
   'ASSIGNED',
@@ -272,7 +273,7 @@ export const workOrders = pgTable("work_orders", {
   dealershipId: uuid("dealership_id").references(() => dealerships.id).notNull(),
   showroomId: uuid("showroom_id").references(() => showrooms.id).notNull(),
   createdByUserId: uuid("created_by_user_id").references(() => users.id).notNull(),
-  status: workOrderStatusEnum("status").default("DRAFT"),
+  status: workOrderStatusEnum("status").default("PENDING"),
   vehicleModelId: uuid("vehicle_model_id").references(() => vehicleModels.id).notNull(),
   vehicleVariantId: uuid("vehicle_variant_id").references(() => vehicleVariants.id),
   regNo: text("reg_no"),
