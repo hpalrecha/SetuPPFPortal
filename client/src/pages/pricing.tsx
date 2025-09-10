@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, X, Trash2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Edit, X, Trash2, Building, Users, Wrench } from "lucide-react";
 import type { PricingRule } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -16,14 +17,17 @@ export default function PricingPage() {
   
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingRule, setEditingRule] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState('partner'); // partner, dealership, detailer
+  const [selectedPricingType, setSelectedPricingType] = useState<'PARTNER_PRICING' | 'DEALERSHIP_PRICING' | 'DETAILER_PRICING'>('PARTNER_PRICING');
   
   // Only admins can access pricing rules
   const canAccessPricing = user && ['SUPER_ADMIN', 'OEM_ADMIN'].includes(user.role);
   
   const { data: pricingRules = [], isLoading } = useQuery<PricingRule[]>({
-    queryKey: ["/api/pricing-rules"],
+    queryKey: ["/api/pricing-rules", selectedPricingType],
     queryFn: async () => {
-      const response = await fetch('/api/pricing-rules', {
+      const url = `/api/pricing-rules?pricingType=${selectedPricingType}`;
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -43,6 +47,17 @@ export default function PricingPage() {
   const handleAddPricingRule = () => {
     setEditingRule(null);
     setShowCreateModal(true);
+  };
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    if (value === 'partner') {
+      setSelectedPricingType('PARTNER_PRICING');
+    } else if (value === 'dealership') {
+      setSelectedPricingType('DEALERSHIP_PRICING');
+    } else if (value === 'detailer') {
+      setSelectedPricingType('DETAILER_PRICING');
+    }
   };
 
   const handleEditPricingRule = (rule: any) => {
@@ -101,6 +116,135 @@ export default function PricingPage() {
     }).format(Number(amount));
   };
 
+  const renderPricingTable = (pricingType: 'PARTNER_PRICING' | 'DEALERSHIP_PRICING' | 'DETAILER_PRICING') => {
+    const filteredRules = pricingRules.filter(rule => rule.pricingType === pricingType);
+    
+    const getColumns = () => {
+      switch (pricingType) {
+        case 'PARTNER_PRICING':
+          return ['Partner', 'Scope', 'Vehicle Model', 'Service', 'Price', 'Effective From', 'Status', 'Actions'];
+        case 'DEALERSHIP_PRICING':
+          return ['Dealership', 'Vehicle Model', 'Service', 'Price', 'Effective From', 'Status', 'Actions'];
+        case 'DETAILER_PRICING':
+          return ['Detailer', 'Vehicle Model', 'Service', 'Payout', 'Effective From', 'Status', 'Actions'];
+        default:
+          return [];
+      }
+    };
+
+    const getRowData = (rule: PricingRule) => {
+      switch (pricingType) {
+        case 'PARTNER_PRICING':
+          return [
+            'Partner Name', // TODO: Fetch partner name
+            rule.scope ? `${rule.scope} - Scope Name` : 'Global',
+            'Vehicle Model', // TODO: Fetch vehicle model name
+            'Service Name', // TODO: Fetch service name
+            formatCurrency(rule.priceAmount),
+            new Date(rule.effectiveFrom).toLocaleDateString(),
+            rule.status
+          ];
+        case 'DEALERSHIP_PRICING':
+          return [
+            'Dealership Name', // TODO: Fetch dealership name
+            'Vehicle Model', // TODO: Fetch vehicle model name
+            'Service Name', // TODO: Fetch service name
+            formatCurrency(rule.priceAmount),
+            new Date(rule.effectiveFrom).toLocaleDateString(),
+            rule.status
+          ];
+        case 'DETAILER_PRICING':
+          return [
+            'Detailer Name', // TODO: Fetch detailer name
+            'Vehicle Model', // TODO: Fetch vehicle model name
+            'Service Name', // TODO: Fetch service name
+            formatCurrency(rule.priceAmount),
+            new Date(rule.effectiveFrom).toLocaleDateString(),
+            rule.status
+          ];
+        default:
+          return [];
+      }
+    };
+
+    const columns = getColumns();
+
+    if (filteredRules.length === 0) {
+      return (
+        <div className="py-12 text-center">
+          <div className="space-y-3">
+            <h3 className="text-lg font-semibold text-foreground">No {pricingType.replace('_', ' ').toLowerCase()} rules</h3>
+            <p className="text-muted-foreground">
+              Create pricing rules to define costs for this category.
+            </p>
+            <Button onClick={handleAddPricingRule}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add First Rule
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-muted">
+            <tr>
+              {columns.map((column, index) => (
+                <th key={index} className="text-left py-3 px-4 font-medium text-foreground">
+                  {column}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {filteredRules.map((rule: PricingRule) => {
+              const rowData = getRowData(rule);
+              return (
+                <tr key={rule.id} className="hover:bg-accent" data-testid={`row-pricing-rule-${rule.id}`}>
+                  {rowData.map((cell, index) => (
+                    <td key={index} className="py-3 px-4 text-sm text-foreground">
+                      {cell}
+                    </td>
+                  ))}
+                  <td className="py-3 px-4">
+                    <Badge 
+                      className={rule.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}
+                      data-testid={`status-${rule.id}`}
+                    >
+                      {rule.status}
+                    </Badge>
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex space-x-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleEditPricingRule(rule)}
+                        data-testid={`button-edit-${rule.id}`}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleDeletePricingRule(rule.id)}
+                        data-testid={`button-delete-${rule.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   // Show access denied for non-admin users
   if (!canAccessPricing) {
     return (
@@ -138,7 +282,7 @@ export default function PricingPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-foreground">Pricing Rules</h2>
-          <p className="text-muted-foreground mt-1">Configure service pricing by partner and vehicle</p>
+          <p className="text-muted-foreground mt-1">Configure pricing for partners, dealerships, and detailers</p>
         </div>
         <Button onClick={handleAddPricingRule} data-testid="button-add-pricing-rule">
           <Plus className="mr-2 h-4 w-4" />
@@ -146,96 +290,65 @@ export default function PricingPage() {
         </Button>
       </div>
 
-      {/* Pricing Rules Table */}
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-muted">
-                <tr>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Partner</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Scope</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Vehicle Model</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Service</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Price</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Effective From</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Status</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {(pricingRules || []).length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center">
-                      <div className="space-y-3">
-                        <h3 className="text-lg font-semibold text-foreground">No Pricing Rules</h3>
-                        <p className="text-muted-foreground">
-                          Create pricing rules to define service costs for different partners and vehicles.
-                        </p>
-                        <Button onClick={handleAddPricingRule}>
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add First Pricing Rule
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  (pricingRules || []).map((rule: PricingRule) => (
-                    <tr key={rule.id} className="hover:bg-accent" data-testid={`row-pricing-rule-${rule.id}`}>
-                      <td className="py-3 px-4 text-sm text-foreground">
-                        Partner Name
-                      </td>
-                      <td className="py-3 px-4 text-sm text-muted-foreground">
-                        {rule.scope} - Scope Name
-                      </td>
-                      <td className="py-3 px-4 text-sm text-foreground">
-                        Vehicle Model
-                      </td>
-                      <td className="py-3 px-4 text-sm text-foreground">
-                        Service Name
-                      </td>
-                      <td className="py-3 px-4 text-sm font-medium text-foreground">
-                        {formatCurrency(rule.priceAmount)}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-muted-foreground">
-                        {new Date(rule.effectiveFrom).toLocaleDateString()}
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge 
-                          className={rule.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}
-                          data-testid={`status-${rule.id}`}
-                        >
-                          {rule.status}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex space-x-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleEditPricingRule(rule)}
-                            data-testid={`button-edit-${rule.id}`}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleDeletePricingRule(rule.id)}
-                            data-testid={`button-delete-${rule.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Pricing Rules Tabs */}
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="partner" className="flex items-center gap-2">
+            <Wrench className="h-4 w-4" />
+            Partner Pricing
+          </TabsTrigger>
+          <TabsTrigger value="dealership" className="flex items-center gap-2">
+            <Building className="h-4 w-4" />
+            Dealership Pricing
+          </TabsTrigger>
+          <TabsTrigger value="detailer" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Detailer Pricing
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="partner" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Partner Pricing Rules</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Configure what partners charge for services at different dealerships and showrooms
+              </p>
+            </CardHeader>
+            <CardContent>
+              {renderPricingTable('PARTNER_PRICING')}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="dealership" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Dealership Pricing Rules</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Configure what dealerships are charged for services and vehicle combinations
+              </p>
+            </CardHeader>
+            <CardContent>
+              {renderPricingTable('DEALERSHIP_PRICING')}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="detailer" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Detailer/Installer Pricing Rules</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Configure what detailers and installers earn for completing jobs
+              </p>
+            </CardHeader>
+            <CardContent>
+              {renderPricingTable('DETAILER_PRICING')}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Pricing Rule Modal */}
       <CreatePricingRuleModal 
