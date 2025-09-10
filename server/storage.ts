@@ -123,6 +123,7 @@ export interface IStorage {
   }): Promise<PricingRule[]>;
   createPricingRule(rule: InsertPricingRule): Promise<PricingRule>;
   updatePricingRule(id: string, updates: Partial<InsertPricingRule>): Promise<PricingRule | undefined>;
+  deletePricingRule(id: string): Promise<boolean>;
 
   // Commission Rules
   getCommissionRules(filters?: { showroomId?: string }): Promise<CommissionRule[]>;
@@ -660,6 +661,13 @@ export class DatabaseStorage implements IStorage {
       .where(eq(pricingRules.id, id))
       .returning();
     return rule || undefined;
+  }
+
+  async deletePricingRule(id: string): Promise<boolean> {
+    const result = await db
+      .delete(pricingRules)
+      .where(eq(pricingRules.id, id));
+    return result.rowCount > 0;
   }
 
   async getCommissionRules(filters?: { showroomId?: string }): Promise<CommissionRule[]> {

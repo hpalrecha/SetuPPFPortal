@@ -1170,6 +1170,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  app.delete("/api/pricing-rules/:id", 
+    authenticate, 
+    requireRole(['OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    auditLog('pricing_rule', 'delete'),
+    async (req, res) => {
+      try {
+        const deleted = await storage.deletePricingRule(req.params.id);
+        if (!deleted) {
+          return res.status(404).json({ error: "Pricing rule not found" });
+        }
+        res.status(200).json({ message: "Pricing rule deleted successfully" });
+      } catch (error) {
+        console.error("Delete pricing rule error:", error);
+        res.status(500).json({ error: "Failed to delete pricing rule" });
+      }
+    }
+  );
+
   // Dealership Pricing Resolution
   app.get("/api/pricing/dealership/:dealershipId/service/:serviceId", 
     authenticate, 
