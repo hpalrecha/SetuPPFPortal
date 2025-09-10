@@ -518,39 +518,8 @@ export class DatabaseStorage implements IStorage {
     limit?: number;
     offset?: number;
   }): Promise<any[]> {
-    // Enhanced query with proper joins for vehicle model and service names
-    let query = db.select({
-      // Work order fields
-      id: workOrders.id,
-      oemId: workOrders.oemId,
-      dealershipId: workOrders.dealershipId,
-      showroomId: workOrders.showroomId,
-      createdByUserId: workOrders.createdByUserId,
-      status: workOrders.status,
-      vehicleModelId: workOrders.vehicleModelId,
-      vehicleVariantId: workOrders.vehicleVariantId,
-      regNo: workOrders.regNo,
-      serviceId: workOrders.serviceId,
-      quantity: workOrders.quantity,
-      notes: workOrders.notes,
-      salesPersonId: workOrders.salesPersonId,
-      assignedPartnerId: workOrders.assignedPartnerId,
-      assignedJobCardId: workOrders.assignedJobCardId,
-      customerName: workOrders.customerName,
-      customerPhone: workOrders.customerPhone,
-      customerEmail: workOrders.customerEmail,
-      customerAddress: workOrders.customerAddress,
-      createdAt: workOrders.createdAt,
-      updatedAt: workOrders.updatedAt,
-      // Related data with safe field mapping
-      vehicleModelName: vehicleModels.modelName,
-      serviceName: services.name,
-      partnerName: partners.businessName
-    })
-    .from(workOrders)
-    .leftJoin(vehicleModels, eq(workOrders.vehicleModelId, vehicleModels.id))
-    .leftJoin(services, eq(workOrders.serviceId, services.id))
-    .leftJoin(partners, eq(workOrders.assignedPartnerId, partners.id));
+    // Simple query first, then manually populate related data
+    let query = db.select().from(workOrders);
     
     const conditions = [];
     if (filters?.oemId) conditions.push(eq(workOrders.oemId, filters.oemId));
@@ -571,7 +540,36 @@ export class DatabaseStorage implements IStorage {
       query = query.offset(filters.offset);
     }
 
-    return await query;
+    const workOrderResults = await query;
+    
+    // Manually populate related data to avoid Drizzle join issues
+    const enrichedWorkOrders = [];
+    for (const wo of workOrderResults) {
+      const enriched = { ...wo };
+      
+      // Fetch vehicle model name
+      if (wo.vehicleModelId) {
+        const vehicleModel = await db.select().from(vehicleModels).where(eq(vehicleModels.id, wo.vehicleModelId)).limit(1);
+        enriched.vehicleModelName = vehicleModel[0]?.modelName || null;
+      }
+      
+      // Fetch service name
+      if (wo.serviceId) {
+        const service = await db.select().from(services).where(eq(services.id, wo.serviceId)).limit(1);
+        enriched.serviceName = service[0]?.name || null;
+      }
+      
+      // Fetch partner name
+      if (wo.assignedPartnerId) {
+        const partner = await db.select().from(partners).where(eq(partners.id, wo.assignedPartnerId)).limit(1);
+        enriched.partnerName = partner[0]?.businessName || null;
+      }
+      
+      enrichedWorkOrders.push(enriched);
+    }
+    
+    console.log(`Found ${enrichedWorkOrders.length} work orders`);
+    return enrichedWorkOrders;
   }
 
   async getWorkOrder(id: string): Promise<WorkOrder | undefined> {
