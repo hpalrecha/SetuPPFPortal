@@ -69,8 +69,8 @@ export function CreatePricingRuleModal({
     resolver: zodResolver(pricingRuleSchema),
     defaultValues: {
       pricingType: editingRule?.pricingType || pricingType,
-      dealershipId: editingRule?.dealershipId || "",
-      detailerId: editingRule?.detailerId || "",
+      dealershipId: editingRule?.dealershipId || undefined,
+      detailerId: editingRule?.detailerId || undefined,
       vehicleModelId: editingRule?.vehicleModelId || "",
       serviceId: editingRule?.serviceId || "",
       priceAmount: editingRule?.priceAmount || "",
@@ -182,8 +182,12 @@ export function CreatePricingRuleModal({
           ...data,
           priceAmount: data.priceAmount.toString(),
           effectiveFrom: data.effectiveFrom,
-          // Remove detailerId if it's dealership pricing
-          ...(pricingType === 'DEALERSHIP_PRICING' ? { detailerId: undefined } : {}),
+          // Remove fields based on pricing type
+          ...(pricingType === 'DEALERSHIP_PRICING' ? { 
+            detailerId: undefined 
+          } : { 
+            dealershipId: undefined 
+          }),
         }),
       });
 
