@@ -32,10 +32,11 @@ import { ApiClient } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 
 const pricingRuleSchema = z.object({
-  partnerId: z.string().min(1, "Partner is required"),
-  scope: z.enum(["PARTNER", "SHOWROOM", "DEALERSHIP"], {
-    required_error: "Scope is required",
+  pricingType: z.enum(["DEALERSHIP_PRICING", "DETAILER_PRICING"], {
+    required_error: "Pricing type is required",
   }),
+  dealershipId: z.string().optional(),
+  detailerId: z.string().optional(),
   vehicleModelId: z.string().optional(),
   serviceId: z.string().min(1, "Service is required"),
   priceAmount: z.string().min(1, "Price amount is required"),
@@ -49,6 +50,7 @@ interface CreatePricingRuleModalProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   editingRule?: any;
+  pricingType?: 'DEALERSHIP_PRICING' | 'DETAILER_PRICING';
 }
 
 export function CreatePricingRuleModal({
@@ -56,6 +58,7 @@ export function CreatePricingRuleModal({
   onOpenChange,
   onSuccess,
   editingRule,
+  pricingType = 'DEALERSHIP_PRICING',
 }: CreatePricingRuleModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -65,8 +68,9 @@ export function CreatePricingRuleModal({
   const form = useForm<PricingRuleFormData>({
     resolver: zodResolver(pricingRuleSchema),
     defaultValues: {
-      partnerId: editingRule?.partnerId || "",
-      scope: editingRule?.scope || "PARTNER",
+      pricingType: editingRule?.pricingType || pricingType,
+      dealershipId: editingRule?.dealershipId || "",
+      detailerId: editingRule?.detailerId || "",
       vehicleModelId: editingRule?.vehicleModelId || "",
       serviceId: editingRule?.serviceId || "",
       priceAmount: editingRule?.priceAmount || "",
@@ -74,20 +78,36 @@ export function CreatePricingRuleModal({
     },
   });
 
-  // Fetch partners
-  const { data: partners = [] } = useQuery({
-    queryKey: ["/api/partners"],
+  // Fetch dealerships
+  const { data: dealerships = [] } = useQuery({
+    queryKey: ["/api/dealerships"],
     queryFn: async () => {
-      const response = await fetch('/api/partners', {
+      const response = await fetch('/api/dealerships', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         credentials: 'include',
       });
-      if (!response.ok) throw new Error('Failed to fetch partners');
+      if (!response.ok) throw new Error('Failed to fetch dealerships');
       return response.json();
     },
-    enabled: open,
+    enabled: open && pricingType === 'DEALERSHIP_PRICING',
+  });
+
+  // Fetch detailers (users with PARTNER_STAFF role)
+  const { data: detailers = [] } = useQuery({
+    queryKey: ["/api/users", "PARTNER_STAFF"],
+    queryFn: async () => {
+      const response = await fetch('/api/users?role=PARTNER_STAFF', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch detailers');
+      return response.json();
+    },
+    enabled: open && pricingType === 'DETAILER_PRICING',
   });
 
   // Mock services data - in a real app this would come from API
@@ -154,48 +174,82 @@ export function CreatePricingRuleModal({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Pricing Type (hidden field) */}
+            <input type="hidden" {...form.register('pricingType')} value={pricingType} />
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="partnerId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Partner</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select partner" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {partners?.map((partner: any) => (
-                          <SelectItem key={partner.id} value={partner.id}>
-                            {partner.displayName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {pricingType === 'DEALERSHIP_PRICING' && (
+                <FormField
+                  control={form.control}
+                  name="dealershipId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Dealership</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select dealership" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {dealerships?.map((dealership: any) => (
+                            <SelectItem key={dealership.id} value={dealership.id}>
+                              {dealership.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {pricingType === 'DETAILER_PRICING' && (
+                <FormField
+                  control={form.control}
+                  name="detailerId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Detailer/Installer</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select detailer" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {detailers?.map((detailer: any) => (
+                            <SelectItem key={detailer.id} value={detailer.id}>
+                              {detailer.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               <FormField
                 control={form.control}
-                name="scope"
+                name="serviceId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Scope</FormLabel>
+                    <FormLabel>Service</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select scope" />
+                          <SelectValue placeholder="Select service" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="PARTNER">Partner Level</SelectItem>
-                        <SelectItem value="SHOWROOM">Showroom Level</SelectItem>
-                        <SelectItem value="DEALERSHIP">Dealership Level</SelectItem>
+                        {services?.map((service: any) => (
+                          <SelectItem key={service.id} value={service.id}>
+                            {service.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -218,7 +272,7 @@ export function CreatePricingRuleModal({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">All Models</SelectItem>
+                        <SelectItem value="all">All Models</SelectItem>
                         {vehicleModels?.map((model: any) => (
                           <SelectItem key={model.id} value={model.id}>
                             {model.name}
@@ -233,24 +287,20 @@ export function CreatePricingRuleModal({
 
               <FormField
                 control={form.control}
-                name="serviceId"
+                name="priceAmount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Service</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select service" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {services?.map((service: any) => (
-                          <SelectItem key={service.id} value={service.id}>
-                            {service.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>
+                      {pricingType === 'DETAILER_PRICING' ? 'Payout Amount' : 'Price Amount'}
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="Enter amount"
+                        {...field}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

@@ -324,6 +324,7 @@ export default function PricingPage() {
         onOpenChange={setShowCreateModal}
         onSuccess={handleModalSuccess}
         editingRule={editingRule}
+        pricingType={selectedPricingType}
       />
     </div>
   );
