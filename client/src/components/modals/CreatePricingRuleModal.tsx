@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -126,11 +126,27 @@ export function CreatePricingRuleModal({
     enabled: open,
   });
 
-  // Fetch vehicle models from API
+  // Get selected dealership's OEM ID
+  const selectedDealership = dealerships?.find((d: any) => d.id === form.watch('dealershipId'));
+  const selectedOemId = selectedDealership?.oemId;
+
+  // Reset vehicle model when dealership changes
+  const dealershipId = form.watch('dealershipId');
+  useEffect(() => {
+    if (dealershipId && form.getValues('vehicleModelId')) {
+      form.setValue('vehicleModelId', '');
+    }
+  }, [dealershipId, form]);
+
+  // Fetch vehicle models from API (filtered by OEM)
   const { data: vehicleModels = [] } = useQuery({
-    queryKey: ["/api/vehicle-models"],
+    queryKey: ["/api/vehicle-models", selectedOemId],
     queryFn: async () => {
-      const response = await fetch('/api/vehicle-models', {
+      const url = selectedOemId 
+        ? `/api/vehicle-models?oemId=${selectedOemId}`
+        : '/api/vehicle-models';
+      
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -141,7 +157,7 @@ export function CreatePricingRuleModal({
       console.log('Vehicle models data:', data);
       return data;
     },
-    enabled: open,
+    enabled: open && (pricingType === 'DEALERSHIP_PRICING' ? !!selectedOemId : true),
   });
 
   const onSubmit = async (data: PricingRuleFormData) => {
