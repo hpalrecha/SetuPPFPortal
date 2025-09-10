@@ -101,7 +101,7 @@ export function CreateShowroomModal({
 
   // Reset form when showroom data changes (for editing)
   useEffect(() => {
-    if (showroom) {
+    if (showroom && open) {
       form.reset({
         name: showroom.name || "",
         dealershipId: showroom.dealershipId || "",
@@ -118,7 +118,7 @@ export function CreateShowroomModal({
         userPhone: "",
         userPassword: "",
       });
-    } else {
+    } else if (!showroom && open) {
       // Reset to empty values for new showroom
       form.reset({
         name: "",

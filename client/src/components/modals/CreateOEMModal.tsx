@@ -88,7 +88,7 @@ export function CreateOEMModal({
 
   // Reset form when OEM data changes (for editing)
   useEffect(() => {
-    if (oem) {
+    if (oem && open) {
       form.reset({
         name: oem.name || "",
         brandCode: oem.brandCode || "",
@@ -102,7 +102,7 @@ export function CreateOEMModal({
         userPhone: "",
         userPassword: "",
       });
-    } else {
+    } else if (!oem && open) {
       // Reset to empty values for new OEM
       form.reset({
         name: "",

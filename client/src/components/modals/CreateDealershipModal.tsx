@@ -101,7 +101,7 @@ export function CreateDealershipModal({
 
   // Reset form when dealership data changes (for editing)
   useEffect(() => {
-    if (dealership) {
+    if (dealership && open) {
       form.reset({
         name: dealership.name || "",
         oemId: dealership.oemId || "",
@@ -118,7 +118,7 @@ export function CreateDealershipModal({
         userPhone: "",
         userPassword: "",
       });
-    } else {
+    } else if (!dealership && open) {
       // Reset to empty values for new dealership
       form.reset({
         name: "",

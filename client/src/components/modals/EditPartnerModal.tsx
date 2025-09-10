@@ -83,7 +83,7 @@ export function EditPartnerModal({
 
   // Update form when partner prop changes
   useEffect(() => {
-    if (partner) {
+    if (partner && open) {
       form.reset({
         displayName: partner.displayName || "",
         type: partner.type || "INSTALLER",
@@ -96,7 +96,7 @@ export function EditPartnerModal({
         pincode: partner.pincode || "",
         active: partner.active ?? true,
       });
-    } else {
+    } else if (!partner && open) {
       form.reset({
         displayName: "",
         type: "INSTALLER",
