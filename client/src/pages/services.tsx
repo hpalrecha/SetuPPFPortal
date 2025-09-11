@@ -16,6 +16,7 @@ export default function ServicesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<any>(null);
@@ -71,12 +72,16 @@ export default function ServicesPage() {
     },
   });
 
-  const filteredServices = services.filter((service: any) =>
-    service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    service.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    service.productBrand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    service.serviceGroup?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredServices = services.filter((service: any) => {
+    const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      service.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      service.productBrand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      service.serviceGroup?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesCategory = !selectedCategory || service.serviceGroup === selectedCategory;
+    
+    return matchesSearch && matchesCategory;
+  });
 
   const handleEdit = (service: any) => {
     setSelectedService(service);
@@ -156,8 +161,8 @@ export default function ServicesPage() {
         )}
       </div>
 
-      {/* Search */}
-      <div className="flex items-center space-x-2">
+      {/* Search and Filters */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
           <Input
@@ -167,6 +172,26 @@ export default function ServicesPage() {
             className="pl-10"
             data-testid="input-search-services"
           />
+        </div>
+        
+        <div className="w-full sm:w-64">
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            data-testid="select-category-filter"
+          >
+            <option value="">All Categories</option>
+            <option value="PPF">Paint Protection Film</option>
+            <option value="CERAMIC_COATING">Ceramic Coating</option>
+            <option value="WINDOW_TINTING">Window Tinting</option>
+            <option value="PAINT_CORRECTION">Paint Correction</option>
+            <option value="INTERIOR_PROTECTION">Interior Protection</option>
+            <option value="ACCESSORIES">Accessories</option>
+            <option value="MAINTENANCE">Maintenance</option>
+            <option value="DETAILING">Detailing</option>
+            <option value="CUSTOMIZATION">Customization</option>
+          </select>
         </div>
       </div>
 
