@@ -209,6 +209,122 @@ export function EditCommissionRuleModal({ open, onOpenChange, commissionRule }: 
               )}
             />
 
+            {/* Sales Person Selection (Optional) */}
+            <FormField
+              control={form.control}
+              name="salesPersonId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sales Person (Optional)</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} data-testid="select-sales-person">
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Apply to all sales persons" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Sales Persons</SelectItem>
+                      {salesPersons.map((person: any) => (
+                        <SelectItem key={person.id} value={person.id}>
+                          {person.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Service Type Selection */}
+            <FormField
+              control={form.control}
+              name="serviceType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Service Type</FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      className="flex space-x-6"
+                      data-testid="radio-service-type"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="ALL" id="edit-all-services" />
+                        <Label htmlFor="edit-all-services">All Services</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="CATEGORY" id="edit-service-category" />
+                        <Label htmlFor="edit-service-category">Service Category</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="SPECIFIC" id="edit-specific-service" />
+                        <Label htmlFor="edit-specific-service">Specific Service</Label>
+                      </div>
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Service Category Selection */}
+            {serviceType === "CATEGORY" && (
+              <FormField
+                control={form.control}
+                name="serviceCategoryId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Select Service Category</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} data-testid="select-service-category">
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {serviceCategories.map((category: any) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {/* Specific Service Selection */}
+            {serviceType === "SPECIFIC" && (
+              <FormField
+                control={form.control}
+                name="serviceId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Select Service</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} data-testid="select-service">
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select service" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {services.map((service: any) => (
+                          <SelectItem key={service.id} value={service.id}>
+                            {service.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
             {/* Commission Type and Value */}
             <div className="grid grid-cols-2 gap-4">
               <FormField
@@ -255,18 +371,181 @@ export function EditCommissionRuleModal({ open, onOpenChange, commissionRule }: 
               />
             </div>
 
+            {/* Cap and Floor Amounts */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="floorAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Minimum Amount (Optional)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        {...field}
+                        data-testid="input-floor-amount"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="capAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Maximum Amount (Optional)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        {...field}
+                        data-testid="input-cap-amount"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Effective Date Range */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="effectiveFromDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Effective From</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            className={`w-full pl-3 text-left font-normal ${!field.value && "text-muted-foreground"}`}
+                            data-testid="button-effective-from"
+                          >
+                            {field.value ? (
+                              format(field.value, "PPP")
+                            ) : (
+                              <span>Pick a date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) => date < new Date("1900-01-01")}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="effectiveToDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Effective To (Optional)</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            className={`w-full pl-3 text-left font-normal ${!field.value && "text-muted-foreground"}`}
+                            data-testid="button-effective-to"
+                          >
+                            {field.value ? (
+                              format(field.value, "PPP")
+                            ) : (
+                              <span>No end date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) => date < new Date("1900-01-01")}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Status Selection */}
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} data-testid="select-status">
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="ACTIVE">Active</SelectItem>
+                      <SelectItem value="INACTIVE">Inactive (Disabled)</SelectItem>
+                      <SelectItem value="EXPIRED">Expired</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             {/* Form Actions */}
-            <div className="flex justify-end space-x-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
+            <div className="flex justify-between">
               <Button 
-                type="submit" 
-                disabled={updateCommissionRuleMutation.isPending}
-                data-testid="button-save-commission-rule"
+                type="button" 
+                variant="destructive"
+                onClick={() => {
+                  if (confirm("Are you sure you want to delete this commission rule? This action cannot be undone.")) {
+                    alert("Delete functionality - would delete the commission rule permanently");
+                  }
+                }}
+                data-testid="button-delete-commission-rule"
               >
-                {updateCommissionRuleMutation.isPending ? "Saving..." : "Save Changes"}
+                Delete Rule
               </Button>
+              
+              <div className="flex space-x-2">
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={updateCommissionRuleMutation.isPending}
+                  data-testid="button-save-commission-rule"
+                >
+                  {updateCommissionRuleMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
             </div>
           </form>
         </Form>
