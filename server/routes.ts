@@ -1724,7 +1724,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('allocation', 'create'),
     async (req, res) => {
       try {
-        const allocationData = req.body;
+        const { serviceCategoryIds, ...allocationData } = req.body;
         
         // Validate required fields
         if (!allocationData.level || !allocationData.levelId || !allocationData.partnerId) {
@@ -1734,6 +1734,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const allocation = await storage.createAllocation(allocationData);
+        
+        // Handle service category assignments
+        if (serviceCategoryIds && Array.isArray(serviceCategoryIds)) {
+          await storage.setAllocationServiceCategories(allocation.id, serviceCategoryIds);
+        }
+        
         res.status(201).json(allocation);
       } catch (error) {
         console.error("Create allocation error:", error);
@@ -1751,10 +1757,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('allocation', 'update'),
     async (req, res) => {
       try {
-        const allocation = await storage.updateAllocation(req.params.id, req.body);
+        const { serviceCategoryIds, ...allocationData } = req.body;
+        
+        const allocation = await storage.updateAllocation(req.params.id, allocationData);
         if (!allocation) {
           return res.status(404).json({ error: "Allocation not found" });
         }
+        
+        // Handle service category assignments
+        if (serviceCategoryIds && Array.isArray(serviceCategoryIds)) {
+          await storage.setAllocationServiceCategories(req.params.id, serviceCategoryIds);
+        }
+        
         res.json(allocation);
       } catch (error) {
         console.error("Update allocation error:", error);
@@ -1780,6 +1794,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   );
+
+  // Allocation Service Category Routes
+  app.get("/api/allocations/:id/service-categories", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const categories = await storage.getAllocationServiceCategories(req.params.id);
+      res.json(categories);
+    } catch (error) {
+      console.error("Get allocation service categories error:", error);
+      res.status(500).json({ error: "Failed to fetch allocation service categories" });
+    }
+  });
+
+  app.get("/api/allocations-with-categories", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const allocationsWithCategories = await storage.getAllocationsWithCategories();
+      res.json(allocationsWithCategories);
+    } catch (error) {
+      console.error("Get allocations with categories error:", error);
+      res.status(500).json({ error: "Failed to fetch allocations with categories" });
+    }
+  });
 
   // Commission Rules Routes
   app.get("/api/commission-rules", authenticate, requireOEMAccess, async (req, res) => {

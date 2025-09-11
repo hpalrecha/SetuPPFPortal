@@ -29,6 +29,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const allocationSchema = z.object({
   level: z.enum(['DEALERSHIP', 'SHOWROOM'], { required_error: "Level is required" }),
@@ -36,6 +37,7 @@ const allocationSchema = z.object({
   partnerId: z.string().min(1, "Please select a partner"),
   priority: z.number().min(1).max(10).default(1),
   active: z.boolean().default(true),
+  serviceCategoryIds: z.array(z.string()).optional(),
 });
 
 type AllocationFormData = z.infer<typeof allocationSchema>;
@@ -65,20 +67,55 @@ export function CreateAllocationModal({
       partnerId: "",
       priority: 1,
       active: true,
+      serviceCategoryIds: [],
     },
   });
 
   const selectedLevel = form.watch("level");
 
+  // Fetch service categories
+  const { data: serviceCategories = [] } = useQuery({
+    queryKey: ["/api/service-categories"],
+    queryFn: async () => {
+      const response = await fetch('/api/service-categories', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch service categories');
+      return response.json();
+    },
+    enabled: open,
+  });
+
+  // Fetch existing allocation service categories when editing
+  const { data: existingCategories = [] } = useQuery({
+    queryKey: ["/api/allocations", allocation?.id, "service-categories"],
+    queryFn: async () => {
+      const response = await fetch(`/api/allocations/${allocation.id}/service-categories`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch allocation service categories');
+      return response.json();
+    },
+    enabled: open && isEditing && !!allocation?.id,
+  });
+
   // Reset form when allocation prop changes (for editing)
   useEffect(() => {
     if (allocation && open) {
+      const serviceCategoryIds = existingCategories.map((cat: any) => cat.id) || [];
       form.reset({
         level: allocation.level || "DEALERSHIP",
         levelId: allocation.levelId || "",
         partnerId: allocation.partnerId || "",
         priority: allocation.priority || 1,
         active: allocation.active ?? true,
+        serviceCategoryIds,
       });
     } else if (!allocation && open) {
       form.reset({
@@ -87,9 +124,10 @@ export function CreateAllocationModal({
         partnerId: "",
         priority: 1,
         active: true,
+        serviceCategoryIds: [],
       });
     }
-  }, [allocation, open, form]);
+  }, [allocation, open, form, existingCategories]);
 
   // Fetch dealerships
   const { data: dealerships = [] } = useQuery({
@@ -286,6 +324,49 @@ export function CreateAllocationModal({
                 </FormItem>
               )}
             />
+
+            {/* Service Categories */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Service Categories</h3>
+              <p className="text-sm text-muted-foreground">
+                Select the service categories this allocation covers
+              </p>
+              
+              <FormField
+                control={form.control}
+                name="serviceCategoryIds"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {serviceCategories.map((category: any) => (
+                        <div key={category.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`category-${category.id}`}
+                            checked={field.value?.includes(category.id) || false}
+                            onCheckedChange={(checked) => {
+                              const currentValues = field.value || [];
+                              if (checked) {
+                                field.onChange([...currentValues, category.id]);
+                              } else {
+                                field.onChange(currentValues.filter((id: string) => id !== category.id));
+                              }
+                            }}
+                            data-testid={`checkbox-category-${category.code}`}
+                          />
+                          <label
+                            htmlFor={`category-${category.id}`}
+                            className="text-sm cursor-pointer"
+                          >
+                            {category.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
