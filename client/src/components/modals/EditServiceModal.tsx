@@ -60,6 +60,12 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
     },
   });
 
+  // Fetch service categories
+  const { data: serviceCategories = [] } = useQuery({
+    queryKey: ['/api/service-categories'],
+    enabled: open,
+  });
+
   // Update form when service changes
   useEffect(() => {
     if (service && open) {
@@ -290,15 +296,11 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="PPF">Paint Protection Film (PPF)</SelectItem>
-                      <SelectItem value="CERAMIC_COATING">Ceramic Coating</SelectItem>
-                      <SelectItem value="WINDOW_TINTING">Window Tinting</SelectItem>
-                      <SelectItem value="PAINT_CORRECTION">Paint Correction</SelectItem>
-                      <SelectItem value="INTERIOR_PROTECTION">Interior Protection</SelectItem>
-                      <SelectItem value="ACCESSORIES">Accessories</SelectItem>
-                      <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
-                      <SelectItem value="DETAILING">Detailing</SelectItem>
-                      <SelectItem value="CUSTOMIZATION">Customization</SelectItem>
+                      {serviceCategories.map((category: any) => (
+                        <SelectItem key={category.id} value={category.code}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
