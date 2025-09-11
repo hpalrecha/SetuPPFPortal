@@ -9,7 +9,8 @@ import {
   decimal, 
   boolean, 
   jsonb,
-  pgEnum
+  pgEnum,
+  unique
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
@@ -518,10 +519,27 @@ export const selectJobCardSchema = createSelectSchema(jobCards);
 export type InsertJobCard = z.infer<typeof insertJobCardSchema>;
 export type JobCard = z.infer<typeof selectJobCardSchema>;
 
+// Partner Service Categories (many-to-many mapping)
+export const partnerServiceCategories = pgTable("partner_service_categories", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerId: uuid("partner_id").references(() => partners.id, { onDelete: 'cascade' }).notNull(),
+  serviceCategoryId: uuid("service_category_id").references(() => serviceCategories.id, { onDelete: 'cascade' }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  // Unique constraint to prevent duplicate mappings
+  uniqueMapping: unique().on(table.partnerId, table.serviceCategoryId),
+}));
+
 export const insertPartnerSchema = createInsertSchema(partners).omit({ id: true, createdAt: true, updatedAt: true });
 export const selectPartnerSchema = createSelectSchema(partners);
 export type InsertPartner = z.infer<typeof insertPartnerSchema>;
 export type Partner = z.infer<typeof selectPartnerSchema>;
+
+// Partner Service Category schemas
+export const insertPartnerServiceCategorySchema = createInsertSchema(partnerServiceCategories).omit({ id: true, createdAt: true });
+export const selectPartnerServiceCategorySchema = createSelectSchema(partnerServiceCategories);
+export type InsertPartnerServiceCategory = z.infer<typeof insertPartnerServiceCategorySchema>;
+export type PartnerServiceCategory = z.infer<typeof selectPartnerServiceCategorySchema>;
 
 export const insertPricingRuleSchema = createInsertSchema(pricingRules).omit({ id: true, createdAt: true, updatedAt: true }).extend({
   effectiveFrom: z.string().or(z.date()).transform((val) => typeof val === 'string' ? new Date(val) : val),
