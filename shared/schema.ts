@@ -554,21 +554,35 @@ export type PartnerServiceCategory = z.infer<typeof selectPartnerServiceCategory
 export const insertPricingRuleSchema = createInsertSchema(pricingRules).omit({ id: true, createdAt: true, updatedAt: true }).extend({
   effectiveFrom: z.string().or(z.date()).transform((val) => typeof val === 'string' ? new Date(val) : val),
   effectiveTo: z.string().or(z.date()).transform((val) => val ? (typeof val === 'string' ? new Date(val) : val) : null).optional(),
+  
+  // Preserve UUID validation while handling empty strings properly
+  serviceCategoryId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
+  serviceId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
+  dealershipId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
+  detailerId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
+  partnerId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
+  scopeId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
+  vehicleVariantId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
+  vehicleModelId: z.string().uuid(), // Always required
 }).refine(
   (data) => {
-    // For DEALERSHIP_PRICING, require serviceId
+    // DEALERSHIP_PRICING requires dealershipId, serviceId, vehicleModelId
     if (data.pricingType === "DEALERSHIP_PRICING") {
-      return data.serviceId && data.serviceId.length > 0;
+      return data.dealershipId && data.serviceId && data.vehicleModelId;
     }
-    // For DETAILER_PRICING, require serviceCategoryId
+    // DETAILER_PRICING requires detailerId, serviceCategoryId, vehicleModelId
     if (data.pricingType === "DETAILER_PRICING") {
-      return data.serviceCategoryId && data.serviceCategoryId.length > 0;
+      return data.detailerId && data.serviceCategoryId && data.vehicleModelId;
+    }
+    // PARTNER_PRICING requires partnerId, scope, scopeId, serviceId, vehicleModelId
+    if (data.pricingType === "PARTNER_PRICING") {
+      return data.partnerId && data.scope && data.scopeId && data.serviceId && data.vehicleModelId;
     }
     return true;
   },
   {
-    message: "Service is required for DEALERSHIP_PRICING, Service Category is required for DETAILER_PRICING",
-    path: ["serviceId"], // Show error on serviceId field for UI purposes
+    message: "Required fields missing for selected pricing type",
+    path: ["pricingType"],
   }
 );
 export const selectPricingRuleSchema = createSelectSchema(pricingRules);
