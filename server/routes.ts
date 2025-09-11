@@ -704,13 +704,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const rowNum = i + 2; // Excel row number (starting from 2, assuming row 1 is headers)
 
           try {
-            // Extract fields - now only model_name and variant_name (OEM is already specified)
+            // Extract fields - model_name, vehicle_type, and variant_name (OEM is already specified)
             const modelName = originalRow.model_name?.toString().trim();
+            const vehicleType = originalRow.vehicle_type?.toString().trim() || '';
             const variantName = originalRow.variant_name?.toString().trim() || '';
 
             // Create a clean row object
             const cleanRowData = {
               model_name: modelName || '',
+              vehicle_type: vehicleType || '',
               variant_name: variantName || ''
             };
 
@@ -733,6 +735,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const modelData = {
                 oemId: oemId,
                 modelName: modelName,
+                vehicleType: vehicleType || null, // Add vehicle type from Excel
                 active: true
               };
               model = await storage.createVehicleModel(modelData);
@@ -771,6 +774,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               error: error instanceof Error ? error.message : 'Unknown error',
               data: {
                 model_name: originalRow.model_name || '',
+                vehicle_type: originalRow.vehicle_type || '',
                 variant_name: originalRow.variant_name || ''
               }
             });

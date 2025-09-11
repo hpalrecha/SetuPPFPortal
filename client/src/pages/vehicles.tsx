@@ -244,19 +244,32 @@ export default function VehiclesPage() {
   };
 
   const downloadTemplate = () => {
-    // Create sample Excel template with new OEM-Model-Variant format
+    // Create sample Excel template with new OEM-Model-Variant format including vehicle type
     const templateData = [
       {
         model_name: 'Swift',
+        vehicle_type: 'HATCHBACK',
         variant_name: 'VXI'
       },
       {
         model_name: 'Swift',
+        vehicle_type: 'HATCHBACK',
         variant_name: 'ZXI'
       },
       {
         model_name: 'Nexon',
+        vehicle_type: 'SUV',
         variant_name: 'XM'
+      },
+      {
+        model_name: 'Dzire',
+        vehicle_type: 'SEDAN',
+        variant_name: 'VXI'
+      },
+      {
+        model_name: 'Brezza',
+        vehicle_type: 'SUV',
+        variant_name: 'ZXI+'
       }
     ];
 
