@@ -17,13 +17,22 @@ export default function CommissionsPage() {
   };
 
   const handleEditCommissionRule = (ruleId: string) => {
-    // TODO: Implement edit functionality
-    alert(`Edit commission rule ${ruleId}`);
+    // Find the rule to edit
+    const rule = commissionRules.find(r => r.id === ruleId);
+    if (rule) {
+      // TODO: Open edit modal with pre-filled data
+      console.log("Editing rule:", rule);
+      alert(`Edit functionality for rule ${ruleId} - this would open an edit modal with the current rule data pre-filled.`);
+    }
   };
 
   const handleViewEarningsReport = (ruleId: string) => {
-    // TODO: Implement earnings report functionality
-    alert(`View earnings report for commission rule ${ruleId}`);
+    // TODO: Open earnings report/analytics view
+    const rule = commissionRules.find(r => r.id === ruleId);
+    if (rule) {
+      console.log("Viewing earnings for rule:", rule);
+      alert(`Commission Analytics for rule ${ruleId} - this would show commission earnings, performance metrics, and analytics charts.`);
+    }
   };
 
 
