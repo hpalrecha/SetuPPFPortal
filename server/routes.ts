@@ -1802,13 +1802,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Commission Rules Routes
   app.get("/api/commission-rules", authenticate, requireOEMAccess, async (req, res) => {
     try {
-      const { showroomId } = req.query;
+      const { oemId, dealershipId, showroomId, salesPersonId } = req.query;
       
       const filters: any = {};
+      if (oemId) filters.oemId = oemId as string;
+      if (dealershipId) filters.dealershipId = dealershipId as string;
       if (showroomId) filters.showroomId = showroomId as string;
-      else if (req.user!.showroomId) filters.showroomId = req.user!.showroomId;
+      if (salesPersonId) filters.salesPersonId = salesPersonId as string;
+      
+      // Apply user context filtering based on role
+      if (req.user!.showroomId && !filters.showroomId) {
+        filters.showroomId = req.user!.showroomId;
+      }
 
-      const rules = await storage.getCommissionRules(filters);
+      const rules = await storage.getCommissionRulesWithContext(filters);
       res.json(rules);
     } catch (error) {
       console.error("Get commission rules error:", error);
@@ -1818,16 +1825,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/commission-rules", 
     authenticate, 
-    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN']),
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
     auditLog('commission_rule', 'create'),
     async (req, res) => {
       try {
         const ruleData = insertCommissionRuleSchema.parse(req.body);
         
-        // Ensure user can only create rules for their showroom
-        if (req.user!.showroomId) {
+        // Strict tenant boundary validation and role-based scoping
+        const userRole = req.user!.role;
+        
+        if (userRole === 'SHOWROOM_MANAGER' && req.user!.showroomId) {
+          // Showroom managers can only create showroom-level rules for their showroom
+          ruleData.oemId = undefined;
+          ruleData.dealershipId = undefined;
           ruleData.showroomId = req.user!.showroomId;
+        } else if (userRole === 'DEALERSHIP_ADMIN' && req.user!.dealershipId) {
+          // Dealership admins can only create rules within their dealership
+          ruleData.oemId = undefined;
+          
+          // Validate showroom belongs to their dealership if specified
+          if (ruleData.showroomId) {
+            const showroom = await storage.getShowroom(ruleData.showroomId);
+            if (!showroom || showroom.dealershipId !== req.user!.dealershipId) {
+              return res.status(403).json({ error: "Cannot create rules for showrooms outside your dealership" });
+            }
+          } else if (!ruleData.dealershipId) {
+            ruleData.dealershipId = req.user!.dealershipId;
+          } else if (ruleData.dealershipId !== req.user!.dealershipId) {
+            return res.status(403).json({ error: "Cannot create rules for other dealerships" });
+          }
+        } else if (userRole === 'OEM_ADMIN' && req.user!.oemId) {
+          // OEM admins can only create rules within their OEM
+          
+          // Validate dealership belongs to their OEM if specified
+          if (ruleData.dealershipId) {
+            const dealership = await storage.getDealership(ruleData.dealershipId);
+            if (!dealership || dealership.oemId !== req.user!.oemId) {
+              return res.status(403).json({ error: "Cannot create rules for dealerships outside your OEM" });
+            }
+          }
+          
+          // Validate showroom belongs to their OEM if specified
+          if (ruleData.showroomId) {
+            const showroom = await storage.getShowroom(ruleData.showroomId);
+            if (!showroom) {
+              return res.status(403).json({ error: "Showroom not found" });
+            }
+            const dealership = await storage.getDealership(showroom.dealershipId);
+            if (!dealership || dealership.oemId !== req.user!.oemId) {
+              return res.status(403).json({ error: "Cannot create rules for showrooms outside your OEM" });
+            }
+          }
+          
+          // Default to OEM level if no specific level provided
+          if (!ruleData.oemId && !ruleData.dealershipId && !ruleData.showroomId) {
+            ruleData.oemId = req.user!.oemId;
+          } else if (ruleData.oemId && ruleData.oemId !== req.user!.oemId) {
+            return res.status(403).json({ error: "Cannot create rules for other OEMs" });
+          }
         }
+        // SUPER_ADMIN has no restrictions but still needs tenant validation in storage layer
 
         const rule = await storage.createCommissionRule(ruleData);
         res.status(201).json(rule);
@@ -1837,6 +1895,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Invalid commission rule data", details: error.errors });
         }
         res.status(500).json({ error: "Failed to create commission rule" });
+      }
+    }
+  );
+
+  // Commission Resolution API
+  app.post("/api/commissions/resolve", 
+    authenticate, 
+    requireOEMAccess,
+    async (req, res) => {
+      try {
+        const { grossAmount, oemId, dealershipId, showroomId, salesPersonId, serviceId, serviceCategoryId } = req.body;
+        
+        if (!grossAmount || !oemId || !dealershipId || !showroomId) {
+          return res.status(400).json({ 
+            error: "grossAmount, oemId, dealershipId, and showroomId are required" 
+          });
+        }
+
+        const result = await storage.calculateCommission(
+          Number(grossAmount),
+          oemId,
+          dealershipId,
+          showroomId,
+          salesPersonId,
+          serviceId,
+          serviceCategoryId
+        );
+
+        res.json(result);
+      } catch (error) {
+        console.error("Commission resolution error:", error);
+        res.status(500).json({ error: "Failed to resolve commission" });
       }
     }
   );

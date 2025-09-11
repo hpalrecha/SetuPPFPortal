@@ -3,16 +3,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, BarChart3, DollarSign, Users, TrendingUp } from "lucide-react";
-import type { CommissionRule } from "@shared/schema";
+import type { CommissionRuleWithContext } from "@shared/types";
+import { CreateCommissionRuleModal } from "@/components/modals/CreateCommissionRuleModal";
 
 export default function CommissionsPage() {
-  const { data: commissionRules = [], isLoading } = useQuery<CommissionRule[]>({
+  const { data: commissionRules = [], isLoading } = useQuery<CommissionRuleWithContext[]>({
     queryKey: ["/api/commission-rules"],
     refetchInterval: 30000
   });
 
   const handleAddCommissionRule = () => {
-    alert("Commission rule creation form would open here");
+    // Modal is handled by the CreateCommissionRuleModal component
   };
 
   const handleEditCommissionRule = (id: string) => {
@@ -56,10 +57,12 @@ export default function CommissionsPage() {
           <h2 className="text-2xl font-semibold text-foreground">Commission Rules</h2>
           <p className="text-muted-foreground mt-1">Configure sales person commission structures</p>
         </div>
-        <Button onClick={handleAddCommissionRule} data-testid="button-add-commission-rule">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Commission Rule
-        </Button>
+        <CreateCommissionRuleModal>
+          <Button data-testid="button-add-commission-rule">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Commission Rule
+          </Button>
+        </CreateCommissionRuleModal>
       </div>
 
       {/* Commission Summary Cards */}
@@ -121,7 +124,7 @@ export default function CommissionsPage() {
               <thead className="bg-muted">
                 <tr>
                   <th className="text-left py-3 px-4 font-medium text-foreground">Sales Person</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Showroom</th>
+                  <th className="text-left py-3 px-4 font-medium text-foreground">Organization</th>
                   <th className="text-left py-3 px-4 font-medium text-foreground">Service</th>
                   <th className="text-left py-3 px-4 font-medium text-foreground">Type</th>
                   <th className="text-left py-3 px-4 font-medium text-foreground">Value</th>
@@ -139,73 +142,103 @@ export default function CommissionsPage() {
                         <p className="text-muted-foreground">
                           Create commission rules to define earnings for sales persons.
                         </p>
-                        <Button onClick={handleAddCommissionRule}>
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add First Commission Rule
-                        </Button>
+                        <CreateCommissionRuleModal>
+                          <Button>
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add First Commission Rule
+                          </Button>
+                        </CreateCommissionRuleModal>
                       </div>
                     </td>
                   </tr>
                 ) : (
-                  commissionRules.map((rule) => (
-                    <tr key={rule.id} className="hover:bg-accent" data-testid={`row-commission-rule-${rule.id}`}>
-                      <td className="py-3 px-4">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">Sales Person Name</p>
-                          <p className="text-xs text-muted-foreground">+91 98765 43210</p>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-foreground">Showroom Name</td>
-                      <td className="py-3 px-4 text-sm text-foreground">
-                        {rule.serviceId ? "Specific Service" : "All Services"}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-foreground capitalize">
-                        {rule.type.toLowerCase()}
-                      </td>
-                      <td className="py-3 px-4 text-sm font-medium text-foreground">
-                        {rule.type === 'PERCENT' ? `${rule.valueNumeric}%` : formatCurrency(rule.valueNumeric)}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-muted-foreground">
-                        {rule.floorAmount || rule.capAmount ? (
-                          <>
-                            {rule.floorAmount && `Min: ${formatCurrency(rule.floorAmount)}`}
-                            {rule.floorAmount && rule.capAmount && " | "}
-                            {rule.capAmount && `Max: ${formatCurrency(rule.capAmount)}`}
-                          </>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge 
-                          className={rule.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}
-                          data-testid={`status-${rule.id}`}
-                        >
-                          {rule.status}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex space-x-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleEditCommissionRule(rule.id)}
-                            data-testid={`button-edit-${rule.id}`}
+                  commissionRules.map((rule: CommissionRuleWithContext) => {
+                    // Determine organizational level
+                    const getOrganizationLevel = () => {
+                      if (rule.oemId && rule.oem) return { type: "OEM", name: rule.oem.name };
+                      if (rule.dealershipId && rule.dealership) return { type: "Dealership", name: rule.dealership.name };
+                      if (rule.showroomId && rule.showroom) return { type: "Showroom", name: rule.showroom.name };
+                      return { type: "Unknown", name: "-" };
+                    };
+
+                    const orgLevel = getOrganizationLevel();
+                    
+                    // Determine service scope
+                    const getServiceScope = () => {
+                      if (rule.serviceId && rule.service) return rule.service.name;
+                      if (rule.serviceCategoryId && rule.serviceCategory) return `${rule.serviceCategory.name} (Category)`;
+                      return "All Services";
+                    };
+
+                    return (
+                      <tr key={rule.id} className="hover:bg-accent" data-testid={`row-commission-rule-${rule.id}`}>
+                        <td className="py-3 px-4">
+                          <div>
+                            <p className="text-sm font-medium text-foreground">
+                              {rule.salesPerson ? rule.salesPerson.name : "All Sales Persons"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {rule.salesPerson ? rule.salesPerson.phone || rule.salesPerson.email : "Applies to all"}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{orgLevel.name}</p>
+                            <p className="text-xs text-muted-foreground">{orgLevel.type} Level</p>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-sm text-foreground">
+                          {getServiceScope()}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-foreground capitalize">
+                          {rule.type.toLowerCase()}
+                        </td>
+                        <td className="py-3 px-4 text-sm font-medium text-foreground">
+                          {rule.type === 'PERCENT' ? `${rule.valueNumeric}%` : formatCurrency(rule.valueNumeric)}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">
+                          {rule.floorAmount || rule.capAmount ? (
+                            <>
+                              {rule.floorAmount && `Min: ${formatCurrency(rule.floorAmount)}`}
+                              {rule.floorAmount && rule.capAmount && " | "}
+                              {rule.capAmount && `Max: ${formatCurrency(rule.capAmount)}`}
+                            </>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge 
+                            className={rule.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}
+                            data-testid={`status-${rule.id}`}
                           >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleViewEarningsReport(rule.id)}
-                            data-testid={`button-report-${rule.id}`}
-                          >
-                            <BarChart3 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                            {rule.status}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex space-x-2">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleEditCommissionRule(rule.id)}
+                              data-testid={`button-edit-${rule.id}`}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleViewEarningsReport(rule.id)}
+                              data-testid={`button-report-${rule.id}`}
+                            >
+                              <BarChart3 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

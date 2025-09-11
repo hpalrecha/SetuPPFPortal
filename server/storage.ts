@@ -144,9 +144,35 @@ export interface IStorage {
   deletePricingRule(id: string): Promise<boolean>;
 
   // Commission Rules
-  getCommissionRules(filters?: { showroomId?: string }): Promise<CommissionRule[]>;
+  getCommissionRules(filters?: { oemId?: string; dealershipId?: string; showroomId?: string; salesPersonId?: string }): Promise<CommissionRule[]>;
+  getCommissionRulesWithContext(filters?: { oemId?: string; dealershipId?: string; showroomId?: string; salesPersonId?: string }): Promise<{
+    id: string;
+    oemId: string | null;
+    dealershipId: string | null;
+    showroomId: string | null;
+    salesPersonId: string | null;
+    serviceId: string | null;
+    serviceCategoryId: string | null;
+    type: "PERCENT" | "AMOUNT";
+    valueNumeric: string;
+    capAmount: string | null;
+    floorAmount: string | null;
+    effectiveFrom: Date;
+    effectiveTo: Date | null;
+    status: string;
+    createdAt: Date;
+    updatedAt: Date;
+    oem: any;
+    dealership: any;
+    showroom: any;
+    salesPerson: any;
+    service: any;
+    serviceCategory: any;
+  }[]>;
   createCommissionRule(rule: InsertCommissionRule): Promise<CommissionRule>;
   updateCommissionRule(id: string, updates: Partial<InsertCommissionRule>): Promise<CommissionRule | undefined>;
+  resolveCommissionRule(oemId: string, dealershipId: string, showroomId: string, salesPersonId?: string, serviceId?: string, serviceCategoryId?: string): Promise<any | null>;
+  calculateCommission(grossAmount: number, oemId: string, dealershipId: string, showroomId: string, salesPersonId?: string, serviceId?: string, serviceCategoryId?: string): Promise<any>;
   
   // Pricing resolution
   resolvePricingRule(partnerId: string, vehicleModelId: string, serviceId: string, dealershipId?: string, showroomId?: string): Promise<PricingRule | null>;
@@ -874,13 +900,27 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount || 0) > 0;
   }
 
-  async getCommissionRules(filters?: { showroomId?: string }): Promise<CommissionRule[]> {
+  async getCommissionRules(filters?: { 
+    oemId?: string; 
+    dealershipId?: string; 
+    showroomId?: string;
+    salesPersonId?: string;
+  }): Promise<CommissionRule[]> {
     let query = db.select().from(commissionRules);
     
-    const conditions = [eq(commissionRules.status, "ACTIVE")];
+    const now = new Date();
+    const conditions = [
+      eq(commissionRules.status, "ACTIVE"),
+      lte(commissionRules.effectiveFrom, now),
+      or(isNull(commissionRules.effectiveTo), gte(commissionRules.effectiveTo, now))
+    ];
+    
+    if (filters?.oemId) conditions.push(eq(commissionRules.oemId, filters.oemId));
+    if (filters?.dealershipId) conditions.push(eq(commissionRules.dealershipId, filters.dealershipId));
     if (filters?.showroomId) conditions.push(eq(commissionRules.showroomId, filters.showroomId));
+    if (filters?.salesPersonId) conditions.push(eq(commissionRules.salesPersonId, filters.salesPersonId));
 
-    return await query.where(and(...conditions));
+    return await query.where(and(...conditions)).orderBy(desc(commissionRules.createdAt));
   }
 
   async createCommissionRule(insertRule: InsertCommissionRule): Promise<CommissionRule> {
@@ -898,6 +938,264 @@ export class DatabaseStorage implements IStorage {
       .where(eq(commissionRules.id, id))
       .returning();
     return rule || undefined;
+  }
+
+  // Get commission rules with organizational context (OEM/Dealership/Showroom names)
+  async getCommissionRulesWithContext(filters?: { 
+    oemId?: string; 
+    dealershipId?: string; 
+    showroomId?: string;
+    salesPersonId?: string;
+  }): Promise<{
+    id: string;
+    oemId: string | null;
+    dealershipId: string | null;
+    showroomId: string | null;
+    salesPersonId: string | null;
+    serviceId: string | null;
+    serviceCategoryId: string | null;
+    type: "PERCENT" | "AMOUNT";
+    valueNumeric: string;
+    capAmount: string | null;
+    floorAmount: string | null;
+    effectiveFrom: Date;
+    effectiveTo: Date | null;
+    status: string;
+    createdAt: Date;
+    updatedAt: Date;
+    oem: any;
+    dealership: any;
+    showroom: any;
+    salesPerson: any;
+    service: any;
+    serviceCategory: any;
+  }[]> {
+    let query = db
+      .select({
+        id: commissionRules.id,
+        oemId: commissionRules.oemId,
+        dealershipId: commissionRules.dealershipId,
+        showroomId: commissionRules.showroomId,
+        salesPersonId: commissionRules.salesPersonId,
+        serviceId: commissionRules.serviceId,
+        serviceCategoryId: commissionRules.serviceCategoryId,
+        type: commissionRules.type,
+        valueNumeric: commissionRules.valueNumeric,
+        capAmount: commissionRules.capAmount,
+        floorAmount: commissionRules.floorAmount,
+        effectiveFrom: commissionRules.effectiveFrom,
+        effectiveTo: commissionRules.effectiveTo,
+        status: commissionRules.status,
+        createdAt: commissionRules.createdAt,
+        updatedAt: commissionRules.updatedAt,
+        // Organizational context
+        oem: oems,
+        dealership: dealerships,
+        showroom: showrooms,
+        salesPerson: salesPersons,
+        service: services,
+        serviceCategory: serviceCategories
+      })
+      .from(commissionRules)
+      .leftJoin(oems, eq(commissionRules.oemId, oems.id))
+      .leftJoin(dealerships, eq(commissionRules.dealershipId, dealerships.id))
+      .leftJoin(showrooms, eq(commissionRules.showroomId, showrooms.id))
+      .leftJoin(salesPersons, eq(commissionRules.salesPersonId, salesPersons.id))
+      .leftJoin(services, eq(commissionRules.serviceId, services.id))
+      .leftJoin(serviceCategories, eq(commissionRules.serviceCategoryId, serviceCategories.id));
+    
+    const now = new Date();
+    const conditions = [
+      eq(commissionRules.status, "ACTIVE"),
+      lte(commissionRules.effectiveFrom, now),
+      or(isNull(commissionRules.effectiveTo), gte(commissionRules.effectiveTo, now))
+    ];
+    
+    if (filters?.oemId) conditions.push(eq(commissionRules.oemId, filters.oemId));
+    if (filters?.dealershipId) conditions.push(eq(commissionRules.dealershipId, filters.dealershipId));
+    if (filters?.showroomId) conditions.push(eq(commissionRules.showroomId, filters.showroomId));
+    if (filters?.salesPersonId) conditions.push(eq(commissionRules.salesPersonId, filters.salesPersonId));
+
+    return await query.where(and(...conditions)).orderBy(desc(commissionRules.createdAt));
+  }
+
+  // Commission resolution with hierarchical inheritance
+  async resolveCommissionRule(
+    oemId: string, 
+    dealershipId: string, 
+    showroomId: string, 
+    salesPersonId?: string, 
+    serviceId?: string,
+    serviceCategoryId?: string
+  ): Promise<any | null> {
+    // Define resolution priority order (most specific to least specific)
+    const searchCriteria = [
+      // 1. Showroom + Sales Person + Specific Service
+      { showroomId, salesPersonId, serviceId },
+      // 2. Showroom + Sales Person + Service Category  
+      { showroomId, salesPersonId, serviceCategoryId },
+      // 3. Showroom + Sales Person (All Services)
+      { showroomId, salesPersonId },
+      // 4. Showroom + Specific Service
+      { showroomId, serviceId },
+      // 5. Showroom + Service Category
+      { showroomId, serviceCategoryId },
+      // 6. Showroom (All Services, All Sales Persons)
+      { showroomId },
+      
+      // 7. Dealership + Sales Person + Specific Service
+      { dealershipId, salesPersonId, serviceId },
+      // 8. Dealership + Sales Person + Service Category
+      { dealershipId, salesPersonId, serviceCategoryId },
+      // 9. Dealership + Sales Person (All Services)
+      { dealershipId, salesPersonId },
+      // 10. Dealership + Specific Service
+      { dealershipId, serviceId },
+      // 11. Dealership + Service Category
+      { dealershipId, serviceCategoryId },
+      // 12. Dealership (All Services, All Sales Persons)
+      { dealershipId },
+      
+      // 13. OEM + Sales Person + Specific Service
+      { oemId, salesPersonId, serviceId },
+      // 14. OEM + Sales Person + Service Category
+      { oemId, salesPersonId, serviceCategoryId },
+      // 15. OEM + Sales Person (All Services)
+      { oemId, salesPersonId },
+      // 16. OEM + Specific Service
+      { oemId, serviceId },
+      // 17. OEM + Service Category
+      { oemId, serviceCategoryId },
+      // 18. OEM (All Services, All Sales Persons)
+      { oemId }
+    ];
+
+    // Try each criteria in order until we find a matching rule
+    for (const criteria of searchCriteria) {
+      // Skip criteria with undefined required values
+      if ((criteria.salesPersonId && !salesPersonId) || 
+          (criteria.serviceId && !serviceId) ||
+          (criteria.serviceCategoryId && !serviceCategoryId)) {
+        continue;
+      }
+
+      const conditions = [eq(commissionRules.status, "ACTIVE")];
+      
+      // Add organizational level condition
+      if (criteria.oemId) conditions.push(eq(commissionRules.oemId, criteria.oemId));
+      if (criteria.dealershipId) conditions.push(eq(commissionRules.dealershipId, criteria.dealershipId));
+      if (criteria.showroomId) conditions.push(eq(commissionRules.showroomId, criteria.showroomId));
+      
+      // Add sales person condition (null = applies to all)
+      if (criteria.salesPersonId) {
+        conditions.push(eq(commissionRules.salesPersonId, criteria.salesPersonId));
+      } else {
+        conditions.push(isNull(commissionRules.salesPersonId));
+      }
+      
+      // Add service condition (null = applies to all services)
+      if (criteria.serviceId) {
+        conditions.push(eq(commissionRules.serviceId, criteria.serviceId));
+        conditions.push(isNull(commissionRules.serviceCategoryId));
+      } else if (criteria.serviceCategoryId) {
+        conditions.push(eq(commissionRules.serviceCategoryId, criteria.serviceCategoryId));
+        conditions.push(isNull(commissionRules.serviceId));
+      } else {
+        conditions.push(isNull(commissionRules.serviceId));
+        conditions.push(isNull(commissionRules.serviceCategoryId));
+      }
+
+      // Check effective date
+      const now = new Date();
+      conditions.push(lte(commissionRules.effectiveFrom, now));
+      conditions.push(or(isNull(commissionRules.effectiveTo), gte(commissionRules.effectiveTo, now)));
+
+      const [rule] = await db
+        .select()
+        .from(commissionRules)
+        .where(and(...conditions))
+        .limit(1);
+
+      if (rule) {
+        return {
+          ...rule,
+          resolutionPath: this.getResolutionPath(criteria),
+          resolutionLevel: criteria.oemId ? 'OEM' : criteria.dealershipId ? 'DEALERSHIP' : 'SHOWROOM'
+        };
+      }
+    }
+
+    return null; // No applicable commission rule found
+  }
+
+  private getResolutionPath(criteria: any): string {
+    const level = criteria.oemId ? 'OEM' : criteria.dealershipId ? 'DEALERSHIP' : 'SHOWROOM';
+    const salesperson = criteria.salesPersonId ? '+SALESPERSON' : '';
+    const service = criteria.serviceId ? '+SERVICE' : criteria.serviceCategoryId ? '+CATEGORY' : '';
+    
+    return `${level}${salesperson}${service}`;
+  }
+
+  // Calculate commission amount based on resolved rule
+  async calculateCommission(
+    grossAmount: number,
+    oemId: string,
+    dealershipId: string, 
+    showroomId: string,
+    salesPersonId?: string,
+    serviceId?: string,
+    serviceCategoryId?: string
+  ): Promise<{
+    rule: any | null;
+    calculatedAmount: number;
+    resolutionPath: string;
+    appliedCap: boolean;
+    appliedFloor: boolean;
+  }> {
+    const rule = await this.resolveCommissionRule(
+      oemId, dealershipId, showroomId, salesPersonId, serviceId, serviceCategoryId
+    );
+
+    if (!rule) {
+      return {
+        rule: null,
+        calculatedAmount: 0,
+        resolutionPath: 'NO_RULE_FOUND',
+        appliedCap: false,
+        appliedFloor: false
+      };
+    }
+
+    let calculatedAmount = 0;
+    let appliedCap = false;
+    let appliedFloor = false;
+
+    // Calculate base commission
+    if (rule.type === 'PERCENT') {
+      calculatedAmount = grossAmount * (Number(rule.valueNumeric) / 100);
+    } else {
+      calculatedAmount = Number(rule.valueNumeric);
+    }
+
+    // Apply floor (minimum)
+    if (rule.floorAmount && calculatedAmount < Number(rule.floorAmount)) {
+      calculatedAmount = Number(rule.floorAmount);
+      appliedFloor = true;
+    }
+
+    // Apply cap (maximum)
+    if (rule.capAmount && calculatedAmount > Number(rule.capAmount)) {
+      calculatedAmount = Number(rule.capAmount);
+      appliedCap = true;
+    }
+
+    return {
+      rule,
+      calculatedAmount,
+      resolutionPath: rule.resolutionPath,
+      appliedCap,
+      appliedFloor
+    };
   }
 
   async resolvePricingRule(partnerId: string, vehicleModelId: string, serviceId: string, dealershipId?: string, showroomId?: string): Promise<PricingRule | null> {

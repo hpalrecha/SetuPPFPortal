@@ -283,13 +283,19 @@ export const pricingRules = pgTable("pricing_rules", {
 
 export const commissionRules = pgTable("commission_rules", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  showroomId: uuid("showroom_id").references(() => showrooms.id).notNull(),
-  salesPersonId: uuid("sales_person_id").references(() => salesPersons.id),
-  serviceId: uuid("service_id").references(() => services.id),
-  type: commissionTypeEnum("type").notNull(),
+  
+  // Hierarchical organization levels - only one should be set per rule
+  oemId: uuid("oem_id").references(() => oems.id), // OEM-level commission (applies to all dealerships/showrooms under OEM)
+  dealershipId: uuid("dealership_id").references(() => dealerships.id), // Dealership-level commission (applies to all showrooms under dealership)
+  showroomId: uuid("showroom_id").references(() => showrooms.id), // Showroom-level commission (applies only to specific showroom)
+  
+  salesPersonId: uuid("sales_person_id").references(() => salesPersons.id), // Optional: specific sales person or applies to all
+  serviceId: uuid("service_id").references(() => services.id), // Optional: specific service or applies to all
+  serviceCategoryId: uuid("service_category_id").references(() => serviceCategories.id), // Optional: service category instead of specific service
+  type: commissionTypeEnum("type").notNull(), // PERCENT or AMOUNT
   valueNumeric: decimal("value_numeric", { precision: 10, scale: 2 }).notNull(),
-  capAmount: decimal("cap_amount", { precision: 10, scale: 2 }),
-  floorAmount: decimal("floor_amount", { precision: 10, scale: 2 }),
+  capAmount: decimal("cap_amount", { precision: 10, scale: 2 }), // Maximum commission amount
+  floorAmount: decimal("floor_amount", { precision: 10, scale: 2 }), // Minimum commission amount
   effectiveFrom: timestamp("effective_from").notNull(),
   effectiveTo: timestamp("effective_to"),
   status: text("status").default("ACTIVE"),
@@ -569,7 +575,31 @@ export const selectPricingRuleSchema = createSelectSchema(pricingRules);
 export type InsertPricingRule = z.infer<typeof insertPricingRuleSchema>;
 export type PricingRule = z.infer<typeof selectPricingRuleSchema>;
 
-export const insertCommissionRuleSchema = createInsertSchema(commissionRules).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCommissionRuleSchema = createInsertSchema(commissionRules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+}).refine(
+  (data) => {
+    // Exactly one of oemId, dealershipId, or showroomId must be provided
+    const organizationLevels = [data.oemId, data.dealershipId, data.showroomId].filter(Boolean);
+    return organizationLevels.length === 1;
+  },
+  {
+    message: "Exactly one of OEM, Dealership, or Showroom must be selected",
+    path: ["organizationLevel"]
+  }
+).refine(
+  (data) => {
+    // Only one of serviceId or serviceCategoryId can be provided
+    const serviceSelections = [data.serviceId, data.serviceCategoryId].filter(Boolean);
+    return serviceSelections.length <= 1;
+  },
+  {
+    message: "Cannot specify both specific service and service category",
+    path: ["serviceSelection"]
+  }
+);
 export const selectCommissionRuleSchema = createSelectSchema(commissionRules);
 export type InsertCommissionRule = z.infer<typeof insertCommissionRuleSchema>;
 export type CommissionRule = z.infer<typeof selectCommissionRuleSchema>;
