@@ -10,7 +10,6 @@ import { CreateServiceModal } from '@/components/modals/CreateServiceModal';
 import { EditServiceModal } from '@/components/modals/EditServiceModal';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/hooks/use-auth';
-import { serviceGroupValues } from '@shared/schema';
 
 export default function ServicesPage() {
   const { user } = useAuth();
@@ -25,6 +24,11 @@ export default function ServicesPage() {
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const isOEMAdmin = user?.role === 'OEM_ADMIN';
   const canManageServices = isSuperAdmin || isOEMAdmin;
+
+  // Fetch service categories
+  const { data: serviceCategories = [] } = useQuery({
+    queryKey: ['/api/service-categories'],
+  });
 
   // Fetch services
   const { data: services = [], isLoading, refetch } = useQuery({
@@ -114,6 +118,11 @@ export default function ServicesPage() {
   };
 
   const getServiceGroupLabel = (serviceGroup: string) => {
+    // First try to find in dynamic categories
+    const category = serviceCategories.find((cat: any) => cat.code === serviceGroup);
+    if (category) return category.name;
+    
+    // Fallback to hardcoded labels for backward compatibility
     const groupLabels: Record<string, string> = {
       'PPF': 'Paint Protection Film',
       'CERAMIC_COATING': 'Ceramic Coating', 
@@ -190,9 +199,9 @@ export default function ServicesPage() {
             data-testid="select-category-filter"
           >
             <option value="">All Categories</option>
-            {serviceGroupValues.map((group) => (
-              <option key={group} value={group}>
-                {getServiceGroupLabel(group)}
+            {serviceCategories.map((category: any) => (
+              <option key={category.id} value={category.code}>
+                {category.name}
               </option>
             ))}
           </select>
