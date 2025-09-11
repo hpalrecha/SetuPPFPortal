@@ -1252,7 +1252,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Pricing Rules Routes
   app.get("/api/pricing-rules", authenticate, requireOEMAccess, async (req, res) => {
     try {
-      const { partnerId, scopeId, pricingType, dealershipId, detailerId } = req.query;
+      const { partnerId, scopeId, pricingType, dealershipId, detailerId, serviceCategoryId } = req.query;
       
       const filters: any = {};
       if (partnerId) filters.partnerId = partnerId as string;
@@ -1260,6 +1260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (pricingType) filters.pricingType = pricingType as string;
       if (dealershipId) filters.dealershipId = dealershipId as string;
       if (detailerId) filters.detailerId = detailerId as string;
+      if (serviceCategoryId) filters.serviceCategoryId = serviceCategoryId as string;
 
       const rules = await storage.getPricingRules(filters);
       res.json(rules);

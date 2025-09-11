@@ -122,7 +122,7 @@ export default function PricingPage() {
         case 'DEALERSHIP_PRICING':
           return ['Dealership', 'Vehicle Model', 'Service', 'Price', 'Effective From', 'Status', 'Actions'];
         case 'DETAILER_PRICING':
-          return ['Detailer', 'Vehicle Model', 'Service', 'Payout', 'Effective From', 'Status', 'Actions'];
+          return ['Detailer', 'Vehicle Model', 'Service Category', 'Payout', 'Effective From', 'Status', 'Actions'];
         default:
           return [];
       }
@@ -143,7 +143,7 @@ export default function PricingPage() {
           return [
             rule.detailerName || 'Unknown Detailer',
             rule.vehicleModelName || 'Unknown Vehicle Model', 
-            rule.serviceName || 'Unknown Service',
+            rule.serviceCategoryName || 'Unknown Service Category',
             formatCurrency(rule.priceAmount),
             new Date(rule.effectiveFrom).toLocaleDateString(),
             rule.status

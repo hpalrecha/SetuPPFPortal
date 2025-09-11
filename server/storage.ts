@@ -803,6 +803,7 @@ export class DatabaseStorage implements IStorage {
     pricingType?: string;
     dealershipId?: string;
     detailerId?: string;
+    serviceCategoryId?: string;
   }): Promise<any[]> {
     let query = db.select({
       id: pricingRules.id,
@@ -815,6 +816,7 @@ export class DatabaseStorage implements IStorage {
       vehicleModelId: pricingRules.vehicleModelId,
       vehicleVariantId: pricingRules.vehicleVariantId,
       serviceId: pricingRules.serviceId,
+      serviceCategoryId: pricingRules.serviceCategoryId,
       priceAmount: pricingRules.priceAmount,
       currency: pricingRules.currency,
       effectiveFrom: pricingRules.effectiveFrom,
@@ -826,12 +828,14 @@ export class DatabaseStorage implements IStorage {
       dealershipName: dealerships.name,
       vehicleModelName: vehicleModels.modelName,
       serviceName: services.name,
+      serviceCategoryName: serviceCategories.name,
       detailerName: partners.displayName,
     })
     .from(pricingRules)
     .leftJoin(dealerships, eq(pricingRules.dealershipId, dealerships.id))
     .leftJoin(vehicleModels, eq(pricingRules.vehicleModelId, vehicleModels.id))
     .leftJoin(services, eq(pricingRules.serviceId, services.id))
+    .leftJoin(serviceCategories, eq(pricingRules.serviceCategoryId, serviceCategories.id))
     .leftJoin(partners, eq(pricingRules.detailerId, partners.id));
     
     const conditions = [eq(pricingRules.status, "ACTIVE")];
@@ -840,6 +844,7 @@ export class DatabaseStorage implements IStorage {
     if (filters?.pricingType) conditions.push(eq(pricingRules.pricingType, filters.pricingType as any));
     if (filters?.dealershipId) conditions.push(eq(pricingRules.dealershipId, filters.dealershipId));
     if (filters?.detailerId) conditions.push(eq(pricingRules.detailerId, filters.detailerId));
+    if (filters?.serviceCategoryId) conditions.push(eq(pricingRules.serviceCategoryId, filters.serviceCategoryId));
 
     return await query.where(and(...conditions));
   }

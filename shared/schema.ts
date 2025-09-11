@@ -267,7 +267,11 @@ export const pricingRules = pgTable("pricing_rules", {
   // Common fields for all pricing types
   vehicleModelId: uuid("vehicle_model_id").references(() => vehicleModels.id),
   vehicleVariantId: uuid("vehicle_variant_id").references(() => vehicleVariants.id),
-  serviceId: uuid("service_id").references(() => services.id).notNull(),
+  
+  // Service reference - use serviceId for partner/dealership pricing, serviceCategoryId for detailer pricing
+  serviceId: uuid("service_id").references(() => services.id), // For PARTNER_PRICING and DEALERSHIP_PRICING
+  serviceCategoryId: uuid("service_category_id").references(() => serviceCategories.id), // For DETAILER_PRICING
+  
   priceAmount: decimal("price_amount", { precision: 10, scale: 2 }).notNull(),
   currency: text("currency").default("INR"),
   effectiveFrom: timestamp("effective_from").notNull(),
@@ -544,7 +548,23 @@ export type PartnerServiceCategory = z.infer<typeof selectPartnerServiceCategory
 export const insertPricingRuleSchema = createInsertSchema(pricingRules).omit({ id: true, createdAt: true, updatedAt: true }).extend({
   effectiveFrom: z.string().or(z.date()).transform((val) => typeof val === 'string' ? new Date(val) : val),
   effectiveTo: z.string().or(z.date()).transform((val) => val ? (typeof val === 'string' ? new Date(val) : val) : null).optional(),
-});
+}).refine(
+  (data) => {
+    // For DEALERSHIP_PRICING, require serviceId
+    if (data.pricingType === "DEALERSHIP_PRICING") {
+      return data.serviceId && data.serviceId.length > 0;
+    }
+    // For DETAILER_PRICING, require serviceCategoryId
+    if (data.pricingType === "DETAILER_PRICING") {
+      return data.serviceCategoryId && data.serviceCategoryId.length > 0;
+    }
+    return true;
+  },
+  {
+    message: "Service is required for DEALERSHIP_PRICING, Service Category is required for DETAILER_PRICING",
+    path: ["serviceId"], // Show error on serviceId field for UI purposes
+  }
+);
 export const selectPricingRuleSchema = createSelectSchema(pricingRules);
 export type InsertPricingRule = z.infer<typeof insertPricingRuleSchema>;
 export type PricingRule = z.infer<typeof selectPricingRuleSchema>;

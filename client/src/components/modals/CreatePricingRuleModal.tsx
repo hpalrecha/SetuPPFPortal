@@ -38,10 +38,27 @@ const pricingRuleSchema = z.object({
   dealershipId: z.string().optional(),
   detailerId: z.string().optional(),
   vehicleModelId: z.string().min(1, "Vehicle model is required"),
-  serviceId: z.string().min(1, "Service is required"),
+  serviceId: z.string().optional(), // For DEALERSHIP_PRICING
+  serviceCategoryId: z.string().optional(), // For DETAILER_PRICING
   priceAmount: z.string().min(1, "Price amount is required"),
   effectiveFrom: z.string().min(1, "Effective date is required"),
-});
+}).refine(
+  (data) => {
+    // For DEALERSHIP_PRICING, require serviceId
+    if (data.pricingType === "DEALERSHIP_PRICING") {
+      return data.serviceId && data.serviceId.length > 0;
+    }
+    // For DETAILER_PRICING, require serviceCategoryId
+    if (data.pricingType === "DETAILER_PRICING") {
+      return data.serviceCategoryId && data.serviceCategoryId.length > 0;
+    }
+    return true;
+  },
+  {
+    message: "Service/Service category is required",
+    path: ["serviceId"], // Show error on serviceId field for UI purposes
+  }
+);
 
 type PricingRuleFormData = z.infer<typeof pricingRuleSchema>;
 
@@ -73,6 +90,7 @@ export function CreatePricingRuleModal({
       detailerId: editingRule?.detailerId || undefined,
       vehicleModelId: editingRule?.vehicleModelId || "",
       serviceId: editingRule?.serviceId || "",
+      serviceCategoryId: editingRule?.serviceCategoryId || "",
       priceAmount: editingRule?.priceAmount || "",
       effectiveFrom: editingRule?.effectiveFrom ? new Date(editingRule.effectiveFrom).toISOString().split('T')[0] : "",
     },
@@ -110,7 +128,7 @@ export function CreatePricingRuleModal({
     enabled: open && pricingType === 'DETAILER_PRICING',
   });
 
-  // Fetch services from API
+  // Fetch services from API (for DEALERSHIP_PRICING)
   const { data: services = [] } = useQuery({
     queryKey: ["/api/services"],
     queryFn: async () => {
@@ -123,7 +141,23 @@ export function CreatePricingRuleModal({
       if (!response.ok) throw new Error('Failed to fetch services');
       return response.json();
     },
-    enabled: open,
+    enabled: open && pricingType === 'DEALERSHIP_PRICING',
+  });
+
+  // Fetch service categories from API (for DETAILER_PRICING)
+  const { data: serviceCategories = [] } = useQuery({
+    queryKey: ["/api/service-categories"],
+    queryFn: async () => {
+      const response = await fetch('/api/service-categories', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch service categories');
+      return response.json();
+    },
+    enabled: open && pricingType === 'DETAILER_PRICING',
   });
 
   // Get selected dealership's OEM ID
@@ -150,6 +184,7 @@ export function CreatePricingRuleModal({
         detailerId: editingRule.detailerId || undefined,
         vehicleModelId: editingRule.vehicleModelId || "",
         serviceId: editingRule.serviceId || "",
+        serviceCategoryId: editingRule.serviceCategoryId || "",
         priceAmount: editingRule.priceAmount?.toString() || "",
         effectiveFrom: editingRule.effectiveFrom ? new Date(editingRule.effectiveFrom).toISOString().split('T')[0] : "",
       });
@@ -160,6 +195,7 @@ export function CreatePricingRuleModal({
         detailerId: undefined,
         vehicleModelId: "",
         serviceId: "",
+        serviceCategoryId: "",
         priceAmount: "",
         effectiveFrom: "",
       });
@@ -315,34 +351,66 @@ export function CreatePricingRuleModal({
                 />
               )}
 
-              <FormField
-                control={form.control}
-                name="serviceId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Service</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select service" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="bg-white dark:bg-gray-800">
-                        {services?.map((service: any) => (
-                          <SelectItem 
-                            key={service.id} 
-                            value={service.id}
-                            className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
-                          >
-                            {service.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Service selection - different for each pricing type */}
+              {pricingType === 'DEALERSHIP_PRICING' ? (
+                <FormField
+                  control={form.control}
+                  name="serviceId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Service</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-service">
+                            <SelectValue placeholder="Select service" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="bg-white dark:bg-gray-800">
+                          {services?.map((service: any) => (
+                            <SelectItem 
+                              key={service.id} 
+                              value={service.id}
+                              className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
+                              {service.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <FormField
+                  control={form.control}
+                  name="serviceCategoryId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Service Category</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-service-category">
+                            <SelectValue placeholder="Select service category" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="bg-white dark:bg-gray-800">
+                          {serviceCategories?.map((category: any) => (
+                            <SelectItem 
+                              key={category.id} 
+                              value={category.id}
+                              className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
