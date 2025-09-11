@@ -138,7 +138,7 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
       dealershipId: organizationLevel === "DEALERSHIP" ? data.dealershipId : undefined,
       showroomId: organizationLevel === "SHOWROOM" ? data.showroomId : undefined,
       
-      salesPersonId: data.salesPersonId || undefined,
+      salesPersonId: data.salesPersonId === "ALL" ? undefined : data.salesPersonId,
       
       // Set service IDs based on type
       serviceId: serviceType === "SPECIFIC" ? data.serviceId : undefined,
@@ -376,7 +376,7 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">All Sales Persons</SelectItem>
+                      <SelectItem value="ALL">All Sales Persons</SelectItem>
                       {salesPersons.map((person: any) => (
                         <SelectItem key={person.id} value={person.id}>
                           {person.name}
