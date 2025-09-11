@@ -46,7 +46,8 @@ const brandFormSchema = z.object({
 
 const modelFormSchema = z.object({
   modelName: z.string().min(1, 'Model name is required'),
-  brandId: z.string().min(1, 'Brand is required')
+  brandId: z.string().min(1, 'Brand is required'),
+  vehicleType: z.string().optional() // Vehicle type selection
 });
 
 const variantFormSchema = z.object({
@@ -92,7 +93,7 @@ export default function VehiclesPage() {
 
   const modelForm = useForm<z.infer<typeof modelFormSchema>>({
     resolver: zodResolver(modelFormSchema),
-    defaultValues: { modelName: '', brandId: '' }
+    defaultValues: { modelName: '', brandId: '', vehicleType: '' }
   });
 
   const variantForm = useForm<z.infer<typeof variantFormSchema>>({
@@ -741,6 +742,40 @@ export default function VehiclesPage() {
                   </FormItem>
                 )}
               />
+              
+              <FormField
+                control={modelForm.control}
+                name="vehicleType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Vehicle Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-vehicle-type">
+                          <SelectValue placeholder="Select vehicle type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="HATCHBACK">Hatchback</SelectItem>
+                        <SelectItem value="SEDAN">Sedan</SelectItem>
+                        <SelectItem value="SUV">SUV</SelectItem>
+                        <SelectItem value="CROSSOVER">Crossover</SelectItem>
+                        <SelectItem value="LUXURY_SEDAN">Luxury Sedan</SelectItem>
+                        <SelectItem value="LUXURY_SUV">Luxury SUV</SelectItem>
+                        <SelectItem value="COUPE">Coupe</SelectItem>
+                        <SelectItem value="CONVERTIBLE">Convertible</SelectItem>
+                        <SelectItem value="MPV">MPV</SelectItem>
+                        <SelectItem value="PICKUP_TRUCK">Pickup Truck</SelectItem>
+                        <SelectItem value="VAN">Van</SelectItem>
+                        <SelectItem value="ELECTRIC">Electric</SelectItem>
+                        <SelectItem value="HYBRID">Hybrid</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
               <div className="flex justify-end gap-3">
                 <Button type="button" variant="outline" onClick={() => setShowModelDialog(false)} data-testid="button-cancel-model">
                   Cancel
