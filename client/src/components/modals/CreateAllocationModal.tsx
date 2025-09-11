@@ -123,11 +123,11 @@ export function CreateAllocationModal({
     enabled: open,
   });
 
-  // Fetch partners
+  // Fetch partners with their service categories
   const { data: partners = [] } = useQuery({
-    queryKey: ["/api/partners", { type: "INSTALLER" }],
+    queryKey: ["/api/partners-with-categories"],
     queryFn: async () => {
-      const response = await fetch('/api/partners?type=INSTALLER', {
+      const response = await fetch('/api/partners-with-categories', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -275,11 +275,24 @@ export function CreateAllocationModal({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {partners.map((partner) => (
-                        <SelectItem key={partner.id} value={partner.id}>
-                          {partner.displayName} ({partner.type})
-                        </SelectItem>
-                      ))}
+                      {partners.map((partner) => {
+                        const serviceCategories = partner.serviceCategories || [];
+                        const categoryNames = serviceCategories.map(cat => cat.name).join(', ');
+                        const categoryDisplay = categoryNames || 'No specializations';
+                        
+                        return (
+                          <SelectItem key={partner.id} value={partner.id}>
+                            <div className="flex flex-col items-start">
+                              <div className="font-medium">
+                                {partner.displayName} ({partner.type})
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Specializes in: {categoryDisplay}
+                              </div>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                   <FormMessage />
