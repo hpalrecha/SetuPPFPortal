@@ -72,6 +72,7 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
     defaultValues: {
       organizationLevel: "SHOWROOM",
       serviceType: "ALL",
+      salesPersonId: "ALL",
       type: "PERCENT",
       valueNumeric: "0",
       effectiveFromDate: new Date(),
@@ -96,20 +97,10 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
 
   const createCommissionRuleMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await fetch("/api/commission-rules", {
+      return apiRequest("/api/commission-rules", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify(data),
       });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to create commission rule");
-      }
-      
-      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/commission-rules"] });
