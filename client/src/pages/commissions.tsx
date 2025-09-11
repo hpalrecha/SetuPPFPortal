@@ -16,13 +16,16 @@ export default function CommissionsPage() {
     // Modal is handled by the CreateCommissionRuleModal component
   };
 
-  const handleEditCommissionRule = (id: string) => {
-    alert(`Edit commission rule ${id}`);
+  const handleEditCommissionRule = (ruleId: string) => {
+    // TODO: Implement edit functionality
+    alert(`Edit commission rule ${ruleId}`);
   };
 
-  const handleViewEarningsReport = (id: string) => {
-    alert(`View earnings report for rule ${id}`);
+  const handleViewEarningsReport = (ruleId: string) => {
+    // TODO: Implement earnings report functionality
+    alert(`View earnings report for commission rule ${ruleId}`);
   };
+
 
   const formatCurrency = (amount: string) => {
     return new Intl.NumberFormat('en-IN', {
