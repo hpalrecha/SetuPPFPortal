@@ -171,6 +171,7 @@ export interface IStorage {
 
   // Allocation management
   getAllocations(filters?: { oemId?: string; partnerId?: string; level?: string; levelId?: string }): Promise<any[]>;
+  getAllocationsWithCategories(filters?: { oemId?: string; partnerId?: string; level?: string; levelId?: string }): Promise<any[]>;
   getAllocation(id: string): Promise<any | undefined>;
   createAllocation(allocation: any): Promise<any>;
   updateAllocation(id: string, updates: any): Promise<any | undefined>;
@@ -1094,6 +1095,38 @@ export class DatabaseStorage implements IStorage {
     }
 
     return await query.orderBy(desc(allocations.createdAt));
+  }
+
+  async getAllocationsWithCategories(filters?: { oemId?: string; partnerId?: string; level?: string; levelId?: string }): Promise<any[]> {
+    // First get allocations with partners
+    let allocationsWithPartners = await this.getAllocations(filters);
+    
+    // Get all partner-category mappings with category details
+    const mappings = await db
+      .select({
+        partnerId: partnerServiceCategories.partnerId,
+        category: serviceCategories
+      })
+      .from(partnerServiceCategories)
+      .innerJoin(serviceCategories, eq(partnerServiceCategories.serviceCategoryId, serviceCategories.id))
+      .where(eq(serviceCategories.active, true));
+
+    // Group categories by partner
+    const partnerCategoriesMap = new Map<string, any[]>();
+    for (const mapping of mappings) {
+      const categories = partnerCategoriesMap.get(mapping.partnerId) || [];
+      categories.push(mapping.category);
+      partnerCategoriesMap.set(mapping.partnerId, categories);
+    }
+
+    // Add service categories to each allocation's partner
+    return allocationsWithPartners.map(allocation => ({
+      ...allocation,
+      partner: {
+        ...allocation.partner,
+        serviceCategories: partnerCategoriesMap.get(allocation.partnerId) || []
+      }
+    }));
   }
 
   async getAllocation(id: string): Promise<any | undefined> {
