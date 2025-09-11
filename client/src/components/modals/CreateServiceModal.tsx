@@ -19,6 +19,7 @@ const serviceSchema = z.object({
   name: z.string().min(1, 'Service name is required'),
   code: z.string().min(1, 'Service code is required'),
   description: z.string().optional(),
+  serviceGroup: z.enum(['PPF', 'CERAMIC_COATING', 'WINDOW_TINTING', 'PAINT_CORRECTION', 'INTERIOR_PROTECTION', 'ACCESSORIES', 'MAINTENANCE', 'DETAILING', 'CUSTOMIZATION']).optional(),
   productBrand: z.string().optional(),
   availabilityScope: z.enum(['GLOBAL', 'OEM', 'DEALERSHIP', 'MULTIPLE']),
   oemId: z.string().optional(),
@@ -48,6 +49,7 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
       name: '',
       code: '',
       description: '',
+      serviceGroup: undefined,
       productBrand: '',
       availabilityScope: 'GLOBAL',
       oemId: '',
@@ -246,6 +248,39 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
                       data-testid="textarea-service-description"
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="serviceGroup"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Service Category</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    data-testid="select-service-group"
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select service category" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="PPF">Paint Protection Film (PPF)</SelectItem>
+                      <SelectItem value="CERAMIC_COATING">Ceramic Coating</SelectItem>
+                      <SelectItem value="WINDOW_TINTING">Window Tinting</SelectItem>
+                      <SelectItem value="PAINT_CORRECTION">Paint Correction</SelectItem>
+                      <SelectItem value="INTERIOR_PROTECTION">Interior Protection</SelectItem>
+                      <SelectItem value="ACCESSORIES">Accessories</SelectItem>
+                      <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
+                      <SelectItem value="DETAILING">Detailing</SelectItem>
+                      <SelectItem value="CUSTOMIZATION">Customization</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
