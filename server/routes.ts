@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
+import { createInsertSchema } from "drizzle-zod";
 import { 
   insertWorkOrderSchema,
   insertJobCardSchema,
@@ -10,7 +11,8 @@ import {
   insertVehicleModelSchema,
   insertVehicleVariantSchema,
   insertOemSchema,
-  insertServiceCategorySchema
+  insertServiceCategorySchema,
+  commissionRules
 } from "@shared/schema";
 import { storage } from "./storage";
 import { authService } from "./auth";
@@ -1927,7 +1929,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           bodyData.effectiveTo = new Date(bodyData.effectiveTo);
         }
         
-        const updates = insertCommissionRuleSchema.partial().parse(bodyData);
+        // Create a partial schema for updates (without refinements since they may not apply to partial data)
+        const baseUpdateSchema = createInsertSchema(commissionRules).omit({
+          id: true,
+          createdAt: true,
+          updatedAt: true
+        }).partial();
+        
+        const updates = baseUpdateSchema.parse(bodyData);
         const updatedRule = await storage.updateCommissionRule(id, updates);
         
         if (!updatedRule) {
