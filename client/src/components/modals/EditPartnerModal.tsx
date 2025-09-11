@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { ApiClient } from "@/lib/api";
 
@@ -44,6 +46,7 @@ const partnerSchema = z.object({
   state: z.string().min(1, "State is required"),
   pincode: z.string().min(1, "Pincode is required"),
   active: z.boolean(),
+  serviceCategoryIds: z.array(z.string()).optional(),
 });
 
 type PartnerFormData = z.infer<typeof partnerSchema>;
@@ -65,6 +68,18 @@ export function EditPartnerModal({
   const [isLoading, setIsLoading] = useState(false);
   const isEditing = !!partner;
 
+  // Fetch service categories
+  const { data: serviceCategories = [] } = useQuery({
+    queryKey: ['/api/service-categories'],
+    enabled: open,
+  });
+
+  // Fetch partner service categories when editing
+  const { data: partnerCategories } = useQuery({
+    queryKey: ['/api/partners', partner?.id, 'service-categories'],
+    enabled: open && isEditing && !!partner?.id,
+  });
+
   const form = useForm<PartnerFormData>({
     resolver: zodResolver(partnerSchema),
     defaultValues: {
@@ -78,10 +93,11 @@ export function EditPartnerModal({
       state: "",
       pincode: "",
       active: true,
+      serviceCategoryIds: [],
     },
   });
 
-  // Update form when partner prop changes
+  // Update form when partner prop or categories change
   useEffect(() => {
     if (partner && open) {
       form.reset({
@@ -95,6 +111,7 @@ export function EditPartnerModal({
         state: partner.state || "",
         pincode: partner.pincode || "",
         active: partner.active ?? true,
+        serviceCategoryIds: partnerCategories?.serviceCategoryIds || [],
       });
     } else if (!partner && open) {
       form.reset({
@@ -108,9 +125,10 @@ export function EditPartnerModal({
         state: "",
         pincode: "",
         active: true,
+        serviceCategoryIds: [],
       });
     }
-  }, [partner, open, form]);
+  }, [partner, open, form, partnerCategories]);
 
   const onSubmit = async (data: PartnerFormData) => {
     setIsLoading(true);
@@ -356,6 +374,49 @@ export function EditPartnerModal({
                   )}
                 />
               </div>
+            </div>
+
+            {/* Service Categories */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Service Categories</h3>
+              <p className="text-sm text-muted-foreground">
+                Select the service categories this partner can handle
+              </p>
+              
+              <FormField
+                control={form.control}
+                name="serviceCategoryIds"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {serviceCategories.map((category: any) => (
+                        <div key={category.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`category-${category.id}`}
+                            checked={field.value?.includes(category.id) || false}
+                            onCheckedChange={(checked) => {
+                              const currentValues = field.value || [];
+                              if (checked) {
+                                field.onChange([...currentValues, category.id]);
+                              } else {
+                                field.onChange(currentValues.filter((id: string) => id !== category.id));
+                              }
+                            }}
+                            data-testid={`checkbox-category-${category.code}`}
+                          />
+                          <label
+                            htmlFor={`category-${category.id}`}
+                            className="text-sm cursor-pointer"
+                          >
+                            {category.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             {/* Status */}

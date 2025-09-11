@@ -1167,8 +1167,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('partner', 'create'),
     async (req, res) => {
       try {
-        const partnerData = insertPartnerSchema.parse(req.body);
-        const partner = await storage.createPartner(partnerData);
+        const { serviceCategoryIds, ...partnerData } = req.body;
+        const validatedData = insertPartnerSchema.parse(partnerData);
+        
+        const partner = await storage.createPartner(validatedData);
+        
+        // Handle service category mappings if provided
+        if (serviceCategoryIds && Array.isArray(serviceCategoryIds) && serviceCategoryIds.length > 0) {
+          await storage.setPartnerServiceCategories(partner.id, serviceCategoryIds);
+        }
+        
         res.status(201).json(partner);
       } catch (error) {
         console.error("Create partner error:", error);
@@ -1176,6 +1184,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Invalid partner data", details: error.errors });
         }
         res.status(500).json({ error: "Failed to create partner" });
+      }
+    }
+  );
+
+  app.put("/api/partners/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    auditLog('partner', 'update'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { serviceCategoryIds, ...partnerData } = req.body;
+        const validatedData = insertPartnerSchema.partial().parse(partnerData);
+        
+        const partner = await storage.updatePartner(id, validatedData);
+        if (!partner) {
+          return res.status(404).json({ error: "Partner not found" });
+        }
+        
+        // Handle service category mappings if provided
+        if (serviceCategoryIds !== undefined && Array.isArray(serviceCategoryIds)) {
+          await storage.setPartnerServiceCategories(partner.id, serviceCategoryIds);
+        }
+        
+        res.json(partner);
+      } catch (error) {
+        console.error("Update partner error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid partner data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to update partner" });
+      }
+    }
+  );
+
+  // Partner service categories routes
+  app.get("/api/partners/:id/service-categories", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const categoryIds = await storage.getPartnerServiceCategories(id);
+        res.json({ serviceCategoryIds: categoryIds });
+      } catch (error) {
+        console.error("Get partner service categories error:", error);
+        res.status(500).json({ error: "Failed to fetch partner service categories" });
+      }
+    }
+  );
+
+  app.get("/api/partners-with-categories", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    async (req, res) => {
+      try {
+        const partners = await storage.getPartnersWithCategories();
+        res.json(partners);
+      } catch (error) {
+        console.error("Get partners with categories error:", error);
+        res.status(500).json({ error: "Failed to fetch partners with categories" });
       }
     }
   );

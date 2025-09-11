@@ -10,6 +10,7 @@ import {
   vehicleVariants,
   services,
   serviceCategories,
+  partnerServiceCategories,
   pricingRules,
   commissionRules,
   workOrders,
@@ -38,7 +39,9 @@ import {
   type VehicleVariant,
   type InsertVehicleVariant,
   type ServiceCategory,
-  type InsertServiceCategory
+  type InsertServiceCategory,
+  type PartnerServiceCategory,
+  type InsertPartnerServiceCategory
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count, avg, sum } from "drizzle-orm";
@@ -122,6 +125,11 @@ export interface IStorage {
   getPartner(id: string): Promise<Partner | undefined>;
   createPartner(partner: InsertPartner): Promise<Partner>;
   updatePartner(id: string, updates: Partial<InsertPartner>): Promise<Partner | undefined>;
+
+  // Partner Service Categories
+  getPartnerServiceCategories(partnerId: string): Promise<string[]>;
+  getPartnersWithCategories(): Promise<(Partner & { serviceCategories?: ServiceCategory[] })[]>;
+  setPartnerServiceCategories(partnerId: string, serviceCategoryIds: string[]): Promise<void>;
 
   // Pricing Rules
   getPricingRules(filters?: { 
@@ -733,6 +741,60 @@ export class DatabaseStorage implements IStorage {
       .where(eq(partners.id, id))
       .returning();
     return partner || undefined;
+  }
+
+  // Partner Service Categories management
+  async getPartnerServiceCategories(partnerId: string): Promise<string[]> {
+    const mappings = await db
+      .select({ serviceCategoryId: partnerServiceCategories.serviceCategoryId })
+      .from(partnerServiceCategories)
+      .where(eq(partnerServiceCategories.partnerId, partnerId));
+    return mappings.map(m => m.serviceCategoryId);
+  }
+
+  async getPartnersWithCategories(): Promise<(Partner & { serviceCategories?: ServiceCategory[] })[]> {
+    // Get all active partners
+    const allPartners = await db.select().from(partners).where(eq(partners.active, true));
+    
+    // Get all partner-category mappings with category details
+    const mappings = await db
+      .select({
+        partnerId: partnerServiceCategories.partnerId,
+        category: serviceCategories
+      })
+      .from(partnerServiceCategories)
+      .innerJoin(serviceCategories, eq(partnerServiceCategories.serviceCategoryId, serviceCategories.id))
+      .where(eq(serviceCategories.active, true));
+
+    // Group categories by partner
+    const partnerCategoriesMap = new Map<string, ServiceCategory[]>();
+    for (const mapping of mappings) {
+      const categories = partnerCategoriesMap.get(mapping.partnerId) || [];
+      categories.push(mapping.category);
+      partnerCategoriesMap.set(mapping.partnerId, categories);
+    }
+
+    // Combine partners with their categories
+    return allPartners.map(partner => ({
+      ...partner,
+      serviceCategories: partnerCategoriesMap.get(partner.id) || []
+    }));
+  }
+
+  async setPartnerServiceCategories(partnerId: string, serviceCategoryIds: string[]): Promise<void> {
+    // Remove existing mappings
+    await db
+      .delete(partnerServiceCategories)
+      .where(eq(partnerServiceCategories.partnerId, partnerId));
+
+    // Add new mappings
+    if (serviceCategoryIds.length > 0) {
+      const mappings = serviceCategoryIds.map(categoryId => ({
+        partnerId,
+        serviceCategoryId: categoryId
+      }));
+      await db.insert(partnerServiceCategories).values(mappings);
+    }
   }
 
   async getPricingRules(filters?: { 
