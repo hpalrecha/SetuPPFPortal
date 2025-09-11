@@ -206,16 +206,6 @@ export const allocations = pgTable("allocations", {
   updatedAt: timestamp("updated_at").defaultNow()
 });
 
-export const allocationServiceCategories = pgTable("allocation_service_categories", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  allocationId: uuid("allocation_id").references(() => allocations.id, { onDelete: 'cascade' }).notNull(),
-  serviceCategoryId: uuid("service_category_id").references(() => serviceCategories.id, { onDelete: 'cascade' }).notNull(),
-  createdAt: timestamp("created_at").defaultNow()
-}, (table) => ({
-  // Ensure unique allocation-service-category combination
-  uniqueAllocationServiceCategory: unique().on(table.allocationId, table.serviceCategoryId)
-}));
-
 // Vehicle and Service Catalog  
 export const vehicleModels = pgTable("vehicle_models", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -550,18 +540,6 @@ export const insertPartnerServiceCategorySchema = createInsertSchema(partnerServ
 export const selectPartnerServiceCategorySchema = createSelectSchema(partnerServiceCategories);
 export type InsertPartnerServiceCategory = z.infer<typeof insertPartnerServiceCategorySchema>;
 export type PartnerServiceCategory = z.infer<typeof selectPartnerServiceCategorySchema>;
-
-// Allocation schemas
-export const insertAllocationSchema = createInsertSchema(allocations).omit({ id: true, createdAt: true, updatedAt: true });
-export const selectAllocationSchema = createSelectSchema(allocations);
-export type InsertAllocation = z.infer<typeof insertAllocationSchema>;
-export type Allocation = z.infer<typeof selectAllocationSchema>;
-
-// Allocation Service Category schemas
-export const insertAllocationServiceCategorySchema = createInsertSchema(allocationServiceCategories).omit({ id: true, createdAt: true });
-export const selectAllocationServiceCategorySchema = createSelectSchema(allocationServiceCategories);
-export type InsertAllocationServiceCategory = z.infer<typeof insertAllocationServiceCategorySchema>;
-export type AllocationServiceCategory = z.infer<typeof selectAllocationServiceCategorySchema>;
 
 export const insertPricingRuleSchema = createInsertSchema(pricingRules).omit({ id: true, createdAt: true, updatedAt: true }).extend({
   effectiveFrom: z.string().or(z.date()).transform((val) => typeof val === 'string' ? new Date(val) : val),

@@ -6,7 +6,6 @@ import {
   salesPersons,
   partners,
   allocations,
-  allocationServiceCategories,
   vehicleModels,
   vehicleVariants,
   services,
@@ -1165,80 +1164,6 @@ export class DatabaseStorage implements IStorage {
       .where(eq(allocations.id, id));
     
     return result.rowCount !== null && result.rowCount > 0;
-  }
-
-  // Allocation Service Category management
-  async getAllocationServiceCategories(allocationId: string): Promise<any[]> {
-    const result = await db
-      .select({
-        id: serviceCategories.id,
-        name: serviceCategories.name,
-        code: serviceCategories.code,
-        description: serviceCategories.description
-      })
-      .from(allocationServiceCategories)
-      .leftJoin(serviceCategories, eq(allocationServiceCategories.serviceCategoryId, serviceCategories.id))
-      .where(eq(allocationServiceCategories.allocationId, allocationId));
-    
-    return result;
-  }
-
-  async getAllocationsWithCategories(): Promise<any[]> {
-    const allocationsData = await db
-      .select({
-        allocation: {
-          id: allocations.id,
-          level: allocations.level,
-          levelId: allocations.levelId,
-          partnerId: allocations.partnerId,
-          priority: allocations.priority,
-          active: allocations.active,
-          createdAt: allocations.createdAt,
-        },
-        partner: {
-          id: partners.id,
-          displayName: partners.displayName,
-          type: partners.type,
-          phone: partners.phone,
-          email: partners.email
-        }
-      })
-      .from(allocations)
-      .leftJoin(partners, eq(allocations.partnerId, partners.id))
-      .orderBy(desc(allocations.createdAt));
-
-    // Get service categories for each allocation
-    const result = await Promise.all(
-      allocationsData.map(async (item) => {
-        const categories = await this.getAllocationServiceCategories(item.allocation.id);
-        return {
-          ...item.allocation,
-          partner: item.partner,
-          serviceCategories: categories
-        };
-      })
-    );
-
-    return result;
-  }
-
-  async setAllocationServiceCategories(allocationId: string, serviceCategoryIds: string[]): Promise<void> {
-    // Delete existing mappings
-    await db
-      .delete(allocationServiceCategories)
-      .where(eq(allocationServiceCategories.allocationId, allocationId));
-
-    // Insert new mappings
-    if (serviceCategoryIds.length > 0) {
-      await db
-        .insert(allocationServiceCategories)
-        .values(
-          serviceCategoryIds.map(serviceCategoryId => ({
-            allocationId,
-            serviceCategoryId
-          }))
-        );
-    }
   }
 
   async createAuditLog(log: {
