@@ -97,10 +97,7 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
 
   const createCommissionRuleMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest("/api/commission-rules", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      return apiRequest("POST", "/api/commission-rules", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/commission-rules"] });
