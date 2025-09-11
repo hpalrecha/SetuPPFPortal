@@ -171,6 +171,7 @@ export interface IStorage {
   }[]>;
   createCommissionRule(rule: InsertCommissionRule): Promise<CommissionRule>;
   updateCommissionRule(id: string, updates: Partial<InsertCommissionRule>): Promise<CommissionRule | undefined>;
+  deleteCommissionRule(id: string): Promise<boolean>;
   resolveCommissionRule(oemId: string, dealershipId: string, showroomId: string, salesPersonId?: string, serviceId?: string, serviceCategoryId?: string): Promise<any | null>;
   calculateCommission(grossAmount: number, oemId: string, dealershipId: string, showroomId: string, salesPersonId?: string, serviceId?: string, serviceCategoryId?: string): Promise<any>;
   
@@ -938,6 +939,19 @@ export class DatabaseStorage implements IStorage {
       .where(eq(commissionRules.id, id))
       .returning();
     return rule || undefined;
+  }
+
+  async deleteCommissionRule(id: string): Promise<boolean> {
+    try {
+      const result = await db.delete(commissionRules)
+        .where(eq(commissionRules.id, id))
+        .returning();
+      
+      return result.length > 0;
+    } catch (error) {
+      console.error('Error deleting commission rule:', error);
+      throw new Error('Failed to delete commission rule');
+    }
   }
 
   // Get commission rules with organizational context (OEM/Dealership/Showroom names)

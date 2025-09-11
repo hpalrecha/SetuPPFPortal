@@ -1954,6 +1954,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Delete commission rule
+  app.delete("/api/commission-rules/:id", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    auditLog('commission_rule', 'delete'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        
+        const deleted = await storage.deleteCommissionRule(id);
+        
+        if (!deleted) {
+          return res.status(404).json({ error: "Commission rule not found" });
+        }
+        
+        res.json({ success: true, message: "Commission rule deleted successfully" });
+      } catch (error) {
+        console.error("Delete commission rule error:", error);
+        res.status(500).json({ error: "Failed to delete commission rule" });
+      }
+    }
+  );
+
   // Commission Resolution API
   app.post("/api/commissions/resolve", 
     authenticate, 

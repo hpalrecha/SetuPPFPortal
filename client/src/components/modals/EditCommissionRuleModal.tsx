@@ -141,6 +141,28 @@ export function EditCommissionRuleModal({ open, onOpenChange, commissionRule }: 
     }
   });
 
+  const deleteCommissionRuleMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("DELETE", `/api/commission-rules/${commissionRule.id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/commission-rules"] });
+      toast({
+        title: "Success",
+        description: "Commission rule deleted successfully",
+      });
+      onOpenChange(false);
+    },
+    onError: (error: any) => {
+      console.error("Commission rule delete error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete commission rule",
+        variant: "destructive",
+      });
+    }
+  });
+
   const onSubmit = (data: EditCommissionRuleFormData) => {
     // Transform form data to API format
     const apiData = {
@@ -524,14 +546,15 @@ export function EditCommissionRuleModal({ open, onOpenChange, commissionRule }: 
               <Button 
                 type="button" 
                 variant="destructive"
+                disabled={deleteCommissionRuleMutation.isPending}
                 onClick={() => {
                   if (confirm("Are you sure you want to delete this commission rule? This action cannot be undone.")) {
-                    alert("Delete functionality - would delete the commission rule permanently");
+                    deleteCommissionRuleMutation.mutate();
                   }
                 }}
                 data-testid="button-delete-commission-rule"
               >
-                Delete Rule
+                {deleteCommissionRuleMutation.isPending ? "Deleting..." : "Delete Rule"}
               </Button>
               
               <div className="flex space-x-2">
