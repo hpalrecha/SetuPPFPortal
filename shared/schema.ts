@@ -72,7 +72,11 @@ export const scopeEnum = pgEnum('scope', ['DEALERSHIP', 'SHOWROOM']);
 export const vehicleTypeEnum = pgEnum("vehicle_type", ["HATCHBACK", "SEDAN", "SUV", "CROSSOVER", "LUXURY_SEDAN", "LUXURY_SUV", "COUPE", "CONVERTIBLE", "MPV", "PICKUP_TRUCK", "VAN", "ELECTRIC", "HYBRID"]);
 
 // Service Group Enum  
-export const serviceGroupEnum = pgEnum("service_group", ["PPF", "CERAMIC_COATING", "WINDOW_TINTING", "PAINT_CORRECTION", "INTERIOR_PROTECTION", "ACCESSORIES", "MAINTENANCE", "DETAILING", "CUSTOMIZATION"]);
+export const serviceGroupValues = ["PPF", "CERAMIC_COATING", "WINDOW_TINTING", "PAINT_CORRECTION", "INTERIOR_PROTECTION", "ACCESSORIES", "MAINTENANCE", "DETAILING", "CUSTOMIZATION"] as const;
+export const serviceGroupEnum = pgEnum("service_group", serviceGroupValues);
+
+// Availability Scope Values
+export const availabilityScopeValues = ["GLOBAL", "OEM", "DEALERSHIP", "MULTIPLE"] as const;
 
 // Core Organization Tables
 export const oems = pgTable("oems", {

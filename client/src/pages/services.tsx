@@ -10,6 +10,7 @@ import { CreateServiceModal } from '@/components/modals/CreateServiceModal';
 import { EditServiceModal } from '@/components/modals/EditServiceModal';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/hooks/use-auth';
+import { serviceGroupValues } from '@shared/schema';
 
 export default function ServicesPage() {
   const { user } = useAuth();
@@ -94,7 +95,7 @@ export default function ServicesPage() {
     }
   };
 
-  const getAvailabilityBadge = (scope: string, oemId?: string, dealershipId?: string) => {
+  const getAvailabilityBadge = (scope: string, oemId?: string, dealershipId?: string, oemIds?: string[], dealershipIds?: string[]) => {
     switch (scope) {
       case 'GLOBAL':
         return <Badge variant="secondary">Global</Badge>;
@@ -102,14 +103,17 @@ export default function ServicesPage() {
         return <Badge variant="outline">OEM Specific</Badge>;
       case 'DEALERSHIP':
         return <Badge variant="destructive">Dealership Only</Badge>;
+      case 'MULTIPLE':
+        const oemCount = oemIds?.length || 0;
+        const dealershipCount = dealershipIds?.length || 0;
+        const total = oemCount + dealershipCount;
+        return <Badge variant="default" className="bg-purple-100 text-purple-800">Multiple ({total} orgs)</Badge>;
       default:
         return <Badge variant="secondary">Global</Badge>;
     }
   };
 
-  const getServiceGroupBadge = (serviceGroup: string) => {
-    if (!serviceGroup) return null;
-    
+  const getServiceGroupLabel = (serviceGroup: string) => {
     const groupLabels: Record<string, string> = {
       'PPF': 'Paint Protection Film',
       'CERAMIC_COATING': 'Ceramic Coating', 
@@ -121,8 +125,12 @@ export default function ServicesPage() {
       'DETAILING': 'Detailing',
       'CUSTOMIZATION': 'Customization'
     };
+    return groupLabels[serviceGroup] || serviceGroup;
+  };
 
-    return <Badge variant="default" className="bg-blue-100 text-blue-800 hover:bg-blue-200">{groupLabels[serviceGroup] || serviceGroup}</Badge>;
+  const getServiceGroupBadge = (serviceGroup: string) => {
+    if (!serviceGroup) return null;
+    return <Badge variant="default" className="bg-blue-100 text-blue-800 hover:bg-blue-200">{getServiceGroupLabel(serviceGroup)}</Badge>;
   };
 
   if (isLoading) {
@@ -182,15 +190,11 @@ export default function ServicesPage() {
             data-testid="select-category-filter"
           >
             <option value="">All Categories</option>
-            <option value="PPF">Paint Protection Film</option>
-            <option value="CERAMIC_COATING">Ceramic Coating</option>
-            <option value="WINDOW_TINTING">Window Tinting</option>
-            <option value="PAINT_CORRECTION">Paint Correction</option>
-            <option value="INTERIOR_PROTECTION">Interior Protection</option>
-            <option value="ACCESSORIES">Accessories</option>
-            <option value="MAINTENANCE">Maintenance</option>
-            <option value="DETAILING">Detailing</option>
-            <option value="CUSTOMIZATION">Customization</option>
+            {serviceGroupValues.map((group) => (
+              <option key={group} value={group}>
+                {getServiceGroupLabel(group)}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -250,7 +254,7 @@ export default function ServicesPage() {
               
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">Availability:</span>
-                {getAvailabilityBadge(service.availabilityScope, service.oemId, service.dealershipId)}
+                {getAvailabilityBadge(service.availabilityScope, service.oemId, service.dealershipId, service.oemIds, service.dealershipIds)}
               </div>
             </CardContent>
           </Card>

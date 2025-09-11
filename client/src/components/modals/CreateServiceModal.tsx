@@ -14,14 +14,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/hooks/use-auth';
+import { insertServiceSchema, serviceGroupValues, availabilityScopeValues } from '@shared/schema';
 
-const serviceSchema = z.object({
-  name: z.string().min(1, 'Service name is required'),
-  code: z.string().min(1, 'Service code is required'),
+// Transform shared schema to UI-compatible types using shared enums
+const serviceSchema = insertServiceSchema.extend({
   description: z.string().optional(),
-  serviceGroup: z.enum(['PPF', 'CERAMIC_COATING', 'WINDOW_TINTING', 'PAINT_CORRECTION', 'INTERIOR_PROTECTION', 'ACCESSORIES', 'MAINTENANCE', 'DETAILING', 'CUSTOMIZATION']).optional(),
+  serviceGroup: z.enum(serviceGroupValues).optional(),
   productBrand: z.string().optional(),
-  availabilityScope: z.enum(['GLOBAL', 'OEM', 'DEALERSHIP', 'MULTIPLE']),
+  availabilityScope: z.enum(availabilityScopeValues),
   oemId: z.string().optional(),
   dealershipId: z.string().optional(),
   oemIds: z.array(z.string()).optional(),

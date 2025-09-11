@@ -6,21 +6,26 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/hooks/use-auth';
+import { insertServiceSchema, serviceGroupValues, availabilityScopeValues } from '@shared/schema';
 
-const serviceSchema = z.object({
-  name: z.string().min(1, 'Service name is required'),
-  code: z.string().min(1, 'Service code is required'),
+// Transform shared schema to UI-compatible types using shared enums
+const serviceSchema = insertServiceSchema.extend({
   description: z.string().optional(),
+  serviceGroup: z.enum(serviceGroupValues).optional(),
   productBrand: z.string().optional(),
-  availabilityScope: z.enum(['GLOBAL', 'OEM', 'DEALERSHIP']),
+  availabilityScope: z.enum(availabilityScopeValues),
   oemId: z.string().optional(),
   dealershipId: z.string().optional(),
+  oemIds: z.array(z.string()).optional(),
+  dealershipIds: z.array(z.string()).optional(),
 });
 
 type ServiceFormData = z.infer<typeof serviceSchema>;
@@ -45,10 +50,13 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
       name: '',
       code: '',
       description: '',
+      serviceGroup: undefined,
       productBrand: '',
       availabilityScope: 'GLOBAL',
       oemId: '',
       dealershipId: '',
+      oemIds: [],
+      dealershipIds: [],
     },
   });
 
@@ -59,10 +67,13 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
         name: service.name || '',
         code: service.code || '',
         description: service.description || '',
+        serviceGroup: service.serviceGroup || undefined,
         productBrand: service.productBrand || '',
         availabilityScope: service.availabilityScope || 'GLOBAL',
         oemId: service.oemId || '',
         dealershipId: service.dealershipId || '',
+        oemIds: service.oemIds || [],
+        dealershipIds: service.dealershipIds || [],
       });
     }
   }, [service, open, form]);
@@ -83,12 +94,16 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
     enabled: isSuperAdmin && open,
   });
 
-  // Watch OEM selection to fetch dealerships
+  // Watch scope and OEM selection to fetch dealerships
   const selectedOemId = form.watch('oemId');
+  const watchedScope = form.watch('availabilityScope');
   const { data: dealerships = [] } = useQuery({
-    queryKey: ['/api/dealerships', selectedOemId],
+    queryKey: ['/api/dealerships', selectedOemId, watchedScope],
     queryFn: async () => {
-      const response = await fetch(`/api/dealerships?oemId=${selectedOemId}`, {
+      const url = watchedScope === 'MULTIPLE' 
+        ? '/api/dealerships' 
+        : `/api/dealerships?oemId=${selectedOemId}`;
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -97,7 +112,7 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
       if (!response.ok) throw new Error('Failed to fetch dealerships');
       return response.json();
     },
-    enabled: isSuperAdmin && open && !!selectedOemId,
+    enabled: isSuperAdmin && open && (watchedScope === 'MULTIPLE' || !!selectedOemId),
   });
 
   const updateServiceMutation = useMutation({
@@ -156,21 +171,39 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
       setIsSubmitting(false);
       return;
     }
+    
+    if (data.availabilityScope === 'MULTIPLE' && (!data.oemIds?.length && !data.dealershipIds?.length)) {
+      toast({
+        title: 'Error',
+        description: 'At least one OEM or Dealership must be selected for multiple scope services',
+        variant: 'destructive',
+      });
+      setIsSubmitting(false);
+      return;
+    }
 
     // Clean up data based on scope
     const cleanData = { ...data };
     if (cleanData.availabilityScope === 'GLOBAL') {
       delete cleanData.oemId;
       delete cleanData.dealershipId;
+      delete cleanData.oemIds;
+      delete cleanData.dealershipIds;
     } else if (cleanData.availabilityScope === 'OEM') {
+      delete cleanData.dealershipId;
+      delete cleanData.oemIds;
+      delete cleanData.dealershipIds;
+    } else if (cleanData.availabilityScope === 'DEALERSHIP') {
+      delete cleanData.oemIds;
+      delete cleanData.dealershipIds;
+    } else if (cleanData.availabilityScope === 'MULTIPLE') {
+      delete cleanData.oemId;
       delete cleanData.dealershipId;
     }
 
     updateServiceMutation.mutate(cleanData);
     setIsSubmitting(false);
   };
-
-  const watchedScope = form.watch('availabilityScope');
 
   if (!service) return null;
 
@@ -242,6 +275,39 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
 
             <FormField
               control={form.control}
+              name="serviceGroup"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Service Category</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    data-testid="select-edit-service-group"
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select service category" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="PPF">Paint Protection Film (PPF)</SelectItem>
+                      <SelectItem value="CERAMIC_COATING">Ceramic Coating</SelectItem>
+                      <SelectItem value="WINDOW_TINTING">Window Tinting</SelectItem>
+                      <SelectItem value="PAINT_CORRECTION">Paint Correction</SelectItem>
+                      <SelectItem value="INTERIOR_PROTECTION">Interior Protection</SelectItem>
+                      <SelectItem value="ACCESSORIES">Accessories</SelectItem>
+                      <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
+                      <SelectItem value="DETAILING">Detailing</SelectItem>
+                      <SelectItem value="CUSTOMIZATION">Customization</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="productBrand"
               render={({ field }) => (
                 <FormItem>
@@ -268,10 +334,10 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
                   <Select
                     onValueChange={(value) => {
                       field.onChange(value);
-                      if (value !== 'OEM' && value !== 'DEALERSHIP') {
-                        form.setValue('oemId', '');
-                        form.setValue('dealershipId', '');
-                      }
+                      form.setValue('oemId', '');
+                      form.setValue('dealershipId', '');
+                      form.setValue('oemIds', []);
+                      form.setValue('dealershipIds', []);
                     }}
                     value={field.value}
                     data-testid="select-edit-availability-scope"
@@ -285,6 +351,7 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
                       <SelectItem value="GLOBAL">Global - Available to All</SelectItem>
                       <SelectItem value="OEM">OEM Specific</SelectItem>
                       <SelectItem value="DEALERSHIP">Dealership Specific</SelectItem>
+                      <SelectItem value="MULTIPLE">Multiple OEMs/Dealerships</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -355,6 +422,91 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {/* Multiple OEMs Selection (for MULTIPLE scope) */}
+            {isSuperAdmin && watchedScope === 'MULTIPLE' && (
+              <FormField
+                control={form.control}
+                name="oemIds"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Select OEMs</FormLabel>
+                    <FormControl>
+                      <div className="grid grid-cols-1 gap-3 max-h-40 overflow-y-auto border rounded-md p-3">
+                        {oems.map((oem: any) => (
+                          <div key={oem.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`edit-oem-${oem.id}`}
+                              checked={field.value?.includes(oem.id) || false}
+                              onCheckedChange={(checked) => {
+                                const currentValue = field.value || [];
+                                if (checked) {
+                                  field.onChange([...currentValue, oem.id]);
+                                } else {
+                                  field.onChange(currentValue.filter((id: string) => id !== oem.id));
+                                }
+                              }}
+                              data-testid={`checkbox-edit-oem-${oem.id}`}
+                            />
+                            <Label htmlFor={`edit-oem-${oem.id}`} className="text-sm font-normal">
+                              {oem.name}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {/* Multiple Dealerships Selection (for MULTIPLE scope) */}
+            {isSuperAdmin && watchedScope === 'MULTIPLE' && oems.length > 0 && (
+              <FormField
+                control={form.control}
+                name="dealershipIds"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Select Dealerships</FormLabel>
+                    <FormControl>
+                      <div className="grid grid-cols-1 gap-3 max-h-40 overflow-y-auto border rounded-md p-3">
+                        {oems.map((oem: any) => (
+                          <div key={oem.id} className="space-y-2">
+                            <div className="font-medium text-sm text-muted-foreground border-b pb-1">
+                              {oem.name}
+                            </div>
+                            {dealerships
+                              .filter((dealership: any) => dealership.oemId === oem.id)
+                              .map((dealership: any) => (
+                                <div key={dealership.id} className="flex items-center space-x-2 ml-4">
+                                  <Checkbox
+                                    id={`edit-dealership-${dealership.id}`}
+                                    checked={field.value?.includes(dealership.id) || false}
+                                    onCheckedChange={(checked) => {
+                                      const currentValue = field.value || [];
+                                      if (checked) {
+                                        field.onChange([...currentValue, dealership.id]);
+                                      } else {
+                                        field.onChange(currentValue.filter((id: string) => id !== dealership.id));
+                                      }
+                                    }}
+                                    data-testid={`checkbox-edit-dealership-${dealership.id}`}
+                                  />
+                                  <Label htmlFor={`edit-dealership-${dealership.id}`} className="text-sm font-normal">
+                                    {dealership.name}
+                                  </Label>
+                                </div>
+                              ))}
+                          </div>
+                        ))}
+                      </div>
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
