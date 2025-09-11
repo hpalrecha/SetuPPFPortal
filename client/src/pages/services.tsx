@@ -74,7 +74,8 @@ export default function ServicesPage() {
   const filteredServices = services.filter((service: any) =>
     service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     service.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    service.productBrand?.toLowerCase().includes(searchTerm.toLowerCase())
+    service.productBrand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    service.serviceGroup?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleEdit = (service: any) => {
@@ -99,6 +100,24 @@ export default function ServicesPage() {
       default:
         return <Badge variant="secondary">Global</Badge>;
     }
+  };
+
+  const getServiceGroupBadge = (serviceGroup: string) => {
+    if (!serviceGroup) return null;
+    
+    const groupLabels: Record<string, string> = {
+      'PPF': 'Paint Protection Film',
+      'CERAMIC_COATING': 'Ceramic Coating', 
+      'WINDOW_TINTING': 'Window Tinting',
+      'PAINT_CORRECTION': 'Paint Correction',
+      'INTERIOR_PROTECTION': 'Interior Protection',
+      'ACCESSORIES': 'Accessories',
+      'MAINTENANCE': 'Maintenance',
+      'DETAILING': 'Detailing',
+      'CUSTOMIZATION': 'Customization'
+    };
+
+    return <Badge variant="default" className="bg-blue-100 text-blue-800 hover:bg-blue-200">{groupLabels[serviceGroup] || serviceGroup}</Badge>;
   };
 
   if (isLoading) {
@@ -188,6 +207,13 @@ export default function ServicesPage() {
                 <p className="text-sm text-muted-foreground">
                   {service.description}
                 </p>
+              )}
+              
+              {service.serviceGroup && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Category:</span>
+                  {getServiceGroupBadge(service.serviceGroup)}
+                </div>
               )}
               
               {service.productBrand && (
