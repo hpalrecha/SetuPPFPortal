@@ -179,56 +179,218 @@ export default function WorkOrdersPage() {
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Work Order Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <h3 className="font-medium">Status</h3>
-                <Badge className={statusColors[workOrder.status as keyof typeof statusColors] || "bg-gray-100 text-gray-800"}>
-                  {workOrder.status?.replace(/_/g, " ")}
-                </Badge>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Work Order Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Work Order Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div>
+                  <h3 className="font-medium text-sm text-muted-foreground">Status</h3>
+                  <Badge className={statusColors[workOrder.status as keyof typeof statusColors] || "bg-gray-100 text-gray-800"}>
+                    {workOrder.status?.replace(/_/g, " ")}
+                  </Badge>
+                </div>
+                <div>
+                  <h3 className="font-medium text-sm text-muted-foreground">Registration Number</h3>
+                  <p className="text-sm">{workOrder.regNo || "Not specified"}</p>
+                </div>
+                <div>
+                  <h3 className="font-medium text-sm text-muted-foreground">Quantity</h3>
+                  <p className="text-sm">{workOrder.quantity || 1} unit(s)</p>
+                </div>
+                <div>
+                  <h3 className="font-medium text-sm text-muted-foreground">Created Date</h3>
+                  <p className="text-sm">{new Date(workOrder.createdAt!).toLocaleDateString()}</p>
+                </div>
+                {workOrder.submittedAt && (
+                  <div>
+                    <h3 className="font-medium text-sm text-muted-foreground">Submitted Date</h3>
+                    <p className="text-sm">{new Date(workOrder.submittedAt).toLocaleDateString()}</p>
+                  </div>
+                )}
+                {workOrder.assignedAt && (
+                  <div>
+                    <h3 className="font-medium text-sm text-muted-foreground">Assigned Date</h3>
+                    <p className="text-sm">{new Date(workOrder.assignedAt).toLocaleDateString()}</p>
+                  </div>
+                )}
               </div>
-              <div>
-                <h3 className="font-medium">Registration Number</h3>
-                <p>{workOrder.regNo || "Not specified"}</p>
-              </div>
-              <div>
-                <h3 className="font-medium">Customer Name</h3>
-                <p>{workOrder.customerName || "N/A"}</p>
-              </div>
-              <div>
-                <h3 className="font-medium">Customer Phone</h3>
-                <p>{workOrder.customerPhone || "N/A"}</p>
-              </div>
-              <div>
-                <h3 className="font-medium">Customer Email</h3>
-                <p>{workOrder.customerEmail || "N/A"}</p>
-              </div>
-              <div>
-                <h3 className="font-medium">Partner Assignment</h3>
-                <p>{workOrder.assignedPartnerId ? "Partner Assigned" : "Not assigned"}</p>
-              </div>
-              <div>
-                <h3 className="font-medium">Quantity</h3>
-                <p>{workOrder.quantity || 1}</p>
-              </div>
-              <div>
-                <h3 className="font-medium">Created Date</h3>
-                <p>{new Date(workOrder.createdAt!).toLocaleDateString()}</p>
-              </div>
-            </div>
-            
-            {workOrder.notes && (
-              <div>
-                <h3 className="font-medium">Notes</h3>
-                <p className="text-muted-foreground">{workOrder.notes}</p>
-              </div>
-            )}
+            </CardContent>
+          </Card>
 
-            <div className="flex space-x-2 pt-4">
+          {/* Vehicle Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Vehicle Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <h3 className="font-medium text-sm text-muted-foreground">Vehicle Model</h3>
+                <p className="text-sm">
+                  {(workOrder as any).vehicleModelBrand ? `${(workOrder as any).vehicleModelBrand} ` : ""}
+                  {(workOrder as any).vehicleModelName || "Not specified"}
+                </p>
+              </div>
+              {workOrder.variant && (
+                <div>
+                  <h3 className="font-medium text-sm text-muted-foreground">Variant</h3>
+                  <p className="text-sm">{workOrder.variant}</p>
+                </div>
+              )}
+              <div>
+                <h3 className="font-medium text-sm text-muted-foreground">Registration Number</h3>
+                <p className="text-sm">{workOrder.regNo || "Not provided"}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Service Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Service Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <h3 className="font-medium text-sm text-muted-foreground">Service</h3>
+                <p className="text-sm font-medium">{(workOrder as any).serviceName || "Service not specified"}</p>
+              </div>
+              {(workOrder as any).serviceDescription && (
+                <div>
+                  <h3 className="font-medium text-sm text-muted-foreground">Description</h3>
+                  <p className="text-sm text-muted-foreground">{(workOrder as any).serviceDescription}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Customer Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Customer Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <h3 className="font-medium text-sm text-muted-foreground">Customer Name</h3>
+                <p className="text-sm">{workOrder.customerName || "N/A"}</p>
+              </div>
+              <div>
+                <h3 className="font-medium text-sm text-muted-foreground">Phone Number</h3>
+                <p className="text-sm">{workOrder.customerPhone || "N/A"}</p>
+              </div>
+              <div>
+                <h3 className="font-medium text-sm text-muted-foreground">Email Address</h3>
+                <p className="text-sm">{workOrder.customerEmail || "N/A"}</p>
+              </div>
+              {workOrder.customerAddress && (
+                <div>
+                  <h3 className="font-medium text-sm text-muted-foreground">Address</h3>
+                  <p className="text-sm">{workOrder.customerAddress}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Organization Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Organization Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <h3 className="font-medium text-sm text-muted-foreground">OEM</h3>
+                <p className="text-sm">{(workOrder as any).oemName || "N/A"}</p>
+              </div>
+              <div>
+                <h3 className="font-medium text-sm text-muted-foreground">Dealership</h3>
+                <p className="text-sm">{(workOrder as any).dealershipName || "N/A"}</p>
+              </div>
+              <div>
+                <h3 className="font-medium text-sm text-muted-foreground">Showroom</h3>
+                <p className="text-sm">{(workOrder as any).showroomName || "N/A"}</p>
+              </div>
+              {(workOrder as any).salesPersonName && (
+                <div>
+                  <h3 className="font-medium text-sm text-muted-foreground">Sales Person</h3>
+                  <p className="text-sm">{(workOrder as any).salesPersonName}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Partner Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Partner Assignment</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {workOrder.assignedPartnerId ? (
+                <>
+                  <div>
+                    <h3 className="font-medium text-sm text-muted-foreground">Partner Name</h3>
+                    <p className="text-sm font-medium">{(workOrder as any).partnerName || "Partner Assigned"}</p>
+                  </div>
+                  {(workOrder as any).partnerType && (
+                    <div>
+                      <h3 className="font-medium text-sm text-muted-foreground">Partner Type</h3>
+                      <Badge variant="secondary">{(workOrder as any).partnerType}</Badge>
+                    </div>
+                  )}
+                  {workOrder.assignedJobCardId && (
+                    <div>
+                      <h3 className="font-medium text-sm text-muted-foreground">Job Card ID</h3>
+                      <p className="text-sm font-mono">{workOrder.assignedJobCardId.slice(-8)}</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No partner assigned yet</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Notes Section */}
+        {workOrder.notes && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Notes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm">{workOrder.notes}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Job Card Information */}
+        {(workOrder as any).jobCard && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Job Card Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h3 className="font-medium text-sm text-muted-foreground">Job Card Status</h3>
+                  <Badge variant="outline">{(workOrder as any).jobCard.status?.replace(/_/g, " ")}</Badge>
+                </div>
+                {(workOrder as any).jobCard.scheduledAt && (
+                  <div>
+                    <h3 className="font-medium text-sm text-muted-foreground">Scheduled At</h3>
+                    <p className="text-sm">{new Date((workOrder as any).jobCard.scheduledAt).toLocaleDateString()}</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Action Buttons */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex space-x-2">
               <Button onClick={() => setLocation(`/work-orders/${workOrder.id}/edit`)}>
                 <Edit className="h-4 w-4 mr-2" />
                 Edit Work Order

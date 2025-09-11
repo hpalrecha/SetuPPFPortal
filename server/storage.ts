@@ -664,9 +664,93 @@ export class DatabaseStorage implements IStorage {
     return enrichedWorkOrders;
   }
 
-  async getWorkOrder(id: string): Promise<WorkOrder | undefined> {
+  async getWorkOrder(id: string): Promise<any | undefined> {
     const [workOrder] = await db.select().from(workOrders).where(eq(workOrders.id, id));
-    return workOrder || undefined;
+    if (!workOrder) return undefined;
+
+    // Enrich with related data like the list view does
+    const enriched: any = { ...workOrder };
+    
+    try {
+      // Fetch vehicle model details
+      if (workOrder.vehicleModelId) {
+        const vehicleModel = await db.select().from(vehicleModels).where(eq(vehicleModels.id, workOrder.vehicleModelId)).limit(1);
+        if (vehicleModel[0]) {
+          enriched.vehicleModelName = vehicleModel[0].modelName;
+          enriched.vehicleModelBrand = vehicleModel[0].brand;
+          enriched.vehicleModel = vehicleModel[0];
+        }
+      }
+      
+      // Fetch service details
+      if (workOrder.serviceId) {
+        const service = await db.select().from(services).where(eq(services.id, workOrder.serviceId)).limit(1);
+        if (service[0]) {
+          enriched.serviceName = service[0].name;
+          enriched.serviceDescription = service[0].description;
+          enriched.service = service[0];
+        }
+      }
+      
+      // Fetch partner details
+      if (workOrder.assignedPartnerId) {
+        const partner = await db.select().from(partners).where(eq(partners.id, workOrder.assignedPartnerId)).limit(1);
+        if (partner[0]) {
+          enriched.partnerName = partner[0].businessName;
+          enriched.partnerType = partner[0].type;
+          enriched.partner = partner[0];
+        }
+      }
+
+      // Fetch OEM details
+      if (workOrder.oemId) {
+        const oem = await db.select().from(oems).where(eq(oems.id, workOrder.oemId)).limit(1);
+        if (oem[0]) {
+          enriched.oemName = oem[0].name;
+          enriched.oem = oem[0];
+        }
+      }
+
+      // Fetch dealership details
+      if (workOrder.dealershipId) {
+        const dealership = await db.select().from(dealerships).where(eq(dealerships.id, workOrder.dealershipId)).limit(1);
+        if (dealership[0]) {
+          enriched.dealershipName = dealership[0].name;
+          enriched.dealership = dealership[0];
+        }
+      }
+
+      // Fetch showroom details
+      if (workOrder.showroomId) {
+        const showroom = await db.select().from(showrooms).where(eq(showrooms.id, workOrder.showroomId)).limit(1);
+        if (showroom[0]) {
+          enriched.showroomName = showroom[0].name;
+          enriched.showroom = showroom[0];
+        }
+      }
+
+      // Fetch sales person details
+      if (workOrder.salesPersonId) {
+        const salesPerson = await db.select().from(salesPersons).where(eq(salesPersons.id, workOrder.salesPersonId)).limit(1);
+        if (salesPerson[0]) {
+          enriched.salesPersonName = salesPerson[0].name;
+          enriched.salesPerson = salesPerson[0];
+        }
+      }
+
+      // Fetch job card details if assigned
+      if (workOrder.assignedJobCardId) {
+        const jobCard = await db.select().from(jobCards).where(eq(jobCards.id, workOrder.assignedJobCardId)).limit(1);
+        if (jobCard[0]) {
+          enriched.jobCard = jobCard[0];
+        }
+      }
+
+    } catch (error) {
+      console.error("Error enriching work order data:", error);
+    }
+    
+    return enriched;
   }
 
   async createWorkOrder(insertWorkOrder: InsertWorkOrder): Promise<WorkOrder> {
