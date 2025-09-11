@@ -68,6 +68,12 @@ export const pricingTypeEnum = pgEnum('pricing_type', [
 
 export const scopeEnum = pgEnum('scope', ['DEALERSHIP', 'SHOWROOM']);
 
+// Vehicle Type Enum
+export const vehicleTypeEnum = pgEnum("vehicle_type", ["HATCHBACK", "SEDAN", "SUV", "CROSSOVER", "LUXURY_SEDAN", "LUXURY_SUV", "COUPE", "CONVERTIBLE", "MPV", "PICKUP_TRUCK", "VAN", "ELECTRIC", "HYBRID"]);
+
+// Service Group Enum  
+export const serviceGroupEnum = pgEnum("service_group", ["PPF", "CERAMIC_COATING", "WINDOW_TINTING", "PAINT_CORRECTION", "INTERIOR_PROTECTION", "ACCESSORIES", "MAINTENANCE", "DETAILING", "CUSTOMIZATION"]);
+
 // Core Organization Tables
 export const oems = pgTable("oems", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -187,6 +193,7 @@ export const vehicleModels = pgTable("vehicle_models", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   oemId: uuid("oem_id").references(() => oems.id).notNull(),
   modelName: text("model_name").notNull(),
+  vehicleType: vehicleTypeEnum("vehicle_type"), // Vehicle category (Hatchback, Sedan, SUV, etc.)
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
@@ -209,6 +216,7 @@ export const services = pgTable("services", {
   name: text("name").notNull(),
   code: text("code").notNull().unique(),
   description: text("description"),
+  serviceGroup: serviceGroupEnum("service_group"), // Service category (PPF, Ceramic Coating, etc.)
   productBrand: text("product_brand"), // Brand used for this service (e.g., 3M, XPEL, etc.)
   availabilityScope: text("availability_scope").default("GLOBAL"), // GLOBAL, OEM, DEALERSHIP, MULTIPLE
   oemId: uuid("oem_id").references(() => oems.id), // Required if scope is OEM or DEALERSHIP (legacy)
@@ -275,7 +283,8 @@ export const workOrders = pgTable("work_orders", {
   createdByUserId: uuid("created_by_user_id").references(() => users.id).notNull(),
   status: workOrderStatusEnum("status").default("PENDING"),
   vehicleModelId: uuid("vehicle_model_id").references(() => vehicleModels.id).notNull(),
-  vehicleVariantId: uuid("vehicle_variant_id").references(() => vehicleVariants.id),
+  vehicleVariantId: varchar("vehicle_variant_id"), // Keep as varchar to match existing data
+  variant: text("variant"), // Add missing variant column from database
   regNo: text("reg_no"),
   serviceId: uuid("service_id").references(() => services.id).notNull(),
   quantity: integer("quantity").default(1),
