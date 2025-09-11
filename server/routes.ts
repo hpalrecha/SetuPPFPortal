@@ -1705,6 +1705,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/allocations-with-categories", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { partnerId, level, levelId } = req.query;
+      
+      const filters: any = {};
+      if (partnerId) filters.partnerId = partnerId as string;
+      if (level) filters.level = level as string;
+      if (levelId) filters.levelId = levelId as string;
+
+      const allocations = await storage.getAllocationsWithCategories(filters);
+      res.json(allocations);
+    } catch (error) {
+      console.error("Get allocations with categories error:", error);
+      res.status(500).json({ error: "Failed to fetch allocations with categories" });
+    }
+  });
+
   app.get("/api/allocations/:id", authenticate, requireOEMAccess, async (req, res) => {
     try {
       const allocation = await storage.getAllocation(req.params.id);

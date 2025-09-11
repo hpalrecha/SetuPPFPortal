@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Building, MapPin } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Edit, Trash2, Building, MapPin, Filter } from "lucide-react";
 import { CreateAllocationModal } from "@/components/modals/CreateAllocationModal";
 import { useToast } from "@/hooks/use-toast";
 
@@ -28,12 +29,15 @@ export default function Allocations() {
   const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingAllocation, setEditingAllocation] = useState<Allocation | null>(null);
+  const [selectedLevel, setSelectedLevel] = useState<string>("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedLevelEntity, setSelectedLevelEntity] = useState<string>("all");
 
   // Fetch allocations
   const { data: allocations = [], isLoading } = useQuery({
-    queryKey: ["/api/allocations"],
+    queryKey: ["/api/allocations-with-categories"],
     queryFn: async () => {
-      const response = await fetch('/api/allocations', {
+      const response = await fetch('/api/allocations-with-categories', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -73,6 +77,40 @@ export default function Allocations() {
     },
   });
 
+  // Fetch service categories for filtering
+  const { data: serviceCategories = [] } = useQuery({
+    queryKey: ["/api/service-categories"],
+    queryFn: async () => {
+      const response = await fetch('/api/service-categories', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch service categories');
+      return response.json();
+    },
+  });
+
+  // Filter allocations based on selected filters
+  const filteredAllocations = allocations.filter((allocation) => {
+    const levelMatch = selectedLevel === "all" || allocation.level === selectedLevel;
+    const categoryMatch = selectedCategory === "all" || 
+      allocation.partner.serviceCategories?.some((cat: any) => cat.id === selectedCategory);
+    const entityMatch = selectedLevelEntity === "all" || allocation.levelId === selectedLevelEntity;
+    return levelMatch && categoryMatch && entityMatch;
+  });
+
+  // Get level entities for dropdown based on selected level
+  const getLevelEntities = () => {
+    if (selectedLevel === "DEALERSHIP") {
+      return dealerships.map((d) => ({ value: d.id, label: d.name }));
+    } else if (selectedLevel === "SHOWROOM") {
+      return showrooms.map((s) => ({ value: s.id, label: s.name }));
+    }
+    return [];
+  };
+
   // Delete allocation mutation
   const deleteAllocationMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -87,7 +125,7 @@ export default function Allocations() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/allocations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/allocations-with-categories"] });
       toast({
         title: "Success",
         description: "Allocation deleted successfully",
@@ -149,9 +187,73 @@ export default function Allocations() {
         </Button>
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-4 p-4 bg-muted/50 rounded-lg">
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Filters:</span>
+        </div>
+        
+        <div className="flex gap-4">
+          <div>
+            <Select value={selectedLevel} onValueChange={(value) => {
+              setSelectedLevel(value);
+              setSelectedLevelEntity("all"); // Reset entity when level changes
+            }}>
+              <SelectTrigger className="w-40" data-testid="filter-level">
+                <SelectValue placeholder="Level" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Levels</SelectItem>
+                <SelectItem value="DEALERSHIP">Dealership</SelectItem>
+                <SelectItem value="SHOWROOM">Showroom</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {selectedLevel !== "all" && (
+            <div>
+              <Select value={selectedLevelEntity} onValueChange={setSelectedLevelEntity}>
+                <SelectTrigger className="w-48" data-testid="filter-entity">
+                  <SelectValue placeholder={`Select ${selectedLevel === "DEALERSHIP" ? "Dealership" : "Showroom"}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All {selectedLevel === "DEALERSHIP" ? "Dealerships" : "Showrooms"}</SelectItem>
+                  {getLevelEntities().map((entity) => (
+                    <SelectItem key={entity.value} value={entity.value}>
+                      {entity.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-48" data-testid="filter-specialization">
+                <SelectValue placeholder="Partner Specialization" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Specializations</SelectItem>
+                {serviceCategories.map((category: any) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="text-sm text-muted-foreground flex items-center">
+          Showing {filteredAllocations.length} of {allocations.length} allocations
+        </div>
+      </div>
+
       {/* Allocations Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {allocations.length === 0 ? (
+        {filteredAllocations.length === 0 ? (
           <div className="col-span-full">
             <Card>
               <CardContent className="py-12 text-center">
@@ -168,7 +270,7 @@ export default function Allocations() {
             </Card>
           </div>
         ) : (
-          allocations.map((allocation) => (
+          filteredAllocations.map((allocation) => (
             <Card key={allocation.id} data-testid={`card-allocation-${allocation.id}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -209,6 +311,25 @@ export default function Allocations() {
                     )}
                   </div>
 
+                  {/* Service Categories */}
+                  {allocation.partner.serviceCategories && allocation.partner.serviceCategories.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-foreground mb-1">Specializations</h4>
+                      <div className="flex flex-wrap gap-1">
+                        {allocation.partner.serviceCategories.map((category: any) => (
+                          <Badge 
+                            key={category.id} 
+                            variant="secondary" 
+                            className="text-xs px-2 py-1 bg-green-100 text-green-800 hover:bg-green-200"
+                            data-testid={`tag-allocation-category-${category.code}`}
+                          >
+                            {category.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex space-x-2 pt-2">
                     <Button
                       variant="outline"
@@ -241,7 +362,7 @@ export default function Allocations() {
         open={showCreateModal}
         onOpenChange={setShowCreateModal}
         onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ["/api/allocations"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/allocations-with-categories"] });
           setShowCreateModal(false);
         }}
         allocation={editingAllocation}

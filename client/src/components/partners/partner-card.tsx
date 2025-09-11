@@ -62,6 +62,25 @@ export default function PartnerCard({ partner, onEdit, onView }: PartnerCardProp
           </div>
         </div>
 
+        {/* Service Category Tags */}
+        {partner.serviceCategories && partner.serviceCategories.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs font-medium text-muted-foreground mb-2">Specializations</p>
+            <div className="flex flex-wrap gap-1">
+              {partner.serviceCategories.map((category: any) => (
+                <Badge 
+                  key={category.id} 
+                  variant="secondary" 
+                  className="text-xs px-2 py-1 bg-blue-100 text-blue-800 hover:bg-blue-200"
+                  data-testid={`tag-category-${category.code}`}
+                >
+                  {category.name}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Performance Metrics */}
         <div className="grid grid-cols-3 gap-2 text-center text-sm mb-4">
           <div>

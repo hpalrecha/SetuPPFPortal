@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Store, User, MapPin, Phone, Star, BarChart3, Edit, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Store, User, MapPin, Phone, Star, BarChart3, Edit, Trash2, Filter } from "lucide-react";
 import type { Partner } from "@shared/schema";
 import { EditPartnerModal } from "@/components/modals/EditPartnerModal";
 import { useToast } from "@/hooks/use-toast";
@@ -13,11 +14,13 @@ export default function PartnersPage() {
   const { toast } = useToast();
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingPartner, setEditingPartner] = useState<any>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedType, setSelectedType] = useState<string>("all");
   
   const { data: partners = [], isLoading } = useQuery<Partner[]>({
-    queryKey: ["/api/partners"],
+    queryKey: ["/api/partners-with-categories"],
     queryFn: async () => {
-      const response = await fetch('/api/partners', {
+      const response = await fetch('/api/partners-with-categories', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -31,6 +34,29 @@ export default function PartnersPage() {
       return response.json();
     },
     refetchInterval: 30000
+  });
+
+  // Fetch service categories for filtering
+  const { data: serviceCategories = [] } = useQuery({
+    queryKey: ["/api/service-categories"],
+    queryFn: async () => {
+      const response = await fetch('/api/service-categories', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch service categories');
+      return response.json();
+    },
+  });
+
+  // Filter partners based on selected filters
+  const filteredPartners = partners.filter((partner) => {
+    const categoryMatch = selectedCategory === "all" || 
+      partner.serviceCategories?.some((cat: any) => cat.id === selectedCategory);
+    const typeMatch = selectedType === "all" || partner.type === selectedType;
+    return categoryMatch && typeMatch;
   });
 
   const handleAddPartner = () => {
@@ -72,7 +98,7 @@ export default function PartnersPage() {
       });
 
       // Refresh the data
-      queryClient.invalidateQueries({ queryKey: ["/api/partners"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/partners-with-categories"] });
     } catch (error) {
       console.error('Error deleting partner:', error);
       toast({
@@ -87,7 +113,7 @@ export default function PartnersPage() {
     setShowEditModal(false);
     setEditingPartner(null);
     // Refresh the data
-    queryClient.invalidateQueries({ queryKey: ["/api/partners"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/partners-with-categories"] });
   };
 
   if (isLoading) {
@@ -119,9 +145,52 @@ export default function PartnersPage() {
         </Button>
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-4 p-4 bg-muted/50 rounded-lg">
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Filters:</span>
+        </div>
+        
+        <div className="flex gap-4">
+          <div>
+            <Select value={selectedType} onValueChange={setSelectedType}>
+              <SelectTrigger className="w-40" data-testid="filter-type">
+                <SelectValue placeholder="Partner Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="INSTALLER">Installer</SelectItem>
+                <SelectItem value="STUDIO">Studio</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-48" data-testid="filter-specialization">
+                <SelectValue placeholder="Specialization" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Specializations</SelectItem>
+                {serviceCategories.map((category: any) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="text-sm text-muted-foreground flex items-center">
+          Showing {filteredPartners.length} of {partners.length} partners
+        </div>
+      </div>
+
       {/* Partners Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {partners.length === 0 ? (
+        {filteredPartners.length === 0 ? (
           <div className="col-span-full">
             <Card>
               <CardContent className="py-12 text-center">
@@ -138,7 +207,7 @@ export default function PartnersPage() {
             </Card>
           </div>
         ) : (
-          partners.map((partner) => (
+          filteredPartners.map((partner) => (
             <Card key={partner.id} data-testid={`card-partner-${partner.id}`}>
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
