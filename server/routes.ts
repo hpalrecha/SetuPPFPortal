@@ -1830,7 +1830,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('commission_rule', 'create'),
     async (req, res) => {
       try {
-        const ruleData = insertCommissionRuleSchema.parse(req.body);
+        // Convert date strings to Date objects before validation
+        const bodyData = { ...req.body };
+        if (bodyData.effectiveFrom) {
+          bodyData.effectiveFrom = new Date(bodyData.effectiveFrom);
+        }
+        if (bodyData.effectiveTo) {
+          bodyData.effectiveTo = new Date(bodyData.effectiveTo);
+        }
+        
+        const ruleData = insertCommissionRuleSchema.parse(bodyData);
         
         // Strict tenant boundary validation and role-based scoping
         const userRole = req.user!.role;
