@@ -21,6 +21,7 @@ import ShowroomsPage from "./pages/showrooms";
 import SalesPersonsPage from "./pages/sales-persons";
 import VehiclesPage from "./pages/vehicles";
 import ServicesPage from "./pages/services";
+import ServiceCategoriesPage from "./pages/ServiceCategories";
 import MainLayout from "./components/layout/main-layout";
 import NotFound from "@/pages/not-found";
 
@@ -52,6 +53,7 @@ function Router() {
       <Route path="/sales-persons" component={() => <ProtectedRoute component={SalesPersonsPage} />} />
       <Route path="/vehicles" component={() => <ProtectedRoute component={VehiclesPage} />} />
       <Route path="/services" component={() => <ProtectedRoute component={ServicesPage} />} />
+      <Route path="/service-categories" component={() => <ProtectedRoute component={ServiceCategoriesPage} />} />
       <Route path="/reports" component={() => <ProtectedRoute component={ReportsPage} />} />
       <Route path="/audit" component={() => <ProtectedRoute component={AuditPage} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />

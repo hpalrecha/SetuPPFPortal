@@ -9,7 +9,8 @@ import {
   insertCommissionRuleSchema,
   insertVehicleModelSchema,
   insertVehicleVariantSchema,
-  insertOemSchema
+  insertOemSchema,
+  insertServiceCategorySchema
 } from "@shared/schema";
 import { storage } from "./storage";
 import { authService } from "./auth";
@@ -1379,6 +1380,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Delete sales person error:", error);
         res.status(500).json({ error: "Failed to delete sales person" });
+      }
+    }
+  );
+
+  // Service Categories Routes
+  app.get("/api/service-categories", authenticate, async (req, res) => {
+    try {
+      const categories = await storage.getServiceCategories();
+      res.json(categories);
+    } catch (error) {
+      console.error("Get service categories error:", error);
+      res.status(500).json({ error: "Failed to fetch service categories" });
+    }
+  });
+
+  app.get("/api/service-categories/:id", authenticate, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const category = await storage.getServiceCategory(id);
+      
+      if (!category) {
+        return res.status(404).json({ error: "Service category not found" });
+      }
+      
+      res.json(category);
+    } catch (error) {
+      console.error("Get service category error:", error);
+      res.status(500).json({ error: "Failed to fetch service category" });
+    }
+  });
+
+  app.post("/api/service-categories", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('service_category', 'create'),
+    async (req, res) => {
+      try {
+        const categoryData = insertServiceCategorySchema.parse(req.body);
+        const category = await storage.createServiceCategory(categoryData);
+        res.status(201).json(category);
+      } catch (error: any) {
+        console.error("Create service category error:", error);
+        
+        if (error?.name === 'ZodError') {
+          return res.status(400).json({ 
+            error: "Validation failed",
+            details: error.errors 
+          });
+        }
+        
+        if (error?.code === '23505' || error?.message?.includes('duplicate key')) {
+          return res.status(409).json({ 
+            error: "A service category with this name or code already exists" 
+          });
+        }
+        
+        res.status(500).json({ error: "Failed to create service category" });
+      }
+    }
+  );
+
+  app.put("/api/service-categories/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('service_category', 'update'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const updates = insertServiceCategorySchema.partial().parse(req.body);
+        
+        const category = await storage.updateServiceCategory(id, updates);
+        if (!category) {
+          return res.status(404).json({ error: "Service category not found" });
+        }
+        
+        res.json(category);
+      } catch (error: any) {
+        console.error("Update service category error:", error);
+        
+        if (error?.name === 'ZodError') {
+          return res.status(400).json({ 
+            error: "Validation failed",
+            details: error.errors 
+          });
+        }
+        
+        if (error?.code === '23505' || error?.message?.includes('duplicate key')) {
+          return res.status(409).json({ 
+            error: "A service category with this name or code already exists" 
+          });
+        }
+        
+        res.status(500).json({ error: "Failed to update service category" });
+      }
+    }
+  );
+
+  app.delete("/api/service-categories/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('service_category', 'delete'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        
+        const success = await storage.deleteServiceCategory(id);
+        if (!success) {
+          return res.status(404).json({ error: "Service category not found" });
+        }
+        
+        res.json({ message: "Service category deleted successfully" });
+      } catch (error) {
+        console.error("Delete service category error:", error);
+        res.status(500).json({ error: "Failed to delete service category" });
       }
     }
   );

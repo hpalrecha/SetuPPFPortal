@@ -9,6 +9,7 @@ import {
   vehicleModels,
   vehicleVariants,
   services,
+  serviceCategories,
   pricingRules,
   commissionRules,
   workOrders,
@@ -35,7 +36,9 @@ import {
   type VehicleModel,
   type InsertVehicleModel,
   type VehicleVariant,
-  type InsertVehicleVariant
+  type InsertVehicleVariant,
+  type ServiceCategory,
+  type InsertServiceCategory
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count, avg, sum } from "drizzle-orm";
@@ -54,6 +57,13 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
+
+  // Service Categories management
+  getServiceCategories(): Promise<ServiceCategory[]>;
+  getServiceCategory(id: string): Promise<ServiceCategory | undefined>;
+  createServiceCategory(category: InsertServiceCategory): Promise<ServiceCategory>;
+  updateServiceCategory(id: string, updates: Partial<InsertServiceCategory>): Promise<ServiceCategory | undefined>;
+  deleteServiceCategory(id: string): Promise<boolean>;
 
   // Services management
   getServices(filters?: { oemId?: string; dealershipId?: string }): Promise<any[]>;
@@ -252,6 +262,52 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(users)
       .where(eq(users.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // Service Categories management
+  async getServiceCategories(): Promise<ServiceCategory[]> {
+    const categories = await db.select()
+      .from(serviceCategories)
+      .where(eq(serviceCategories.active, true))
+      .orderBy(serviceCategories.name);
+    return categories;
+  }
+
+  async getServiceCategory(id: string): Promise<ServiceCategory | undefined> {
+    const [category] = await db.select()
+      .from(serviceCategories)
+      .where(and(eq(serviceCategories.id, id), eq(serviceCategories.active, true)));
+    return category || undefined;
+  }
+
+  async createServiceCategory(category: InsertServiceCategory): Promise<ServiceCategory> {
+    const [newCategory] = await db.insert(serviceCategories)
+      .values({
+        ...category,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return newCategory;
+  }
+
+  async updateServiceCategory(id: string, updates: Partial<InsertServiceCategory>): Promise<ServiceCategory | undefined> {
+    const [updatedCategory] = await db.update(serviceCategories)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(serviceCategories.id, id))
+      .returning();
+    return updatedCategory || undefined;
+  }
+
+  async deleteServiceCategory(id: string): Promise<boolean> {
+    // Soft delete by setting active to false
+    const result = await db.update(serviceCategories)
+      .set({ active: false, updatedAt: new Date() })
+      .where(eq(serviceCategories.id, id));
     return (result.rowCount ?? 0) > 0;
   }
 

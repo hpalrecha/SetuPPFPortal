@@ -71,7 +71,20 @@ export const scopeEnum = pgEnum('scope', ['DEALERSHIP', 'SHOWROOM']);
 // Vehicle Type Enum
 export const vehicleTypeEnum = pgEnum("vehicle_type", ["HATCHBACK", "SEDAN", "SUV", "CROSSOVER", "LUXURY_SEDAN", "LUXURY_SUV", "COUPE", "CONVERTIBLE", "MPV", "PICKUP_TRUCK", "VAN", "ELECTRIC", "HYBRID"]);
 
-// Service Group Enum  
+// Service Categories Table (replaces enum for dynamic management)
+export const serviceCategories = pgTable("service_categories", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(), // Display name (e.g., "Paint Protection Film")
+  code: text("code").notNull().unique(), // Internal code (e.g., "PPF")
+  description: text("description"), // Optional description
+  icon: text("icon"), // Optional icon name/class
+  color: text("color"), // Optional color code for badges
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+// Keep legacy enum for migration purposes (will be removed later)
 export const serviceGroupValues = ["PPF", "CERAMIC_COATING", "WINDOW_TINTING", "PAINT_CORRECTION", "INTERIOR_PROTECTION", "ACCESSORIES", "MAINTENANCE", "DETAILING", "CUSTOMIZATION"] as const;
 export const serviceGroupEnum = pgEnum("service_group", serviceGroupValues);
 
@@ -220,7 +233,8 @@ export const services = pgTable("services", {
   name: text("name").notNull(),
   code: text("code").notNull().unique(),
   description: text("description"),
-  serviceGroup: serviceGroupEnum("service_group"), // Service category (PPF, Ceramic Coating, etc.)
+  serviceCategoryId: uuid("service_category_id").references(() => serviceCategories.id), // Reference to service categories table
+  serviceGroup: serviceGroupEnum("service_group"), // Legacy field - will be migrated and removed
   productBrand: text("product_brand"), // Brand used for this service (e.g., 3M, XPEL, etc.)
   availabilityScope: text("availability_scope").default("GLOBAL"), // GLOBAL, OEM, DEALERSHIP, MULTIPLE
   oemId: uuid("oem_id").references(() => oems.id), // Required if scope is OEM or DEALERSHIP (legacy)
@@ -483,6 +497,11 @@ export const insertUserSchema = createInsertSchema(users).omit({ id: true, creat
 export const selectUserSchema = createSelectSchema(users);
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = z.infer<typeof selectUserSchema>;
+
+export const insertServiceCategorySchema = createInsertSchema(serviceCategories).omit({ id: true, createdAt: true, updatedAt: true });
+export const selectServiceCategorySchema = createSelectSchema(serviceCategories);
+export type InsertServiceCategory = z.infer<typeof insertServiceCategorySchema>;
+export type ServiceCategory = z.infer<typeof selectServiceCategorySchema>;
 
 export const insertWorkOrderSchema = createInsertSchema(workOrders).omit({ 
   id: true, 
