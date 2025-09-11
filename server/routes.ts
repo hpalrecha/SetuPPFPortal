@@ -1908,6 +1908,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Update commission rule
+  app.put("/api/commission-rules/:id", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    auditLog('commission_rule', 'update'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        
+        // Convert date strings to Date objects before validation
+        const bodyData = { ...req.body };
+        if (bodyData.effectiveFrom) {
+          bodyData.effectiveFrom = new Date(bodyData.effectiveFrom);
+        }
+        if (bodyData.effectiveTo) {
+          bodyData.effectiveTo = new Date(bodyData.effectiveTo);
+        }
+        
+        const updates = insertCommissionRuleSchema.partial().parse(bodyData);
+        const updatedRule = await storage.updateCommissionRule(id, updates);
+        
+        if (!updatedRule) {
+          return res.status(404).json({ error: "Commission rule not found" });
+        }
+        
+        res.json(updatedRule);
+      } catch (error) {
+        console.error("Update commission rule error:", error);
+        if (error instanceof Error && error.message.includes("ZodError")) {
+          return res.status(400).json({ error: "Invalid commission rule data" });
+        }
+        res.status(500).json({ error: "Failed to update commission rule" });
+      }
+    }
+  );
+
   // Commission Resolution API
   app.post("/api/commissions/resolve", 
     authenticate, 

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -5,8 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, BarChart3, DollarSign, Users, TrendingUp } from "lucide-react";
 import type { CommissionRuleWithContext } from "@shared/types";
 import { CreateCommissionRuleModal } from "@/components/modals/CreateCommissionRuleModal";
+import { EditCommissionRuleModal } from "@/components/modals/EditCommissionRuleModal";
 
 export default function CommissionsPage() {
+  const [editingRule, setEditingRule] = useState<CommissionRuleWithContext | null>(null);
+  
   const { data: commissionRules = [], isLoading } = useQuery<CommissionRuleWithContext[]>({
     queryKey: ["/api/commission-rules"],
     refetchInterval: 30000
@@ -20,9 +24,7 @@ export default function CommissionsPage() {
     // Find the rule to edit
     const rule = commissionRules.find(r => r.id === ruleId);
     if (rule) {
-      // TODO: Open edit modal with pre-filled data
-      console.log("Editing rule:", rule);
-      alert(`Edit functionality for rule ${ruleId} - this would open an edit modal with the current rule data pre-filled.`);
+      setEditingRule(rule);
     }
   };
 
@@ -257,6 +259,15 @@ export default function CommissionsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Commission Rule Modal */}
+      {editingRule && (
+        <EditCommissionRuleModal
+          open={!!editingRule}
+          onOpenChange={(open) => !open && setEditingRule(null)}
+          commissionRule={editingRule}
+        />
+      )}
     </div>
   );
 }
