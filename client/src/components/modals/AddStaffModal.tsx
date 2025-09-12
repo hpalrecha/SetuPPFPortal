@@ -59,12 +59,12 @@ export function AddStaffModal({
     setIsLoading(true);
 
     try {
-      // Hash the password on the backend, so send it as passwordHash
+      // Send plain password - backend will handle hashing securely
       const staffData = {
         name: data.name,
         email: data.email,
         phone: data.phone || undefined,
-        passwordHash: data.password, // Backend will handle proper hashing
+        password: data.password, // Backend will hash this securely
       };
 
       await apiRequest(`/api/partners/${partnerId}/staff`, "POST", staffData);

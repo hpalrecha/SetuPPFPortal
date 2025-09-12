@@ -1292,12 +1292,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           name: z.string().min(1, "Name is required"),
           email: z.string().email("Valid email is required"),
           phone: z.string().optional(),
-          passwordHash: z.string().min(6, "Password must be at least 6 characters")
+          password: z.string().min(6, "Password must be at least 6 characters")
         });
 
         const validatedData = staffSchema.parse(req.body);
         
-        const newStaff = await storage.createPartnerStaff(partnerId, validatedData);
+        // Hash the password securely before storing
+        const bcrypt = require('bcryptjs');
+        const hashedPassword = await bcrypt.hash(validatedData.password, 12);
+        
+        // Prepare data for storage with hashed password
+        const staffDataForStorage = {
+          name: validatedData.name,
+          email: validatedData.email,
+          phone: validatedData.phone,
+          passwordHash: hashedPassword
+        };
+        
+        const newStaff = await storage.createPartnerStaff(partnerId, staffDataForStorage);
         res.status(201).json(newStaff);
       } catch (error) {
         console.error("Create partner staff error:", error);
