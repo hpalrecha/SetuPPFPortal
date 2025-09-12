@@ -75,17 +75,11 @@ export function EditStaffModal({
     setIsLoading(true);
 
     try {
-      await apiRequest(`/api/partners/${partnerId}/staff/${staff.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: data.name,
-          email: data.email,
-          phone: data.phone || undefined,
-          isActive: data.isActive,
-        }),
+      await apiRequest(`/api/partners/${partnerId}/staff/${staff.id}`, "PUT", {
+        name: data.name,
+        email: data.email,
+        phone: data.phone || undefined,
+        isActive: data.isActive,
       });
 
       toast({

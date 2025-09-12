@@ -32,12 +32,13 @@ interface SidebarProps {
 }
 
 const baseNavigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_STAFF"] },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
   { name: "Work Orders", href: "/work-orders", icon: ClipboardList, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON"] },
-  { name: "Job Cards", href: "/job-cards", icon: CheckSquare, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_STAFF"] },
+  { name: "Job Cards", href: "/job-cards", icon: CheckSquare, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
   { name: "Partners", href: "/partners", icon: Handshake, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER"] },
+  { name: "Staff Management", href: "/partner-staff", icon: Users, roles: ["PARTNER_ADMIN"] },
   { name: "Allocations", href: "/allocations", icon: Network, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN"] },
-  { name: "Services", href: "/services", icon: Shield, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_STAFF"] },
+  { name: "Services", href: "/services", icon: Shield, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
   { name: "Pricing Rules", href: "/pricing", icon: DollarSign, roles: ["SUPER_ADMIN", "OEM_ADMIN"] },
   { name: "Commissions", href: "/commissions", icon: Percent, roles: ["SUPER_ADMIN", "OEM_ADMIN"] },
   { name: "Payout Settlement", href: "/payout-settlement", icon: CreditCard, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER"] },
@@ -53,9 +54,9 @@ const organizationNavigation = [
 ];
 
 const systemNavigation = [
-  { name: "Reports", href: "/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER"] },
+  { name: "Reports", href: "/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "PARTNER_ADMIN"] },
   { name: "Audit Logs", href: "/audit", icon: History, roles: ["SUPER_ADMIN", "OEM_ADMIN"] },
-  { name: "Settings", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_STAFF"] },
+  { name: "Settings", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
 ];
 
 const getFilteredNavigation = (userRole: string | undefined) => {

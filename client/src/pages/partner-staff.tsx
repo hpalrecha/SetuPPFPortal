@@ -6,8 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, User, Phone, Mail, Shield, Edit, Trash2, UserCheck, UserX } from "lucide-react";
 import type { User as StaffUser } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
-import { AddStaffModal } from "@/components/modals/AddStaffModal";
-import { EditStaffModal } from "@/components/modals/EditStaffModal";
+import { AddStaffModal } from "../components/modals/AddStaffModal";
+import { EditStaffModal } from "../components/modals/EditStaffModal";
 
 export default function PartnerStaffPage() {
   const queryClient = useQueryClient();
@@ -292,7 +292,7 @@ export default function PartnerStaffPage() {
                       size="sm"
                       onClick={() => handleToggleStaffStatus(
                         staffMember.id, 
-                        staffMember.isActive, 
+                        !!staffMember.isActive, 
                         staffMember.name
                       )}
                       data-testid={`button-toggle-staff-${staffMember.id}`}

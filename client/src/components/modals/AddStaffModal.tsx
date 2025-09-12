@@ -67,13 +67,7 @@ export function AddStaffModal({
         passwordHash: data.password, // Backend will handle proper hashing
       };
 
-      await apiRequest(`/api/partners/${partnerId}/staff`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(staffData),
-      });
+      await apiRequest(`/api/partners/${partnerId}/staff`, "POST", staffData);
 
       toast({
         title: "Success",
