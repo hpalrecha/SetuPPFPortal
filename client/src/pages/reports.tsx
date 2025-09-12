@@ -7,8 +7,8 @@ import { Download, BarChart3, PieChart, TrendingUp, TrendingDown } from "lucide-
 export default function ReportsPage() {
   const [filters, setFilters] = useState({
     dateRange: "this_month",
-    partnerId: "",
-    serviceType: ""
+    partnerId: "all",
+    serviceType: "all"
   });
 
   const handleExportReport = () => {
@@ -72,7 +72,7 @@ export default function ReportsPage() {
                   <SelectValue placeholder="All Partners" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Partners</SelectItem>
+                  <SelectItem value="all">All Partners</SelectItem>
                   <SelectItem value="partner1">DetailCare Studio</SelectItem>
                   <SelectItem value="partner2">ProShield Installers</SelectItem>
                 </SelectContent>
@@ -89,7 +89,7 @@ export default function ReportsPage() {
                   <SelectValue placeholder="All Services" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Services</SelectItem>
+                  <SelectItem value="all">All Services</SelectItem>
                   <SelectItem value="ppf_full">PPF Full Body</SelectItem>
                   <SelectItem value="ppf_partial">PPF Partial</SelectItem>
                 </SelectContent>
