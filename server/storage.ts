@@ -1840,18 +1840,45 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async resolvePricingRule(partnerId: string, vehicleModelId: string, serviceId: string, dealershipId?: string, showroomId?: string): Promise<PricingRule | null> {
-    // Try to find pricing rule with highest priority (Partner > Showroom > Dealership)
-    let query = db.select().from(pricingRules)
-      .where(and(
-        eq(pricingRules.serviceId, serviceId),
-        eq(pricingRules.vehicleModelId, vehicleModelId),
-        eq(pricingRules.status, 'ACTIVE')
-      ));
-
-    const rules = await query;
+  async resolvePricingRule(partnerId: string, scopeType: string, scopeId: string, vehicleModelId?: string, serviceId?: string): Promise<PricingRule | null> {
+    // Build conditions dynamically based on what's provided
+    const conditions = [eq(pricingRules.status, 'ACTIVE')];
     
-    // Return first matching rule (can be enhanced with priority logic)
+    if (vehicleModelId) conditions.push(eq(pricingRules.vehicleModelId, vehicleModelId));
+    if (serviceId) conditions.push(eq(pricingRules.serviceId, serviceId));
+    
+    // Add scope-specific conditions
+    if (scopeType === 'SHOWROOM' && scopeId) {
+      // For showroom scope, match either partnerId or specific showroom rules
+      conditions.push(
+        or(
+          eq(pricingRules.partnerId, partnerId),
+          and(
+            eq(pricingRules.scope, 'SHOWROOM'),
+            eq(pricingRules.scopeId, scopeId)
+          )
+        )
+      );
+    } else if (scopeType === 'DEALERSHIP' && scopeId) {
+      // For dealership scope, match either partnerId or specific dealership rules  
+      conditions.push(
+        or(
+          eq(pricingRules.partnerId, partnerId),
+          and(
+            eq(pricingRules.scope, 'DEALERSHIP'),
+            eq(pricingRules.scopeId, scopeId)
+          )
+        )
+      );
+    } else {
+      // Fallback to partner-specific rules
+      conditions.push(eq(pricingRules.partnerId, partnerId));
+    }
+
+    const rules = await db.select().from(pricingRules)
+      .where(and(...conditions))
+      .orderBy(pricingRules.priceAmount); // Order by price for consistency
+    
     return rules[0] || null;
   }
 
