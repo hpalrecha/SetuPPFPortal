@@ -1354,7 +1354,7 @@ export class DatabaseStorage implements IStorage {
   async getCommissions(filters?: { status?: string; salesPersonId?: string; showroomId?: string; oemId?: string; dealershipId?: string }): Promise<{ commissions: any[] }> {
     let query = db.select({
       id: commissions.id,
-      jobCardId: commissions.jobCardId,
+      workOrderId: commissions.workOrderId,
       showroomId: commissions.showroomId,
       salesPersonId: commissions.salesPersonId,
       basis: commissions.basis,
@@ -1370,10 +1370,9 @@ export class DatabaseStorage implements IStorage {
       salesPersonName: salesPersons.name,
       // Showroom information
       showroomName: showrooms.name,
-      // Job card and work order information
-      workOrderId: jobCards.workOrderId,
-      jobCardStatus: jobCards.status,
+      // Work order information (primary link for sales commissions)
       customerName: workOrders.customerName,
+      workOrderStatus: workOrders.status,
       // Work order information for tenant scoping
       workOrderOemId: workOrders.oemId,
       workOrderDealershipId: workOrders.dealershipId,
@@ -1382,8 +1381,7 @@ export class DatabaseStorage implements IStorage {
     .from(commissions)
     .leftJoin(salesPersons, eq(commissions.salesPersonId, salesPersons.id))
     .leftJoin(showrooms, eq(commissions.showroomId, showrooms.id))
-    .leftJoin(jobCards, eq(commissions.jobCardId, jobCards.id))
-    .leftJoin(workOrders, eq(jobCards.workOrderId, workOrders.id));
+    .leftJoin(workOrders, eq(commissions.workOrderId, workOrders.id));
 
     const conditions = [];
     if (filters?.status) conditions.push(eq(commissions.status, filters.status));

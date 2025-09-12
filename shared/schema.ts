@@ -384,7 +384,8 @@ export const payouts = pgTable("payouts", {
 
 export const commissions = pgTable("commissions", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  jobCardId: uuid("job_card_id").references(() => jobCards.id).notNull(),
+  jobCardId: uuid("job_card_id").references(() => jobCards.id), // Keep for backward compatibility  
+  workOrderId: uuid("work_order_id").references(() => workOrders.id).notNull(), // Primary link for sales commissions
   showroomId: uuid("showroom_id").references(() => showrooms.id).notNull(),
   salesPersonId: uuid("sales_person_id").references(() => salesPersons.id),
   basis: text("basis").notNull(),

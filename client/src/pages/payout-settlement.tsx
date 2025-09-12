@@ -278,15 +278,29 @@ export default function PayoutSettlementPage() {
                       
                       {/* Work Order and Job Card Information */}
                       <div className="flex items-center space-x-4 mt-1 text-xs text-muted-foreground">
-                        {item.workOrderId && (
-                          <span className="font-mono bg-muted px-2 py-1 rounded">
-                            WO: {item.workOrderId.slice(-8)}
-                          </span>
-                        )}
-                        {item.jobCardId && (
-                          <span className="font-mono bg-muted px-2 py-1 rounded">
-                            JC: {item.jobCardId.slice(-8)}
-                          </span>
+                        {payoutType === "detailers" ? (
+                          // Detailers are linked to Job Cards
+                          <>
+                            {item.jobCardId && (
+                              <span className="font-mono bg-muted px-2 py-1 rounded">
+                                JC: {item.jobCardId.slice(-8)}
+                              </span>
+                            )}
+                            {item.workOrderId && (
+                              <span className="font-mono bg-muted px-2 py-1 rounded">
+                                WO: {item.workOrderId.slice(-8)}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          // Sales persons are linked to Work Orders
+                          <>
+                            {item.workOrderId && (
+                              <span className="font-mono bg-muted px-2 py-1 rounded">
+                                WO: {item.workOrderId.slice(-8)}
+                              </span>
+                            )}
+                          </>
                         )}
                         {item.customerName && (
                           <span>Customer: {item.customerName}</span>
@@ -294,12 +308,12 @@ export default function PayoutSettlementPage() {
                       </div>
                       {payoutType === "detailers" && (
                         <div className="text-sm text-muted-foreground mt-1">
-                          Type: {item.partnerType} | Status: {item.jobCardStatus}
+                          Type: {item.partnerType} | Job Status: {item.jobCardStatus}
                         </div>
                       )}
                       {payoutType === "sales_persons" && (
                         <div className="text-sm text-muted-foreground mt-1">
-                          Showroom: {item.showroomName} | Basis: {item.basis}
+                          Showroom: {item.showroomName} | Basis: {item.basis} | Work Order Status: {item.workOrderStatus}
                         </div>
                       )}
                     </div>
