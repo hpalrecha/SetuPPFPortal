@@ -1252,6 +1252,128 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Partner Staff Management Routes
+  app.get("/api/partners/:partnerId/staff", 
+    authenticate, 
+    requireRole(['PARTNER_ADMIN']),
+    async (req, res) => {
+      try {
+        const { partnerId } = req.params;
+        
+        // Ensure partner admin can only access their own partner's staff
+        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        
+        const staff = await storage.getPartnerStaff(partnerId);
+        res.json(staff);
+      } catch (error) {
+        console.error("Get partner staff error:", error);
+        res.status(500).json({ error: "Failed to fetch partner staff" });
+      }
+    }
+  );
+
+  app.post("/api/partners/:partnerId/staff",
+    authenticate,
+    requireRole(['PARTNER_ADMIN']),
+    auditLog('partner_staff', 'create'),
+    async (req, res) => {
+      try {
+        const { partnerId } = req.params;
+        
+        // Ensure partner admin can only add staff to their own partner
+        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+
+        // Basic validation schema for staff
+        const staffSchema = z.object({
+          name: z.string().min(1, "Name is required"),
+          email: z.string().email("Valid email is required"),
+          phone: z.string().optional(),
+          passwordHash: z.string().min(6, "Password must be at least 6 characters")
+        });
+
+        const validatedData = staffSchema.parse(req.body);
+        
+        const newStaff = await storage.createPartnerStaff(partnerId, validatedData);
+        res.status(201).json(newStaff);
+      } catch (error) {
+        console.error("Create partner staff error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid staff data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to create staff member" });
+      }
+    }
+  );
+
+  app.put("/api/partners/:partnerId/staff/:staffId",
+    authenticate,
+    requireRole(['PARTNER_ADMIN']),
+    auditLog('partner_staff', 'update'),
+    async (req, res) => {
+      try {
+        const { partnerId, staffId } = req.params;
+        
+        // Ensure partner admin can only update their own partner's staff
+        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+
+        // Basic validation schema for staff updates
+        const staffUpdateSchema = z.object({
+          name: z.string().min(1).optional(),
+          email: z.string().email().optional(),
+          phone: z.string().optional(),
+          isActive: z.boolean().optional()
+        });
+
+        const validatedData = staffUpdateSchema.parse(req.body);
+        
+        const updatedStaff = await storage.updatePartnerStaff(staffId, validatedData);
+        if (!updatedStaff) {
+          return res.status(404).json({ error: "Staff member not found" });
+        }
+        
+        res.json(updatedStaff);
+      } catch (error) {
+        console.error("Update partner staff error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid staff data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to update staff member" });
+      }
+    }
+  );
+
+  app.delete("/api/partners/:partnerId/staff/:staffId",
+    authenticate,
+    requireRole(['PARTNER_ADMIN']),
+    auditLog('partner_staff', 'delete'),
+    async (req, res) => {
+      try {
+        const { partnerId, staffId } = req.params;
+        
+        // Ensure partner admin can only delete their own partner's staff
+        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        
+        const deleted = await storage.deletePartnerStaff(staffId);
+        if (!deleted) {
+          return res.status(404).json({ error: "Staff member not found" });
+        }
+        
+        res.json({ message: "Staff member deleted successfully" });
+      } catch (error) {
+        console.error("Delete partner staff error:", error);
+        res.status(500).json({ error: "Failed to delete staff member" });
+      }
+    }
+  );
+
   // Pricing Rules Routes
   app.get("/api/pricing-rules", authenticate, requireOEMAccess, async (req, res) => {
     try {
