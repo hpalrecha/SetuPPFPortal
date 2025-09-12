@@ -333,12 +333,17 @@ export const jobCards = pgTable("job_cards", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   workOrderId: uuid("work_order_id").references(() => workOrders.id).notNull(),
   partnerId: uuid("partner_id").references(() => partners.id).notNull(),
+  assignedInstallerId: uuid("assigned_installer_id").references(() => users.id), // Sub-installer assignment
   status: jobCardStatusEnum("status").default("AWAITING_ACK"),
+  acknowledgedAt: timestamp("acknowledged_at"), // When job was acknowledged
   scheduledAt: timestamp("scheduled_at"),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
   checklistJson: jsonb("checklist_json"),
-  remarks: text("remarks"),
+  remarks: text("remarks"), // General remarks
+  partnerRemarks: text("partner_remarks"), // Completion remarks from partner
+  materialConsumptionJson: jsonb("material_consumption_json"), // Quantities consumed
+  batchNumbers: text("batch_numbers"), // Material batch tracking
   approvalRequestedAt: timestamp("approval_requested_at"),
   approvedAt: timestamp("approved_at"),
   approvedByUserId: uuid("approved_by_user_id").references(() => users.id),
