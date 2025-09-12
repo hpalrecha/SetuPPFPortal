@@ -67,7 +67,20 @@ export function AddStaffModal({
         password: data.password, // Backend will hash this securely
       };
 
-      await apiRequest(`/api/partners/${partnerId}/staff`, "POST", staffData);
+      const response = await fetch(`/api/partners/${partnerId}/staff`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify(staffData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to create staff member");
+      }
 
       toast({
         title: "Success",

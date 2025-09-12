@@ -75,12 +75,25 @@ export function EditStaffModal({
     setIsLoading(true);
 
     try {
-      await apiRequest(`/api/partners/${partnerId}/staff/${staff.id}`, "PUT", {
-        name: data.name,
-        email: data.email,
-        phone: data.phone || undefined,
-        isActive: data.isActive,
+      const response = await fetch(`/api/partners/${partnerId}/staff/${staff.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: data.name,
+          email: data.email,
+          phone: data.phone || undefined,
+          isActive: data.isActive,
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update staff member");
+      }
 
       toast({
         title: "Success",
