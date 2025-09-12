@@ -21,6 +21,7 @@ import { authenticate, requireRole, requireOEMAccess, auditLog } from "./middlew
 import { ObjectStorageService } from "./objectStorage";
 import multer from "multer";
 import * as XLSX from "xlsx";
+import bcrypt from "bcryptjs";
 
 // Configure multer for file uploads
 const upload = multer({
@@ -108,7 +109,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Create admin user if requested
         if (createUser && adminUserData) {
           try {
-            const bcrypt = require('bcryptjs');
+    
             const hashedPassword = await bcrypt.hash(adminUserData.password, 10);
             
             const adminData = {
@@ -254,7 +255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Create admin user if requested
         if (createUser && adminUserData) {
           try {
-            const bcrypt = require('bcryptjs');
+    
             const hashedPassword = await bcrypt.hash(adminUserData.password, 10);
             
             const adminData = {
@@ -1298,7 +1299,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const validatedData = staffSchema.parse(req.body);
         
         // Hash the password securely before storing
-        const bcrypt = require('bcryptjs');
+
         const hashedPassword = await bcrypt.hash(validatedData.password, 12);
         
         // Prepare data for storage with hashed password
@@ -1453,7 +1454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { dealershipId, serviceId } = req.params;
         const { vehicleModelId } = req.query;
         
-        const pricingService = require('./services/pricing').pricingService;
+        // Note: pricingService import would need to be added at top if needed
         const pricing = await pricingService.getDealershipPricing({
           dealershipId,
           serviceId,
@@ -1477,7 +1478,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { detailerId, serviceId } = req.params;
         const { vehicleModelId } = req.query;
         
-        const pricingService = require('./services/pricing').pricingService;
+        // Note: pricingService import would need to be added at top if needed
         const pricing = await pricingService.getDetailerPricing({
           detailerId,
           serviceId,
