@@ -175,6 +175,16 @@ export interface IStorage {
   resolveCommissionRule(oemId: string, dealershipId: string, showroomId: string, salesPersonId?: string, serviceId?: string, serviceCategoryId?: string): Promise<any | null>;
   calculateCommission(grossAmount: number, oemId: string, dealershipId: string, showroomId: string, salesPersonId?: string, serviceId?: string, serviceCategoryId?: string): Promise<any>;
   
+  // Payout settlement
+  getPayouts(filters?: { status?: string; partnerId?: string; oemId?: string; dealershipId?: string; showroomId?: string }): Promise<any[]>;
+  getPayout(id: string): Promise<any | undefined>;
+  getCommissions(filters?: { status?: string; salesPersonId?: string; showroomId?: string; oemId?: string; dealershipId?: string }): Promise<{ commissions: any[] }>;
+  getCommission(id: string): Promise<any | undefined>;
+  canUserAccessPayout(user: User, payout: any): boolean;
+  canUserAccessCommission(user: User, commission: any): boolean;
+  settlePayout(id: string, settlement: { paymentReference: string; settledAt: Date; settledBy: string }): Promise<boolean>;
+  settleCommission(id: string, settlement: { paymentReference: string; settledAt: Date; settledBy: string }): Promise<boolean>;
+
   // Pricing resolution
   resolvePricingRule(partnerId: string, vehicleModelId: string, serviceId: string, dealershipId?: string, showroomId?: string): Promise<PricingRule | null>;
   
@@ -1294,6 +1304,248 @@ export class DatabaseStorage implements IStorage {
       appliedCap,
       appliedFloor
     };
+  }
+
+  async getPayouts(filters?: { status?: string; partnerId?: string; oemId?: string; dealershipId?: string; showroomId?: string }): Promise<any[]> {
+    let query = db.select({
+      id: payouts.id,
+      jobCardId: payouts.jobCardId,
+      partnerId: payouts.partnerId,
+      grossAmount: payouts.grossAmount,
+      netAmount: payouts.netAmount,
+      status: payouts.status,
+      paidAt: payouts.paidAt,
+      paymentReference: payouts.paymentReference,
+      settledBy: payouts.settledBy,
+      settledAt: payouts.settledAt,
+      createdAt: payouts.createdAt,
+      // Partner information
+      partnerName: partners.businessName,
+      partnerType: partners.type,
+      partnerOemId: partners.oemId,
+      // Job card information
+      jobCardStatus: jobCards.status,
+      // Work order information for tenant scoping
+      workOrderOemId: workOrders.oemId,
+      workOrderDealershipId: workOrders.dealershipId,
+      workOrderShowroomId: workOrders.showroomId,
+    })
+    .from(payouts)
+    .leftJoin(partners, eq(payouts.partnerId, partners.id))
+    .leftJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
+    .leftJoin(workOrders, eq(jobCards.workOrderId, workOrders.id));
+
+    const conditions = [];
+    if (filters?.status) conditions.push(eq(payouts.status, filters.status));
+    if (filters?.partnerId) conditions.push(eq(payouts.partnerId, filters.partnerId));
+    
+    // Add tenant scoping conditions
+    if (filters?.oemId) conditions.push(eq(workOrders.oemId, filters.oemId));
+    if (filters?.dealershipId) conditions.push(eq(workOrders.dealershipId, filters.dealershipId));
+    if (filters?.showroomId) conditions.push(eq(workOrders.showroomId, filters.showroomId));
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    return await query.orderBy(desc(payouts.createdAt));
+  }
+
+  async getCommissions(filters?: { status?: string; salesPersonId?: string; showroomId?: string; oemId?: string; dealershipId?: string }): Promise<{ commissions: any[] }> {
+    let query = db.select({
+      id: commissions.id,
+      jobCardId: commissions.jobCardId,
+      showroomId: commissions.showroomId,
+      salesPersonId: commissions.salesPersonId,
+      basis: commissions.basis,
+      value: commissions.value,
+      computedAmount: commissions.computedAmount,
+      status: commissions.status,
+      paidAt: commissions.paidAt,
+      paymentReference: commissions.paymentReference,
+      settledBy: commissions.settledBy,
+      settledAt: commissions.settledAt,
+      createdAt: commissions.createdAt,
+      // Sales person information
+      salesPersonName: salesPersons.name,
+      // Showroom information
+      showroomName: showrooms.name,
+      // Job card information
+      jobCardStatus: jobCards.status,
+      // Work order information for tenant scoping
+      workOrderOemId: workOrders.oemId,
+      workOrderDealershipId: workOrders.dealershipId,
+      workOrderShowroomId: workOrders.showroomId,
+    })
+    .from(commissions)
+    .leftJoin(salesPersons, eq(commissions.salesPersonId, salesPersons.id))
+    .leftJoin(showrooms, eq(commissions.showroomId, showrooms.id))
+    .leftJoin(jobCards, eq(commissions.jobCardId, jobCards.id))
+    .leftJoin(workOrders, eq(jobCards.workOrderId, workOrders.id));
+
+    const conditions = [];
+    if (filters?.status) conditions.push(eq(commissions.status, filters.status));
+    if (filters?.salesPersonId) conditions.push(eq(commissions.salesPersonId, filters.salesPersonId));
+    if (filters?.showroomId) conditions.push(eq(commissions.showroomId, filters.showroomId));
+    
+    // Add tenant scoping conditions
+    if (filters?.oemId) conditions.push(eq(workOrders.oemId, filters.oemId));
+    if (filters?.dealershipId) conditions.push(eq(workOrders.dealershipId, filters.dealershipId));
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    const results = await query.orderBy(desc(commissions.createdAt));
+    return { commissions: results };
+  }
+
+  async settlePayout(id: string, settlement: { paymentReference: string; settledAt: Date; settledBy: string }): Promise<boolean> {
+    try {
+      const [updated] = await db
+        .update(payouts)
+        .set({
+          status: 'PAID',
+          paidAt: settlement.settledAt,
+          paymentReference: settlement.paymentReference,
+          settledBy: settlement.settledBy,
+          settledAt: settlement.settledAt,
+        })
+        .where(eq(payouts.id, id))
+        .returning();
+      
+      return !!updated;
+    } catch (error) {
+      console.error('Error settling payout:', error);
+      throw new Error('Failed to settle payout');
+    }
+  }
+
+  async getPayout(id: string): Promise<any | undefined> {
+    const [payout] = await db.select({
+      id: payouts.id,
+      jobCardId: payouts.jobCardId,
+      partnerId: payouts.partnerId,
+      grossAmount: payouts.grossAmount,
+      netAmount: payouts.netAmount,
+      status: payouts.status,
+      paidAt: payouts.paidAt,
+      paymentReference: payouts.paymentReference,
+      settledBy: payouts.settledBy,
+      settledAt: payouts.settledAt,
+      createdAt: payouts.createdAt,
+      // Partner information
+      partnerName: partners.businessName,
+      partnerOemId: partners.oemId,
+      // Work order information for tenant scoping
+      workOrderOemId: workOrders.oemId,
+      workOrderDealershipId: workOrders.dealershipId,
+      workOrderShowroomId: workOrders.showroomId,
+    })
+    .from(payouts)
+    .leftJoin(partners, eq(payouts.partnerId, partners.id))
+    .leftJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
+    .leftJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
+    .where(eq(payouts.id, id));
+    
+    return payout || undefined;
+  }
+
+  async getCommission(id: string): Promise<any | undefined> {
+    const [commission] = await db.select({
+      id: commissions.id,
+      jobCardId: commissions.jobCardId,
+      showroomId: commissions.showroomId,
+      salesPersonId: commissions.salesPersonId,
+      basis: commissions.basis,
+      value: commissions.value,
+      computedAmount: commissions.computedAmount,
+      status: commissions.status,
+      paidAt: commissions.paidAt,
+      paymentReference: commissions.paymentReference,
+      settledBy: commissions.settledBy,
+      settledAt: commissions.settledAt,
+      createdAt: commissions.createdAt,
+      // Work order information for tenant scoping
+      workOrderOemId: workOrders.oemId,
+      workOrderDealershipId: workOrders.dealershipId,
+      workOrderShowroomId: workOrders.showroomId,
+    })
+    .from(commissions)
+    .leftJoin(jobCards, eq(commissions.jobCardId, jobCards.id))
+    .leftJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
+    .where(eq(commissions.id, id));
+    
+    return commission || undefined;
+  }
+
+  canUserAccessPayout(user: User, payout: any): boolean {
+    // SUPER_ADMIN can access all payouts
+    if (user.role === 'SUPER_ADMIN') {
+      return true;
+    }
+    
+    // Check OEM level access
+    if (user.oemId && payout.workOrderOemId !== user.oemId) {
+      return false;
+    }
+    
+    // Check dealership level access
+    if (user.dealershipId && payout.workOrderDealershipId !== user.dealershipId) {
+      return false;
+    }
+    
+    // Check showroom level access
+    if (user.showroomId && payout.workOrderShowroomId !== user.showroomId) {
+      return false;
+    }
+    
+    return true;
+  }
+
+  canUserAccessCommission(user: User, commission: any): boolean {
+    // SUPER_ADMIN can access all commissions
+    if (user.role === 'SUPER_ADMIN') {
+      return true;
+    }
+    
+    // Check OEM level access
+    if (user.oemId && commission.workOrderOemId !== user.oemId) {
+      return false;
+    }
+    
+    // Check dealership level access
+    if (user.dealershipId && commission.workOrderDealershipId !== user.dealershipId) {
+      return false;
+    }
+    
+    // Check showroom level access
+    if (user.showroomId && commission.workOrderShowroomId !== user.showroomId) {
+      return false;
+    }
+    
+    return true;
+  }
+
+  async settleCommission(id: string, settlement: { paymentReference: string; settledAt: Date; settledBy: string }): Promise<boolean> {
+    try {
+      const [updated] = await db
+        .update(commissions)
+        .set({
+          status: 'PAID',
+          paidAt: settlement.settledAt,
+          paymentReference: settlement.paymentReference,
+          settledBy: settlement.settledBy,
+          settledAt: settlement.settledAt,
+        })
+        .where(eq(commissions.id, id))
+        .returning();
+      
+      return !!updated;
+    } catch (error) {
+      console.error('Error settling commission:', error);
+      throw new Error('Failed to settle commission');
+    }
   }
 
   async resolvePricingRule(partnerId: string, vehicleModelId: string, serviceId: string, dealershipId?: string, showroomId?: string): Promise<PricingRule | null> {

@@ -22,6 +22,7 @@ import SalesPersonsPage from "./pages/sales-persons";
 import VehiclesPage from "./pages/vehicles";
 import ServicesPage from "./pages/services";
 import ServiceCategoriesPage from "./pages/ServiceCategories";
+import PayoutSettlementPage from "./pages/payout-settlement";
 import MainLayout from "./components/layout/main-layout";
 import NotFound from "@/pages/not-found";
 
@@ -47,6 +48,7 @@ function Router() {
       <Route path="/allocations" component={() => <ProtectedRoute component={AllocationsPage} />} />
       <Route path="/pricing" component={() => <ProtectedRoute component={PricingPage} />} />
       <Route path="/commissions" component={() => <ProtectedRoute component={CommissionsPage} />} />
+      <Route path="/payout-settlement" component={() => <ProtectedRoute component={PayoutSettlementPage} />} />
       <Route path="/oems" component={() => <ProtectedRoute component={OEMsPage} />} />
       <Route path="/dealerships" component={() => <ProtectedRoute component={DealershipsPage} />} />
       <Route path="/showrooms" component={() => <ProtectedRoute component={ShowroomsPage} />} />

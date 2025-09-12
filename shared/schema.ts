@@ -376,6 +376,9 @@ export const payouts = pgTable("payouts", {
   netAmount: decimal("net_amount", { precision: 10, scale: 2 }).notNull(),
   status: text("status").default("PENDING"),
   paidAt: timestamp("paid_at"),
+  paymentReference: text("payment_reference"),
+  settledBy: uuid("settled_by").references(() => users.id),
+  settledAt: timestamp("settled_at"),
   createdAt: timestamp("created_at").defaultNow()
 });
 
@@ -389,6 +392,9 @@ export const commissions = pgTable("commissions", {
   computedAmount: decimal("computed_amount", { precision: 10, scale: 2 }).notNull(),
   status: text("status").default("PENDING"),
   paidAt: timestamp("paid_at"),
+  paymentReference: text("payment_reference"),
+  settledBy: uuid("settled_by").references(() => users.id),
+  settledAt: timestamp("settled_at"),
   createdAt: timestamp("created_at").defaultNow()
 });
 
@@ -588,6 +594,25 @@ export const insertPricingRuleSchema = createInsertSchema(pricingRules).omit({ i
 export const selectPricingRuleSchema = createSelectSchema(pricingRules);
 export type InsertPricingRule = z.infer<typeof insertPricingRuleSchema>;
 export type PricingRule = z.infer<typeof selectPricingRuleSchema>;
+
+// Payout schemas
+export const insertPayoutSchema = createInsertSchema(payouts).omit({ id: true, createdAt: true });
+export const selectPayoutSchema = createSelectSchema(payouts);
+export type InsertPayout = z.infer<typeof insertPayoutSchema>;
+export type Payout = z.infer<typeof selectPayoutSchema>;
+
+// Commission schemas  
+export const insertCommissionSchema = createInsertSchema(commissions).omit({ id: true, createdAt: true });
+export const selectCommissionSchema = createSelectSchema(commissions);
+export type InsertCommission = z.infer<typeof insertCommissionSchema>;
+export type Commission = z.infer<typeof selectCommissionSchema>;
+
+// Payout settlement schemas
+export const payoutSettlementSchema = z.object({
+  paymentReference: z.string().min(1, "Payment reference is required"),
+  settledAt: z.string().or(z.date()).transform((val) => typeof val === 'string' ? new Date(val) : val),
+});
+export type PayoutSettlement = z.infer<typeof payoutSettlementSchema>;
 
 export const insertCommissionRuleSchema = createInsertSchema(commissionRules).omit({
   id: true,

@@ -10,6 +10,7 @@ import {
   Network,
   DollarSign, 
   Percent, 
+  CreditCard,
   Shield,
   BarChart3, 
   History, 
@@ -39,6 +40,7 @@ const baseNavigation = [
   { name: "Services", href: "/services", icon: Shield, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_STAFF"] },
   { name: "Pricing Rules", href: "/pricing", icon: DollarSign, roles: ["SUPER_ADMIN", "OEM_ADMIN"] },
   { name: "Commissions", href: "/commissions", icon: Percent, roles: ["SUPER_ADMIN", "OEM_ADMIN"] },
+  { name: "Payout Settlement", href: "/payout-settlement", icon: CreditCard, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER"] },
 ];
 
 const organizationNavigation = [

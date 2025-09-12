@@ -12,6 +12,7 @@ import {
   insertVehicleVariantSchema,
   insertOemSchema,
   insertServiceCategorySchema,
+  payoutSettlementSchema,
   commissionRules
 } from "@shared/schema";
 import { storage } from "./storage";
@@ -1797,6 +1798,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Delete allocation error:", error);
         res.status(500).json({ error: "Failed to delete allocation" });
+      }
+    }
+  );
+
+  // Payout Settlement Routes
+  app.get("/api/payouts", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    async (req, res) => {
+      try {
+        const { status, partnerId } = req.query;
+        const payouts = await storage.getPayouts({ 
+          status: status as string,
+          partnerId: partnerId as string,
+          oemId: req.user!.oemId, // Add tenant scoping
+          dealershipId: req.user!.dealershipId,
+          showroomId: req.user!.showroomId
+        });
+        res.json(payouts);
+      } catch (error) {
+        console.error("Get payouts error:", error);
+        res.status(500).json({ error: "Failed to fetch payouts" });
+      }
+    }
+  );
+
+  app.get("/api/commissions-for-settlement", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    async (req, res) => {
+      try {
+        const { status, salesPersonId, showroomId } = req.query;
+        const commissions = await storage.getCommissions({ 
+          status: status as string,
+          salesPersonId: salesPersonId as string,
+          showroomId: showroomId as string,
+          oemId: req.user!.oemId, // Add tenant scoping
+          dealershipId: req.user!.dealershipId
+        });
+        res.json(commissions);
+      } catch (error) {
+        console.error("Get commissions error:", error);
+        res.status(500).json({ error: "Failed to fetch commissions" });
+      }
+    }
+  );
+
+  app.post("/api/payouts/:id/settle", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    auditLog('payout', 'settle'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        
+        // Validate request body using Zod schema
+        const validatedData = payoutSettlementSchema.parse(req.body);
+        
+        // Verify ownership before settlement
+        const payout = await storage.getPayout(id);
+        if (!payout) {
+          return res.status(404).json({ error: "Payout not found" });
+        }
+        
+        // Check tenant access permissions
+        if (!storage.canUserAccessPayout(req.user!, payout)) {
+          return res.status(403).json({ error: "Access denied - insufficient permissions" });
+        }
+        
+        // Check if already settled (idempotent operation)
+        if (payout.status === 'PAID') {
+          return res.json({ message: "Payout already settled", payout });
+        }
+        
+        const success = await storage.settlePayout(id, {
+          paymentReference: validatedData.paymentReference,
+          settledAt: validatedData.settledAt,
+          settledBy: req.user!.id
+        });
+        
+        if (success) {
+          res.json({ message: "Payout settled successfully" });
+        } else {
+          res.status(404).json({ error: "Payout not found" });
+        }
+      } catch (error) {
+        console.error("Settle payout error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid settlement data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to settle payout" });
+      }
+    }
+  );
+
+  app.post("/api/commissions/:id/settle", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    auditLog('commission', 'settle'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        
+        // Validate request body using Zod schema
+        const validatedData = payoutSettlementSchema.parse(req.body);
+        
+        // Verify ownership before settlement
+        const commission = await storage.getCommission(id);
+        if (!commission) {
+          return res.status(404).json({ error: "Commission not found" });
+        }
+        
+        // Check tenant access permissions
+        if (!storage.canUserAccessCommission(req.user!, commission)) {
+          return res.status(403).json({ error: "Access denied - insufficient permissions" });
+        }
+        
+        // Check if already settled (idempotent operation)
+        if (commission.status === 'PAID') {
+          return res.json({ message: "Commission already settled", commission });
+        }
+        
+        const success = await storage.settleCommission(id, {
+          paymentReference: validatedData.paymentReference,
+          settledAt: validatedData.settledAt,
+          settledBy: req.user!.id
+        });
+        
+        if (success) {
+          res.json({ message: "Commission settled successfully" });
+        } else {
+          res.status(404).json({ error: "Commission not found" });
+        }
+      } catch (error) {
+        console.error("Settle commission error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid settlement data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to settle commission" });
       }
     }
   );
