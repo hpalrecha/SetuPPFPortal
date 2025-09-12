@@ -279,7 +279,7 @@ export const pricingRules = pgTable("pricing_rules", {
   vehicleVariantId: uuid("vehicle_variant_id").references(() => vehicleVariants.id),
   
   // Service reference - use serviceId for partner/dealership pricing, serviceCategoryId for detailer pricing
-  serviceId: uuid("service_id").references(() => services.id), // For PARTNER_PRICING and DEALERSHIP_PRICING
+  serviceId: uuid("service_id").references(() => services.id), // For PARTNER_PRICING and DEALERSHIP_PRICING - OPTIONAL
   serviceCategoryId: uuid("service_category_id").references(() => serviceCategories.id), // For DETAILER_PRICING
   
   priceAmount: decimal("price_amount", { precision: 10, scale: 2 }).notNull(),
