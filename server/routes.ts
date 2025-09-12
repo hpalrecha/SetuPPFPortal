@@ -71,23 +71,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // OEM Routes
-  app.get("/api/oems", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
+  app.get("/api/oems", authenticate, requireRole(['SUPER_ADMIN', 'PARTNER_ADMIN', 'PARTNER_STAFF']), async (req, res) => {
     try {
-      const oems = await storage.getOems();
+      let oems = await storage.getOems();
       
-      // Get counts for each OEM
-      const oemsWithCounts = await Promise.all(oems.map(async (oem) => {
-        const dealerships = await storage.getDealerships(oem.id);
-        const showrooms = await storage.getShowrooms(undefined, oem.id);
-        
-        return {
-          ...oem,
-          dealershipsCount: dealerships.length,
-          showroomsCount: showrooms.length
-        };
-      }));
+      // Filter OEMs based on user role and access
+      if (req.user?.role === 'PARTNER_ADMIN' || req.user?.role === 'PARTNER_STAFF') {
+        // For partner users, only return OEMs they have access to
+        const allowedOemIds = req.user.allowedOemIds || [];
+        oems = oems.filter(oem => allowedOemIds.includes(oem.id));
+      }
       
-      res.json(oemsWithCounts);
+      // Get counts for each OEM (only for super admins)
+      if (req.user?.role === 'SUPER_ADMIN') {
+        const oemsWithCounts = await Promise.all(oems.map(async (oem) => {
+          const dealerships = await storage.getDealerships(oem.id);
+          const showrooms = await storage.getShowrooms(undefined, oem.id);
+          
+          return {
+            ...oem,
+            dealershipsCount: dealerships.length,
+            showroomsCount: showrooms.length
+          };
+        }));
+        res.json(oemsWithCounts);
+      } else {
+        // For partner users, return basic OEM info without counts
+        res.json(oems);
+      }
     } catch (error) {
       console.error("Get OEMs error:", error);
       res.status(500).json({ error: "Failed to fetch OEMs" });

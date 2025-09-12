@@ -18,7 +18,7 @@ These users have access to multiple OEMs and will see an OEM selector after logi
 
 ---
 
-## Super Admin
+## ✅ Super Admin (WORKING)
 Full system access:
 
 | Email | Role | Access | Password |

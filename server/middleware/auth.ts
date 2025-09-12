@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { AuthService } from '../auth';
+import { authService } from '../auth';
 
 declare global {
   namespace Express {
@@ -20,9 +20,13 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     }
 
     const token = authHeader.substring(7);
-    const payload = AuthService.verifyToken(token);
+    const payload = await authService.verifyToken(token);
     
-    req.userId = payload.userId;
+    if (!payload) {
+      return next(); // Let route decide if auth is required
+    }
+    
+    req.userId = payload.id;
     req.user = payload;
     req.oemId = payload.oemId;
     

@@ -3,7 +3,15 @@ import bcrypt from 'bcryptjs';
 import { storage } from './storage';
 import type { User } from '@shared/schema';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('⚠️  WARNING: Using default JWT secret in development. Set JWT_SECRET env var for production!');
+    return 'dev-secret-key-change-in-production';
+  } else {
+    console.error('FATAL ERROR: JWT_SECRET environment variable is required in production');
+    process.exit(1);
+  }
+})();
 const JWT_EXPIRES_IN = '7d';
 
 export interface AuthUser {
