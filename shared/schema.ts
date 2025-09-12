@@ -195,6 +195,16 @@ export const partnerMembers = pgTable("partner_members", {
   createdAt: timestamp("created_at").defaultNow()
 });
 
+// Partner-OEM mapping for multi-tenant access control
+export const partnerOems = pgTable("partner_oems", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerId: uuid("partner_id").references(() => partners.id).notNull(),
+  oemId: uuid("oem_id").references(() => oems.id).notNull(),
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
 export const allocations = pgTable("allocations", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   level: allocationLevelEnum("level").notNull(),

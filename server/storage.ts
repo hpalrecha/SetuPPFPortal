@@ -5,6 +5,7 @@ import {
   showrooms,
   salesPersons,
   partners,
+  partnerOems,
   allocations,
   vehicleModels,
   vehicleVariants,
@@ -246,6 +247,9 @@ export interface IStorage {
     thisMonthRevenue: number;
     avgTAT: number;
   }>;
+
+  // Partner OEM access control
+  checkPartnerOemAccess(partnerId: string, oemId: string): Promise<boolean>;
 
   // Audit logging
   createAuditLog(log: {
@@ -892,6 +896,19 @@ export class DatabaseStorage implements IStorage {
       .values(insertPartner)
       .returning();
     return partner;
+  }
+
+  async checkPartnerOemAccess(partnerId: string, oemId: string): Promise<boolean> {
+    const [mapping] = await db
+      .select()
+      .from(partnerOems)
+      .where(and(
+        eq(partnerOems.partnerId, partnerId),
+        eq(partnerOems.oemId, oemId),
+        eq(partnerOems.active, true)
+      ));
+    
+    return !!mapping;
   }
 
   async updatePartner(id: string, updates: Partial<InsertPartner>): Promise<Partner | undefined> {
