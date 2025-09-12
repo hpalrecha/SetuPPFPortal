@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { AlertCircle, Clock, Wrench, CheckCircle2, Trophy, FileText, Zap, Target } from "lucide-react";
+import { AlertCircle, Clock, Wrench, CheckCircle2, Trophy, FileText, Zap, Target, Settings, Play, Pause } from "lucide-react";
 import type { JobCard } from "@shared/schema";
 import ApprovalModal from "@/components/job-cards/approval-modal";
+import DetailerJobDetailModal from "@/components/job-cards/detailer-job-detail-modal";
 import { useState } from "react";
 
 const statusColors = {
@@ -21,6 +22,7 @@ const statusColors = {
 
 export default function JobCardsPage() {
   const [selectedJobCard, setSelectedJobCard] = useState<string | null>(null);
+  const [selectedDetailerJobCard, setSelectedDetailerJobCard] = useState<string | null>(null);
 
   const { data: jobCards = [], isLoading } = useQuery<JobCard[]>({
     queryKey: ["/api/job-cards"],
@@ -133,16 +135,26 @@ export default function JobCardsPage() {
                     </div>
                     <p className="text-sm font-medium text-foreground mb-1">Vehicle - Service</p>
                     <p className="text-xs text-muted-foreground mb-2">Partner Name</p>
-                    <Button 
-                      size="sm" 
-                      variant="destructive" 
-                      className="w-full"
-                      onClick={() => handleSendReminder(job.id)}
-                      data-testid={`button-reminder-${job.id}`}
-                    >
-                      <AlertCircle className="h-3 w-3 mr-1" />
-                      Send Reminder
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="destructive" 
+                        className="flex-1"
+                        onClick={() => handleSendReminder(job.id)}
+                        data-testid={`button-reminder-${job.id}`}
+                      >
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Send Reminder
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => setSelectedDetailerJobCard(job.id)}
+                        data-testid={`button-manage-${job.id}`}
+                      >
+                        <Settings className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))
@@ -190,7 +202,16 @@ export default function JobCardsPage() {
                     <div className="mb-2">
                       <Progress value={60} className="h-2" />
                     </div>
-                    <p className="text-xs text-muted-foreground">60% complete</p>
+                    <p className="text-xs text-muted-foreground mb-2">60% complete</p>
+                    <Button 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => setSelectedDetailerJobCard(job.id)}
+                      data-testid={`button-manage-${job.id}`}
+                    >
+                      <Play className="h-3 w-3 mr-1" />
+                      Manage Job
+                    </Button>
                   </CardContent>
                 </Card>
               ))
@@ -304,6 +325,13 @@ export default function JobCardsPage() {
         jobCardId={selectedJobCard}
         isOpen={!!selectedJobCard}
         onClose={() => setSelectedJobCard(null)}
+      />
+      
+      {/* Detailer Job Management Modal */}
+      <DetailerJobDetailModal 
+        jobCardId={selectedDetailerJobCard}
+        isOpen={!!selectedDetailerJobCard}
+        onClose={() => setSelectedDetailerJobCard(null)}
       />
     </div>
   );

@@ -75,6 +75,31 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const [materialConsumption, setMaterialConsumption] = useState('');
   const [batchNumbers, setBatchNumbers] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [jsonValidationError, setJsonValidationError] = useState<string | null>(null);
+
+  // JSON validation helper
+  const validateJSON = (jsonString: string): { isValid: boolean; error?: string } => {
+    if (!jsonString.trim()) {
+      return { isValid: true }; // Empty is valid (optional field)
+    }
+    
+    try {
+      JSON.parse(jsonString);
+      return { isValid: true };
+    } catch (error) {
+      return { 
+        isValid: false, 
+        error: error instanceof Error ? error.message : 'Invalid JSON format'
+      };
+    }
+  };
+
+  // Handle material consumption change with validation
+  const handleMaterialConsumptionChange = (value: string) => {
+    setMaterialConsumption(value);
+    const validation = validateJSON(value);
+    setJsonValidationError(validation.isValid ? null : validation.error || 'Invalid JSON');
+  };
 
   // Quality checklist items
   const [checklist, setChecklist] = useState({
@@ -150,23 +175,39 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
 
   const completeJobMutation = useMutation({
     mutationFn: async () => {
+      // Validate JSON if material consumption is provided
+      let parsedMaterialConsumption = null;
+      if (materialConsumption.trim()) {
+        try {
+          parsedMaterialConsumption = JSON.parse(materialConsumption);
+        } catch (error) {
+          throw new Error('Invalid JSON format in material consumption field. Please check the syntax.');
+        }
+      }
+
       // Upload files first if any
       const mediaUrls = [];
-      for (const file of selectedFiles) {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('jobCardId', jobCardId!);
-        formData.append('type', 'IMAGE');
-        
-        const uploadResponse = await apiRequest('POST', '/api/job-cards/upload-media', formData);
-        const uploadResult = await uploadResponse.json();
-        mediaUrls.push(uploadResult.url);
+      if (selectedFiles.length > 0) {
+        for (const file of selectedFiles) {
+          try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('jobCardId', jobCardId!);
+            formData.append('type', 'IMAGE');
+            
+            const uploadResponse = await apiRequest('POST', '/api/job-cards/upload-media', formData);
+            const uploadResult = await uploadResponse.json();
+            mediaUrls.push(uploadResult.url);
+          } catch (error) {
+            throw new Error(`Failed to upload file ${file.name}. Please try again.`);
+          }
+        }
       }
 
       const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/complete`, {
         remarks: completionRemarks,
         checklistJson: checklist,
-        materialConsumptionJson: materialConsumption ? JSON.parse(materialConsumption) : null,
+        materialConsumptionJson: parsedMaterialConsumption,
         batchNumbers
       });
       return response.json();
@@ -176,8 +217,9 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
       toast({ title: 'Job Completed', description: 'Job card has been completed and submitted for approval.' });
       setCurrentView('details');
     },
-    onError: () => {
-      toast({ title: 'Error', description: 'Failed to complete job card.', variant: 'destructive' });
+    onError: (error: Error) => {
+      const errorMessage = error.message || 'Failed to complete job card.';
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
     }
   });
 
@@ -207,6 +249,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     setMaterialConsumption('');
     setBatchNumbers('');
     setSelectedFiles([]);
+    setJsonValidationError(null);
     setChecklist({
       surfacePreparation: false,
       alignmentCheck: false,
@@ -553,14 +596,30 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
             {/* Material Consumption */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="material-consumption">Material Consumption (JSON)</Label>
+                <div className="flex items-center gap-2 mb-2">
+                  <Label htmlFor="material-consumption">Material Consumption (JSON)</Label>
+                  {materialConsumption.trim() && (
+                    jsonValidationError ? (
+                      <span className="text-red-500 text-xs">✗ Invalid JSON</span>
+                    ) : (
+                      <span className="text-green-500 text-xs">✓ Valid JSON</span>
+                    )
+                  )}
+                </div>
                 <Textarea
                   id="material-consumption"
                   placeholder='{"film_sqft": 25, "primer_ml": 50}'
                   value={materialConsumption}
-                  onChange={(e) => setMaterialConsumption(e.target.value)}
+                  onChange={(e) => handleMaterialConsumptionChange(e.target.value)}
+                  className={jsonValidationError ? 'border-red-300' : ''}
                   data-testid="textarea-material-consumption"
                 />
+                {jsonValidationError && (
+                  <p className="text-red-500 text-xs mt-1">{jsonValidationError}</p>
+                )}
+                <p className="text-gray-500 text-xs mt-1">
+                  Optional: Enter material usage in JSON format (e.g., film area, primer volume)
+                </p>
               </div>
               <div>
                 <Label htmlFor="batch-numbers">Batch Numbers</Label>
@@ -620,7 +679,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
             <div className="flex gap-3">
               <Button 
                 onClick={() => completeJobMutation.mutate()} 
-                disabled={completeJobMutation.isPending || !completionRemarks.trim()}
+                disabled={completeJobMutation.isPending || !completionRemarks.trim() || !!jsonValidationError}
                 className="bg-green-600 hover:bg-green-700"
                 data-testid="button-confirm-complete"
               >
