@@ -1387,6 +1387,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Payout & Earnings Management for Partner Staff
+  app.get("/api/partner-staff/payouts",
+    authenticate,
+    requireRole(['PARTNER_STAFF', 'PARTNER_ADMIN']),
+    async (req, res) => {
+      try {
+        const user = req.user!;
+        let partnerId = user.partnerId;
+
+        // For partner staff, get their own partner's payouts
+        // For partner admin, they can see all their partner's payouts
+        if (!partnerId) {
+          return res.status(400).json({ error: "Partner ID required" });
+        }
+
+        const payouts = await storage.getPartnerPayouts(partnerId);
+        res.json(payouts);
+      } catch (error) {
+        console.error("Get partner payouts error:", error);
+        res.status(500).json({ error: "Failed to fetch payouts" });
+      }
+    }
+  );
+
+  app.get("/api/partner-staff/earnings-summary",
+    authenticate,
+    requireRole(['PARTNER_STAFF', 'PARTNER_ADMIN']),
+    async (req, res) => {
+      try {
+        const user = req.user!;
+        let partnerId = user.partnerId;
+
+        if (!partnerId) {
+          return res.status(400).json({ error: "Partner ID required" });
+        }
+
+        const summary = await storage.getPartnerEarningsSummary(partnerId);
+        res.json(summary);
+      } catch (error) {
+        console.error("Get earnings summary error:", error);
+        res.status(500).json({ error: "Failed to fetch earnings summary" });
+      }
+    }
+  );
+
+  app.get("/api/partner-staff/service-rates",
+    authenticate,
+    requireRole(['PARTNER_STAFF', 'PARTNER_ADMIN']),
+    async (req, res) => {
+      try {
+        const user = req.user!;
+        let partnerId = user.partnerId;
+
+        if (!partnerId) {
+          return res.status(400).json({ error: "Partner ID required" });
+        }
+
+        const serviceRates = await storage.getPartnerServiceRates(partnerId);
+        res.json(serviceRates);
+      } catch (error) {
+        console.error("Get service rates error:", error);
+        res.status(500).json({ error: "Failed to fetch service rates" });
+      }
+    }
+  );
+
   // Pricing Rules Routes
   app.get("/api/pricing-rules", authenticate, requireOEMAccess, async (req, res) => {
     try {

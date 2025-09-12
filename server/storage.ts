@@ -140,6 +140,18 @@ export interface IStorage {
   updatePartnerStaff(staffId: string, updates: Partial<InsertUser>): Promise<User | undefined>;
   deletePartnerStaff(staffId: string): Promise<boolean>;
 
+  // Partner Payout & Earnings Management
+  getPartnerPayouts(partnerId: string): Promise<any[]>;
+  getPartnerEarningsSummary(partnerId: string): Promise<{
+    totalEarnings: number;
+    paidAmount: number;
+    pendingAmount: number;
+    thisMonthEarnings: number;
+    completedJobs: number;
+    pendingJobs: number;
+  }>;
+  getPartnerServiceRates(partnerId: string): Promise<any[]>;
+
   // Pricing Rules
   getPricingRules(filters?: { 
     partnerId?: string; 
@@ -991,6 +1003,122 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return !!deletedStaff;
+  }
+
+  // Partner Payout & Earnings Management implementations
+  async getPartnerPayouts(partnerId: string): Promise<any[]> {
+    return await db
+      .select({
+        id: payouts.id,
+        jobCardId: payouts.jobCardId,
+        grossAmount: payouts.grossAmount,
+        netAmount: payouts.netAmount,
+        status: payouts.status,
+        paidAt: payouts.paidAt,
+        paymentReference: payouts.paymentReference,
+        createdAt: payouts.createdAt,
+        // Job card info
+        jobCardNumber: jobCards.jobCardNumber,
+        workOrderId: jobCards.workOrderId,
+        // Work order info for context
+        customerName: workOrders.customerName,
+        regNo: workOrders.regNo,
+        serviceName: services.name,
+        vehicleModelName: vehicleModels.modelName
+      })
+      .from(payouts)
+      .innerJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
+      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
+      .leftJoin(services, eq(workOrders.serviceId, services.id))
+      .leftJoin(vehicleModels, eq(workOrders.vehicleModelId, vehicleModels.id))
+      .where(eq(payouts.partnerId, partnerId))
+      .orderBy(desc(payouts.createdAt));
+  }
+
+  async getPartnerEarningsSummary(partnerId: string): Promise<{
+    totalEarnings: number;
+    paidAmount: number;
+    pendingAmount: number;
+    thisMonthEarnings: number;
+    completedJobs: number;
+    pendingJobs: number;
+  }> {
+    // Get current month start
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // Get all payouts for this partner
+    const allPayouts = await db
+      .select({
+        netAmount: payouts.netAmount,
+        status: payouts.status,
+        createdAt: payouts.createdAt
+      })
+      .from(payouts)
+      .where(eq(payouts.partnerId, partnerId));
+
+    // Calculate summary stats
+    const totalEarnings = allPayouts.reduce((sum, p) => sum + parseFloat(p.netAmount), 0);
+    const paidAmount = allPayouts
+      .filter(p => p.status === 'PAID')
+      .reduce((sum, p) => sum + parseFloat(p.netAmount), 0);
+    const pendingAmount = allPayouts
+      .filter(p => p.status === 'PENDING')
+      .reduce((sum, p) => sum + parseFloat(p.netAmount), 0);
+    const thisMonthEarnings = allPayouts
+      .filter(p => p.createdAt >= monthStart)
+      .reduce((sum, p) => sum + parseFloat(p.netAmount), 0);
+
+    // Get job counts
+    const jobCounts = await db
+      .select({
+        completedJobs: count(sql`CASE WHEN ${jobCards.status} IN ('COMPLETED', 'APPROVED', 'CLOSED') THEN 1 END`),
+        pendingJobs: count(sql`CASE WHEN ${jobCards.status} IN ('AWAITING_ACK', 'ACKNOWLEDGED', 'SCHEDULED', 'IN_PROGRESS', 'PENDING_APPROVAL') THEN 1 END`)
+      })
+      .from(jobCards)
+      .where(eq(jobCards.partnerId, partnerId));
+
+    return {
+      totalEarnings,
+      paidAmount,
+      pendingAmount,
+      thisMonthEarnings,
+      completedJobs: jobCounts[0]?.completedJobs || 0,
+      pendingJobs: jobCounts[0]?.pendingJobs || 0
+    };
+  }
+
+  async getPartnerServiceRates(partnerId: string): Promise<any[]> {
+    // Get detailer pricing rules for this partner
+    return await db
+      .select({
+        id: pricingRules.id,
+        serviceCategoryId: pricingRules.serviceCategoryId,
+        serviceId: pricingRules.serviceId,
+        vehicleModelId: pricingRules.vehicleModelId,
+        vehicleVariantId: pricingRules.vehicleVariantId,
+        priceAmount: pricingRules.priceAmount,
+        currency: pricingRules.currency,
+        effectiveFrom: pricingRules.effectiveFrom,
+        effectiveTo: pricingRules.effectiveTo,
+        status: pricingRules.status,
+        // Related data
+        serviceCategoryName: serviceCategories.name,
+        serviceName: services.name,
+        vehicleModelName: vehicleModels.modelName,
+        vehicleVariantName: vehicleVariants.variantName
+      })
+      .from(pricingRules)
+      .leftJoin(serviceCategories, eq(pricingRules.serviceCategoryId, serviceCategories.id))
+      .leftJoin(services, eq(pricingRules.serviceId, services.id))
+      .leftJoin(vehicleModels, eq(pricingRules.vehicleModelId, vehicleModels.id))
+      .leftJoin(vehicleVariants, eq(pricingRules.vehicleVariantId, vehicleVariants.id))
+      .where(and(
+        eq(pricingRules.pricingType, 'DETAILER_PRICING'),
+        eq(pricingRules.detailerId, partnerId),
+        eq(pricingRules.status, 'ACTIVE')
+      ))
+      .orderBy(serviceCategories.name, services.name, vehicleModels.modelName);
   }
 
   async getPricingRules(filters?: { 

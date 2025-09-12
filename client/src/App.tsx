@@ -24,6 +24,7 @@ import ServicesPage from "./pages/services";
 import ServiceCategoriesPage from "./pages/ServiceCategories";
 import PayoutSettlementPage from "./pages/payout-settlement";
 import PartnerStaffPage from "./pages/partner-staff";
+import PayoutsPage from "./pages/payouts";
 import MainLayout from "./components/layout/main-layout";
 import NotFound from "@/pages/not-found";
 
@@ -47,6 +48,7 @@ function Router() {
       <Route path="/job-cards" component={() => <ProtectedRoute component={JobCardsPage} />} />
       <Route path="/partners" component={() => <ProtectedRoute component={PartnersPage} />} />
       <Route path="/partner-staff" component={() => <ProtectedRoute component={PartnerStaffPage} />} />
+      <Route path="/payouts" component={() => <ProtectedRoute component={PayoutsPage} />} />
       <Route path="/allocations" component={() => <ProtectedRoute component={AllocationsPage} />} />
       <Route path="/pricing" component={() => <ProtectedRoute component={PricingPage} />} />
       <Route path="/commissions" component={() => <ProtectedRoute component={CommissionsPage} />} />

@@ -1,0 +1,395 @@
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { 
+  DollarSign, 
+  TrendingUp, 
+  Clock, 
+  CheckCircle2, 
+  Calendar,
+  Eye,
+  Wallet,
+  TrendingDown,
+  BarChart3
+} from "lucide-react";
+import { format } from "date-fns";
+
+// Types
+interface Payout {
+  id: string;
+  jobCardId: string;
+  grossAmount: string;
+  netAmount: string;
+  status: string;
+  paidAt: string | null;
+  paymentReference: string | null;
+  createdAt: string;
+  jobCardNumber: string;
+  workOrderId: string;
+  customerName: string;
+  regNo: string;
+  serviceName: string;
+  vehicleModelName: string;
+}
+
+interface EarningsSummary {
+  totalEarnings: number;
+  paidAmount: number;
+  pendingAmount: number;
+  thisMonthEarnings: number;
+  completedJobs: number;
+  pendingJobs: number;
+}
+
+interface ServiceRate {
+  id: string;
+  serviceCategoryName: string;
+  serviceName: string;
+  vehicleModelName: string;
+  vehicleVariantName: string;
+  priceAmount: string;
+  currency: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  status: string;
+}
+
+function getStatusBadge(status: string) {
+  switch (status.toUpperCase()) {
+    case 'PAID':
+      return <Badge className="bg-green-100 text-green-800 border-green-200">Paid</Badge>;
+    case 'PENDING':
+      return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Pending</Badge>;
+    case 'PROCESSING':
+      return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Processing</Badge>;
+    default:
+      return <Badge variant="secondary">{status}</Badge>;
+  }
+}
+
+function formatCurrency(amount: string | number, currency: string = 'INR') {
+  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: currency,
+    minimumFractionDigits: 2,
+  }).format(numAmount);
+}
+
+export default function PayoutsPage() {
+  // Fetch earnings summary
+  const { data: summary, isLoading: summaryLoading } = useQuery<EarningsSummary>({
+    queryKey: ['/api/partner-staff/earnings-summary'],
+  });
+
+  // Fetch payouts
+  const { data: payouts = [], isLoading: payoutsLoading } = useQuery<Payout[]>({
+    queryKey: ['/api/partner-staff/payouts'],
+  });
+
+  // Fetch service rates
+  const { data: serviceRates = [], isLoading: ratesLoading } = useQuery<ServiceRate[]>({
+    queryKey: ['/api/partner-staff/service-rates'],
+  });
+
+  return (
+    <div className="space-y-6 p-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+            Payouts & Earnings
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            Track your earnings, payment status, and service rates
+          </p>
+        </div>
+      </div>
+
+      {/* Earnings Summary Cards */}
+      {summaryLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-6">
+                <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+                <div className="h-8 bg-gray-200 rounded w-3/4"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    Total Earnings
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {formatCurrency(summary?.totalEarnings || 0)}
+                  </p>
+                </div>
+                <div className="p-3 bg-green-100 dark:bg-green-900/20 rounded-full">
+                  <DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    Paid Amount
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {formatCurrency(summary?.paidAmount || 0)}
+                  </p>
+                </div>
+                <div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-full">
+                  <CheckCircle2 className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    Pending Amount
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {formatCurrency(summary?.pendingAmount || 0)}
+                  </p>
+                </div>
+                <div className="p-3 bg-yellow-100 dark:bg-yellow-900/20 rounded-full">
+                  <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    This Month
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {formatCurrency(summary?.thisMonthEarnings || 0)}
+                  </p>
+                </div>
+                <div className="p-3 bg-purple-100 dark:bg-purple-900/20 rounded-full">
+                  <TrendingUp className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Jobs Summary */}
+      {summary && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    Completed Jobs
+                  </p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-white">
+                    {summary.completedJobs}
+                  </p>
+                </div>
+                <div className="p-3 bg-green-100 dark:bg-green-900/20 rounded-full">
+                  <BarChart3 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    Pending Jobs
+                  </p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-white">
+                    {summary.pendingJobs}
+                  </p>
+                </div>
+                <div className="p-3 bg-orange-100 dark:bg-orange-900/20 rounded-full">
+                  <Clock className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Tabs for detailed views */}
+      <Tabs defaultValue="payouts" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="payouts" data-testid="tab-payouts">
+            <Wallet className="h-4 w-4 mr-2" />
+            Payment History
+          </TabsTrigger>
+          <TabsTrigger value="rates" data-testid="tab-rates">
+            <DollarSign className="h-4 w-4 mr-2" />
+            Service Rate Cards
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="payouts" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wallet className="h-5 w-5" />
+                Payment History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {payoutsLoading ? (
+                <div className="space-y-4">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="animate-pulse border rounded-lg p-4">
+                      <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
+                      <div className="h-6 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : payouts.length === 0 ? (
+                <div className="text-center py-8">
+                  <TrendingDown className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 dark:text-gray-400">No payment history found</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {payouts.map((payout) => (
+                    <div
+                      key={payout.id}
+                      className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                      data-testid={`payout-${payout.id}`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="font-semibold text-gray-900 dark:text-white">
+                              Job #{payout.jobCardNumber}
+                            </h3>
+                            {getStatusBadge(payout.status)}
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400">
+                            <div>Customer: {payout.customerName}</div>
+                            <div>Vehicle: {payout.vehicleModelName} ({payout.regNo})</div>
+                            <div>Service: {payout.serviceName}</div>
+                            <div>Date: {format(new Date(payout.createdAt), 'MMM dd, yyyy')}</div>
+                          </div>
+                          {payout.paidAt && (
+                            <div className="text-sm text-green-600 dark:text-green-400 mt-2">
+                              Paid on {format(new Date(payout.paidAt), 'MMM dd, yyyy')}
+                              {payout.paymentReference && ` • Ref: ${payout.paymentReference}`}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-gray-900 dark:text-white">
+                            {formatCurrency(payout.netAmount)}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Gross: {formatCurrency(payout.grossAmount)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="rates" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Your Service Rate Cards
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {ratesLoading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="animate-pulse border rounded-lg p-4">
+                      <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
+                      <div className="h-6 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : serviceRates.length === 0 ? (
+                <div className="text-center py-8">
+                  <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 dark:text-gray-400">No service rates configured</p>
+                  <p className="text-sm text-gray-500 mt-2">Contact your admin to set up service rates</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {serviceRates.map((rate) => (
+                    <Card key={rate.id} className="hover:shadow-md transition-shadow" data-testid={`rate-${rate.id}`}>
+                      <CardContent className="p-4">
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
+                                {rate.serviceCategoryName}
+                              </h3>
+                              {rate.serviceName && (
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                  {rate.serviceName}
+                                </p>
+                              )}
+                            </div>
+                            <Badge variant={rate.status === 'ACTIVE' ? 'default' : 'secondary'}>
+                              {rate.status}
+                            </Badge>
+                          </div>
+                          
+                          <div className="border-t pt-2">
+                            <div className="text-lg font-bold text-gray-900 dark:text-white">
+                              {formatCurrency(rate.priceAmount, rate.currency)}
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              {rate.vehicleModelName}
+                              {rate.vehicleVariantName && ` - ${rate.vehicleVariantName}`}
+                            </div>
+                          </div>
+                          
+                          <div className="text-xs text-gray-500 pt-2 border-t">
+                            <div>Effective: {format(new Date(rate.effectiveFrom), 'MMM dd, yyyy')}</div>
+                            {rate.effectiveTo && (
+                              <div>Until: {format(new Date(rate.effectiveTo), 'MMM dd, yyyy')}</div>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
