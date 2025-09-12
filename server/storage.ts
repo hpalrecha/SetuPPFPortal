@@ -119,6 +119,9 @@ export interface IStorage {
   getJobCard(id: string): Promise<JobCard | undefined>;
   createJobCard(jobCard: InsertJobCard): Promise<JobCard>;
   updateJobCard(id: string, updates: Partial<InsertJobCard>): Promise<JobCard | undefined>;
+  
+  // Job Card Media management
+  insertJobCardMedia(media: { jobCardId: string; type: string; url: string; caption?: string }): Promise<any>;
 
   // Partner management
   getPartners(filters?: { oemId?: string; type?: string }): Promise<Partner[]>;
@@ -832,6 +835,19 @@ export class DatabaseStorage implements IStorage {
       .where(eq(jobCards.id, id))
       .returning();
     return jobCard || undefined;
+  }
+
+  async insertJobCardMedia(media: { jobCardId: string; type: string; url: string; caption?: string }): Promise<any> {
+    const [result] = await db
+      .insert(jobCardMedia)
+      .values({
+        jobCardId: media.jobCardId,
+        type: media.type,
+        url: media.url,
+        caption: media.caption || ''
+      })
+      .returning();
+    return result;
   }
 
   async getPartners(filters?: { oemId?: string; type?: string }): Promise<Partner[]> {
