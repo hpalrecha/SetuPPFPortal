@@ -176,10 +176,14 @@ export interface IStorage {
   calculateCommission(grossAmount: number, oemId: string, dealershipId: string, showroomId: string, salesPersonId?: string, serviceId?: string, serviceCategoryId?: string): Promise<any>;
   
   // Payout settlement
-  getPayouts(filters?: { status?: string; partnerId?: string; oemId?: string; dealershipId?: string; showroomId?: string }): Promise<any[]>;
+  getPayouts(filters?: { status?: string; partnerId?: string; oemId?: string; dealershipId?: string; showroomId?: string; jobCardId?: string }): Promise<any[]>;
   getPayout(id: string): Promise<any | undefined>;
-  getCommissions(filters?: { status?: string; salesPersonId?: string; showroomId?: string; oemId?: string; dealershipId?: string }): Promise<{ commissions: any[] }>;
+  createPayout(payout: any): Promise<any>;
+  updatePayout(id: string, updates: any): Promise<any>;
+  getCommissions(filters?: { status?: string; salesPersonId?: string; showroomId?: string; oemId?: string; dealershipId?: string; workOrderId?: string }): Promise<{ commissions: any[] }>;
   getCommission(id: string): Promise<any | undefined>;
+  createCommission(commission: any): Promise<any>;
+  updateCommission(id: string, updates: any): Promise<any>;
   canUserAccessPayout(user: User, payout: any): boolean;
   canUserAccessCommission(user: User, commission: any): boolean;
   settlePayout(id: string, settlement: { paymentReference: string; settledAt: Date; settledBy: string }): Promise<boolean>;
@@ -1306,7 +1310,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getPayouts(filters?: { status?: string; partnerId?: string; oemId?: string; dealershipId?: string; showroomId?: string }): Promise<any[]> {
+  async getPayouts(filters?: { status?: string; partnerId?: string; oemId?: string; dealershipId?: string; showroomId?: string; jobCardId?: string }): Promise<any[]> {
     let query = db.select({
       id: payouts.id,
       jobCardId: payouts.jobCardId,
@@ -1338,6 +1342,7 @@ export class DatabaseStorage implements IStorage {
     const conditions = [];
     if (filters?.status) conditions.push(eq(payouts.status, filters.status));
     if (filters?.partnerId) conditions.push(eq(payouts.partnerId, filters.partnerId));
+    if (filters?.jobCardId) conditions.push(eq(payouts.jobCardId, filters.jobCardId));
     
     // Add tenant scoping conditions
     if (filters?.oemId) conditions.push(eq(workOrders.oemId, filters.oemId));
@@ -1351,7 +1356,7 @@ export class DatabaseStorage implements IStorage {
     return await query.orderBy(desc(payouts.createdAt));
   }
 
-  async getCommissions(filters?: { status?: string; salesPersonId?: string; showroomId?: string; oemId?: string; dealershipId?: string }): Promise<{ commissions: any[] }> {
+  async getCommissions(filters?: { status?: string; salesPersonId?: string; showroomId?: string; oemId?: string; dealershipId?: string; workOrderId?: string }): Promise<{ commissions: any[] }> {
     let query = db.select({
       id: commissions.id,
       workOrderId: commissions.workOrderId,
@@ -1387,6 +1392,7 @@ export class DatabaseStorage implements IStorage {
     if (filters?.status) conditions.push(eq(commissions.status, filters.status));
     if (filters?.salesPersonId) conditions.push(eq(commissions.salesPersonId, filters.salesPersonId));
     if (filters?.showroomId) conditions.push(eq(commissions.showroomId, filters.showroomId));
+    if (filters?.workOrderId) conditions.push(eq(commissions.workOrderId, filters.workOrderId));
     
     // Add tenant scoping conditions
     if (filters?.oemId) conditions.push(eq(workOrders.oemId, filters.oemId));
@@ -1398,6 +1404,26 @@ export class DatabaseStorage implements IStorage {
 
     const results = await query.orderBy(desc(commissions.createdAt));
     return { commissions: results };
+  }
+
+  async createPayout(payout: any): Promise<any> {
+    const [result] = await db.insert(payouts).values(payout).returning();
+    return result;
+  }
+
+  async updatePayout(id: string, updates: any): Promise<any> {
+    const [result] = await db.update(payouts).set(updates).where(eq(payouts.id, id)).returning();
+    return result;
+  }
+
+  async createCommission(commission: any): Promise<any> {
+    const [result] = await db.insert(commissions).values(commission).returning();
+    return result;
+  }
+
+  async updateCommission(id: string, updates: any): Promise<any> {
+    const [result] = await db.update(commissions).set(updates).where(eq(commissions.id, id)).returning();
+    return result;
   }
 
   async settlePayout(id: string, settlement: { paymentReference: string; settledAt: Date; settledBy: string }): Promise<boolean> {

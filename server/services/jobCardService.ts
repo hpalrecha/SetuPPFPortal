@@ -107,10 +107,63 @@ export class JobCardService {
       checklistJson
     });
 
+    // 🚀 AUTO-CREATE DETAILER PAYOUT when job card is completed
+    await this.createDetailerPayout(jobCardId);
+
     // Request approval automatically
     await this.requestApproval(jobCardId, userId);
 
     return updatedJobCard;
+  }
+
+  // New method: Auto-create detailer payout when job card is completed
+  private async createDetailerPayout(jobCardId: string): Promise<void> {
+    try {
+      const jobCard = await storage.getJobCard(jobCardId);
+      if (!jobCard) {
+        throw new Error('Job card not found');
+      }
+
+      // Get work order for pricing calculation
+      const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+      if (!workOrder) {
+        throw new Error('Associated work order not found');
+      }
+
+      // Resolve pricing for detailer payout
+      const pricing = await pricingService.resolvePricing(
+        jobCard.partnerId,
+        'SHOWROOM',
+        workOrder.showroomId,
+        workOrder.vehicleModelId,
+        workOrder.serviceId
+      );
+
+      const payoutAmount = pricing?.priceAmount || workOrder.estimatedPrice || 0;
+
+      // Check for existing payout to prevent duplicates
+      const existingPayouts = await storage.getPayouts({
+        jobCardId
+      });
+      
+      if (existingPayouts.length === 0) {
+        // Create detailer payout (PENDING status)
+        await storage.createPayout({
+          jobCardId,
+          partnerId: jobCard.partnerId,
+          grossAmount: payoutAmount,
+          netAmount: payoutAmount, // No adjustments for now
+          status: 'PENDING'
+        });
+
+        console.log(`✅ Auto-created detailer payout: ₹${payoutAmount} for job card ${jobCardId}`);
+      } else {
+        console.log(`⚠️ Payout already exists for job card ${jobCardId}, skipping creation`);
+      }
+    } catch (error) {
+      console.error(`❌ Failed to auto-create detailer payout for job card ${jobCardId}:`, error);
+      // Don't fail the job card completion if payout creation fails
+    }
   }
 
   async requestApproval(jobCardId: string, userId: string): Promise<JobCard> {
@@ -209,26 +262,63 @@ export class JobCardService {
       remarks
     });
 
-    // Create payout record
-    await storage.createPayout({
-      jobCardId,
-      partnerId: jobCard.partnerId,
-      grossAmount: finalPrice,
-      netAmount: finalPrice, // No adjustments for now
-      status: 'COMPUTED'
-    });
-
-    // Create commission record
-    if (workOrder.salesPersonId && commissionAmount > 0) {
-      await storage.createCommission({
-        jobCardId,
-        showroomId: workOrder.showroomId,
-        salesPersonId: workOrder.salesPersonId,
-        basis: 'PERCENTAGE',
-        value: commissionAmount,
-        computedAmount: commissionAmount,
+    // Update existing payout instead of creating duplicate
+    const existingPayouts = await storage.getPayouts({ jobCardId });
+    if (existingPayouts.length > 0) {
+      // Update existing payout with final amounts
+      await storage.updatePayout(existingPayouts[0].id, {
+        grossAmount: finalPrice,
+        netAmount: finalPrice,
         status: 'COMPUTED'
       });
+      console.log(`✅ Updated existing payout to COMPUTED status with final price: ₹${finalPrice}`);
+    } else {
+      // Fallback: create payout if somehow none exists
+      await storage.createPayout({
+        jobCardId,
+        partnerId: jobCard.partnerId,
+        grossAmount: finalPrice,
+        netAmount: finalPrice,
+        status: 'COMPUTED'
+      });
+      console.log(`⚠️ No existing payout found, created new COMPUTED payout`);
+    }
+
+    // Update existing commission instead of creating duplicate
+    if (workOrder.salesPersonId && commissionAmount > 0) {
+      const existingCommissions = await storage.getCommissions({ workOrderId: workOrder.id });
+      if (existingCommissions.commissions.length > 0) {
+        // Update existing commission with final amounts
+        await storage.updateCommission(existingCommissions.commissions[0].id, {
+          computedAmount: commissionAmount,
+          status: 'COMPUTED'
+        });
+        console.log(`✅ Updated existing commission to COMPUTED status with final amount: ₹${commissionAmount}`);
+      } else {
+        // Fallback: create commission if somehow none exists
+        // Get commission rule to set correct value
+        const commission = await commissionService.calculateCommission(
+          workOrder.showroomId,
+          workOrder.salesPersonId,
+          workOrder.serviceId,
+          Number(finalPrice)
+        );
+        
+        if (commission.rule) {
+          await storage.createCommission({
+            workOrderId: workOrder.id, // Use workOrderId not jobCardId
+            showroomId: workOrder.showroomId,
+            salesPersonId: workOrder.salesPersonId,
+            basis: commission.rule.type, // Use rule type (PERCENT/AMOUNT)
+            value: Number(commission.rule.valueNumeric), // Use rule value (percentage/amount)
+            computedAmount: commissionAmount, // Use computed money amount
+            status: 'COMPUTED'
+          });
+          console.log(`⚠️ No existing commission found, created new COMPUTED commission`);
+        } else {
+          console.log(`⚠️ No commission rule found, skipping commission creation`);
+        }
+      }
     }
 
     // Send notifications

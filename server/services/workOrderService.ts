@@ -1,5 +1,6 @@
 import { storage } from '../storage';
 import { pricingService } from './pricingService';
+import { commissionService } from './commissionService';
 import { notificationService } from './notificationService';
 import type { 
   WorkOrder, 
@@ -16,6 +17,8 @@ export class WorkOrderService {
       status: 'PENDING'
     });
 
+    // Note: Sales commission creation moved to after assignment when estimatedPrice is available
+
     // Auto-assign partner and create job card immediately for showroom work orders
     if (workOrder.showroomId) {
       try {
@@ -30,6 +33,51 @@ export class WorkOrderService {
     await notificationService.sendWorkOrderCreated(workOrder);
 
     return workOrder;
+  }
+
+  // New method: Auto-create sales commission when work order is created
+  private async createSalesCommission(workOrderId: string): Promise<void> {
+    try {
+      const workOrder = await storage.getWorkOrder(workOrderId);
+      if (!workOrder || !workOrder.salesPersonId || !workOrder.showroomId) {
+        return; // Skip if no sales person assigned
+      }
+
+      // Calculate commission using existing service
+      const commission = await commissionService.calculateCommission(
+        workOrder.showroomId,
+        workOrder.salesPersonId,
+        workOrder.serviceId,
+        Number(workOrder.estimatedPrice || 0)
+      );
+
+      if (commission.amount > 0) {
+        // Check for existing commission to prevent duplicates
+        const existingCommissions = await storage.getCommissions({
+          workOrderId
+        });
+        
+        if (existingCommissions.commissions.length === 0) {
+          // Create sales commission (PENDING status)
+          await storage.createCommission({
+            workOrderId,
+            showroomId: workOrder.showroomId,
+            salesPersonId: workOrder.salesPersonId,
+            basis: commission.rule?.type || 'PERCENT', // Fix: Use PERCENT not PERCENTAGE
+            value: Number(commission.rule?.valueNumeric || 0),
+            computedAmount: commission.amount,
+            status: 'PENDING'
+          });
+          
+          console.log(`✅ Auto-created sales commission: ₹${commission.amount} for work order ${workOrderId}`);
+        } else {
+          console.log(`⚠️ Commission already exists for work order ${workOrderId}, skipping creation`);
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Failed to auto-create sales commission for work order ${workOrderId}:`, error);
+      // Don't fail the work order creation if commission creation fails
+    }
   }
 
   async submitWorkOrder(workOrderId: string, userId: string): Promise<WorkOrder> {
@@ -71,7 +119,7 @@ export class WorkOrderService {
     // Get pricing for estimation
     const pricing = await pricingService.resolvePricing(
       partnerId,
-      workOrder.dealershipId,
+      'SHOWROOM', // Fix: Use scope type not dealership ID
       workOrder.showroomId,
       workOrder.vehicleModelId,
       workOrder.serviceId
@@ -95,6 +143,11 @@ export class WorkOrderService {
     await storage.updateWorkOrder(workOrderId, {
       assignedJobCardId: jobCard.id
     });
+
+    // 🚀 AUTO-CREATE SALES COMMISSION now that estimatedPrice is available
+    if (workOrder.salesPersonId && workOrder.showroomId && pricing?.priceAmount) {
+      await this.createSalesCommission(workOrderId);
+    }
 
     // Send notifications
     await notificationService.sendWorkOrderAssigned(updatedWorkOrder, partnerId);
