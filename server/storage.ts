@@ -1326,7 +1326,6 @@ export class DatabaseStorage implements IStorage {
       workOrderId: jobCards.workOrderId,
       jobCardStatus: jobCards.status,
       customerName: workOrders.customerName,
-      partnerOemId: partners.oemId,
       workOrderOemId: workOrders.oemId,
       workOrderDealershipId: workOrders.dealershipId,
       workOrderShowroomId: workOrders.showroomId,
