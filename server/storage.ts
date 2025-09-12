@@ -1320,12 +1320,13 @@ export class DatabaseStorage implements IStorage {
       settledAt: payouts.settledAt,
       createdAt: payouts.createdAt,
       // Partner information
-      partnerName: partners.businessName,
+      partnerName: partners.displayName,
       partnerType: partners.type,
-      partnerOemId: partners.oemId,
-      // Job card information
+      // Job card and work order information
+      workOrderId: jobCards.workOrderId,
       jobCardStatus: jobCards.status,
-      // Work order information for tenant scoping
+      customerName: workOrders.customerName,
+      partnerOemId: partners.oemId,
       workOrderOemId: workOrders.oemId,
       workOrderDealershipId: workOrders.dealershipId,
       workOrderShowroomId: workOrders.showroomId,
@@ -1370,8 +1371,10 @@ export class DatabaseStorage implements IStorage {
       salesPersonName: salesPersons.name,
       // Showroom information
       showroomName: showrooms.name,
-      // Job card information
+      // Job card and work order information
+      workOrderId: jobCards.workOrderId,
       jobCardStatus: jobCards.status,
+      customerName: workOrders.customerName,
       // Work order information for tenant scoping
       workOrderOemId: workOrders.oemId,
       workOrderDealershipId: workOrders.dealershipId,

@@ -275,9 +275,26 @@ export default function PayoutSettlementPage() {
                           <span>Settled: {formatDate(item.settledAt)}</span>
                         )}
                       </div>
+                      
+                      {/* Work Order and Job Card Information */}
+                      <div className="flex items-center space-x-4 mt-1 text-xs text-muted-foreground">
+                        {item.workOrderId && (
+                          <span className="font-mono bg-muted px-2 py-1 rounded">
+                            WO: {item.workOrderId.slice(-8)}
+                          </span>
+                        )}
+                        {item.jobCardId && (
+                          <span className="font-mono bg-muted px-2 py-1 rounded">
+                            JC: {item.jobCardId.slice(-8)}
+                          </span>
+                        )}
+                        {item.customerName && (
+                          <span>Customer: {item.customerName}</span>
+                        )}
+                      </div>
                       {payoutType === "detailers" && (
                         <div className="text-sm text-muted-foreground mt-1">
-                          Type: {item.partnerType} | Job Card: {item.jobCardStatus}
+                          Type: {item.partnerType} | Status: {item.jobCardStatus}
                         </div>
                       )}
                       {payoutType === "sales_persons" && (
