@@ -134,6 +134,12 @@ export interface IStorage {
   getPartnersWithCategories(): Promise<(Partner & { serviceCategories?: ServiceCategory[] })[]>;
   setPartnerServiceCategories(partnerId: string, serviceCategoryIds: string[]): Promise<void>;
 
+  // Partner Staff Management
+  getPartnerStaff(partnerId: string): Promise<User[]>;
+  createPartnerStaff(partnerId: string, staffData: Omit<InsertUser, 'partnerId' | 'role'>): Promise<User>;
+  updatePartnerStaff(staffId: string, updates: Partial<InsertUser>): Promise<User | undefined>;
+  deletePartnerStaff(staffId: string): Promise<boolean>;
+
   // Pricing Rules
   getPricingRules(filters?: { 
     partnerId?: string; 
@@ -937,6 +943,54 @@ export class DatabaseStorage implements IStorage {
       }));
       await db.insert(partnerServiceCategories).values(mappings);
     }
+  }
+
+  // Partner Staff Management implementations
+  async getPartnerStaff(partnerId: string): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .where(and(
+        eq(users.partnerId, partnerId),
+        eq(users.role, 'PARTNER_STAFF'),
+        eq(users.isActive, true)
+      ))
+      .orderBy(desc(users.createdAt));
+  }
+
+  async createPartnerStaff(partnerId: string, staffData: Omit<InsertUser, 'partnerId' | 'role'>): Promise<User> {
+    const [newStaff] = await db
+      .insert(users)
+      .values({
+        ...staffData,
+        partnerId,
+        role: 'PARTNER_STAFF',
+        isActive: true
+      })
+      .returning();
+    
+    return newStaff;
+  }
+
+  async updatePartnerStaff(staffId: string, updates: Partial<InsertUser>): Promise<User | undefined> {
+    const [updatedStaff] = await db
+      .update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, staffId))
+      .returning();
+    
+    return updatedStaff || undefined;
+  }
+
+  async deletePartnerStaff(staffId: string): Promise<boolean> {
+    // Soft delete by setting isActive to false
+    const [deletedStaff] = await db
+      .update(users)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(users.id, staffId))
+      .returning();
+    
+    return !!deletedStaff;
   }
 
   async getPricingRules(filters?: { 
