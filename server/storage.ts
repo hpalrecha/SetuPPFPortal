@@ -1007,32 +1007,70 @@ export class DatabaseStorage implements IStorage {
 
   // Partner Payout & Earnings Management implementations
   async getPartnerPayouts(partnerId: string): Promise<any[]> {
-    return await db
-      .select({
-        id: payouts.id,
-        jobCardId: payouts.jobCardId,
-        grossAmount: payouts.grossAmount,
-        netAmount: payouts.netAmount,
-        status: payouts.status,
-        paidAt: payouts.paidAt,
-        paymentReference: payouts.paymentReference,
-        createdAt: payouts.createdAt,
-        // Job card info
-        jobCardNumber: jobCards.jobCardNumber,
-        workOrderId: jobCards.workOrderId,
-        // Work order info for context
-        customerName: workOrders.customerName,
-        regNo: workOrders.regNo,
-        serviceName: services.name,
-        vehicleModelName: vehicleModels.modelName
-      })
-      .from(payouts)
-      .innerJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
-      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
-      .leftJoin(services, eq(workOrders.serviceId, services.id))
-      .leftJoin(vehicleModels, eq(workOrders.vehicleModelId, vehicleModels.id))
-      .where(eq(payouts.partnerId, partnerId))
-      .orderBy(desc(payouts.createdAt));
+    try {
+      // First get basic payout info
+      const payoutData = await db
+        .select({
+          id: payouts.id,
+          jobCardId: payouts.jobCardId,
+          grossAmount: payouts.grossAmount,
+          netAmount: payouts.netAmount,
+          status: payouts.status,
+          paidAt: payouts.paidAt,
+          paymentReference: payouts.paymentReference,
+          createdAt: payouts.createdAt,
+          jobCardNumber: jobCards.jobCardNumber,
+          workOrderId: jobCards.workOrderId,
+          customerName: workOrders.customerName,
+          regNo: workOrders.regNo
+        })
+        .from(payouts)
+        .innerJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
+        .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
+        .where(eq(payouts.partnerId, partnerId))
+        .orderBy(desc(payouts.createdAt));
+
+      // Enrich with service and vehicle info
+      const enrichedPayouts = [];
+      for (const payout of payoutData) {
+        try {
+          // Get service info
+          const serviceInfo = await db
+            .select({ name: services.name })
+            .from(services)
+            .innerJoin(workOrders, eq(services.id, workOrders.serviceId))
+            .where(eq(workOrders.id, payout.workOrderId))
+            .limit(1);
+
+          // Get vehicle model info
+          const vehicleInfo = await db
+            .select({ modelName: vehicleModels.modelName })
+            .from(vehicleModels)
+            .innerJoin(workOrders, eq(vehicleModels.id, workOrders.vehicleModelId))
+            .where(eq(workOrders.id, payout.workOrderId))
+            .limit(1);
+
+          enrichedPayouts.push({
+            ...payout,
+            serviceName: serviceInfo[0]?.name || 'Unknown Service',
+            vehicleModelName: vehicleInfo[0]?.modelName || 'Unknown Model'
+          });
+        } catch (enrichError) {
+          console.warn("Error enriching payout data:", enrichError);
+          // Add with fallback values
+          enrichedPayouts.push({
+            ...payout,
+            serviceName: 'Unknown Service',
+            vehicleModelName: 'Unknown Model'
+          });
+        }
+      }
+
+      return enrichedPayouts;
+    } catch (error) {
+      console.error("Get partner payouts error:", error);
+      return [];
+    }
   }
 
   async getPartnerEarningsSummary(partnerId: string): Promise<{
