@@ -6,8 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
-import { DollarSign, Users, Calendar, CheckCircle, FileText, CreditCard } from "lucide-react";
+import { DollarSign, Users, Calendar, CheckCircle, FileText, CreditCard, Wrench, UserCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -152,18 +151,25 @@ export default function PayoutSettlementPage() {
           <p className="text-muted-foreground mt-1">Manage payments for detailers and sales persons</p>
         </div>
         
-        <div className="flex items-center space-x-4 mt-4 sm:mt-0">
-          <div className="flex items-center space-x-2">
-            <Label htmlFor="payout-toggle" className="text-sm font-medium">
-              {payoutType === "detailers" ? "Detailers/Installers" : "Sales Persons"}
-            </Label>
-            <Switch
-              id="payout-toggle"
-              checked={payoutType === "sales_persons"}
-              onCheckedChange={(checked) => setPayoutType(checked ? "sales_persons" : "detailers")}
-              data-testid="switch-payout-type"
-            />
-          </div>
+        <div className="flex items-center space-x-2 mt-4 sm:mt-0">
+          <Button
+            variant={payoutType === "detailers" ? "default" : "outline"}
+            onClick={() => setPayoutType("detailers")}
+            className="flex items-center space-x-2"
+            data-testid="button-detailer-payouts"
+          >
+            <Wrench className="h-4 w-4" />
+            <span>Detailer Payouts</span>
+          </Button>
+          <Button
+            variant={payoutType === "sales_persons" ? "default" : "outline"}
+            onClick={() => setPayoutType("sales_persons")}
+            className="flex items-center space-x-2"
+            data-testid="button-sales-commissions"
+          >
+            <UserCheck className="h-4 w-4" />
+            <span>Sales Commissions</span>
+          </Button>
         </div>
       </div>
 
