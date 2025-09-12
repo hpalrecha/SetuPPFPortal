@@ -15,6 +15,7 @@ export interface AuthUser {
   showroomId?: string;
   partnerId?: string;
   name: string;
+  allowedOemIds?: string[];
 }
 
 export interface LoginRequest {
@@ -42,8 +43,26 @@ export class AuthService {
     }
 
     // Check OEM access for tenant isolation
-    if (credentials.oemId && user.oemId !== credentials.oemId) {
-      return null;
+    let allowedOemIds: string[] | undefined;
+    
+    if (user.role === 'PARTNER_ADMIN' || user.role === 'PARTNER_STAFF') {
+      // For partner users, get allowed OEMs from partner_oems mapping
+      if (user.partnerId) {
+        const partnerOems = await storage.getPartnerOems(user.partnerId);
+        allowedOemIds = partnerOems;
+        
+        // If oemId is provided, check if partner has access to it
+        if (credentials.oemId && !allowedOemIds?.includes(credentials.oemId)) {
+          return null;
+        }
+      } else {
+        return null; // Partner users must have partnerId
+      }
+    } else {
+      // For non-partner users, use existing OEM check
+      if (credentials.oemId && user.oemId !== credentials.oemId) {
+        return null;
+      }
     }
 
     const authUser: AuthUser = {
@@ -54,7 +73,8 @@ export class AuthService {
       dealershipId: user.dealershipId || undefined,
       showroomId: user.showroomId || undefined,
       partnerId: user.partnerId || undefined,
-      name: user.name
+      name: user.name,
+      allowedOemIds
     };
 
     const token = jwt.sign(authUser, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });

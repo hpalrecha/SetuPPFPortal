@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "./hooks/use-auth";
+import { OemProvider } from "./hooks/use-oem-context";
 import LoginPage from "./pages/login";
 import DashboardPage from "./pages/dashboard";
 import WorkOrdersPage from "./pages/work-orders";
@@ -27,8 +28,16 @@ import PartnerStaffPage from "./pages/partner-staff";
 import PayoutsPage from "./pages/payouts";
 import MainLayout from "./components/layout/main-layout";
 import NotFound from "@/pages/not-found";
+import { OemSelector } from "@/components/OemSelector";
+import { useOemContext } from "./hooks/use-oem-context";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+  const { needsOemSelection } = useOemContext();
+  
+  if (needsOemSelection) {
+    return <OemSelector />;
+  }
+  
   return (
     <MainLayout>
       <Component />
@@ -73,8 +82,10 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <Toaster />
-          <Router />
+          <OemProvider>
+            <Toaster />
+            <Router />
+          </OemProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

@@ -6,11 +6,37 @@ function getAuthToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+function getSelectedOemId(): string | null {
+  // Get current user to build the storage key
+  const userStr = localStorage.getItem('auth_user');
+  if (!userStr) return null;
+  
+  try {
+    const user = JSON.parse(userStr);
+    if (user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF') {
+      // For partner users, get selected OEM from storage
+      return localStorage.getItem(`selected_oem_id_${user.id}`);
+    } else {
+      // For non-partner users, use their oemId
+      return user?.oemId || null;
+    }
+  } catch {
+    return null;
+  }
+}
+
 function setAuthHeader(headers: Record<string, string> = {}): Record<string, string> {
   const token = getAuthToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
+  
+  // Add OEM ID header for tenant isolation
+  const oemId = getSelectedOemId();
+  if (oemId) {
+    headers['x-oem-id'] = oemId;
+  }
+  
   return headers;
 }
 

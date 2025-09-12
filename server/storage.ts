@@ -250,6 +250,7 @@ export interface IStorage {
 
   // Partner OEM access control
   checkPartnerOemAccess(partnerId: string, oemId: string): Promise<boolean>;
+  getPartnerOems(partnerId: string): Promise<string[]>;
 
   // Audit logging
   createAuditLog(log: {
@@ -909,6 +910,18 @@ export class DatabaseStorage implements IStorage {
       ));
     
     return !!mapping;
+  }
+
+  async getPartnerOems(partnerId: string): Promise<string[]> {
+    const mappings = await db
+      .select({ oemId: partnerOems.oemId })
+      .from(partnerOems)
+      .where(and(
+        eq(partnerOems.partnerId, partnerId),
+        eq(partnerOems.active, true)
+      ));
+    
+    return mappings.map(m => m.oemId);
   }
 
   async updatePartner(id: string, updates: Partial<InsertPartner>): Promise<Partner | undefined> {

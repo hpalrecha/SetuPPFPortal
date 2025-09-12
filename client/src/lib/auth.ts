@@ -15,6 +15,7 @@ export interface AuthUser {
   showroomId?: string;
   partnerId?: string;
   name: string;
+  allowedOemIds?: string[];
 }
 
 export interface LoginResponse {
