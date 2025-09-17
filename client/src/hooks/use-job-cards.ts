@@ -34,8 +34,9 @@ export function useJobCards() {
   
   return useQuery({
     queryKey: ["/api/job-cards", selectedOemId, "v4"],
-    enabled: !!user && !!selectedOemId,
+    enabled: !!user && !!selectedOemId && user.role !== undefined,
     refetchOnWindowFocus: false,
+    staleTime: 30000,
     queryFn: async (): Promise<JobCardView[]> => {
       // Get headers with OEM ID
       const token = localStorage.getItem('auth_token');
@@ -63,6 +64,7 @@ export function useJobCards() {
       }
       
       const jobCards: JobCard[] = await response.json();
+      
       
       // Extract unique IDs for batch fetching
       const workOrderIds = Array.from(new Set(jobCards.map(jc => jc.workOrderId).filter(Boolean)));
@@ -228,7 +230,6 @@ export function useJobCards() {
       });
       
       return enrichedJobCards;
-    },
-    refetchInterval: 30000
+    }
   });
 }
