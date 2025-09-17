@@ -812,6 +812,7 @@ export class DatabaseStorage implements IStorage {
 
   async getJobCards(filters?: { 
     partnerId?: string; 
+    workOrderId?: string;
     status?: string;
     limit?: number;
     offset?: number;
@@ -820,6 +821,7 @@ export class DatabaseStorage implements IStorage {
     
     const conditions = [];
     if (filters?.partnerId) conditions.push(eq(jobCards.partnerId, filters.partnerId));
+    if (filters?.workOrderId) conditions.push(eq(jobCards.workOrderId, filters.workOrderId));
     if (filters?.status) conditions.push(eq(jobCards.status, filters.status as any));
 
     if (conditions.length > 0) {

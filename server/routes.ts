@@ -908,9 +908,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Work order not found" });
       }
 
-      // Check access permissions - SUPER_ADMIN can access any work order
-      if (req.user!.role !== 'SUPER_ADMIN' && (!req.user!.oemId || workOrder.oemId !== req.user!.oemId)) {
-        console.log(`Access denied: workOrder.oemId=${workOrder.oemId}, user.oemId=${req.user!.oemId}`);
+      // Check access permissions based on user role
+      let hasAccess = false;
+      
+      // SUPER_ADMIN can access any work order
+      if (req.user!.role === 'SUPER_ADMIN') {
+        hasAccess = true;
+      }
+      // Partner users can access work orders assigned to their partner via job cards
+      else if (req.user!.partnerId && (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF')) {
+        // Check if there are job cards for this work order assigned to this partner
+        const jobCards = await storage.getJobCards({ workOrderId: workOrder.id, partnerId: req.user!.partnerId });
+        hasAccess = jobCards.length > 0;
+      }
+      // Other users must have matching oemId
+      else if (req.user!.oemId && workOrder.oemId === req.user!.oemId) {
+        hasAccess = true;
+      }
+
+      if (!hasAccess) {
+        console.log(`Access denied: workOrder.oemId=${workOrder.oemId}, user.oemId=${req.user!.oemId}, user.role=${req.user!.role}, user.partnerId=${req.user!.partnerId}`);
         return res.status(403).json({ error: "Access denied" });
       }
 
