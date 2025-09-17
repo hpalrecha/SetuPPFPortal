@@ -32,8 +32,11 @@ export function useJobCards() {
   const { user } = useAuth();
   const { selectedOemId } = useOemContext();
   
+  console.log('🔍 useJobCards - user:', user?.id, user?.role);
+  console.log('🔍 useJobCards - selectedOemId:', selectedOemId);
+  
   return useQuery({
-    queryKey: ["/api/job-cards", selectedOemId],
+    queryKey: ["/api/job-cards", selectedOemId, "v3"],
     queryFn: async (): Promise<JobCardView[]> => {
       // Get headers with OEM ID
       const token = localStorage.getItem('auth_token');

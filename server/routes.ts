@@ -1038,6 +1038,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     requireOEMAccess,
     async (req, res) => {
     try {
+      // Disable HTTP caching for real-time job card updates
+      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+      
       const { status, limit = 50, offset = 0 } = req.query;
       
       const filters: any = {
