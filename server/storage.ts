@@ -833,22 +833,7 @@ export class DatabaseStorage implements IStorage {
   }): Promise<JobCard[]> {
     // Need to join with workOrders for showroomId and oemId filtering
     if (filters?.showroomId || filters?.oemId) {
-      let query = db.select({ 
-        id: jobCards.id,
-        workOrderId: jobCards.workOrderId,
-        partnerId: jobCards.partnerId,
-        status: jobCards.status,
-        priority: jobCards.priority,
-        estimatedCompletionDate: jobCards.estimatedCompletionDate,
-        actualCompletionDate: jobCards.actualCompletionDate,
-        notes: jobCards.notes,
-        assignedTeamMemberIds: jobCards.assignedTeamMemberIds,
-        proofOfWorkUrls: jobCards.proofOfWorkUrls,
-        reworkRequired: jobCards.reworkRequired,
-        reworkReason: jobCards.reworkReason,
-        createdAt: jobCards.createdAt,
-        updatedAt: jobCards.updatedAt
-      }).from(jobCards).innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id));
+      let query = db.select().from(jobCards).innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id));
       
       const conditions = [];
       if (filters?.partnerId) conditions.push(eq(jobCards.partnerId, filters.partnerId));
