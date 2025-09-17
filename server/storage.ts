@@ -700,7 +700,7 @@ export class DatabaseStorage implements IStorage {
         if (partner[0]) {
           enriched.assignedPartner = {
             id: partner[0].id,
-            displayName: partner[0].displayName
+            displayName: partner[0].display_name
           };
         }
       }
