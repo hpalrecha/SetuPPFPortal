@@ -330,7 +330,7 @@ export default function WorkOrdersPage() {
                 <>
                   <div>
                     <h3 className="font-medium text-sm text-muted-foreground">Partner Name</h3>
-                    <p className="text-sm font-medium">{(workOrder as any).partnerName || "Partner Assigned"}</p>
+                    <p className="text-sm font-medium">{(workOrder as any).assignedPartner?.displayName || "Partner Assigned"}</p>
                   </div>
                   {(workOrder as any).partnerType && (
                     <div>
@@ -558,7 +558,7 @@ export default function WorkOrdersPage() {
                         </Badge>
                       </td>
                       <td className="py-3 px-4 text-sm text-foreground">
-                        {order.assignedPartnerId ? ((order as any).partnerName || "Partner Assigned") : "Not assigned"}
+                        {order.assignedPartnerId ? ((order as any).assignedPartner?.displayName || "Partner Assigned") : "Not assigned"}
                       </td>
                       <td className="py-3 px-4 text-sm text-muted-foreground">
                         {new Date(order.createdAt!).toLocaleDateString()}
