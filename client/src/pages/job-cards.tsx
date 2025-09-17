@@ -27,7 +27,10 @@ export default function JobCardsPage() {
   const [selectedDetailerJobCard, setSelectedDetailerJobCard] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list'); // Default to list view
 
-  const { data: jobCards = [], isLoading } = useJobCards();
+  const { data: jobCards = [], isLoading, error } = useJobCards();
+
+  // Debug logging to understand what's happening
+  console.log("Job Cards Debug:", { jobCards, isLoading, error, count: jobCards.length });
 
   const groupedJobCards = {
     AWAITING_ACK: jobCards.filter(jc => jc.status === 'AWAITING_ACK'),
@@ -35,6 +38,13 @@ export default function JobCardsPage() {
     PENDING_APPROVAL: jobCards.filter(jc => jc.status && ['COMPLETED', 'PENDING_APPROVAL'].includes(jc.status)),
     COMPLETED: jobCards.filter(jc => jc.status && ['APPROVED', 'CLOSED'].includes(jc.status))
   };
+
+  console.log("Grouped Job Cards Debug:", {
+    awaiting: groupedJobCards.AWAITING_ACK.length,
+    inProgress: groupedJobCards.IN_PROGRESS.length,
+    pendingApproval: groupedJobCards.PENDING_APPROVAL.length,
+    completed: groupedJobCards.COMPLETED.length
+  });
 
   const handleSendReminder = (jobCardId: string) => {
     // TODO: Implement reminder notification
