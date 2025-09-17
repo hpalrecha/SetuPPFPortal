@@ -39,8 +39,10 @@ export default function JobCardKanban({ jobCards, onSendReminder, onReview }: Jo
             {job.createdAt ? new Date(job.createdAt).toLocaleDateString() : "N/A"}
           </span>
         </div>
-        <p className="text-sm font-medium text-foreground mb-1">Vehicle - Service</p>
-        <p className="text-xs text-muted-foreground mb-2">Partner Name</p>
+        <p className="text-sm font-medium text-foreground mb-1">
+          {job.workOrder?.vehicleModel?.brand?.name} {job.workOrder?.vehicleModel?.modelName} - {job.workOrder?.service?.name}
+        </p>
+        <p className="text-xs text-muted-foreground mb-2">{job.partner?.displayName || 'Unassigned Partner'}</p>
         
         {columnType === 'AWAITING_ACK' && (
           <Button 

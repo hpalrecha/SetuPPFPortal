@@ -1,14 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { AlertCircle, Clock, Wrench, CheckCircle2, Trophy, FileText, Zap, Target, Settings, Play, Pause, List, Grid3X3, ToggleLeft, ToggleRight } from "lucide-react";
-import type { JobCard } from "@shared/schema";
 import ApprovalModal from "@/components/job-cards/approval-modal";
 import DetailerJobDetailModal from "@/components/job-cards/detailer-job-detail-modal";
 import JobCardListView from "@/components/job-cards/job-card-list-view";
 import { useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { useJobCards, type JobCardView } from "@/hooks/use-job-cards";
 
 const statusColors = {
   AWAITING_ACK: "bg-red-100 text-red-800",
@@ -22,28 +22,12 @@ const statusColors = {
 };
 
 export default function JobCardsPage() {
+  const { user } = useAuth();
   const [selectedJobCard, setSelectedJobCard] = useState<string | null>(null);
   const [selectedDetailerJobCard, setSelectedDetailerJobCard] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list'); // Default to list view
 
-  const { data: jobCards = [], isLoading } = useQuery<JobCard[]>({
-    queryKey: ["/api/job-cards"],
-    queryFn: async () => {
-      const response = await fetch('/api/job-cards', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-        credentials: 'include',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch job cards');
-      }
-      
-      return response.json();
-    },
-    refetchInterval: 30000
-  });
+  const { data: jobCards = [], isLoading } = useJobCards();
 
   const groupedJobCards = {
     AWAITING_ACK: jobCards.filter(jc => jc.status === 'AWAITING_ACK'),
@@ -129,6 +113,7 @@ export default function JobCardsPage() {
           onSendReminder={handleSendReminder}
           onManageJob={(id) => setSelectedDetailerJobCard(id)}
           onReview={handleReviewJobCard}
+          currentUserRole={user?.role}
         />
       ) : (
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -170,24 +155,40 @@ export default function JobCardsPage() {
                     <p className="text-sm font-medium text-foreground mb-1">Vehicle - Service</p>
                     <p className="text-xs text-muted-foreground mb-2">Partner Name</p>
                     <div className="flex gap-2">
-                      <Button 
-                        size="sm" 
-                        variant="destructive" 
-                        className="flex-1"
-                        onClick={() => handleSendReminder(job.id)}
-                        data-testid={`button-reminder-${job.id}`}
-                      >
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                        Send Reminder
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        onClick={() => setSelectedDetailerJobCard(job.id)}
-                        data-testid={`button-manage-${job.id}`}
-                      >
-                        <Settings className="h-3 w-3" />
-                      </Button>
+                      {['PARTNER_ADMIN', 'PARTNER_STAFF'].includes(user?.role || '') ? (
+                        // Partner users see manage button to handle job acknowledgment
+                        <Button 
+                          size="sm" 
+                          className="flex-1"
+                          onClick={() => setSelectedDetailerJobCard(job.id)}
+                          data-testid={`button-manage-${job.id}`}
+                        >
+                          <Settings className="h-3 w-3 mr-1" />
+                          Manage Job
+                        </Button>
+                      ) : (
+                        // Admin users see send reminder option
+                        <>
+                          <Button 
+                            size="sm" 
+                            variant="destructive" 
+                            className="flex-1"
+                            onClick={() => handleSendReminder(job.id)}
+                            data-testid={`button-reminder-${job.id}`}
+                          >
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            Send Reminder
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => setSelectedDetailerJobCard(job.id)}
+                            data-testid={`button-manage-${job.id}`}
+                          >
+                            <Settings className="h-3 w-3" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

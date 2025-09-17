@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { AlertCircle, Clock, Wrench, CheckCircle2, Trophy, Settings, Play, Eye } from "lucide-react";
-import type { JobCard } from "@shared/schema";
+import type { JobCardView } from "@/hooks/use-job-cards";
 
 const statusColors = {
   AWAITING_ACK: "bg-red-100 text-red-800 border-red-200",
@@ -42,7 +42,7 @@ const getProgressValue = (status: string) => {
 };
 
 interface JobCardListViewProps {
-  jobCards: JobCard[];
+  jobCards: JobCardView[];
   onSendReminder?: (id: string) => void;
   onManageJob?: (id: string) => void;
   onReview?: (id: string) => void;
@@ -88,33 +88,49 @@ export default function JobCardListView({
     return new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime();
   });
 
-  const renderActionButtons = (job: JobCard) => {
+  const renderActionButtons = (job: JobCardView) => {
     const isCompleted = ['APPROVED', 'CLOSED'].includes(job.status!);
+    const isPartnerUser = ['PARTNER_ADMIN', 'PARTNER_STAFF'].includes(currentUserRole || '');
     
     // Show different buttons based on status and role
     if (job.status === 'AWAITING_ACK') {
-      return (
-        <div className="flex gap-2">
+      if (isPartnerUser) {
+        // For partner users, show manage button to handle job acknowledgment
+        return (
           <Button 
             size="sm" 
-            variant="destructive" 
-            onClick={() => onSendReminder?.(job.id)}
-            data-testid={`button-reminder-${job.id}`}
-          >
-            <AlertCircle className="h-3 w-3 mr-1" />
-            Send Reminder
-          </Button>
-          <Button 
-            size="sm" 
-            variant="outline" 
             onClick={() => onManageJob?.(job.id)}
             data-testid={`button-manage-${job.id}`}
           >
             <Settings className="h-3 w-3 mr-1" />
-            Manage
+            Manage Job
           </Button>
-        </div>
-      );
+        );
+      } else {
+        // For admin users, show send reminder option
+        return (
+          <div className="flex gap-2">
+            <Button 
+              size="sm" 
+              variant="destructive" 
+              onClick={() => onSendReminder?.(job.id)}
+              data-testid={`button-reminder-${job.id}`}
+            >
+              <AlertCircle className="h-3 w-3 mr-1" />
+              Send Reminder
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => onManageJob?.(job.id)}
+              data-testid={`button-manage-${job.id}`}
+            >
+              <Settings className="h-3 w-3 mr-1" />
+              Manage
+            </Button>
+          </div>
+        );
+      }
     }
     
     if (['ACKNOWLEDGED', 'SCHEDULED', 'IN_PROGRESS'].includes(job.status!)) {
@@ -241,11 +257,13 @@ export default function JobCardListView({
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
                           <div>
                             <span className="text-muted-foreground">Vehicle: </span>
-                            <span className="font-medium">Vehicle - Service</span>
+                            <span className="font-medium">
+                              {job.workOrder?.vehicleModel?.oem?.name} {job.workOrder?.vehicleModel?.modelName} - {job.workOrder?.service?.name}
+                            </span>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Partner: </span>
-                            <span>Partner Name</span>
+                            <span>{job.partner?.displayName || 'Unassigned Partner'}</span>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Created: </span>
