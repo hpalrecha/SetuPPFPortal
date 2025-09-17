@@ -697,13 +697,13 @@ export class DatabaseStorage implements IStorage {
       // Fetch partner name
       if (wo.assignedPartnerId) {
         const partner = await db.select().from(partners).where(eq(partners.id, wo.assignedPartnerId)).limit(1);
-        console.log(`DEBUG: Work order ${wo.id} has partnerId ${wo.assignedPartnerId}, found partner:`, partner[0] ? { id: partner[0].id, display_name: partner[0].display_name } : "NOT FOUND");
+        console.log(`DEBUG NEW: Full partner object:`, JSON.stringify(partner[0], null, 2));
         if (partner[0]) {
           enriched.assignedPartner = {
             id: partner[0].id,
-            displayName: partner[0].display_name
+            displayName: partner[0].displayName
           };
-          console.log(`DEBUG: Enriched assignedPartner:`, enriched.assignedPartner);
+          console.log(`DEBUG NEW: Result assignedPartner:`, enriched.assignedPartner);
         }
       }
       
@@ -748,9 +748,9 @@ export class DatabaseStorage implements IStorage {
         if (partner[0]) {
           enriched.assignedPartner = {
             id: partner[0].id,
-            displayName: partner[0].display_name
+            displayName: partner[0].displayName
           };
-          enriched.partnerName = partner[0].display_name; // For backwards compatibility
+          enriched.partnerName = partner[0].displayName; // For backwards compatibility
           enriched.partnerType = partner[0].type;
           enriched.partner = partner[0];
         }
