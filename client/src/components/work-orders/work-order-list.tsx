@@ -78,7 +78,7 @@ export default function WorkOrderList({ workOrders, onView, onEdit }: WorkOrderL
                     </Badge>
                   </td>
                   <td className="py-3 px-4 text-sm text-foreground">
-                    {order.assignedPartnerId ? (order.assignedPartner?.displayName || "Partner Assigned") : "Not assigned"}
+                    {order.assignedPartner?.displayName || "Not assigned"}
                   </td>
                   <td className="py-3 px-4 text-sm text-muted-foreground">
                     {new Date(order.createdAt!).toLocaleDateString()}

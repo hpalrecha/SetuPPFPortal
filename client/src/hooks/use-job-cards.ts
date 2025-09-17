@@ -37,9 +37,6 @@ export function useJobCards() {
     queryFn: async (): Promise<JobCardView[]> => {
       // Get headers with OEM ID
       const token = localStorage.getItem('auth_token');
-      console.log("useJobCards: Token from localStorage:", token ? `${token.substring(0, 10)}...` : "NO TOKEN");
-      console.log("useJobCards: SelectedOemId:", selectedOemId);
-      console.log("useJobCards: User context:", user?.role, user?.partnerId, user?.oemId);
       
       const headers: HeadersInit = {
         'Authorization': `Bearer ${token}`,
@@ -49,20 +46,16 @@ export function useJobCards() {
         headers['x-oem-id'] = selectedOemId;
       }
       
-      console.log("useJobCards: Making API call with headers:", { ...headers, 'Authorization': `Bearer ${token ? token.substring(0, 10) + '...' : 'NO TOKEN'}` });
-      
       const response = await fetch('/api/job-cards', {
         headers,
         credentials: 'include',
       });
       
       if (!response.ok) {
-        console.error("useJobCards: API call failed:", response.status, response.statusText);
         throw new Error('Failed to fetch job cards');
       }
       
       const jobCards: JobCard[] = await response.json();
-      console.log("useJobCards: Raw job cards from API:", jobCards);
       
       // Extract unique IDs for batch fetching
       const workOrderIds = Array.from(new Set(jobCards.map(jc => jc.workOrderId).filter(Boolean)));

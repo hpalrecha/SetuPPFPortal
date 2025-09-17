@@ -113,6 +113,9 @@ export interface IStorage {
   // Job Card management
   getJobCards(filters?: { 
     partnerId?: string; 
+    workOrderId?: string;
+    showroomId?: string;
+    oemId?: string;
     status?: string;
     limit?: number;
     offset?: number;
@@ -694,7 +697,12 @@ export class DatabaseStorage implements IStorage {
       // Fetch partner name
       if (wo.assignedPartnerId) {
         const partner = await db.select().from(partners).where(eq(partners.id, wo.assignedPartnerId)).limit(1);
-        enriched.partnerName = partner[0]?.businessName || null;
+        if (partner[0]) {
+          enriched.assignedPartner = {
+            id: partner[0].id,
+            displayName: partner[0].displayName
+          };
+        }
       }
       
       enrichedWorkOrders.push(enriched);
@@ -813,31 +821,76 @@ export class DatabaseStorage implements IStorage {
   async getJobCards(filters?: { 
     partnerId?: string; 
     workOrderId?: string;
+    showroomId?: string;
+    oemId?: string;
     status?: string;
     limit?: number;
     offset?: number;
   }): Promise<JobCard[]> {
-    let query = db.select().from(jobCards);
-    
-    const conditions = [];
-    if (filters?.partnerId) conditions.push(eq(jobCards.partnerId, filters.partnerId));
-    if (filters?.workOrderId) conditions.push(eq(jobCards.workOrderId, filters.workOrderId));
-    if (filters?.status) conditions.push(eq(jobCards.status, filters.status as any));
+    // Need to join with workOrders for showroomId and oemId filtering
+    if (filters?.showroomId || filters?.oemId) {
+      let query = db.select({ 
+        id: jobCards.id,
+        workOrderId: jobCards.workOrderId,
+        partnerId: jobCards.partnerId,
+        status: jobCards.status,
+        priority: jobCards.priority,
+        estimatedCompletionDate: jobCards.estimatedCompletionDate,
+        actualCompletionDate: jobCards.actualCompletionDate,
+        notes: jobCards.notes,
+        assignedTeamMemberIds: jobCards.assignedTeamMemberIds,
+        proofOfWorkUrls: jobCards.proofOfWorkUrls,
+        reworkRequired: jobCards.reworkRequired,
+        reworkReason: jobCards.reworkReason,
+        createdAt: jobCards.createdAt,
+        updatedAt: jobCards.updatedAt
+      }).from(jobCards).innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id));
+      
+      const conditions = [];
+      if (filters?.partnerId) conditions.push(eq(jobCards.partnerId, filters.partnerId));
+      if (filters?.workOrderId) conditions.push(eq(jobCards.workOrderId, filters.workOrderId));
+      if (filters?.status) conditions.push(eq(jobCards.status, filters.status as any));
+      if (filters?.showroomId) conditions.push(eq(workOrders.showroomId, filters.showroomId));
+      if (filters?.oemId) conditions.push(eq(workOrders.oemId, filters.oemId));
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+
+      query = query.orderBy(desc(jobCards.createdAt));
+
+      if (filters?.limit) {
+        query = query.limit(filters.limit);
+      }
+      if (filters?.offset) {
+        query = query.offset(filters.offset);
+      }
+
+      return await query;
+    } else {
+      // Simple query without join for better performance
+      let query = db.select().from(jobCards);
+      
+      const conditions = [];
+      if (filters?.partnerId) conditions.push(eq(jobCards.partnerId, filters.partnerId));
+      if (filters?.workOrderId) conditions.push(eq(jobCards.workOrderId, filters.workOrderId));
+      if (filters?.status) conditions.push(eq(jobCards.status, filters.status as any));
+
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+
+      query = query.orderBy(desc(jobCards.createdAt));
+
+      if (filters?.limit) {
+        query = query.limit(filters.limit);
+      }
+      if (filters?.offset) {
+        query = query.offset(filters.offset);
+      }
+
+      return await query;
     }
-
-    query = query.orderBy(desc(jobCards.createdAt));
-
-    if (filters?.limit) {
-      query = query.limit(filters.limit);
-    }
-    if (filters?.offset) {
-      query = query.offset(filters.offset);
-    }
-
-    return await query;
   }
 
   async getJobCard(id: string): Promise<JobCard | undefined> {

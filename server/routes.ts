@@ -1022,7 +1022,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Job Card Routes
-  app.get("/api/job-cards", authenticate, async (req, res) => {
+  app.get("/api/job-cards", 
+    authenticate, 
+    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'SHOWROOM_MANAGER', 'SUPER_ADMIN', 'OEM_ADMIN']),
+    requireOEMAccess,
+    async (req, res) => {
     try {
       const { status, limit = 50, offset = 0 } = req.query;
       
@@ -1031,10 +1035,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         offset: parseInt(offset as string)
       };
 
-      // Partner users can only see their own job cards
+      // Apply role-based filtering with OEM tenant isolation
       if (req.user!.partnerId) {
+        // Partner users can only see their own job cards within the selected OEM
         filters.partnerId = req.user!.partnerId;
+        filters.oemId = req.oemId; // From requireOEMAccess middleware
+      } else if (req.user!.role === 'SHOWROOM_MANAGER') {
+        // Showroom managers see job cards for their showroom within their OEM
+        if (!req.user!.showroomId) {
+          return res.status(400).json({ error: "Showroom manager must have showroomId" });
+        }
+        filters.showroomId = req.user!.showroomId;
+        filters.oemId = req.user!.oemId; // Always enforce user's OEM
+      } else if (req.user!.role === 'OEM_ADMIN') {
+        // OEM admins see job cards only for their OEM
+        filters.oemId = req.user!.oemId;
       }
+      // Super admins see all job cards within the selected OEM context
+      if (req.user!.role === 'SUPER_ADMIN' && req.oemId) {
+        filters.oemId = req.oemId;
+      }
+      
       if (status) filters.status = status as string;
 
       const jobCards = await storage.getJobCards(filters);
