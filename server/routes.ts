@@ -829,6 +829,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Work Order Routes
   app.get("/api/work-orders", authenticate, requireOEMAccess, async (req, res) => {
     try {
+      // Disable caching to ensure fresh data
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+      
       const { status, partnerId, limit = 50, offset = 0 } = req.query;
       
       const filters: any = {
@@ -902,6 +907,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/work-orders/:id", authenticate, requireOEMAccess, async (req, res) => {
     try {
+      // Disable caching to ensure fresh data
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+      
       const workOrder = await storage.getWorkOrder(req.params.id);
       
       if (!workOrder) {
