@@ -844,7 +844,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (partnerId) filters.partnerId = partnerId as string;
 
       const workOrders = await storage.getWorkOrders(filters);
-      console.log("Work Orders API response sample:", JSON.stringify(workOrders[0], null, 2));
       res.json(workOrders);
     } catch (error) {
       console.error("Get work orders error:", error);

@@ -740,11 +740,15 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
-      // Fetch partner details
+      // Fetch partner details - keep same structure as getWorkOrders
       if (workOrder.assignedPartnerId) {
         const partner = await db.select().from(partners).where(eq(partners.id, workOrder.assignedPartnerId)).limit(1);
         if (partner[0]) {
-          enriched.partnerName = partner[0].businessName;
+          enriched.assignedPartner = {
+            id: partner[0].id,
+            displayName: partner[0].display_name
+          };
+          enriched.partnerName = partner[0].display_name; // For backwards compatibility
           enriched.partnerType = partner[0].type;
           enriched.partner = partner[0];
         }
