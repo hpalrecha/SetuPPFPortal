@@ -23,7 +23,7 @@ Full system access:
 
 | Email | Role | Access | Password |
 |-------|------|---------|----------|
-| admin@setuppf.com | SUPER_ADMIN | All OEMs & Data | **admin123** |
+| admin@setuppf.com | SUPER_ADMIN | All OEMs & Data | password123 |
 
 ---
 
