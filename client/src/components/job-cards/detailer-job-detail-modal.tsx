@@ -8,7 +8,8 @@ import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { CalendarIcon, ClockIcon, CheckCircle2, PlayCircle, PauseCircle, UploadIcon, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon } from 'lucide-react';
+import { CalendarIcon, ClockIcon, CheckCircle2, PlayCircle, PauseCircle, UploadIcon, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon, Users } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -16,6 +17,7 @@ import { format } from 'date-fns';
 interface JobCard {
   id: string;
   status: string;
+  partnerId: string;
   acknowledgedAt?: string;
   scheduledAt?: string;
   startedAt?: string;
@@ -47,6 +49,7 @@ interface JobCard {
     };
   };
   partner: {
+    id: string;
     displayName: string;
   };
   media?: Array<{
@@ -73,6 +76,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const [scheduleTime, setScheduleTime] = useState('');
   const [completionRemarks, setCompletionRemarks] = useState('');
   const [materialConsumption, setMaterialConsumption] = useState('');
+  const [selectedTeamMemberId, setSelectedTeamMemberId] = useState<string>('');
   const [batchNumbers, setBatchNumbers] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [jsonValidationError, setJsonValidationError] = useState<string | null>(null);
@@ -127,6 +131,31 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     enabled: !!jobCardId && isOpen
   });
 
+  // Fetch team members for the current partner - get partnerId from job card
+  const partnerId = jobCard?.partnerId;
+  
+  const { data: teamMembers = [], error: teamMembersError } = useQuery({
+    queryKey: ['/api/partners/staff', partnerId],
+    queryFn: async () => {
+      if (!partnerId) return [];
+      const response = await fetch(`/api/partners/${partnerId}/staff`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch team members: ${response.status}`);
+      }
+      return response.json();
+    },
+    onError: (error: Error) => {
+      console.error('Team members fetch error:', error);
+      toast({ title: 'Error', description: 'Failed to load team members.', variant: 'destructive' });
+    },
+    enabled: !!partnerId && isOpen
+  });
+
   const acknowledgeJobMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/acknowledge`, {});
@@ -170,6 +199,26 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     },
     onError: () => {
       toast({ title: 'Error', description: 'Failed to start job card.', variant: 'destructive' });
+    }
+  });
+
+  const assignTeamMemberMutation = useMutation({
+    mutationFn: async (installerId: string) => {
+      const response = await apiRequest('PUT', `/api/job-cards/${jobCardId}/assign`, { assignedInstallerId: installerId });
+      return response.json();
+    },
+    onSuccess: (updatedJobCard) => {
+      // Update specific job card cache and general list
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards', jobCardId] });
+      // Optionally update the data directly
+      queryClient.setQueryData(['/api/job-cards', jobCardId], updatedJobCard);
+      setSelectedTeamMemberId(updatedJobCard.assignedInstallerId || '');
+      toast({ title: 'Team Member Assigned', description: 'Job card has been assigned to team member successfully.' });
+    },
+    onError: (error: any) => {
+      const errorMessage = error.response?.data?.error || 'Failed to assign team member.';
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
     }
   });
 
@@ -250,6 +299,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     setBatchNumbers('');
     setSelectedFiles([]);
     setJsonValidationError(null);
+    setSelectedTeamMemberId(jobCard?.assignedInstallerId || '');
     setChecklist({
       surfacePreparation: false,
       alignmentCheck: false,
@@ -265,6 +315,13 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
       resetForm();
     }
   }, [isOpen]);
+
+  // Initialize selectedTeamMemberId when jobCard data is loaded
+  useEffect(() => {
+    if (jobCard?.assignedInstallerId) {
+      setSelectedTeamMemberId(jobCard.assignedInstallerId);
+    }
+  }, [jobCard?.assignedInstallerId]);
 
   if (!isOpen || !jobCardId) return null;
 
@@ -332,6 +389,59 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                 </Button>
               )}
             </div>
+
+            {/* Team Member Assignment */}
+            {teamMembers.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-purple-600" />
+                    Team Member Assignment
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="team-member-select">Assign to Team Member</Label>
+                      <Select
+                        value={selectedTeamMemberId}
+                        onValueChange={setSelectedTeamMemberId}
+                        data-testid="select-team-member"
+                      >
+                        <SelectTrigger id="team-member-select">
+                          <SelectValue placeholder="Select a team member" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="" data-testid="option-unassigned">
+                            Unassigned
+                          </SelectItem>
+                          {teamMembers.map((member: any) => (
+                            <SelectItem key={member.id} value={member.id} data-testid={`option-member-${member.id}`}>
+                              {member.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-end">
+                      <Button
+                        onClick={() => assignTeamMemberMutation.mutate(selectedTeamMemberId)}
+                        disabled={assignTeamMemberMutation.isPending || selectedTeamMemberId === jobCard?.assignedInstallerId}
+                        variant="outline"
+                        data-testid="button-assign-member"
+                      >
+                        {assignTeamMemberMutation.isPending ? 'Assigning...' : 'Assign'}
+                      </Button>
+                    </div>
+                  </div>
+                  {jobCard?.assignedInstallerId && (
+                    <div className="mt-2 text-sm text-gray-600" data-testid="text-current-assignment">
+                      Currently assigned to: {teamMembers.find((m: any) => m.id === jobCard?.assignedInstallerId)?.name || 'Unknown'}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Customer Information */}

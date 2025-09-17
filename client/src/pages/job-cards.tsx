@@ -3,10 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { AlertCircle, Clock, Wrench, CheckCircle2, Trophy, FileText, Zap, Target, Settings, Play, Pause } from "lucide-react";
+import { AlertCircle, Clock, Wrench, CheckCircle2, Trophy, FileText, Zap, Target, Settings, Play, Pause, List, Grid3X3, ToggleLeft, ToggleRight } from "lucide-react";
 import type { JobCard } from "@shared/schema";
 import ApprovalModal from "@/components/job-cards/approval-modal";
 import DetailerJobDetailModal from "@/components/job-cards/detailer-job-detail-modal";
+import JobCardListView from "@/components/job-cards/job-card-list-view";
 import { useState } from "react";
 
 const statusColors = {
@@ -23,6 +24,7 @@ const statusColors = {
 export default function JobCardsPage() {
   const [selectedJobCard, setSelectedJobCard] = useState<string | null>(null);
   const [selectedDetailerJobCard, setSelectedDetailerJobCard] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list'); // Default to list view
 
   const { data: jobCards = [], isLoading } = useQuery<JobCard[]>({
     queryKey: ["/api/job-cards"],
@@ -93,10 +95,42 @@ export default function JobCardsPage() {
             <Zap className="h-3 w-3 mr-1" />
             Auto-Refresh
           </Badge>
+          
+          {/* View Toggle */}
+          <div className="flex items-center bg-muted rounded-lg p-1">
+            <Button
+              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+              className="h-8 px-2"
+              data-testid="button-list-view"
+            >
+              <List className="h-3 w-3 mr-1" />
+              List
+            </Button>
+            <Button
+              variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('kanban')}
+              className="h-8 px-2"
+              data-testid="button-kanban-view"
+            >
+              <Grid3X3 className="h-3 w-3 mr-1" />
+              Kanban
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Job Cards Kanban View */}
+      {/* Job Cards Views */}
+      {viewMode === 'list' ? (
+        <JobCardListView
+          jobCards={jobCards}
+          onSendReminder={handleSendReminder}
+          onManageJob={(id) => setSelectedDetailerJobCard(id)}
+          onReview={handleReviewJobCard}
+        />
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Awaiting Acknowledgment */}
         <Card className="border-l-4 border-l-red-500 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-red-50 to-orange-50">
@@ -319,6 +353,7 @@ export default function JobCardsPage() {
           </CardContent>
         </Card>
       </div>
+      )}
 
       {/* Approval Modal */}
       <ApprovalModal 

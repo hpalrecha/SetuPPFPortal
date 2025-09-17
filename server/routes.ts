@@ -960,6 +960,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Job Card Assignment Route
+  app.put("/api/job-cards/:id/assign", 
+    authenticate, 
+    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF']),
+    auditLog('job_card', 'assign'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        
+        // Validate request body
+        const bodySchema = z.object({
+          assignedInstallerId: z.string().uuid()
+        });
+        const { assignedInstallerId } = bodySchema.parse(req.body);
+        
+        // Fetch the job card first to verify ownership
+        const jobCard = await storage.getJobCard(id);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+        
+        // Multi-tenant security: Ensure user can only assign job cards from their partner
+        if (req.user!.partnerId !== jobCard.partnerId) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        
+        // Verify assigned installer belongs to the same partner and is active
+        const assignedInstaller = await storage.getUser(assignedInstallerId);
+        if (!assignedInstaller || assignedInstaller.partnerId !== req.user!.partnerId || !assignedInstaller.isActive || assignedInstaller.role !== 'PARTNER_STAFF') {
+          return res.status(400).json({ error: "Invalid installer assignment" });
+        }
+        
+        const updatedJobCard = await storage.updateJobCard(id, { assignedInstallerId });
+        res.json(updatedJobCard);
+      } catch (error) {
+        console.error("Assign job card error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid request data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to assign job card" });
+      }
+    }
+  );
+
   // Job Card Routes
   app.get("/api/job-cards", authenticate, async (req, res) => {
     try {
