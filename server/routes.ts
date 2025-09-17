@@ -105,6 +105,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get individual OEM by ID
+  app.get("/api/oems/:id", authenticate, requireRole(['SUPER_ADMIN', 'PARTNER_ADMIN', 'PARTNER_STAFF']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const oem = await storage.getOem(id);
+      
+      if (!oem) {
+        return res.status(404).json({ error: "OEM not found" });
+      }
+      
+      // Check access for partner users
+      if (req.user?.role === 'PARTNER_ADMIN' || req.user?.role === 'PARTNER_STAFF') {
+        const allowedOemIds = req.user.allowedOemIds || [];
+        if (!allowedOemIds.includes(id)) {
+          return res.status(403).json({ error: "Access denied to this OEM" });
+        }
+      }
+      
+      res.json(oem);
+    } catch (error) {
+      console.error("Get OEM error:", error);
+      res.status(500).json({ error: "Failed to fetch OEM" });
+    }
+  });
+
   app.post("/api/oems", 
     authenticate, 
     requireRole(['SUPER_ADMIN']),

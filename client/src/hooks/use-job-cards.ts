@@ -34,6 +34,8 @@ export function useJobCards() {
   
   return useQuery({
     queryKey: ["/api/job-cards", selectedOemId, "v4"],
+    enabled: !!user && !!selectedOemId,
+    refetchOnWindowFocus: false,
     queryFn: async (): Promise<JobCardView[]> => {
       // Get headers with OEM ID
       const token = localStorage.getItem('auth_token');
@@ -53,6 +55,11 @@ export function useJobCards() {
       
       if (!response.ok) {
         throw new Error(`Failed to fetch job cards: ${response.status} ${response.statusText}`);
+      }
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType?.includes('application/json')) {
+        throw new Error(`Expected JSON response but got ${contentType} from /api/job-cards`);
       }
       
       const jobCards: JobCard[] = await response.json();
@@ -140,7 +147,13 @@ export function useJobCards() {
             headers: oemHeaders,
             credentials: 'include',
           });
-          return res.ok ? res.json() : null;
+          
+          if (!res.ok) {
+            console.error(`Failed to fetch OEM ${id}:`, res.status, res.statusText);
+            return null;
+          }
+          
+          return res.json();
         })
       ).then(results => results.filter(Boolean)) : [];
       
