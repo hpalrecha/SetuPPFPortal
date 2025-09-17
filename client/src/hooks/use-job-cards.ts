@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { JobCard, WorkOrder, Service, VehicleModel, Partner, Oem } from "@shared/schema";
+import { useAuth } from "@/hooks/use-auth";
+import { useOemContext } from "@/hooks/use-oem-context";
 
 // UI-only type that includes the nested objects required by components
 export interface JobCardView extends JobCard {
@@ -27,13 +29,23 @@ export interface JobCardView extends JobCard {
 }
 
 export function useJobCards() {
+  const { user } = useAuth();
+  const { selectedOemId } = useOemContext();
+  
   return useQuery({
-    queryKey: ["/api/job-cards"],
+    queryKey: ["/api/job-cards", selectedOemId],
     queryFn: async (): Promise<JobCardView[]> => {
+      // Get headers with OEM ID
+      const headers: HeadersInit = {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+      };
+      
+      if (selectedOemId) {
+        headers['x-oem-id'] = selectedOemId;
+      }
+      
       const response = await fetch('/api/job-cards', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
+        headers,
         credentials: 'include',
       });
       
@@ -52,8 +64,15 @@ export function useJobCards() {
       // Fetch related work orders
       const workOrders: WorkOrder[] = workOrderIds.length > 0 ? await Promise.all(
         workOrderIds.map(async (id) => {
+          const workOrderHeaders: HeadersInit = { 
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}` 
+          };
+          if (selectedOemId) {
+            workOrderHeaders['x-oem-id'] = selectedOemId;
+          }
+          
           const res = await fetch(`/api/work-orders/${id}`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+            headers: workOrderHeaders,
             credentials: 'include',
           });
           return res.ok ? res.json() : null;
@@ -69,24 +88,36 @@ export function useJobCards() {
       // Fetch services, vehicle models, and partners in parallel
       const [services, vehicleModels, partners] = await Promise.all([
         serviceIds.size > 0 ? Promise.all(Array.from(serviceIds).map(async (id) => {
+          const serviceHeaders: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` };
+          if (selectedOemId) {
+            serviceHeaders['x-oem-id'] = selectedOemId;
+          }
           const res = await fetch(`/api/services/${id}`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+            headers: serviceHeaders,
             credentials: 'include',
           });
           return res.ok ? res.json() : null;
         })).then(results => results.filter(Boolean)) : [],
         
         vehicleModelIds.size > 0 ? Promise.all(Array.from(vehicleModelIds).map(async (id) => {
+          const vehicleHeaders: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` };
+          if (selectedOemId) {
+            vehicleHeaders['x-oem-id'] = selectedOemId;
+          }
           const res = await fetch(`/api/vehicle-models/${id}`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+            headers: vehicleHeaders,
             credentials: 'include',
           });
           return res.ok ? res.json() : null;
         })).then(results => results.filter(Boolean)) : [],
         
         partnerIds.length > 0 ? Promise.all(partnerIds.map(async (id) => {
+          const partnerHeaders: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` };
+          if (selectedOemId) {
+            partnerHeaders['x-oem-id'] = selectedOemId;
+          }
           const res = await fetch(`/api/partners/${id}`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+            headers: partnerHeaders,
             credentials: 'include',
           });
           return res.ok ? res.json() : null;
@@ -99,8 +130,12 @@ export function useJobCards() {
       // Fetch OEMs (brands)
       const oems: Oem[] = oemIds.length > 0 ? await Promise.all(
         oemIds.map(async (id) => {
+          const oemHeaders: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` };
+          if (selectedOemId) {
+            oemHeaders['x-oem-id'] = selectedOemId;
+          }
           const res = await fetch(`/api/oems/${id}`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+            headers: oemHeaders,
             credentials: 'include',
           });
           return res.ok ? res.json() : null;
