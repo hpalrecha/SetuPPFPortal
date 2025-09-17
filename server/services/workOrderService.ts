@@ -132,11 +132,48 @@ export class WorkOrderService {
       estimatedPrice: pricing ? pricing.priceAmount : null
     });
 
-    // Create job card
+    // Create job card with comprehensive work order details
+    const workOrderDetails = `
+WORK ORDER DETAILS:
+━━━━━━━━━━━━━━━━━━━━
+📋 Work Order ID: WO-${workOrder.id.slice(-6)}
+📅 Created: ${new Date(workOrder.createdAt).toLocaleDateString()}
+
+👤 CUSTOMER INFORMATION:
+• Name: ${workOrder.customerName || 'N/A'}
+• Phone: ${workOrder.customerPhone || 'N/A'}
+• Email: ${workOrder.customerEmail || 'N/A'}
+• Address: ${workOrder.customerAddress || 'N/A'}
+
+🚗 VEHICLE INFORMATION:
+• Model: ${workOrder.vehicleModelName || 'N/A'} ${workOrder.vehicleModelBrand || ''}
+• Registration: ${workOrder.regNo || 'Not specified'}
+• Variant: ${workOrder.vehicleVariantId ? 'Variant ID: ' + workOrder.vehicleVariantId : 'Standard'}
+
+🔧 SERVICE DETAILS:
+• Service: ${workOrder.serviceName || 'N/A'}
+• Description: ${workOrder.serviceDescription || 'Standard service'}
+• Estimated Price: ₹${pricing?.priceAmount || 'To be confirmed'}
+
+🏢 ORGANIZATION:
+• OEM: ${workOrder.oemName || 'N/A'}
+• Dealership: ${workOrder.dealershipName || 'N/A'}
+• Showroom: ${workOrder.showroomName || 'N/A'}
+• Sales Person: ${workOrder.salesPersonName || 'N/A'}
+
+📝 ADDITIONAL NOTES:
+${workOrder.notes || 'No additional notes provided'}
+
+━━━━━━━━━━━━━━━━━━━━
+Status: AWAITING ACKNOWLEDGMENT
+Please acknowledge receipt and provide estimated completion time.
+    `.trim();
+
     const jobCard = await storage.createJobCard({
       workOrderId,
       partnerId,
-      status: 'AWAITING_ACK'
+      status: 'AWAITING_ACK',
+      remarks: workOrderDetails
     });
 
     // Update work order with job card reference
