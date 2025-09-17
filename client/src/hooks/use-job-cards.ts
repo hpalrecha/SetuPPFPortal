@@ -41,6 +41,7 @@ export function useJobCards() {
       // Get headers with OEM ID
       const token = localStorage.getItem('auth_token');
       
+      
       const headers: HeadersInit = {
         'Authorization': `Bearer ${token}`,
       };
@@ -53,6 +54,7 @@ export function useJobCards() {
         headers,
         credentials: 'include',
       });
+      
       
       if (!response.ok) {
         throw new Error(`Failed to fetch job cards: ${response.status} ${response.statusText}`);
@@ -85,8 +87,9 @@ export function useJobCards() {
           const res = await fetch(`/api/work-orders/${id}`, {
             headers: workOrderHeaders,
             credentials: 'include',
+            cache: 'no-store', // Prevent 304 responses
           });
-          return res.ok ? res.json() : null;
+          return (res.ok || res.status === 304) ? res.json() : null;
         })
       ).then(results => results.filter(Boolean)) : [];
       
@@ -106,8 +109,9 @@ export function useJobCards() {
           const res = await fetch(`/api/services/${id}`, {
             headers: serviceHeaders,
             credentials: 'include',
+            cache: 'no-store', // Prevent 304 responses
           });
-          return res.ok ? res.json() : null;
+          return (res.ok || res.status === 304) ? res.json() : null;
         })).then(results => results.filter(Boolean)) : [],
         
         vehicleModelIds.size > 0 ? Promise.all(Array.from(vehicleModelIds).map(async (id) => {
@@ -118,8 +122,9 @@ export function useJobCards() {
           const res = await fetch(`/api/vehicle-models/${id}`, {
             headers: vehicleHeaders,
             credentials: 'include',
+            cache: 'no-store', // Prevent 304 responses
           });
-          return res.ok ? res.json() : null;
+          return (res.ok || res.status === 304) ? res.json() : null;
         })).then(results => results.filter(Boolean)) : [],
         
         partnerIds.length > 0 ? Promise.all(partnerIds.map(async (id) => {
@@ -130,8 +135,9 @@ export function useJobCards() {
           const res = await fetch(`/api/partners/${id}`, {
             headers: partnerHeaders,
             credentials: 'include',
+            cache: 'no-store', // Prevent 304 responses
           });
-          return res.ok ? res.json() : null;
+          return (res.ok || res.status === 304) ? res.json() : null;
         })).then(results => results.filter(Boolean)) : []
       ]);
       
