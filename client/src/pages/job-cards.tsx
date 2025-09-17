@@ -29,6 +29,7 @@ export default function JobCardsPage() {
 
   const { data: jobCards = [], isLoading, error } = useJobCards();
 
+
   const groupedJobCards = {
     AWAITING_ACK: jobCards.filter(jc => jc.status === 'AWAITING_ACK'),
     IN_PROGRESS: jobCards.filter(jc => jc.status && ['ACKNOWLEDGED', 'SCHEDULED', 'IN_PROGRESS'].includes(jc.status)),

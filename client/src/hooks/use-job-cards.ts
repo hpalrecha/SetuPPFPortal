@@ -52,7 +52,7 @@ export function useJobCards() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch job cards');
+        throw new Error(`Failed to fetch job cards: ${response.status} ${response.statusText}`);
       }
       
       const jobCards: JobCard[] = await response.json();
