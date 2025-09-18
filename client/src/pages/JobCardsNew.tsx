@@ -175,6 +175,7 @@ export default function JobCardsNew() {
       // Fetch job cards using the proper apiRequest function
       const response = await apiRequest('GET', '/api/job-cards');
       const rawJobCards: JobCard[] = await response.json();
+      console.log('🔍 Raw job cards:', rawJobCards.slice(0, 2));
       
       // Extract unique IDs for batch fetching
       const workOrderIds = Array.from(new Set(
@@ -214,11 +215,22 @@ export default function JobCardsNew() {
       // Create lookup maps
       const workOrderMap = new Map(workOrdersData.map((wo: WorkOrder) => [wo.id, wo]));
       const partnerMap = new Map(partnersData.map((p: Partner) => [p.id, p]));
+      
+      console.log('🔍 Partners fetched:', partnersData.slice(0, 2));
+      console.log('🔍 Partner map:', Array.from(partnerMap.entries()).slice(0, 2));
 
       // Enrich job cards with related data
       const enrichedJobCards: EnrichedJobCard[] = rawJobCards.map(jobCard => {
         const workOrder = workOrderMap.get(jobCard.workOrderId || '');
         const partner = partnerMap.get(jobCard.partnerId || '');
+
+        console.log(`🔍 Enriching job card ${jobCard.id.slice(-6)}:`, {
+          jobCardPartnerId: jobCard.partnerId,
+          partnerFound: !!partner,
+          partnerData: partner,
+          partnerDisplayName: partner?.displayName,
+          partnerCompanyName: partner?.companyName
+        });
 
         const enriched: EnrichedJobCard = {
           ...jobCard,
@@ -230,7 +242,7 @@ export default function JobCardsNew() {
             ? `${workOrder.oemName || ''} ${workOrder.vehicleModelName}${workOrder.vehicleVariant ? ` (${workOrder.vehicleVariant})` : ''}`.trim()
             : 'N/A',
           serviceDisplay: workOrder?.serviceName || 'N/A',
-          partnerDisplay: partner?.displayName || partner?.companyName || (jobCard.partnerId ? 'Partner Info Loading...' : 'Unassigned Partner')
+          partnerDisplay: partner?.displayName || partner?.display_name || partner?.companyName || partner?.company_name || (jobCard.partnerId ? 'Partner Info Loading...' : 'Unassigned Partner')
         };
 
         return enriched;
@@ -690,7 +702,7 @@ export default function JobCardsNew() {
 
       {/* Job Card Detail Modal - Enhanced UI */}
       <Dialog open={!!selectedJobCard} onOpenChange={() => setSelectedJobCard(null)}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b pb-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
@@ -708,7 +720,7 @@ export default function JobCardsNew() {
           </DialogHeader>
           
           {selectedJobCard && (
-            <div className="overflow-y-auto flex-1 pr-2">
+            <div className="flex-1 pr-2">
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 py-4">
                 
                 {/* Basic Information Card */}
