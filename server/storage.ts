@@ -835,7 +835,7 @@ export class DatabaseStorage implements IStorage {
   }): Promise<JobCard[]> {
     // Need to join with workOrders for showroomId, dealershipId, and oemId filtering
     if (filters?.showroomId || filters?.dealershipId || filters?.oemId) {
-      let query = db.select().from(jobCards).innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id));
+      let query = db.select(jobCards).from(jobCards).innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id));
       
       // For dealership filtering, we need to join through showrooms to get dealershipId
       if (filters?.dealershipId) {
