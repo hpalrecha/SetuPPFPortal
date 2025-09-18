@@ -119,13 +119,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     queryKey: ['/api/job-cards', jobCardId],
     queryFn: async () => {
       if (!jobCardId) return null;
-      const response = await fetch(`/api/job-cards/${jobCardId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Failed to fetch job card');
+      const response = await apiRequest('GET', `/api/job-cards/${jobCardId}`);
       return response.json();
     },
     enabled: !!jobCardId && isOpen
@@ -134,19 +128,11 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   // Fetch team members for the current partner - get partnerId from job card
   const partnerId = jobCard?.partnerId;
   
-  const { data: teamMembers = [], error: teamMembersError } = useQuery({
+  const { data: teamMembers = [] } = useQuery({
     queryKey: ['/api/partners/staff', partnerId],
     queryFn: async () => {
       if (!partnerId) return [];
-      const response = await fetch(`/api/partners/${partnerId}/staff`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to fetch team members: ${response.status}`);
-      }
+      const response = await apiRequest('GET', `/api/partners/${partnerId}/staff`);
       return response.json();
     },
     enabled: !!partnerId && isOpen
