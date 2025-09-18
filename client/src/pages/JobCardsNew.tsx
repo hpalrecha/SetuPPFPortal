@@ -22,7 +22,17 @@ import {
   Target, 
   Settings, 
   Play,
-  Grid3X3 
+  Grid3X3,
+  User,
+  Phone,
+  Mail,
+  Car,
+  Wrench as ServiceIcon,
+  Building2,
+  Calendar,
+  FileCheck,
+  MapPin,
+  Users
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -214,13 +224,13 @@ export default function JobCardsNew() {
           ...jobCard,
           workOrder,
           partner,
-          // Create display strings
+          // Create display strings using proper data sources
           customerName: workOrder?.customerName || 'N/A',
           vehicleDisplay: workOrder?.vehicleModelName 
             ? `${workOrder.oemName || ''} ${workOrder.vehicleModelName}${workOrder.vehicleVariant ? ` (${workOrder.vehicleVariant})` : ''}`.trim()
             : 'N/A',
           serviceDisplay: workOrder?.serviceName || 'N/A',
-          partnerDisplay: partner?.displayName || partner?.companyName || 'Unassigned Partner'
+          partnerDisplay: partner?.displayName || partner?.companyName || (jobCard.partnerId ? 'Partner Info Loading...' : 'Unassigned Partner')
         };
 
         return enriched;
@@ -678,76 +688,264 @@ export default function JobCardsNew() {
         </div>
       )}
 
-      {/* Job Card Detail Modal */}
+      {/* Job Card Detail Modal - Enhanced UI */}
       <Dialog open={!!selectedJobCard} onOpenChange={() => setSelectedJobCard(null)}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Job Card Details - JC-{selectedJobCard?.id.slice(-6)}</DialogTitle>
-          </DialogHeader>
-          {selectedJobCard && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-semibold mb-2">Basic Information</h3>
-                  <div className="space-y-2 text-sm">
-                    <div><strong>Job Card ID:</strong> {selectedJobCard.id}</div>
-                    <div><strong>Status:</strong> {getStatusBadge(selectedJobCard.status)}</div>
-                    <div><strong>Work Order ID:</strong> {selectedJobCard.workOrderId || 'N/A'}</div>
-                    <div><strong>Created:</strong> {formatDateTime(selectedJobCard.createdAt)}</div>
-                    <div><strong>Updated:</strong> {formatDateTime(selectedJobCard.updatedAt)}</div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-semibold mb-2">Customer Information</h3>
-                  <div className="space-y-2 text-sm">
-                    <div><strong>Name:</strong> {selectedJobCard.customerName}</div>
-                    <div><strong>Phone:</strong> {selectedJobCard.workOrder?.customerPhone || 'N/A'}</div>
-                    <div><strong>Email:</strong> {selectedJobCard.workOrder?.customerEmail || 'N/A'}</div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-semibold mb-2">Vehicle & Service</h3>
-                  <div className="space-y-2 text-sm">
-                    <div><strong>Vehicle:</strong> {selectedJobCard.vehicleDisplay}</div>
-                    <div><strong>Service:</strong> {selectedJobCard.serviceDisplay}</div>
-                    <div><strong>Service Description:</strong> {selectedJobCard.workOrder?.serviceDescription || 'N/A'}</div>
-                  </div>
-                </div>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+          <DialogHeader className="border-b pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <FileCheck className="h-6 w-6 text-blue-600" />
               </div>
+              <div>
+                <DialogTitle className="text-xl font-bold">
+                  Job Card Details - JC-{selectedJobCard?.id.slice(-6)}
+                </DialogTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Comprehensive job card information and status tracking
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+          
+          {selectedJobCard && (
+            <div className="overflow-y-auto flex-1 pr-2">
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 py-4">
+                
+                {/* Basic Information Card */}
+                <Card className="col-span-1">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-blue-600" />
+                      <CardTitle className="text-base">Basic Information</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Job Card ID</span>
+                      <span className="font-mono text-xs bg-muted px-2 py-1 rounded">
+                        {selectedJobCard.id.slice(0, 8)}...
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Status</span>
+                      {getStatusBadge(selectedJobCard.status)}
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Work Order</span>
+                      <span className="font-mono text-xs bg-muted px-2 py-1 rounded">
+                        {selectedJobCard.workOrderId?.slice(0, 8)}...
+                      </span>
+                    </div>
+                    <div className="border-t pt-3 space-y-2">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Calendar className="h-4 w-4 text-green-600" />
+                        <span className="text-muted-foreground">Created:</span>
+                        <span className="font-medium">{formatDateTime(selectedJobCard.createdAt)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <Clock className="h-4 w-4 text-orange-600" />
+                        <span className="text-muted-foreground">Updated:</span>
+                        <span className="font-medium">{formatDateTime(selectedJobCard.updatedAt)}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-semibold mb-2">Partner Information</h3>
-                  <div className="space-y-2 text-sm">
-                    <div><strong>Partner:</strong> {selectedJobCard.partnerDisplay}</div>
-                    <div><strong>Business Type:</strong> {selectedJobCard.partner?.businessType || 'N/A'}</div>
-                    <div><strong>Contact Person:</strong> {selectedJobCard.partner?.contactPersonName || 'N/A'}</div>
-                    <div><strong>Contact Phone:</strong> {selectedJobCard.partner?.contactPersonPhone || 'N/A'}</div>
-                  </div>
-                </div>
+                {/* Customer Information Card */}
+                <Card className="col-span-1">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <User className="h-5 w-5 text-green-600" />
+                      <CardTitle className="text-base">Customer Information</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <span className="text-sm text-muted-foreground">Name</span>
+                        <p className="font-medium">{selectedJobCard.customerName}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <span className="text-sm text-muted-foreground">Phone</span>
+                        <p className="font-medium font-mono">
+                          {selectedJobCard.workOrder?.customerPhone || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <span className="text-sm text-muted-foreground">Email</span>
+                        <p className="font-medium text-sm">
+                          {selectedJobCard.workOrder?.customerEmail || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                <div>
-                  <h3 className="text-lg font-semibold mb-2">Timeline</h3>
-                  <div className="space-y-2 text-sm">
-                    <div><strong>Acknowledged At:</strong> {formatDateTime(selectedJobCard.acknowledgedAt)}</div>
-                    <div><strong>Scheduled At:</strong> {formatDateTime(selectedJobCard.scheduledAt)}</div>
-                    <div><strong>Started At:</strong> {formatDateTime(selectedJobCard.startedAt)}</div>
-                    <div><strong>Completed At:</strong> {formatDateTime(selectedJobCard.completedAt)}</div>
-                    <div><strong>Approved At:</strong> {formatDateTime(selectedJobCard.approvedAt)}</div>
-                  </div>
-                </div>
+                {/* Vehicle & Service Card */}
+                <Card className="col-span-1">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <Car className="h-5 w-5 text-purple-600" />
+                      <CardTitle className="text-base">Vehicle & Service</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-start gap-3">
+                      <Car className="h-4 w-4 text-muted-foreground mt-1" />
+                      <div>
+                        <span className="text-sm text-muted-foreground">Vehicle</span>
+                        <p className="font-medium text-sm leading-relaxed">
+                          {selectedJobCard.vehicleDisplay}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <ServiceIcon className="h-4 w-4 text-muted-foreground mt-1" />
+                      <div>
+                        <span className="text-sm text-muted-foreground">Service</span>
+                        <p className="font-medium text-sm">{selectedJobCard.serviceDisplay}</p>
+                      </div>
+                    </div>
+                    {selectedJobCard.workOrder?.serviceDescription && (
+                      <div className="flex items-start gap-3">
+                        <FileText className="h-4 w-4 text-muted-foreground mt-1" />
+                        <div>
+                          <span className="text-sm text-muted-foreground">Description</span>
+                          <p className="text-sm leading-relaxed">
+                            {selectedJobCard.workOrder.serviceDescription}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
-                <div>
-                  <h3 className="text-lg font-semibold mb-2">Additional Details</h3>
-                  <div className="space-y-2 text-sm">
-                    <div><strong>Assigned Installer:</strong> {selectedJobCard.assignedInstallerId || 'N/A'}</div>
-                    <div><strong>Remarks:</strong> {selectedJobCard.remarks || 'N/A'}</div>
-                    <div><strong>Partner Remarks:</strong> {selectedJobCard.partnerRemarks || 'N/A'}</div>
-                    <div><strong>Batch Numbers:</strong> {selectedJobCard.batchNumbers?.join(', ') || 'N/A'}</div>
-                  </div>
-                </div>
+                {/* Partner Information Card */}
+                <Card className="col-span-1">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5 text-orange-600" />
+                      <CardTitle className="text-base">Partner Information</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-start gap-3">
+                      <Building2 className="h-4 w-4 text-muted-foreground mt-1" />
+                      <div>
+                        <span className="text-sm text-muted-foreground">Partner</span>
+                        <p className="font-medium">{selectedJobCard.partnerDisplay}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <span className="text-sm text-muted-foreground">Business Type</span>
+                        <p className="font-medium">{selectedJobCard.partner?.businessType || 'N/A'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <span className="text-sm text-muted-foreground">Contact Person</span>
+                        <p className="font-medium">{selectedJobCard.partner?.contactPersonName || 'N/A'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <span className="text-sm text-muted-foreground">Contact Phone</span>
+                        <p className="font-medium font-mono">
+                          {selectedJobCard.partner?.contactPersonPhone || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Timeline Card */}
+                <Card className="col-span-1">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-5 w-5 text-blue-600" />
+                      <CardTitle className="text-base">Timeline</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="space-y-2">
+                      {[
+                        { label: 'Acknowledged', date: selectedJobCard.acknowledgedAt, icon: CheckCircle2 },
+                        { label: 'Scheduled', date: selectedJobCard.scheduledAt, icon: Calendar },
+                        { label: 'Started', date: selectedJobCard.startedAt, icon: Play },
+                        { label: 'Completed', date: selectedJobCard.completedAt, icon: Wrench },
+                        { label: 'Approved', date: selectedJobCard.approvedAt, icon: Trophy }
+                      ].map((item, index) => (
+                        <div key={index} className="flex items-center gap-3 text-sm">
+                          <item.icon className={`h-4 w-4 ${item.date ? 'text-green-600' : 'text-gray-300'}`} />
+                          <span className="text-muted-foreground min-w-[80px]">{item.label}:</span>
+                          <span className={`font-medium text-xs ${item.date ? 'text-foreground' : 'text-muted-foreground'}`}>
+                            {item.date ? formatDateTime(item.date) : 'N/A'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Additional Details Card */}
+                <Card className="col-span-1">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <Settings className="h-5 w-5 text-gray-600" />
+                      <CardTitle className="text-base">Additional Details</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="space-y-2">
+                      <div>
+                        <span className="text-sm text-muted-foreground">Assigned Installer</span>
+                        <p className="font-medium text-sm">
+                          {selectedJobCard.assignedInstallerId || 'Not assigned'}
+                        </p>
+                      </div>
+                      {selectedJobCard.remarks && (
+                        <div>
+                          <span className="text-sm text-muted-foreground">Remarks</span>
+                          <p className="text-sm leading-relaxed bg-muted p-2 rounded">
+                            {selectedJobCard.remarks}
+                          </p>
+                        </div>
+                      )}
+                      {selectedJobCard.partnerRemarks && (
+                        <div>
+                          <span className="text-sm text-muted-foreground">Partner Remarks</span>
+                          <p className="text-sm leading-relaxed bg-orange-50 p-2 rounded">
+                            {selectedJobCard.partnerRemarks}
+                          </p>
+                        </div>
+                      )}
+                      {selectedJobCard.batchNumbers && selectedJobCard.batchNumbers.length > 0 && (
+                        <div>
+                          <span className="text-sm text-muted-foreground">Batch Numbers</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {selectedJobCard.batchNumbers.map((batch, i) => (
+                              <span key={i} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                {batch}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
               </div>
             </div>
           )}
