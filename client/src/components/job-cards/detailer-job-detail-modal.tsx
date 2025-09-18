@@ -75,35 +75,15 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   const [completionRemarks, setCompletionRemarks] = useState('');
-  const [materialConsumption, setMaterialConsumption] = useState('');
   const [selectedTeamMemberId, setSelectedTeamMemberId] = useState<string>('');
-  const [batchNumbers, setBatchNumbers] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [jsonValidationError, setJsonValidationError] = useState<string | null>(null);
+  
+  // Material consumption form fields
+  const [materialProductName, setMaterialProductName] = useState('');
+  const [materialBatchNumber, setMaterialBatchNumber] = useState('');
+  const [materialQuantityUsed, setMaterialQuantityUsed] = useState('');
 
-  // JSON validation helper
-  const validateJSON = (jsonString: string): { isValid: boolean; error?: string } => {
-    if (!jsonString.trim()) {
-      return { isValid: true }; // Empty is valid (optional field)
-    }
-    
-    try {
-      JSON.parse(jsonString);
-      return { isValid: true };
-    } catch (error) {
-      return { 
-        isValid: false, 
-        error: error instanceof Error ? error.message : 'Invalid JSON format'
-      };
-    }
-  };
-
-  // Handle material consumption change with validation
-  const handleMaterialConsumptionChange = (value: string) => {
-    setMaterialConsumption(value);
-    const validation = validateJSON(value);
-    setJsonValidationError(validation.isValid ? null : validation.error || 'Invalid JSON');
-  };
+  // No JSON validation needed for form fields
 
   // Quality checklist items
   const [checklist, setChecklist] = useState({
@@ -206,14 +186,14 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
 
   const completeJobMutation = useMutation({
     mutationFn: async () => {
-      // Validate JSON if material consumption is provided
-      let parsedMaterialConsumption = null;
-      if (materialConsumption.trim()) {
-        try {
-          parsedMaterialConsumption = JSON.parse(materialConsumption);
-        } catch (error) {
-          throw new Error('Invalid JSON format in material consumption field. Please check the syntax.');
-        }
+      // Create material consumption object from form fields
+      let materialConsumptionData = null;
+      if (materialProductName.trim() || materialBatchNumber.trim() || materialQuantityUsed.trim()) {
+        materialConsumptionData = {
+          productName: materialProductName.trim() || null,
+          batchNumber: materialBatchNumber.trim() || null,
+          quantityUsed: materialQuantityUsed.trim() || null
+        };
       }
 
       // Upload files first if any
@@ -238,8 +218,8 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
       const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/complete`, {
         remarks: completionRemarks,
         checklistJson: checklist,
-        materialConsumptionJson: parsedMaterialConsumption,
-        batchNumbers
+        materialConsumptionJson: materialConsumptionData,
+        batchNumbers: materialBatchNumber.trim() || null
       });
       return response.json();
     },
@@ -277,11 +257,11 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     setScheduleDate('');
     setScheduleTime('');
     setCompletionRemarks('');
-    setMaterialConsumption('');
-    setBatchNumbers('');
     setSelectedFiles([]);
-    setJsonValidationError(null);
     setSelectedTeamMemberId(jobCard?.assignedInstallerId || '');
+    setMaterialProductName('');
+    setMaterialBatchNumber('');
+    setMaterialQuantityUsed('');
     setChecklist({
       edgesSealing: false,
       partsAssembling: false,
@@ -714,44 +694,45 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
             </Card>
 
             {/* Material Consumption */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Label htmlFor="material-consumption">Material Consumption (JSON)</Label>
-                  {materialConsumption.trim() && (
-                    jsonValidationError ? (
-                      <span className="text-red-500 text-xs">✗ Invalid JSON</span>
-                    ) : (
-                      <span className="text-green-500 text-xs">✓ Valid JSON</span>
-                    )
-                  )}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Material Consumption</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="material-product-name">Product Name</Label>
+                    <Input
+                      id="material-product-name"
+                      placeholder="PPF Film Type A"
+                      value={materialProductName}
+                      onChange={(e) => setMaterialProductName(e.target.value)}
+                      data-testid="input-material-product-name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="material-batch-number">Batch Number</Label>
+                    <Input
+                      id="material-batch-number"
+                      placeholder="BT2024001"
+                      value={materialBatchNumber}
+                      onChange={(e) => setMaterialBatchNumber(e.target.value)}
+                      data-testid="input-material-batch-number"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="material-quantity-used">Quantity Used</Label>
+                    <Input
+                      id="material-quantity-used"
+                      placeholder="25 sq ft"
+                      value={materialQuantityUsed}
+                      onChange={(e) => setMaterialQuantityUsed(e.target.value)}
+                      data-testid="input-material-quantity-used"
+                    />
+                  </div>
                 </div>
-                <Textarea
-                  id="material-consumption"
-                  placeholder='{"film_sqft": 25, "primer_ml": 50}'
-                  value={materialConsumption}
-                  onChange={(e) => handleMaterialConsumptionChange(e.target.value)}
-                  className={jsonValidationError ? 'border-red-300' : ''}
-                  data-testid="textarea-material-consumption"
-                />
-                {jsonValidationError && (
-                  <p className="text-red-500 text-xs mt-1">{jsonValidationError}</p>
-                )}
-                <p className="text-gray-500 text-xs mt-1">
-                  Optional: Enter material usage in JSON format (e.g., film area, primer volume)
-                </p>
-              </div>
-              <div>
-                <Label htmlFor="batch-numbers">Batch Numbers</Label>
-                <Input
-                  id="batch-numbers"
-                  placeholder="BT2024001, BT2024002"
-                  value={batchNumbers}
-                  onChange={(e) => setBatchNumbers(e.target.value)}
-                  data-testid="input-batch-numbers"
-                />
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
             {/* Completion Remarks */}
             <div>
