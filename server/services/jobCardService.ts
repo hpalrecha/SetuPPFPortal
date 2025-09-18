@@ -130,16 +130,25 @@ export class JobCardService {
         throw new Error('Associated work order not found');
       }
 
-      // Resolve pricing for detailer payout
-      const pricing = await pricingService.resolvePricing(
+      // Use the proper detailer pricing resolution
+      const pricingResult = await storage.resolveDetailerPricing(
         jobCard.partnerId,
-        'SHOWROOM',
-        workOrder.showroomId,
         workOrder.vehicleModelId,
-        workOrder.serviceId
+        workOrder.serviceId, // This will resolve to service category internally
+        workOrder.dealershipId,
+        workOrder.showroomId
       );
 
-      const payoutAmount = pricing?.priceAmount || workOrder.estimatedPrice || 0;
+      let payoutAmount = '0.00';
+      let payoutStatus: 'PENDING' | 'NEEDS_REVIEW' = 'PENDING';
+
+      if (pricingResult) {
+        payoutAmount = pricingResult.amount;
+        console.log(`✅ Resolved detailer pricing: ₹${payoutAmount} using rule ${pricingResult.ruleId} (${pricingResult.context})`);
+      } else {
+        payoutStatus = 'NEEDS_REVIEW';
+        console.log(`⚠️ No pricing rule found for detailer payout - marked as NEEDS_REVIEW`);
+      }
 
       // Check for existing payout to prevent duplicates
       const existingPayouts = await storage.getPayouts({
@@ -147,18 +156,27 @@ export class JobCardService {
       });
       
       if (existingPayouts.length === 0) {
-        // Create detailer payout (PENDING status)
+        // Create detailer payout with resolved pricing
         await storage.createPayout({
           jobCardId,
           partnerId: jobCard.partnerId,
           grossAmount: payoutAmount,
           netAmount: payoutAmount, // No adjustments for now
-          status: 'PENDING'
+          status: payoutStatus
         });
 
-        console.log(`✅ Auto-created detailer payout: ₹${payoutAmount} for job card ${jobCardId}`);
+        console.log(`✅ Auto-created detailer payout: ₹${payoutAmount} (${payoutStatus}) for job card ${jobCardId}`);
       } else {
-        console.log(`⚠️ Payout already exists for job card ${jobCardId}, skipping creation`);
+        // Update existing payout with correct pricing
+        const existingPayout = existingPayouts[0];
+        await storage.updatePayout(existingPayout.id, {
+          grossAmount: payoutAmount,
+          netAmount: payoutAmount,
+          status: payoutStatus,
+          updatedAt: new Date()
+        });
+
+        console.log(`✅ Updated existing detailer payout: ₹${payoutAmount} (${payoutStatus}) for job card ${jobCardId}`);
       }
     } catch (error) {
       console.error(`❌ Failed to auto-create detailer payout for job card ${jobCardId}:`, error);
