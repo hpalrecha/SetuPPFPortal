@@ -95,7 +95,20 @@ export const auditLog = (entity: string, action: string) => {
     res.send = function(body) {
       // Log successful operations (2xx status codes)
       if (res.statusCode >= 200 && res.statusCode < 300) {
-        const entityId = req.params.id || (typeof body === 'string' ? JSON.parse(body)?.id : body?.id);
+        let entityId = req.params.id;
+        
+        // Safely parse body if it's a string
+        if (!entityId && typeof body === 'string') {
+          try {
+            const parsedBody = JSON.parse(body);
+            entityId = parsedBody?.id;
+          } catch (error) {
+            // If JSON parsing fails, skip audit logging for this response
+            console.warn('Audit log: Failed to parse response body as JSON:', error);
+          }
+        } else if (!entityId && body) {
+          entityId = body?.id;
+        }
         
         if (entityId && req.user) {
           // Async log without blocking response

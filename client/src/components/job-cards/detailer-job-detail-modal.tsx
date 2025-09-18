@@ -491,12 +491,41 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                     <Label className="text-sm font-medium text-gray-600">Showroom Name</Label>
                     <p className="text-sm font-semibold" data-testid="text-showroom-name">{jobCard.workOrder.showroom.name}</p>
                   </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Location</Label>
-                    <p className="text-sm text-gray-700" data-testid="text-showroom-location">
-                      Visit the showroom for vehicle inspection and service completion
-                    </p>
-                  </div>
+                  
+                  {jobCard.workOrder.showroom.address && (
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">Address</Label>
+                      <p className="text-sm text-gray-700" data-testid="text-showroom-address">
+                        {jobCard.workOrder.showroom.address}
+                        {jobCard.workOrder.showroom.city && `, ${jobCard.workOrder.showroom.city}`}
+                        {jobCard.workOrder.showroom.state && `, ${jobCard.workOrder.showroom.state}`}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {(jobCard.workOrder.showroom.contactPerson || jobCard.workOrder.showroom.phone || jobCard.workOrder.showroom.email) && (
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">Contact Information</Label>
+                      <div className="space-y-1">
+                        {jobCard.workOrder.showroom.contactPerson && (
+                          <p className="text-sm text-gray-700" data-testid="text-showroom-contact">
+                            Contact: {jobCard.workOrder.showroom.contactPerson}
+                          </p>
+                        )}
+                        {jobCard.workOrder.showroom.phone && (
+                          <p className="text-sm text-gray-700" data-testid="text-showroom-phone">
+                            Phone: {jobCard.workOrder.showroom.phone}
+                          </p>
+                        )}
+                        {jobCard.workOrder.showroom.email && (
+                          <p className="text-sm text-gray-700" data-testid="text-showroom-email">
+                            Email: {jobCard.workOrder.showroom.email}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
                   <div>
                     <Label className="text-sm font-medium text-gray-600">Service Instructions</Label>
                     <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded" data-testid="text-service-instructions">
@@ -746,41 +775,63 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
               />
             </div>
 
-            {/* Photo Upload */}
-            <div>
-              <Label>Post-Installation Photos</Label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                <UploadIcon className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
-                  className="hidden"
-                  id="photo-upload"
-                  data-testid="input-photo-upload"
-                />
-                <Label htmlFor="photo-upload" className="cursor-pointer text-blue-600 hover:text-blue-700">
-                  Click to upload photos
-                </Label>
-                <p className="text-xs text-gray-500 mt-1">Upload multiple photos showing completed installation</p>
-                {selectedFiles.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-sm text-green-600">{selectedFiles.length} file(s) selected</p>
-                    <div className="space-y-1">
-                      {selectedFiles.map((file, index) => (
-                        <p key={index} className="text-xs text-gray-600">{file.name}</p>
-                      ))}
-                    </div>
+            {/* Photo Upload - 4-Side Car Images */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">4-Side Car Images</CardTitle>
+                <p className="text-sm text-gray-600">Upload photos showing all four sides of the vehicle after installation</p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                    <UploadIcon className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
+                      className="hidden"
+                      id="photo-upload"
+                      data-testid="input-photo-upload"
+                    />
+                    <Label htmlFor="photo-upload" className="cursor-pointer text-blue-600 hover:text-blue-700 font-medium">
+                      Click to upload vehicle photos
+                    </Label>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Upload 4 photos: Front, Rear, Left Side, Right Side (JPG, PNG up to 10MB each)
+                    </p>
                   </div>
-                )}
-              </div>
-            </div>
+                  
+                  {selectedFiles.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <p className="text-sm font-medium text-green-700">{selectedFiles.length} file(s) selected</p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {selectedFiles.map((file, index) => (
+                          <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded border">
+                            <div className="w-3 h-3 bg-blue-500 rounded-full flex-shrink-0"></div>
+                            <span className="text-xs text-gray-700 truncate">{file.name}</span>
+                            <span className="text-xs text-gray-500 ml-auto">
+                              {(file.size / 1024 / 1024).toFixed(1)}MB
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                        ✓ Images will be uploaded when you complete the job
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
             <div className="flex gap-3">
               <Button 
                 onClick={() => completeJobMutation.mutate()} 
-                disabled={completeJobMutation.isPending || !completionRemarks.trim() || !!jsonValidationError}
+                disabled={completeJobMutation.isPending || !completionRemarks.trim()}
                 className="bg-green-600 hover:bg-green-700"
                 data-testid="button-confirm-complete"
               >
