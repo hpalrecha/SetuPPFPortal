@@ -1357,28 +1357,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(500).json({ error: "Failed to approve job card" });
         }
 
-        // Create payout record for the completed job card
+        // Update existing payout with proper pricing during approval
         try {
-          // Check for existing payout to prevent duplicates
+          // Check for existing payout (should exist from completion step)
           const existingPayouts = await storage.getPayouts({ jobCardId });
           
           if (existingPayouts.length === 0) {
-            // Use estimated price as default payout amount (can be enhanced later)
-            const payoutAmount = parseFloat(workOrder.estimatedPrice || '0');
-            
-            await storage.createPayout({
-              jobCardId,
-              partnerId: jobCard.partnerId,
-              grossAmount: payoutAmount.toString(),
-              netAmount: payoutAmount.toString(),
-              status: 'PENDING'
+            console.error(`⚠️ No payout found for job card ${jobCardId} during approval - this should not happen`);
+            // Don't create here - payout should have been created during completion
+          } else {
+            // Recalculate payout with proper pricing 
+            const pricingResult = await storage.resolveDetailerPricing(
+              jobCard.partnerId,
+              workOrder.vehicleModelId,
+              workOrder.serviceId,
+              workOrder.dealershipId,
+              workOrder.showroomId
+            );
+
+            let payoutAmount = '0.00';
+            let payoutStatus: 'PENDING' | 'NEEDS_REVIEW' = 'PENDING';
+
+            if (pricingResult) {
+              payoutAmount = pricingResult.amount;
+              console.log(`✅ Resolved detailer pricing: ₹${payoutAmount} using rule ${pricingResult.ruleId} (${pricingResult.context})`);
+            } else {
+              payoutStatus = 'NEEDS_REVIEW';
+              console.log(`⚠️ No pricing rule found for detailer payout - marked as NEEDS_REVIEW`);
+            }
+
+            // Update existing payout with correct pricing
+            const existingPayout = existingPayouts[0];
+            await storage.updatePayout(existingPayout.id, {
+              grossAmount: payoutAmount,
+              netAmount: payoutAmount,
+              status: payoutStatus
             });
-            
-            console.log(`✅ Created payout: ₹${payoutAmount} for job card ${jobCardId}`);
+
+            console.log(`✅ Updated existing detailer payout: ₹${payoutAmount} (${payoutStatus}) for job card ${jobCardId}`);
           }
         } catch (payoutError) {
-          console.error("Failed to create payout for job card:", payoutError);
-          // Don't fail the approval if payout creation fails
+          console.error("Failed to update payout for job card:", payoutError);
+          // Don't fail the approval if payout update fails
         }
 
         res.json({ message: "Job card approved successfully", jobCard: updatedJobCard });

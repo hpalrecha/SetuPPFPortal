@@ -172,8 +172,7 @@ export class JobCardService {
         await storage.updatePayout(existingPayout.id, {
           grossAmount: payoutAmount,
           netAmount: payoutAmount,
-          status: payoutStatus,
-          updatedAt: new Date()
+          status: payoutStatus
         });
 
         console.log(`✅ Updated existing detailer payout: ₹${payoutAmount} (${payoutStatus}) for job card ${jobCardId}`);
