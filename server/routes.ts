@@ -1059,8 +1059,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Job Card Routes
   app.get("/api/job-cards", 
     authenticate, 
-    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'SHOWROOM_MANAGER', 'SUPER_ADMIN', 'OEM_ADMIN']),
-    requireOEMAccess,
+    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'SHOWROOM_MANAGER', 'SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SALES_PERSON']),
     async (req, res) => {
     try {
       // Disable HTTP caching for real-time job card updates
@@ -1075,25 +1074,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
         offset: parseInt(offset as string)
       };
 
-      // Apply role-based filtering with OEM tenant isolation
-      if (req.user!.partnerId) {
-        // Partner users can only see their own job cards within the selected OEM
+      // Apply role-based filtering with proper OEM tenant isolation
+      const selectedOemId = req.headers['x-oem-id'] as string;
+      
+      if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+        // Partner users can only see their own job cards
+        if (!req.user!.partnerId) {
+          return res.status(400).json({ error: "Partner user must have partnerId" });
+        }
         filters.partnerId = req.user!.partnerId;
-        filters.oemId = req.oemId; // From requireOEMAccess middleware
-      } else if (req.user!.role === 'SHOWROOM_MANAGER') {
-        // Showroom managers see job cards for their showroom within their OEM
+        
+        // Validate OEM access for partners using partner-OEM mappings
+        if (selectedOemId) {
+          // Check if partner has access to this OEM
+          const hasOemAccess = await storage.checkPartnerOemAccess(req.user!.partnerId, selectedOemId);
+          if (!hasOemAccess) {
+            return res.status(403).json({ error: "Access denied to this OEM" });
+          }
+          filters.oemId = selectedOemId;
+        } else {
+          // If no OEM selected, get all OEMs the partner has access to
+          const partnerOemIds = await storage.getPartnerOems(req.user!.partnerId);
+          if (partnerOemIds.length === 0) {
+            return res.status(403).json({ error: "No OEM access configured" });
+          }
+          
+          // Query each OEM separately and combine results (storage doesn't support oemIds array)
+          const allJobCards = [];
+          for (const oemId of partnerOemIds) {
+            const jobCardsForOem = await storage.getJobCards({
+              ...filters,
+              oemId,
+            });
+            allJobCards.push(...jobCardsForOem);
+          }
+          return res.json(allJobCards);
+        }
+      } else if (req.user!.role === 'SHOWROOM_MANAGER' || req.user!.role === 'SALES_PERSON') {
+        // Showroom managers and sales persons see job cards for their showroom
         if (!req.user!.showroomId) {
-          return res.status(400).json({ error: "Showroom manager must have showroomId" });
+          return res.status(400).json({ error: "User must have showroomId" });
         }
         filters.showroomId = req.user!.showroomId;
-        filters.oemId = req.user!.oemId; // Always enforce user's OEM
+        
+        // Always enforce user's OEM for single-OEM roles
+        filters.oemId = req.user!.oemId;
+        
+        // Validate if selected OEM header matches user's OEM
+        if (selectedOemId && selectedOemId !== req.user!.oemId) {
+          return res.status(400).json({ error: "OEM mismatch: user belongs to different OEM" });
+        }
+      } else if (req.user!.role === 'DEALERSHIP_ADMIN') {
+        // Dealership admins see job cards for their dealership
+        if (!req.user!.dealershipId) {
+          return res.status(400).json({ error: "Dealership admin must have dealershipId" });
+        }
+        filters.dealershipId = req.user!.dealershipId;
+        
+        // Always enforce user's OEM for single-OEM roles
+        filters.oemId = req.user!.oemId;
+        
+        // Validate if selected OEM header matches user's OEM
+        if (selectedOemId && selectedOemId !== req.user!.oemId) {
+          return res.status(400).json({ error: "OEM mismatch: user belongs to different OEM" });
+        }
       } else if (req.user!.role === 'OEM_ADMIN') {
         // OEM admins see job cards only for their OEM
         filters.oemId = req.user!.oemId;
-      }
-      // Super admins see all job cards within the selected OEM context
-      if (req.user!.role === 'SUPER_ADMIN' && req.oemId) {
-        filters.oemId = req.oemId;
+      } else if (req.user!.role === 'SUPER_ADMIN') {
+        // Super admins see all job cards within the selected OEM context
+        if (selectedOemId) {
+          filters.oemId = selectedOemId;
+        }
+        // If no OEM selected, they see all job cards (global view)
       }
       
       if (status) filters.status = status as string;
