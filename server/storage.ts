@@ -1111,7 +1111,6 @@ export class DatabaseStorage implements IStorage {
           paidAt: payouts.paidAt,
           paymentReference: payouts.paymentReference,
           createdAt: payouts.createdAt,
-          jobCardNumber: jobCards.jobCardNumber,
           workOrderId: jobCards.workOrderId,
           customerName: workOrders.customerName,
           regNo: workOrders.regNo
@@ -1144,6 +1143,7 @@ export class DatabaseStorage implements IStorage {
 
           enrichedPayouts.push({
             ...payout,
+            jobCardNumber: payout.jobCardId.substring(0, 8).toUpperCase(), // Create display number from ID
             serviceName: serviceInfo[0]?.name || 'Unknown Service',
             vehicleModelName: vehicleInfo[0]?.modelName || 'Unknown Model'
           });
@@ -1152,6 +1152,7 @@ export class DatabaseStorage implements IStorage {
           // Add with fallback values
           enrichedPayouts.push({
             ...payout,
+            jobCardNumber: payout.jobCardId.substring(0, 8).toUpperCase(), // Create display number from ID
             serviceName: 'Unknown Service',
             vehicleModelName: 'Unknown Model'
           });
