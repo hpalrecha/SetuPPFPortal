@@ -36,6 +36,9 @@ import {
   Users
 } from "lucide-react";
 import { format } from "date-fns";
+import { useAuth } from "@/hooks/use-auth";
+import DetailerJobDetailModal from "@/components/job-cards/detailer-job-detail-modal";
+import ApprovalModal from "@/components/job-cards/approval-modal";
 
 // Enhanced Job Card types to match API structure
 interface JobCard {
@@ -168,6 +171,12 @@ const STATUS_LABELS = {
 export default function JobCardsNew() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedJobCard, setSelectedJobCard] = useState<EnrichedJobCard | null>(null);
+  const [selectedDetailerJobCard, setSelectedDetailerJobCard] = useState<string | null>(null);
+  const [selectedApprovalJobCard, setSelectedApprovalJobCard] = useState<string | null>(null);
+  
+  const { user } = useAuth();
+  const isPartnerUser = user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF';
+  const isShowroomUser = user?.role === 'SHOWROOM_MANAGER' || user?.role === 'DEALERSHIP_ADMIN';
   const { selectedOemId } = useOemContext();
 
   // Fetch and enrich job cards with related data
@@ -297,7 +306,24 @@ export default function JobCardsNew() {
   };
 
   const handleViewJobCard = (jobCard: EnrichedJobCard) => {
-    setSelectedJobCard(jobCard);
+    if (isPartnerUser && ['AWAITING_ACK', 'ACKNOWLEDGED', 'SCHEDULED', 'IN_PROGRESS', 'REWORK_REQUESTED'].includes(jobCard.status || '')) {
+      // Show detailer workflow modal for partner users
+      setSelectedDetailerJobCard(jobCard.id);
+    } else if (isShowroomUser && ['COMPLETED', 'PENDING_APPROVAL'].includes(jobCard.status || '')) {
+      // Show approval modal for showroom users
+      setSelectedApprovalJobCard(jobCard.id);
+    } else {
+      // Show basic details modal for other cases
+      setSelectedJobCard(jobCard);
+    }
+  };
+  
+  const handleManageJob = (jobCardId: string) => {
+    setSelectedDetailerJobCard(jobCardId);
+  };
+  
+  const handleReviewJob = (jobCardId: string) => {
+    setSelectedApprovalJobCard(jobCardId);
   };
 
   if (error) {
@@ -616,15 +642,27 @@ export default function JobCardsNew() {
                         {job.vehicleDisplay} - {job.serviceDisplay}
                       </p>
                       <p className="text-xs text-muted-foreground mb-2">{job.partnerDisplay}</p>
-                      <Button 
-                        size="sm" 
-                        className="w-full"
-                        onClick={() => handleViewJobCard(job)}
-                        data-testid={`button-view-${job.id}`}
-                      >
-                        <Eye className="h-3 w-3 mr-1" />
-                        Review
-                      </Button>
+                      {isShowroomUser ? (
+                        <Button 
+                          size="sm" 
+                          className="w-full"
+                          onClick={() => handleReviewJob(job.id)}
+                          data-testid={`button-review-${job.id}`}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          Review
+                        </Button>
+                      ) : (
+                        <Button 
+                          size="sm" 
+                          className="w-full"
+                          onClick={() => handleViewJobCard(job)}
+                          data-testid={`button-view-${job.id}`}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          View Details
+                        </Button>
+                      )}
                     </CardContent>
                   </Card>
                 ))
@@ -956,6 +994,20 @@ export default function JobCardsNew() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Detailer Job Management Modal */}
+      <DetailerJobDetailModal 
+        jobCardId={selectedDetailerJobCard}
+        isOpen={!!selectedDetailerJobCard}
+        onClose={() => setSelectedDetailerJobCard(null)}
+      />
+
+      {/* Approval Modal */}
+      <ApprovalModal 
+        jobCardId={selectedApprovalJobCard}
+        isOpen={!!selectedApprovalJobCard}
+        onClose={() => setSelectedApprovalJobCard(null)}
+      />
     </div>
   );
 }
