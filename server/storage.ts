@@ -215,6 +215,7 @@ export interface IStorage {
   canUserAccessCommission(user: User, commission: any): boolean;
   settlePayout(id: string, settlement: { paymentReference: string; settledAt: Date; settledBy: string }): Promise<boolean>;
   settleCommission(id: string, settlement: { paymentReference: string; settledAt: Date; settledBy: string }): Promise<boolean>;
+  recalculatePayoutWithPricing(jobCardId: string): Promise<{ success: boolean; message: string; amount?: string }>;
 
   // Pricing resolution
   resolvePricingRule(partnerId: string, vehicleModelId: string, serviceId: string, dealershipId?: string, showroomId?: string): Promise<PricingRule | null>;
@@ -1943,6 +1944,219 @@ export class DatabaseStorage implements IStorage {
       .orderBy(pricingRules.priceAmount); // Order by price for consistency
     
     return rules[0] || null;
+  }
+
+  async resolveDetailerPricing(detailerId: string, serviceId: string, serviceCategoryId: string | null, vehicleModelId: string, dealershipId?: string, showroomId?: string): Promise<{ amount: string; ruleId: string; context: string } | null> {
+    try {
+      // Base conditions for all queries
+      const now = new Date();
+      const baseConditions = [
+        eq(pricingRules.status, 'ACTIVE'),
+        eq(pricingRules.pricingType, 'DETAILER_PRICING'),
+        eq(pricingRules.detailerId, detailerId),
+        lte(pricingRules.effectiveFrom, now),
+        or(
+          isNull(pricingRules.effectiveTo),
+          gte(pricingRules.effectiveTo, now)
+        )
+      ];
+
+      // Location precedence: Showroom > Dealership > Global
+      const locationContexts = [];
+      if (showroomId) {
+        locationContexts.push({ scope: 'SHOWROOM', scopeId: showroomId, context: 'showroom' });
+      }
+      if (dealershipId) {
+        locationContexts.push({ scope: 'DEALERSHIP', scopeId: dealershipId, context: 'dealership' });
+      }
+      locationContexts.push({ scope: null, scopeId: null, context: 'global' }); // Global rules
+
+      // Service precedence: Exact service > Service category
+      const servicePrecedence = [];
+      if (serviceId) {
+        servicePrecedence.push({ type: 'service', condition: eq(pricingRules.serviceId, serviceId) });
+      }
+      if (serviceCategoryId) {
+        servicePrecedence.push({ type: 'category', condition: eq(pricingRules.serviceCategoryId, serviceCategoryId) });
+      }
+
+      // Vehicle precedence: Exact vehicle model > No vehicle constraint
+      const vehiclePrecedence = [
+        { type: 'exact', condition: eq(pricingRules.vehicleModelId, vehicleModelId) },
+        { type: 'generic', condition: isNull(pricingRules.vehicleModelId) }
+      ];
+
+      // Search with full precedence matrix
+      for (const location of locationContexts) {
+        for (const service of servicePrecedence) {
+          for (const vehicle of vehiclePrecedence) {
+            const conditions = [...baseConditions, service.condition, vehicle.condition];
+            
+            // Add location context if specified
+            if (location.scope && location.scopeId) {
+              conditions.push(eq(pricingRules.scope, location.scope));
+              conditions.push(eq(pricingRules.scopeId, location.scopeId));
+            } else if (location.scope === null) {
+              // Global rules have no scope
+              conditions.push(isNull(pricingRules.scope));
+              conditions.push(isNull(pricingRules.scopeId));
+            }
+
+            const rules = await db.select().from(pricingRules)
+              .where(and(...conditions))
+              .orderBy(desc(pricingRules.effectiveFrom))
+              .limit(1);
+            
+            if (rules.length > 0) {
+              return { 
+                amount: rules[0].priceAmount, // Keep as string to avoid floating point issues
+                ruleId: rules[0].id,
+                context: `${location.context}-${service.type}-${vehicle.type}`
+              };
+            }
+          }
+        }
+      }
+
+      return null; // No pricing rule found
+    } catch (error) {
+      console.error('Error resolving detailer pricing:', error);
+      return null;
+    }
+  }
+
+  async recalculatePayoutWithPricing(jobCardId: string): Promise<{ success: boolean; message: string; amount?: string }> {
+    try {
+      // Get job card and work order details
+      const jobCard = await db
+        .select({
+          id: jobCards.id,
+          partnerId: jobCards.partnerId,
+          workOrderId: jobCards.workOrderId,
+          status: jobCards.status
+        })
+        .from(jobCards)
+        .where(eq(jobCards.id, jobCardId))
+        .limit(1);
+
+      if (!jobCard[0]) {
+        return { success: false, message: 'Job card not found' };
+      }
+
+      const workOrder = await db
+        .select({
+          id: workOrders.id,
+          serviceId: workOrders.serviceId,
+          vehicleModelId: workOrders.vehicleModelId,
+          dealershipId: workOrders.dealershipId,
+          showroomId: workOrders.showroomId
+        })
+        .from(workOrders)
+        .where(eq(workOrders.id, jobCard[0].workOrderId))
+        .limit(1);
+
+      if (!workOrder[0]) {
+        return { success: false, message: 'Work order not found' };
+      }
+
+      // Get service details for service category
+      const service = await db
+        .select({
+          id: services.id,
+          serviceCategoryId: services.serviceCategoryId
+        })
+        .from(services)
+        .where(eq(services.id, workOrder[0].serviceId))
+        .limit(1);
+
+      // Resolve pricing using the new function
+      const pricingResult = await this.resolveDetailerPricing(
+        jobCard[0].partnerId,
+        workOrder[0].serviceId,
+        service[0]?.serviceCategoryId || null,
+        workOrder[0].vehicleModelId,
+        workOrder[0].dealershipId,
+        workOrder[0].showroomId
+      );
+
+      if (!pricingResult) {
+        // When no pricing rule found, create payout with NEEDS_REVIEW status
+        const existingPayout = await db
+          .select({ id: payouts.id })
+          .from(payouts)
+          .where(eq(payouts.jobCardId, jobCardId))
+          .limit(1);
+
+        if (existingPayout[0]) {
+          // Update existing payout
+          await db
+            .update(payouts)
+            .set({
+              grossAmount: '0.00',
+              netAmount: '0.00',
+              status: 'NEEDS_REVIEW',
+              updatedAt: new Date()
+            })
+            .where(eq(payouts.id, existingPayout[0].id));
+        } else {
+          // Create new payout
+          await db
+            .insert(payouts)
+            .values({
+              jobCardId: jobCardId,
+              partnerId: jobCard[0].partnerId,
+              grossAmount: '0.00',
+              netAmount: '0.00',
+              status: 'NEEDS_REVIEW',
+              createdAt: new Date()
+            });
+        }
+
+        return { success: true, message: 'No pricing rule found - payout marked as NEEDS_REVIEW', amount: '0.00' };
+      }
+
+      // Update or create payout with resolved pricing
+      const existingPayout = await db
+        .select({ id: payouts.id })
+        .from(payouts)
+        .where(eq(payouts.jobCardId, jobCardId))
+        .limit(1);
+
+      if (existingPayout[0]) {
+        // Update existing payout
+        await db
+          .update(payouts)
+          .set({
+            grossAmount: pricingResult.amount, // Already a string, no conversion needed
+            netAmount: pricingResult.amount,
+            status: 'PENDING',
+            updatedAt: new Date()
+          })
+          .where(eq(payouts.id, existingPayout[0].id));
+      } else {
+        // Create new payout
+        await db
+          .insert(payouts)
+          .values({
+            jobCardId: jobCardId,
+            partnerId: jobCard[0].partnerId,
+            grossAmount: pricingResult.amount,
+            netAmount: pricingResult.amount,
+            status: 'PENDING',
+            createdAt: new Date()
+          });
+      }
+
+      return { 
+        success: true, 
+        message: `Payout recalculated using pricing rule ${pricingResult.ruleId} (${pricingResult.context})`, 
+        amount: pricingResult.amount // Keep as string to prevent precision loss
+      };
+
+    } catch (error) {
+      console.error('Error recalculating payout:', error);
+      return { success: false, message: 'Error recalculating payout' };
+    }
   }
 
   async createNotification(notification: any): Promise<any> {

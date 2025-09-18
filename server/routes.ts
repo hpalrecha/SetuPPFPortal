@@ -3016,6 +3016,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Test route for payout recalculation (development/testing only - SUPER_ADMIN access only)
+  if (process.env.NODE_ENV !== 'production') {
+    app.post("/api/test/recalculate-payout/:jobCardId", 
+      authenticate, 
+      requireRole(['SUPER_ADMIN']), // Restrict to SUPER_ADMIN only for security
+      auditLog('payout', 'recalculate'),
+      async (req, res) => {
+        try {
+          const { jobCardId } = req.params;
+          
+          if (!jobCardId) {
+            return res.status(400).json({ error: "Job card ID is required" });
+          }
+
+          // Validate access to the job card first
+          const jobCard = await storage.getJobCard(jobCardId);
+          if (!jobCard) {
+            return res.status(404).json({ error: "Job card not found" });
+          }
+
+          const result = await storage.recalculatePayoutWithPricing(jobCardId);
+          res.json(result);
+        } catch (error) {
+          console.error("Recalculate payout error:", error);
+          res.status(500).json({ error: "Failed to recalculate payout" });
+        }
+      }
+    );
+  }
+
   const httpServer = createServer(app);
   return httpServer;
 }
