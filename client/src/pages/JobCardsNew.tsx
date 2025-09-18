@@ -973,11 +973,14 @@ export default function JobCardsNew() {
                           </p>
                         </div>
                       )}
-                      {selectedJobCard.batchNumbers && selectedJobCard.batchNumbers.length > 0 && (
+                      {selectedJobCard.batchNumbers && (
                         <div>
                           <span className="text-sm text-muted-foreground">Batch Numbers</span>
                           <div className="flex flex-wrap gap-1 mt-1">
-                            {selectedJobCard.batchNumbers.map((batch, i) => (
+                            {(Array.isArray(selectedJobCard.batchNumbers) 
+                              ? selectedJobCard.batchNumbers 
+                              : [selectedJobCard.batchNumbers]
+                            ).map((batch, i) => (
                               <span key={i} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
                                 {batch}
                               </span>
