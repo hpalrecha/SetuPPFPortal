@@ -1357,6 +1357,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(500).json({ error: "Failed to approve job card" });
         }
 
+        // Create payout record for the completed job card
+        try {
+          // Check for existing payout to prevent duplicates
+          const existingPayouts = await storage.getPayouts({ jobCardId });
+          
+          if (existingPayouts.length === 0) {
+            // Use estimated price as default payout amount (can be enhanced later)
+            const payoutAmount = parseFloat(workOrder.estimatedPrice || '0');
+            
+            await storage.createPayout({
+              jobCardId,
+              partnerId: jobCard.partnerId,
+              grossAmount: payoutAmount.toString(),
+              netAmount: payoutAmount.toString(),
+              status: 'PENDING'
+            });
+            
+            console.log(`✅ Created payout: ₹${payoutAmount} for job card ${jobCardId}`);
+          }
+        } catch (payoutError) {
+          console.error("Failed to create payout for job card:", payoutError);
+          // Don't fail the approval if payout creation fails
+        }
+
         res.json({ message: "Job card approved successfully", jobCard: updatedJobCard });
       } catch (error) {
         console.error("Job card approval error:", error);
