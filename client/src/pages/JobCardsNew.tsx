@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useOemContext } from '@/hooks/use-oem-context';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -167,6 +168,7 @@ const STATUS_LABELS = {
 export default function JobCardsNew() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedJobCard, setSelectedJobCard] = useState<EnrichedJobCard | null>(null);
+  const { selectedOemId } = useOemContext();
 
   // Fetch and enrich job cards with related data
   const { data: jobCards = [], isLoading, error } = useQuery({
@@ -199,17 +201,19 @@ export default function JobCardsNew() {
           })
         ).then(results => results.filter(Boolean)) : [],
         
-        // Fetch partners
-        partnerIds.length > 0 ? Promise.all(
-          partnerIds.map(async (id) => {
-            try {
-              const res = await apiRequest('GET', `/api/partners/${id}`);
-              return await res.json();
-            } catch {
-              return null;
-            }
-          })
-        ).then(results => results.filter(Boolean)) : []
+        // Fetch partners using the exact same pattern as use-job-cards.ts
+        partnerIds.length > 0 ? Promise.all(partnerIds.map(async (id) => {
+          const partnerHeaders: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` };
+          if (selectedOemId) {
+            partnerHeaders['x-oem-id'] = selectedOemId;
+          }
+          const res = await fetch(`/api/partners/${id}`, {
+            headers: partnerHeaders,
+            credentials: 'include',
+            cache: 'no-store', // Prevent 304 responses
+          });
+          return (res.ok || res.status === 304) ? res.json() : null;
+        })).then(results => results.filter(Boolean)) : []
       ]);
 
       // Create lookup maps
