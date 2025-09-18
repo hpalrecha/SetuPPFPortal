@@ -1143,7 +1143,7 @@ export class DatabaseStorage implements IStorage {
 
           enrichedPayouts.push({
             ...payout,
-            jobCardNumber: payout.jobCardId.substring(0, 8).toUpperCase(), // Create display number from ID
+            jobCardNumber: `JC-${payout.jobCardId.substring(payout.jobCardId.length - 6)}`, // Create proper JC format
             serviceName: serviceInfo[0]?.name || 'Unknown Service',
             vehicleModelName: vehicleInfo[0]?.modelName || 'Unknown Model'
           });
@@ -1152,7 +1152,7 @@ export class DatabaseStorage implements IStorage {
           // Add with fallback values
           enrichedPayouts.push({
             ...payout,
-            jobCardNumber: payout.jobCardId.substring(0, 8).toUpperCase(), // Create display number from ID
+            jobCardNumber: `JC-${payout.jobCardId.substring(payout.jobCardId.length - 6)}`, // Create proper JC format
             serviceName: 'Unknown Service',
             vehicleModelName: 'Unknown Model'
           });
