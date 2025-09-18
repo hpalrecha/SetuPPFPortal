@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -161,30 +162,8 @@ export default function JobCardsNew() {
   const { data: jobCards = [], isLoading, error } = useQuery({
     queryKey: ['jobCards'],
     queryFn: async (): Promise<EnrichedJobCard[]> => {
-      const token = localStorage.getItem('auth_token');
-      const selectedOemId = localStorage.getItem('selectedOemId');
-      
-      const headers: HeadersInit = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
-      
-      if (selectedOemId) {
-        headers['x-oem-id'] = selectedOemId;
-      }
-
-      // Fetch job cards
-      const response = await fetch('/api/job-cards', {
-        method: 'GET',
-        headers,
-        credentials: 'include',
-        cache: 'no-store',
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch job cards: ${response.status}`);
-      }
-
+      // Fetch job cards using the proper apiRequest function
+      const response = await apiRequest('GET', '/api/job-cards');
       const rawJobCards: JobCard[] = await response.json();
       
       // Extract unique IDs for batch fetching
@@ -201,12 +180,8 @@ export default function JobCardsNew() {
         workOrderIds.length > 0 ? Promise.all(
           workOrderIds.map(async (id) => {
             try {
-              const res = await fetch(`/api/work-orders/${id}`, {
-                headers,
-                credentials: 'include',
-                cache: 'no-store',
-              });
-              return res.ok ? res.json() : null;
+              const res = await apiRequest('GET', `/api/work-orders/${id}`);
+              return await res.json();
             } catch {
               return null;
             }
@@ -217,12 +192,8 @@ export default function JobCardsNew() {
         partnerIds.length > 0 ? Promise.all(
           partnerIds.map(async (id) => {
             try {
-              const res = await fetch(`/api/partners/${id}`, {
-                headers,
-                credentials: 'include', 
-                cache: 'no-store',
-              });
-              return res.ok ? res.json() : null;
+              const res = await apiRequest('GET', `/api/partners/${id}`);
+              return await res.json();
             } catch {
               return null;
             }
