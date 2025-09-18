@@ -1576,6 +1576,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Job card not found" });
       }
 
+      // 🚀 AUTO-CREATE DETAILER PAYOUT when job card is completed
+      try {
+        // Get work order for pricing calculation
+        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+        if (workOrder) {
+          // Use the proper detailer pricing resolution
+          const pricingResult = await storage.resolveDetailerPricing(
+            jobCard.partnerId,
+            workOrder.vehicleModelId,
+            workOrder.serviceId,
+            workOrder.dealershipId,
+            workOrder.showroomId
+          );
+
+          let payoutAmount = '0.00';
+          let payoutStatus: 'PENDING' | 'NEEDS_REVIEW' = 'PENDING';
+
+          if (pricingResult) {
+            payoutAmount = pricingResult.amount;
+            console.log(`✅ Resolved detailer pricing: ₹${payoutAmount} using rule ${pricingResult.ruleId} (${pricingResult.context})`);
+          } else {
+            payoutStatus = 'NEEDS_REVIEW';
+            console.log(`⚠️ No pricing rule found for detailer payout - marked as NEEDS_REVIEW`);
+          }
+
+          // Check for existing payout to prevent duplicates
+          const existingPayouts = await storage.getPayouts({ jobCardId: req.params.id });
+          
+          if (existingPayouts.length === 0) {
+            // Create detailer payout with resolved pricing
+            await storage.createPayout({
+              jobCardId: req.params.id,
+              partnerId: jobCard.partnerId,
+              grossAmount: payoutAmount,
+              netAmount: payoutAmount,
+              status: payoutStatus
+            });
+            
+            console.log(`✅ Auto-created detailer payout: ₹${payoutAmount} (${payoutStatus}) for job card ${req.params.id}`);
+          } else {
+            console.log(`⚠️ Payout already exists for job card ${req.params.id}, skipping creation`);
+          }
+        }
+      } catch (payoutError) {
+        console.error(`❌ Failed to auto-create detailer payout for job card ${req.params.id}:`, payoutError);
+        // Don't fail the completion if payout creation fails
+      }
+
       res.json(jobCard);
     } catch (error) {
       if (error instanceof z.ZodError) {
