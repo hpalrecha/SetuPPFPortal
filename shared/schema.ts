@@ -50,12 +50,12 @@ export const jobCardStatusEnum = pgEnum('job_card_status', [
   'COMPLETED',
   'PENDING_APPROVAL',
   'APPROVED',
+  'REWORK_REQUESTED',
   'CLOSED',
   'NO_SHOW',
   'CANCELLED_BY_CUSTOMER',
   'PARTS_PENDING',
-  'RESCHEDULED',
-  'REWORK_REQUESTED'
+  'RESCHEDULED'
 ]);
 
 export const allocationLevelEnum = pgEnum('allocation_level', ['DEALERSHIP', 'SHOWROOM']);
