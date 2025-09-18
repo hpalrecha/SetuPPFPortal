@@ -184,6 +184,7 @@ export default function JobCardsNew() {
       const partnerIds = Array.from(new Set(
         rawJobCards.map(jc => jc.partnerId).filter(Boolean)
       ));
+      
 
       // Fetch related data in parallel
       const [workOrdersData, partnersData] = await Promise.all([
@@ -199,30 +200,12 @@ export default function JobCardsNew() {
           })
         ).then(results => results.filter(Boolean)) : [],
         
-        // Fetch partners using working pattern from use-job-cards.ts
+        // Fetch partners using apiRequest (same as work orders)
         partnerIds.length > 0 ? Promise.all(
           partnerIds.map(async (id) => {
             try {
-              const token = localStorage.getItem('auth_token');
-              const partnerHeaders: HeadersInit = { 
-                'Authorization': `Bearer ${token}` 
-              };
-              if (selectedOemId) {
-                partnerHeaders['x-oem-id'] = selectedOemId;
-              }
-              
-              const res = await fetch(`/api/partners/${id}`, {
-                headers: partnerHeaders,
-                credentials: 'include',
-                cache: 'no-store', // Prevent 304 responses
-              });
-              
-              if (res.ok || res.status === 304) {
-                return await res.json();
-              } else {
-                console.error(`Partner API failed for ${id}:`, res.status, res.statusText);
-                return null;
-              }
+              const res = await apiRequest('GET', `/api/partners/${id}`);
+              return await res.json();
             } catch (error) {
               console.error('❌ Error fetching partner:', id, error);
               return null;
@@ -235,11 +218,12 @@ export default function JobCardsNew() {
       const workOrderMap = new Map(workOrdersData.map((wo: WorkOrder) => [wo.id, wo]));
       const partnerMap = new Map(partnersData.map((p: Partner) => [p.id, p]));
       
+      
       // Enrich job cards with related data
       const enrichedJobCards: EnrichedJobCard[] = rawJobCards.map(jobCard => {
         const workOrder = workOrderMap.get(jobCard.workOrderId || '');
         const partner = partnerMap.get(jobCard.partnerId || '');
-
+        
 
         const enriched: EnrichedJobCard = {
           ...jobCard,
