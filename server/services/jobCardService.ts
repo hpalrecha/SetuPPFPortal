@@ -4,9 +4,7 @@ import { commissionService } from './commissionService';
 import { notificationService } from './notificationService';
 import type { 
   JobCard, 
-  InsertJobCard,
-  JobCardMedia,
-  InsertJobCardMedia
+  InsertJobCard
 } from '@shared/schema';
 
 export class JobCardService {
