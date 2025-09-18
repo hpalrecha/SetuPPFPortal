@@ -69,10 +69,17 @@ export function useJobCards() {
       
       
       // Extract unique IDs for batch fetching
-      const workOrderIds = Array.from(new Set(jobCards.map(jc => jc.workOrderId).filter(Boolean)));
+
+      // Extract unique IDs for batch fetching with defensive field mapping
+      const workOrderIds = Array.from(new Set(
+        jobCards.map(jc => jc.workOrderId || jc.id || (jc as any).jobCard?.workOrderId).filter(Boolean)
+      ));
       const serviceIds = new Set<string>();
       const vehicleModelIds = new Set<string>();
-      const partnerIds = Array.from(new Set(jobCards.map(jc => jc.partnerId).filter(Boolean)));
+      const partnerIds = Array.from(new Set(
+        jobCards.map(jc => jc.partnerId || (jc as any).partner?.id || (jc as any).jobCard?.partnerId).filter(Boolean)
+      ));
+
       
       // Fetch related work orders
       const workOrders: WorkOrder[] = workOrderIds.length > 0 ? await Promise.all(
@@ -100,6 +107,7 @@ export function useJobCards() {
       });
       
       // Fetch services, vehicle models, and partners in parallel
+      
       const [services, vehicleModels, partners] = await Promise.all([
         serviceIds.size > 0 ? Promise.all(Array.from(serviceIds).map(async (id) => {
           const serviceHeaders: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` };
@@ -141,6 +149,7 @@ export function useJobCards() {
         })).then(results => results.filter(Boolean)) : []
       ]);
       
+      
       // Get unique OEM IDs from vehicle models
       const oemIds = Array.from(new Set(vehicleModels.map(vm => vm.oemId).filter(Boolean)));
       
@@ -171,6 +180,7 @@ export function useJobCards() {
       const vehicleModelMap = new Map(vehicleModels.map(vm => [vm.id, vm]));
       const oemMap = new Map(oems.map(o => [o.id, o]));
       const partnerMap = new Map(partners.map(p => [p.id, p]));
+
       
       // Enrich job cards with related data
       const enrichedJobCards: JobCardView[] = jobCards.map(jobCard => {
@@ -234,6 +244,7 @@ export function useJobCards() {
         
         return enriched;
       });
+      
       
       return enrichedJobCards;
     }
