@@ -930,7 +930,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  app.get("/api/work-orders/:id", authenticate, requireOEMAccess, async (req, res) => {
+  app.get("/api/work-orders/:id", authenticate, async (req, res) => {
     try {
       // Disable caching to ensure fresh data
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -943,22 +943,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Work order not found" });
       }
 
-      // Check access permissions based on user role
+      // Check access permissions based on user role with proper OEM tenant isolation
+      const selectedOemId = req.headers['x-oem-id'] as string;
       let hasAccess = false;
       
       // SUPER_ADMIN can access any work order
       if (req.user!.role === 'SUPER_ADMIN') {
         hasAccess = true;
-      }
-      // Partner users can access work orders assigned to their partner via job cards
-      else if (req.user!.partnerId && (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF')) {
-        // Check if there are job cards for this work order assigned to this partner
-        const jobCards = await storage.getJobCards({ workOrderId: workOrder.id, partnerId: req.user!.partnerId });
+      } else if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+        // Partner users can access work orders for job cards assigned to them
+        // Check if there's a job card for this work order assigned to their partner
+        const jobCards = await storage.getJobCards({ 
+          workOrderId: req.params.id, 
+          partnerId: req.user!.partnerId 
+        });
         hasAccess = jobCards.length > 0;
-      }
-      // Other users must have matching oemId
-      else if (req.user!.oemId && workOrder.oemId === req.user!.oemId) {
-        hasAccess = true;
+      } else if (req.user!.role === 'OEM_ADMIN') {
+        // OEM admins can access work orders within their OEM
+        hasAccess = workOrder.oemId === req.user!.oemId;
+      } else if (req.user!.role === 'DEALERSHIP_ADMIN') {
+        // Dealership admins can access work orders from their dealership
+        hasAccess = workOrder.dealershipId === req.user!.dealershipId;
+      } else if (req.user!.role === 'SHOWROOM_MANAGER' || req.user!.role === 'SALES_PERSON') {
+        // Showroom staff can access work orders from their showroom
+        hasAccess = workOrder.showroomId === req.user!.showroomId;
       }
 
       if (!hasAccess) {
@@ -1381,14 +1389,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get single partner by ID
   app.get("/api/partners/:id", 
     authenticate, 
-    requireOEMAccess, 
     async (req, res) => {
       try {
         const { id } = req.params;
+        const selectedOemId = req.headers['x-oem-id'] as string;
+        
         const partner = await storage.getPartner(id);
         
         if (!partner) {
           return res.status(404).json({ error: "Partner not found" });
+        }
+        
+        // Role-based access control with OEM tenant isolation
+        let hasAccess = false;
+        
+        if (req.user!.role === 'SUPER_ADMIN') {
+          hasAccess = true; // Super admin can access all partners
+        } else if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+          // Partner users can only access their own partner data
+          hasAccess = req.user!.partnerId === id;
+        } else if (req.user!.role === 'OEM_ADMIN' || req.user!.role === 'DEALERSHIP_ADMIN' || 
+                   req.user!.role === 'SHOWROOM_MANAGER' || req.user!.role === 'SALES_PERSON') {
+          // OEM stakeholders can access partner data within their OEM context
+          if (selectedOemId) {
+            // Verify partner has access to this OEM
+            hasAccess = await storage.checkPartnerOemAccess(id, selectedOemId);
+          } else {
+            // Default to user's OEM for single-OEM roles
+            const userOemId = req.user!.oemId;
+            if (userOemId) {
+              hasAccess = await storage.checkPartnerOemAccess(id, userOemId);
+            }
+          }
+        }
+        
+        if (!hasAccess) {
+          return res.status(403).json({ error: "Access denied to this partner" });
         }
         
         res.json(partner);
