@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useOemContext } from '@/hooks/use-oem-context';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +33,11 @@ import {
   Calendar,
   FileCheck,
   MapPin,
-  Users
+  Users,
+  CheckCircle,
+  XCircle,
+  Image,
+  CalendarDays
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
@@ -173,7 +177,9 @@ export default function JobCardsNew() {
   const [selectedJobCard, setSelectedJobCard] = useState<EnrichedJobCard | null>(null);
   const [selectedDetailerJobCard, setSelectedDetailerJobCard] = useState<string | null>(null);
   const [selectedApprovalJobCard, setSelectedApprovalJobCard] = useState<string | null>(null);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   
+  // Get current user for admin check
   const { user } = useAuth();
   const isPartnerUser = user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF';
   const isShowroomUser = user?.role === 'SHOWROOM_MANAGER' || user?.role === 'DEALERSHIP_ADMIN';
@@ -271,6 +277,36 @@ export default function JobCardsNew() {
       return 'Invalid Date';
     }
   };
+
+  // Admin approval mutations
+  const approveJobCardMutation = useMutation({
+    mutationFn: async (jobCardId: string) => {
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/approve`, {
+        remarks: 'Approved by admin'
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      setSelectedJobCard(null);
+    }
+  });
+
+  const rejectJobCardMutation = useMutation({
+    mutationFn: async ({ jobCardId, reason }: { jobCardId: string; reason: string }) => {
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/request-rework`, {
+        remarks: reason
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      setSelectedJobCard(null);
+    }
+  });
+
+  // Check if user is admin
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'OEM_ADMIN' || user?.role === 'SHOWROOM_MANAGER' || user?.role === 'DEALERSHIP_ADMIN';
 
   const getStatusBadge = (status: string) => {
     const StatusIcon = STATUS_ICONS[status as keyof typeof STATUS_ICONS] || Clock;
@@ -741,7 +777,7 @@ export default function JobCardsNew() {
               </div>
               <div>
                 <DialogTitle className="text-xl font-bold">
-                  Job Card Details - JC-{selectedJobCard?.id.slice(-6)}
+                  Job Card Details - {selectedJobCard?.id}
                 </DialogTitle>
                 <p className="text-sm text-muted-foreground mt-1">
                   Comprehensive job card information and status tracking
@@ -763,22 +799,30 @@ export default function JobCardsNew() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="flex justify-between items-center">
+                    <div>
                       <span className="text-sm text-muted-foreground">Job Card ID</span>
-                      <span className="font-mono text-xs bg-muted px-2 py-1 rounded">
-                        {selectedJobCard.id.slice(0, 8)}...
-                      </span>
+                      <p className="font-mono text-xs bg-muted px-2 py-1 rounded mt-1 break-all" data-testid="text-job-card-id">
+                        {selectedJobCard.id}
+                      </p>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Status</span>
                       {getStatusBadge(selectedJobCard.status)}
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Work Order</span>
-                      <span className="font-mono text-xs bg-muted px-2 py-1 rounded">
-                        {selectedJobCard.workOrderId?.slice(0, 8)}...
-                      </span>
+                    <div>
+                      <span className="text-sm text-muted-foreground">Work Order ID</span>
+                      <p className="font-mono text-xs bg-muted px-2 py-1 rounded mt-1 break-all" data-testid="text-work-order-id">
+                        {selectedJobCard.workOrderId}
+                      </p>
                     </div>
+                    {selectedJobCard.acknowledgedAt && (
+                      <div>
+                        <span className="text-sm text-muted-foreground">Acknowledged Date</span>
+                        <p className="font-medium text-sm" data-testid="text-acknowledged-date">
+                          {formatDateTime(selectedJobCard.acknowledgedAt)}
+                        </p>
+                      </div>
+                    )}
                     <div className="border-t pt-3 space-y-2">
                       <div className="flex items-center gap-2 text-sm">
                         <Calendar className="h-4 w-4 text-green-600" />
@@ -953,8 +997,8 @@ export default function JobCardsNew() {
                     <div className="space-y-2">
                       <div>
                         <span className="text-sm text-muted-foreground">Assigned Installer</span>
-                        <p className="font-medium text-sm">
-                          {selectedJobCard.assignedInstallerId || 'Not assigned'}
+                        <p className="font-medium text-sm" data-testid="text-assigned-installer">
+                          {selectedJobCard.assignedInstaller?.displayName || selectedJobCard.assignedInstallerId || 'Not assigned'}
                         </p>
                       </div>
                       {selectedJobCard.remarks && (
@@ -992,7 +1036,118 @@ export default function JobCardsNew() {
                   </CardContent>
                 </Card>
 
+                {/* Images Section */}
+                <Card className="col-span-1 lg:col-span-2 xl:col-span-3">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <Image className="h-5 w-5 text-purple-600" />
+                      <CardTitle className="text-base">Images</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedJobCard.workOrder?.proofImages && selectedJobCard.workOrder.proofImages.length > 0 ? (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {selectedJobCard.workOrder.proofImages.map((imageUrl, index) => {
+                          const imageName = ['Front', 'Back', 'Left', 'Right'][index] || `Image ${index + 1}`;
+                          return (
+                            <div key={index} className="relative group">
+                              <img
+                                src={imageUrl}
+                                alt={imageName}
+                                className="w-full h-24 object-cover rounded-lg border cursor-pointer hover:opacity-75 transition-opacity"
+                                onClick={() => setSelectedImageUrl(imageUrl)}
+                                data-testid={`thumbnail-${imageName.toLowerCase()}`}
+                              />
+                              <div className="absolute bottom-1 left-1 bg-black/70 text-white text-xs px-1 rounded">
+                                {imageName}
+                              </div>
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Eye className="h-6 w-6 text-white drop-shadow-lg" />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Image className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p data-testid="text-no-images">No images uploaded</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Admin Approval Section */}
+                {isAdmin && selectedJobCard.status === 'COMPLETED' && (
+                  <Card className="col-span-1 lg:col-span-2 xl:col-span-3 border-2 border-dashed border-blue-200 bg-blue-50/50">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-5 w-5 text-blue-600" />
+                        <CardTitle className="text-base text-blue-900">Admin Approval Required</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <Button
+                          onClick={() => approveJobCardMutation.mutate(selectedJobCard.id)}
+                          disabled={approveJobCardMutation.isPending}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          data-testid="button-approve"
+                        >
+                          {approveJobCardMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                          )}
+                          Approve Job Card
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            const reason = prompt('Please provide a reason for requesting rework:');
+                            if (reason) {
+                              rejectJobCardMutation.mutate({ jobCardId: selectedJobCard.id, reason });
+                            }
+                          }}
+                          disabled={rejectJobCardMutation.isPending}
+                          variant="outline"
+                          className="border-red-300 text-red-600 hover:bg-red-50"
+                          data-testid="button-reject"
+                        >
+                          {rejectJobCardMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <XCircle className="h-4 w-4 mr-2" />
+                          )}
+                          Found Issue / Request Rework
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-3">
+                        As an admin, you can approve this completed job card or request rework if issues are found.
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+
               </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Image Preview Modal */}
+      <Dialog open={!!selectedImageUrl} onOpenChange={() => setSelectedImageUrl(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Image Preview</DialogTitle>
+          </DialogHeader>
+          {selectedImageUrl && (
+            <div className="flex justify-center">
+              <img
+                src={selectedImageUrl}
+                alt="Job card proof"
+                className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                data-testid="preview-image"
+              />
             </div>
           )}
         </DialogContent>
