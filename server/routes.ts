@@ -1182,6 +1182,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get individual job card with related data (workOrder, partner)
+  app.get("/api/job-cards/:id", 
+    authenticate,
+    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'SHOWROOM_MANAGER', 'SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SALES_PERSON']),
+    async (req, res) => {
+      try {
+        // Disable caching to ensure fresh data
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+        
+        const jobCardId = req.params.id;
+        
+        // Get basic job card first
+        const jobCard = await storage.getJobCard(jobCardId);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        // Check access permissions first
+        const selectedOemId = req.headers['x-oem-id'] as string;
+        let hasAccess = false;
+        
+        // SUPER_ADMIN can access any job card
+        if (req.user!.role === 'SUPER_ADMIN') {
+          hasAccess = true;
+        } else if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+          // Partner users can access job cards assigned to them
+          hasAccess = jobCard.partnerId === req.user!.partnerId;
+        } else {
+          // For other roles, get work order to check access
+          const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+          if (workOrder) {
+            if (req.user!.role === 'OEM_ADMIN') {
+              hasAccess = workOrder.oemId === req.user!.oemId;
+            } else if (req.user!.role === 'DEALERSHIP_ADMIN') {
+              hasAccess = workOrder.dealershipId === req.user!.dealershipId;
+            } else if (req.user!.role === 'SHOWROOM_MANAGER' || req.user!.role === 'SALES_PERSON') {
+              hasAccess = workOrder.showroomId === req.user!.showroomId;
+            }
+          }
+        }
+
+        if (!hasAccess) {
+          console.log(`Access denied: job card ${jobCardId}, user.role=${req.user!.role}, user.partnerId=${req.user!.partnerId}`);
+          return res.status(403).json({ error: "Access denied" });
+        }
+
+        // Get related data
+        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+        const partner = await storage.getPartner(jobCard.partnerId);
+        
+        if (!workOrder || !partner) {
+          return res.status(404).json({ error: "Related data not found" });
+        }
+
+        // Get additional related data
+        const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
+        const service = await storage.getService(workOrder.serviceId);
+        const showroom = await storage.getShowroom(workOrder.showroomId);
+        const oem = await storage.getOem(workOrder.oemId);
+
+        // Build the response with the expected structure
+        const result = {
+          ...jobCard,
+          workOrder: {
+            ...workOrder,
+            vehicleModel: vehicleModel ? {
+              modelName: vehicleModel.modelName,
+              brand: { name: oem?.name || 'Unknown' }
+            } : { modelName: 'Unknown', brand: { name: 'Unknown' } },
+            service: service ? {
+              name: service.name,
+              description: service.description
+            } : { name: 'Unknown', description: '' },
+            showroom: showroom ? {
+              name: showroom.name
+            } : { name: 'Unknown' }
+          },
+          partner: {
+            id: partner.id,
+            displayName: partner.displayName
+          }
+        };
+
+        res.json(result);
+      } catch (error) {
+        console.error("Get job card error:", error);
+        res.status(500).json({ error: "Failed to fetch job card" });
+      }
+    }
+  );
+
   app.post("/api/job-cards", 
     authenticate, 
     requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'SHOWROOM_MANAGER']),
