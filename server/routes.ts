@@ -1243,6 +1243,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const service = await storage.getService(workOrder.serviceId);
         const showroom = await storage.getShowroom(workOrder.showroomId);
         const oem = await storage.getOem(workOrder.oemId);
+        
+        // Get job card media
+        const media = await storage.getJobCardMedia({ jobCardId: jobCard.id });
 
         // Build the response with the expected structure
         const result = {
@@ -1258,13 +1261,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
               description: service.description
             } : { name: 'Unknown', description: '' },
             showroom: showroom ? {
-              name: showroom.name
+              name: showroom.name,
+              address: showroom.address,
+              city: showroom.city,
+              state: showroom.state,
+              contactPerson: showroom.contactPersonName,
+              phone: showroom.contactPersonPhone,
+              email: showroom.contactPersonEmail
             } : { name: 'Unknown' }
           },
           partner: {
             id: partner.id,
             displayName: partner.displayName
-          }
+          },
+          media: media || []
         };
 
         res.json(result);

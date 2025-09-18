@@ -305,8 +305,9 @@ export default function JobCardsNew() {
     }
   });
 
-  // Check if user is admin
+  // Check if user is admin 
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'OEM_ADMIN' || user?.role === 'SHOWROOM_MANAGER' || user?.role === 'DEALERSHIP_ADMIN';
+  console.log('User role:', user?.role, 'isAdmin:', isAdmin);
 
   const getStatusBadge = (status: string) => {
     const StatusIcon = STATUS_ICONS[status as keyof typeof STATUS_ICONS] || Clock;
@@ -1045,10 +1046,11 @@ export default function JobCardsNew() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {selectedJobCard.workOrder?.proofImages && selectedJobCard.workOrder.proofImages.length > 0 ? (
+                    {selectedJobCard.media && selectedJobCard.media.length > 0 ? (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {selectedJobCard.workOrder.proofImages.map((imageUrl, index) => {
-                          const imageName = ['Front', 'Back', 'Left', 'Right'][index] || `Image ${index + 1}`;
+                        {selectedJobCard.media.map((mediaItem: any, index: number) => {
+                          const imageUrl = mediaItem.url;
+                          const imageName = mediaItem.caption || ['Front', 'Back', 'Left', 'Right'][index] || `Image ${index + 1}`;
                           return (
                             <div key={index} className="relative group">
                               <img
@@ -1078,7 +1080,7 @@ export default function JobCardsNew() {
                 </Card>
 
                 {/* Admin Approval Section */}
-                {isAdmin && selectedJobCard.status === 'COMPLETED' && (
+                {isAdmin && (selectedJobCard.status === 'COMPLETED' || selectedJobCard.status === 'PENDING_APPROVAL') && (
                   <Card className="col-span-1 lg:col-span-2 xl:col-span-3 border-2 border-dashed border-blue-200 bg-blue-50/50">
                     <CardHeader className="pb-3">
                       <div className="flex items-center gap-2">

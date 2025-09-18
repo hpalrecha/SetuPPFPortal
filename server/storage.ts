@@ -127,6 +127,7 @@ export interface IStorage {
   
   // Job Card Media management
   insertJobCardMedia(media: { jobCardId: string; type: string; url: string; caption?: string }): Promise<any>;
+  getJobCardMedia(filters: { jobCardId: string }): Promise<any[]>;
 
   // Partner management
   getPartners(filters?: { oemId?: string; type?: string }): Promise<Partner[]>;
@@ -923,6 +924,15 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return result;
+  }
+
+  async getJobCardMedia(filters: { jobCardId: string }): Promise<any[]> {
+    const media = await db
+      .select()
+      .from(jobCardMedia)
+      .where(eq(jobCardMedia.jobCardId, filters.jobCardId))
+      .orderBy(jobCardMedia.createdAt);
+    return media;
   }
 
   async getPartners(filters?: { oemId?: string; type?: string }): Promise<Partner[]> {
