@@ -1276,12 +1276,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/job-cards/:id/complete", authenticate, async (req, res) => {
     try {
-      const { remarks, checklistJson } = req.body;
+      const { remarks, partnerRemarks, batchNumbers, materialConsumptionJson, checklistJson } = req.body;
       
       const jobCard = await storage.updateJobCard(req.params.id, {
-        status: 'COMPLETED',
+        status: 'PENDING_APPROVAL',
         completedAt: new Date(),
+        approvalRequestedAt: new Date(),
         remarks,
+        partnerRemarks,
+        batchNumbers,
+        materialConsumptionJson,
         checklistJson
       });
       
@@ -1337,6 +1341,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Approve job card error:", error);
         res.status(500).json({ error: "Failed to approve job card" });
+      }
+    }
+  );
+
+  app.post("/api/job-cards/:id/request-rework", 
+    authenticate, 
+    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN']),
+    async (req, res) => {
+      try {
+        const { remarks } = req.body;
+        
+        const jobCard = await storage.updateJobCard(req.params.id, {
+          status: 'REWORK_REQUESTED',
+          remarks
+        });
+        
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        res.json(jobCard);
+      } catch (error) {
+        console.error("Request rework error:", error);
+        res.status(500).json({ error: "Failed to request rework" });
       }
     }
   );
