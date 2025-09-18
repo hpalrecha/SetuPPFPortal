@@ -1310,6 +1310,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Job Card Approval endpoint
+  app.post("/api/job-cards/:id/approve",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN']),
+    auditLog('job_card', 'approve'),
+    async (req, res) => {
+      try {
+        const jobCardId = req.params.id;
+        
+        // Get job card first to check access
+        const jobCard = await storage.getJobCard(jobCardId);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        // Get work order to verify access permissions
+        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+        if (!workOrder) {
+          return res.status(404).json({ error: "Associated work order not found" });
+        }
+
+        // Check if user has permission to approve this job card
+        let hasAccess = false;
+        if (req.user!.role === 'SUPER_ADMIN') {
+          hasAccess = true;
+        } else if (req.user!.role === 'OEM_ADMIN') {
+          hasAccess = workOrder.oemId === req.user!.oemId;
+        } else if (req.user!.role === 'DEALERSHIP_ADMIN') {
+          hasAccess = workOrder.dealershipId === req.user!.dealershipId;
+        } else if (req.user!.role === 'SHOWROOM_MANAGER') {
+          hasAccess = workOrder.showroomId === req.user!.showroomId;
+        }
+
+        if (!hasAccess) {
+          return res.status(403).json({ error: "Access denied - insufficient permissions" });
+        }
+
+        // Update job card status to COMPLETED
+        const updatedJobCard = await storage.updateJobCard(jobCardId, {
+          status: 'COMPLETED',
+          completedAt: new Date()
+        });
+
+        if (!updatedJobCard) {
+          return res.status(500).json({ error: "Failed to approve job card" });
+        }
+
+        res.json({ message: "Job card approved successfully", jobCard: updatedJobCard });
+      } catch (error) {
+        console.error("Job card approval error:", error);
+        res.status(500).json({ error: "Failed to approve job card" });
+      }
+    }
+  );
+
+  // Job Card Rework Request endpoint
+  app.post("/api/job-cards/:id/rework",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN']),
+    auditLog('job_card', 'request_rework'),
+    async (req, res) => {
+      try {
+        const jobCardId = req.params.id;
+        const { reason } = req.body;
+        
+        // Get job card first to check access
+        const jobCard = await storage.getJobCard(jobCardId);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        // Get work order to verify access permissions
+        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+        if (!workOrder) {
+          return res.status(404).json({ error: "Associated work order not found" });
+        }
+
+        // Check if user has permission to request rework for this job card
+        let hasAccess = false;
+        if (req.user!.role === 'SUPER_ADMIN') {
+          hasAccess = true;
+        } else if (req.user!.role === 'OEM_ADMIN') {
+          hasAccess = workOrder.oemId === req.user!.oemId;
+        } else if (req.user!.role === 'DEALERSHIP_ADMIN') {
+          hasAccess = workOrder.dealershipId === req.user!.dealershipId;
+        } else if (req.user!.role === 'SHOWROOM_MANAGER') {
+          hasAccess = workOrder.showroomId === req.user!.showroomId;
+        }
+
+        if (!hasAccess) {
+          return res.status(403).json({ error: "Access denied - insufficient permissions" });
+        }
+
+        // Update job card status to REWORK_REQUIRED
+        const updatedJobCard = await storage.updateJobCard(jobCardId, {
+          status: 'REWORK_REQUIRED',
+          reworkReason: reason || 'Rework requested by admin',
+          reworkRequestedAt: new Date()
+        });
+
+        if (!updatedJobCard) {
+          return res.status(500).json({ error: "Failed to request rework" });
+        }
+
+        res.json({ message: "Rework requested successfully", jobCard: updatedJobCard });
+      } catch (error) {
+        console.error("Job card rework request error:", error);
+        res.status(500).json({ error: "Failed to request rework" });
+      }
+    }
+  );
+
   app.put("/api/job-cards/:id", 
     authenticate,
     auditLog('job_card', 'update'),
