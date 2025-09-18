@@ -1778,33 +1778,50 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPayout(id: string): Promise<any | undefined> {
-    const [payout] = await db.select({
-      id: payouts.id,
-      jobCardId: payouts.jobCardId,
-      partnerId: payouts.partnerId,
-      grossAmount: payouts.grossAmount,
-      netAmount: payouts.netAmount,
-      status: payouts.status,
-      paidAt: payouts.paidAt,
-      paymentReference: payouts.paymentReference,
-      settledBy: payouts.settledBy,
-      settledAt: payouts.settledAt,
-      createdAt: payouts.createdAt,
-      // Partner information
-      partnerName: partners.businessName,
-      partnerOemId: partners.oemId,
-      // Work order information for tenant scoping
-      workOrderOemId: workOrders.oemId,
-      workOrderDealershipId: workOrders.dealershipId,
-      workOrderShowroomId: workOrders.showroomId,
-    })
-    .from(payouts)
-    .leftJoin(partners, eq(payouts.partnerId, partners.id))
-    .leftJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
-    .leftJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
-    .where(eq(payouts.id, id));
-    
-    return payout || undefined;
+    try {
+      const [payout] = await db.select()
+        .from(payouts)
+        .where(eq(payouts.id, id));
+      
+      if (!payout) {
+        return undefined;
+      }
+      
+      // Get work order information for tenant scoping
+      let workOrderInfo = null;
+      try {
+        if (payout.jobCardId) {
+          const [jobCard] = await db.select()
+            .from(jobCards)
+            .where(eq(jobCards.id, payout.jobCardId));
+          
+          if (jobCard && jobCard.workOrderId) {
+            const [workOrder] = await db.select({
+              oemId: workOrders.oemId,
+              dealershipId: workOrders.dealershipId,
+              showroomId: workOrders.showroomId
+            })
+            .from(workOrders)
+            .where(eq(workOrders.id, jobCard.workOrderId));
+            
+            workOrderInfo = workOrder || {};
+          }
+        }
+      } catch (joinError) {
+        console.warn('Error fetching work order info:', joinError);
+        workOrderInfo = {};
+      }
+      
+      return {
+        ...payout,
+        workOrderOemId: workOrderInfo?.oemId || null,
+        workOrderDealershipId: workOrderInfo?.dealershipId || null,
+        workOrderShowroomId: workOrderInfo?.showroomId || null
+      };
+    } catch (error) {
+      console.error('Error in getPayout:', error);
+      return undefined;
+    }
   }
 
   async getCommission(id: string): Promise<any | undefined> {
