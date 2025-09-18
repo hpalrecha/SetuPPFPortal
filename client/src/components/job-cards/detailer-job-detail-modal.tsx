@@ -417,21 +417,21 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                 <CardContent className="space-y-4">
                   <div>
                     <Label className="text-sm font-medium text-gray-600">Name</Label>
-                    <p className="text-sm font-semibold" data-testid="text-customer-name">{jobCard.workOrder.customerName}</p>
+                    <p className="text-sm font-semibold" data-testid="text-customer-name">{jobCard?.workOrder?.customerName || "N/A"}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-sm font-medium text-gray-600">Phone</Label>
                       <p className="text-sm flex items-center gap-1" data-testid="text-customer-phone">
                         <PhoneIcon className="h-3 w-3" />
-                        {jobCard.workOrder.customerPhone}
+                        {jobCard?.workOrder?.customerPhone || "N/A"}
                       </p>
                     </div>
                     <div>
                       <Label className="text-sm font-medium text-gray-600">Email</Label>
                       <p className="text-sm flex items-center gap-1" data-testid="text-customer-email">
                         <MailIcon className="h-3 w-3" />
-                        {jobCard.workOrder.customerEmail}
+                        {jobCard?.workOrder?.customerEmail || "N/A"}
                       </p>
                     </div>
                   </div>
@@ -439,7 +439,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                     <Label className="text-sm font-medium text-gray-600">Address</Label>
                     <p className="text-sm flex items-center gap-1" data-testid="text-customer-address">
                       <MapPinIcon className="h-3 w-3" />
-                      {jobCard.workOrder.customerAddress}
+                      {jobCard?.workOrder?.customerAddress || "N/A"}
                     </p>
                   </div>
                 </CardContent>
@@ -457,23 +457,23 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                   <div>
                     <Label className="text-sm font-medium text-gray-600">Vehicle</Label>
                     <p className="text-sm font-semibold" data-testid="text-vehicle-info">
-                      {jobCard.workOrder.vehicleModel.brand.name} {jobCard.workOrder.vehicleModel.modelName}
+                      {jobCard?.workOrder?.vehicleModel?.brand?.name || "N/A"} {jobCard?.workOrder?.vehicleModel?.modelName || "N/A"}
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-sm font-medium text-gray-600">Registration No</Label>
-                      <p className="text-sm" data-testid="text-reg-no">{jobCard.workOrder.regNo}</p>
+                      <p className="text-sm" data-testid="text-reg-no">{jobCard?.workOrder?.regNo || "N/A"}</p>
                     </div>
                     <div>
                       <Label className="text-sm font-medium text-gray-600">Quantity</Label>
-                      <p className="text-sm" data-testid="text-quantity">{jobCard.workOrder.quantity}</p>
+                      <p className="text-sm" data-testid="text-quantity">{jobCard?.workOrder?.quantity || "N/A"}</p>
                     </div>
                   </div>
                   <div>
                     <Label className="text-sm font-medium text-gray-600">Service</Label>
-                    <p className="text-sm font-semibold" data-testid="text-service">{jobCard.workOrder.service.name}</p>
-                    <p className="text-xs text-gray-500">{jobCard.workOrder.service.description}</p>
+                    <p className="text-sm font-semibold" data-testid="text-service">{jobCard?.workOrder?.service?.name || "N/A"}</p>
+                    <p className="text-xs text-gray-500">{jobCard?.workOrder?.service?.description || "N/A"}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -489,35 +489,35 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                 <CardContent className="space-y-4">
                   <div>
                     <Label className="text-sm font-medium text-gray-600">Showroom Name</Label>
-                    <p className="text-sm font-semibold" data-testid="text-showroom-name">{jobCard.workOrder.showroom.name}</p>
+                    <p className="text-sm font-semibold" data-testid="text-showroom-name">{jobCard?.workOrder?.showroom?.name || "N/A"}</p>
                   </div>
                   
-                  {jobCard.workOrder.showroom.address && (
+                  {jobCard?.workOrder?.showroom?.address && (
                     <div>
                       <Label className="text-sm font-medium text-gray-600">Address</Label>
                       <p className="text-sm text-gray-700" data-testid="text-showroom-address">
-                        {jobCard.workOrder.showroom.address}
-                        {jobCard.workOrder.showroom.city && `, ${jobCard.workOrder.showroom.city}`}
-                        {jobCard.workOrder.showroom.state && `, ${jobCard.workOrder.showroom.state}`}
+                        {jobCard?.workOrder?.showroom?.address || "N/A"}
+                        {jobCard?.workOrder?.showroom?.city && `, ${jobCard.workOrder.showroom.city}`}
+                        {jobCard?.workOrder?.showroom?.state && `, ${jobCard.workOrder.showroom.state}`}
                       </p>
                     </div>
                   )}
                   
-                  {(jobCard.workOrder.showroom.contactPerson || jobCard.workOrder.showroom.phone || jobCard.workOrder.showroom.email) && (
+                  {(jobCard?.workOrder?.showroom?.contactPerson || jobCard?.workOrder?.showroom?.phone || jobCard?.workOrder?.showroom?.email) && (
                     <div>
                       <Label className="text-sm font-medium text-gray-600">Contact Information</Label>
                       <div className="space-y-1">
-                        {jobCard.workOrder.showroom.contactPerson && (
+                        {jobCard?.workOrder?.showroom?.contactPerson && (
                           <p className="text-sm text-gray-700" data-testid="text-showroom-contact">
                             Contact: {jobCard.workOrder.showroom.contactPerson}
                           </p>
                         )}
-                        {jobCard.workOrder.showroom.phone && (
+                        {jobCard?.workOrder?.showroom?.phone && (
                           <p className="text-sm text-gray-700" data-testid="text-showroom-phone">
                             Phone: {jobCard.workOrder.showroom.phone}
                           </p>
                         )}
-                        {jobCard.workOrder.showroom.email && (
+                        {jobCard?.workOrder?.showroom?.email && (
                           <p className="text-sm text-gray-700" data-testid="text-showroom-email">
                             Email: {jobCard.workOrder.showroom.email}
                           </p>
@@ -575,16 +575,16 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
             </Card>
 
             {/* Additional Information */}
-            {(jobCard.workOrder.notes || jobCard.partnerRemarks) && (
+            {(jobCard?.workOrder?.notes || jobCard.partnerRemarks) && (
               <Card>
                 <CardHeader>
                   <CardTitle>Additional Information</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {jobCard.workOrder.notes && (
+                  {jobCard?.workOrder?.notes && (
                     <div>
                       <Label className="text-sm font-medium text-gray-600">Work Order Notes</Label>
-                      <p className="text-sm" data-testid="text-work-order-notes">{jobCard.workOrder.notes}</p>
+                      <p className="text-sm" data-testid="text-work-order-notes">{jobCard?.workOrder?.notes || "N/A"}</p>
                     </div>
                   )}
                   {jobCard.partnerRemarks && (
