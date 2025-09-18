@@ -115,6 +115,7 @@ export interface IStorage {
     partnerId?: string; 
     workOrderId?: string;
     showroomId?: string;
+    dealershipId?: string;
     oemId?: string;
     status?: string;
     limit?: number;
@@ -826,20 +827,27 @@ export class DatabaseStorage implements IStorage {
     partnerId?: string; 
     workOrderId?: string;
     showroomId?: string;
+    dealershipId?: string;
     oemId?: string;
     status?: string;
     limit?: number;
     offset?: number;
   }): Promise<JobCard[]> {
-    // Need to join with workOrders for showroomId and oemId filtering
-    if (filters?.showroomId || filters?.oemId) {
+    // Need to join with workOrders for showroomId, dealershipId, and oemId filtering
+    if (filters?.showroomId || filters?.dealershipId || filters?.oemId) {
       let query = db.select().from(jobCards).innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id));
+      
+      // For dealership filtering, we need to join through showrooms to get dealershipId
+      if (filters?.dealershipId) {
+        query = query.innerJoin(showrooms, eq(workOrders.showroomId, showrooms.id));
+      }
       
       const conditions = [];
       if (filters?.partnerId) conditions.push(eq(jobCards.partnerId, filters.partnerId));
       if (filters?.workOrderId) conditions.push(eq(jobCards.workOrderId, filters.workOrderId));
       if (filters?.status) conditions.push(eq(jobCards.status, filters.status as any));
       if (filters?.showroomId) conditions.push(eq(workOrders.showroomId, filters.showroomId));
+      if (filters?.dealershipId) conditions.push(eq(showrooms.dealershipId, filters.dealershipId));
       if (filters?.oemId) conditions.push(eq(workOrders.oemId, filters.oemId));
 
       if (conditions.length > 0) {
