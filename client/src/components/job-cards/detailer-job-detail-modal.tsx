@@ -497,6 +497,34 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Showroom Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MapPinIcon className="h-5 w-5 text-purple-600" />
+                    Showroom Details
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label className="text-sm font-medium text-gray-600">Showroom Name</Label>
+                    <p className="text-sm font-semibold" data-testid="text-showroom-name">{jobCard.workOrder.showroom.name}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-gray-600">Location</Label>
+                    <p className="text-sm text-gray-700" data-testid="text-showroom-location">
+                      Visit the showroom for vehicle inspection and service completion
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-gray-600">Service Instructions</Label>
+                    <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded" data-testid="text-service-instructions">
+                      Contact the showroom before arriving to confirm vehicle availability and service requirements.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Timeline */}
