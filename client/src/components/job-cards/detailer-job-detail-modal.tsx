@@ -394,7 +394,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                           <SelectValue placeholder="Select a team member" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="" data-testid="option-unassigned">
+                          <SelectItem value="unassigned" data-testid="option-unassigned">
                             Unassigned
                           </SelectItem>
                           {teamMembers.map((member: any) => (
