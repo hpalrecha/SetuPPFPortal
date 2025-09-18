@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { authService, type AuthUser } from './auth';
+import { storage } from './storage.js';
 
 declare global {
   namespace Express {
@@ -44,7 +45,7 @@ export const requireRole = (roles: string[]) => {
   };
 };
 
-export const requireOEMAccess = (req: Request, res: Response, next: NextFunction) => {
+export const requireOEMAccess = async (req: Request, res: Response, next: NextFunction) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -61,6 +62,25 @@ export const requireOEMAccess = (req: Request, res: Response, next: NextFunction
     return res.status(400).json({ error: 'OEM ID required' });
   }
 
+  // For partner users, check if they have access to this OEM through partner-OEM mappings
+  if (req.user.role === 'PARTNER_ADMIN' || req.user.role === 'PARTNER_STAFF') {
+    if (!req.user.partnerId) {
+      return res.status(400).json({ error: 'Partner user must have partnerId' });
+    }
+    
+    try {
+      const hasOemAccess = await storage.checkPartnerOemAccess(req.user.partnerId, oemId);
+      if (!hasOemAccess) {
+        return res.status(403).json({ error: 'Access denied to this OEM' });
+      }
+      return next();
+    } catch (error) {
+      console.error('Error checking partner OEM access:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // For other roles, check direct OEM membership
   if (req.user.oemId !== oemId) {
     return res.status(403).json({ error: 'Access denied to this OEM' });
   }
