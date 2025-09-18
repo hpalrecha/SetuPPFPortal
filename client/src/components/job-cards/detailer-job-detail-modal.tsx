@@ -107,12 +107,12 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
 
   // Quality checklist items
   const [checklist, setChecklist] = useState({
-    surfacePreparation: false,
-    alignmentCheck: false,
-    bubbleInspection: false,
-    edgeSealing: false,
-    finalCleaning: false,
-    customerWalkthrough: false
+    edgesSealing: false,
+    partsAssembling: false,
+    cleanUp: false,
+    badgesAndLogos: false,
+    electronicsChecks: false,
+    sensorsCheck: false
   });
 
   const { data: jobCard, isLoading } = useQuery<JobCard>({
@@ -283,12 +283,12 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     setJsonValidationError(null);
     setSelectedTeamMemberId(jobCard?.assignedInstallerId || '');
     setChecklist({
-      surfacePreparation: false,
-      alignmentCheck: false,
-      bubbleInspection: false,
-      edgeSealing: false,
-      finalCleaning: false,
-      customerWalkthrough: false
+      edgesSealing: false,
+      partsAssembling: false,
+      cleanUp: false,
+      badgesAndLogos: false,
+      electronicsChecks: false,
+      sensorsCheck: false
     });
   };
 
@@ -691,12 +691,12 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
               </CardHeader>
               <CardContent className="space-y-3">
                 {Object.entries({
-                  surfacePreparation: 'Surface Preparation',
-                  alignmentCheck: 'Alignment Check',
-                  bubbleInspection: 'Bubble Inspection',
-                  edgeSealing: 'Edge Sealing',
-                  finalCleaning: 'Final Cleaning',
-                  customerWalkthrough: 'Customer Walkthrough'
+                  edgesSealing: 'Edges Sealing',
+                  partsAssembling: 'Parts Assembling',
+                  cleanUp: 'Clean Up',
+                  badgesAndLogos: 'Badges and Logos Placed Again',
+                  electronicsChecks: 'Electronics Checks',
+                  sensorsCheck: 'Sensors Check'
                 }).map(([key, label]) => (
                   <div key={key} className="flex items-center space-x-2">
                     <input
