@@ -201,19 +201,18 @@ export default function JobCardsNew() {
           })
         ).then(results => results.filter(Boolean)) : [],
         
-        // Fetch partners using the exact same pattern as use-job-cards.ts
-        partnerIds.length > 0 ? Promise.all(partnerIds.map(async (id) => {
-          const partnerHeaders: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` };
-          if (selectedOemId) {
-            partnerHeaders['x-oem-id'] = selectedOemId;
-          }
-          const res = await fetch(`/api/partners/${id}`, {
-            headers: partnerHeaders,
-            credentials: 'include',
-            cache: 'no-store', // Prevent 304 responses
-          });
-          return (res.ok || res.status === 304) ? res.json() : null;
-        })).then(results => results.filter(Boolean)) : []
+        // Fetch partners
+        partnerIds.length > 0 ? Promise.all(
+          partnerIds.map(async (id) => {
+            try {
+              const res = await apiRequest('GET', `/api/partners/${id}`);
+              return await res.json();
+            } catch (error) {
+              console.error('Error fetching partner:', id, error);
+              return null;
+            }
+          })
+        ).then(results => results.filter(Boolean)) : []
       ]);
 
       // Create lookup maps
