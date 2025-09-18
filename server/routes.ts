@@ -23,7 +23,7 @@ import multer from "multer";
 import * as XLSX from "xlsx";
 import bcrypt from "bcryptjs";
 
-// Configure multer for file uploads
+// Configure multer for file uploads (Excel for imports)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -35,6 +35,21 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only Excel files are allowed'));
+    }
+  }
+});
+
+// Configure multer for image uploads (job card media)
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit for images
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
     }
   }
 });
@@ -1234,15 +1249,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/job-cards/:id/schedule", authenticate, async (req, res) => {
     try {
-      const { scheduledAt } = req.body;
+      // Validate schedule data
+      const scheduleSchema = z.object({
+        scheduledAt: z.string().transform((val) => new Date(val))
+      });
       
-      if (!scheduledAt) {
-        return res.status(400).json({ error: "Scheduled time required" });
-      }
+      const { scheduledAt } = scheduleSchema.parse(req.body);
 
       const jobCard = await storage.updateJobCard(req.params.id, {
         status: 'SCHEDULED',
-        scheduledAt: new Date(scheduledAt)
+        scheduledAt
       });
       
       if (!jobCard) {
@@ -1251,6 +1267,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(jobCard);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid schedule data", details: error.errors });
+      }
       console.error("Schedule job card error:", error);
       res.status(500).json({ error: "Failed to schedule job card" });
     }
@@ -1276,17 +1295,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/job-cards/:id/complete", authenticate, async (req, res) => {
     try {
-      const { remarks, partnerRemarks, batchNumbers, materialConsumptionJson, checklistJson } = req.body;
+      // Validate completion data
+      const completionSchema = z.object({
+        remarks: z.string().optional(),
+        partnerRemarks: z.string().optional(), 
+        batchNumbers: z.string().optional(),
+        materialConsumptionJson: z.any().optional(), // JSONB field
+        checklistJson: z.any().optional() // JSONB field
+      });
+      
+      const validatedData = completionSchema.parse(req.body);
       
       const jobCard = await storage.updateJobCard(req.params.id, {
         status: 'PENDING_APPROVAL',
         completedAt: new Date(),
         approvalRequestedAt: new Date(),
-        remarks,
-        partnerRemarks,
-        batchNumbers,
-        materialConsumptionJson,
-        checklistJson
+        ...validatedData
       });
       
       if (!jobCard) {
@@ -1295,6 +1319,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(jobCard);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid completion data", details: error.errors });
+      }
       console.error("Complete job card error:", error);
       res.status(500).json({ error: "Failed to complete job card" });
     }
@@ -1350,7 +1377,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN']),
     async (req, res) => {
       try {
-        const { remarks } = req.body;
+        // Validate rework request data
+        const reworkSchema = z.object({
+          remarks: z.string().min(1, "Remarks are required for rework requests")
+        });
+        
+        const { remarks } = reworkSchema.parse(req.body);
         
         const jobCard = await storage.updateJobCard(req.params.id, {
           status: 'REWORK_REQUESTED',
@@ -1363,6 +1395,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         res.json(jobCard);
       } catch (error) {
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid rework request data", details: error.errors });
+        }
         console.error("Request rework error:", error);
         res.status(500).json({ error: "Failed to request rework" });
       }
@@ -2640,23 +2675,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/job-cards/:id/media", authenticate, async (req, res) => {
     try {
-      const { mediaUrls } = req.body;
+      const { mediaUrls, mediaData } = req.body;
       
-      if (!mediaUrls || !Array.isArray(mediaUrls)) {
-        return res.status(400).json({ error: "Media URLs required" });
+      // Support both simple URL array and detailed media data array
+      if (!mediaUrls && !mediaData) {
+        return res.status(400).json({ error: "Media URLs or media data required" });
       }
 
       const jobCardId = req.params.id;
       const savedMedia = [];
 
-      for (const mediaUrl of mediaUrls) {
-        const media = await storage.insertJobCardMedia({
-          jobCardId,
-          type: 'IMAGE', // Default to IMAGE, could be enhanced to detect type
-          url: mediaUrl,
-          caption: ''
-        });
-        savedMedia.push(media);
+      if (mediaUrls && Array.isArray(mediaUrls)) {
+        // Simple URL array for backward compatibility
+        for (const mediaUrl of mediaUrls) {
+          const media = await storage.insertJobCardMedia({
+            jobCardId,
+            type: 'IMAGE',
+            url: mediaUrl,
+            caption: ''
+          });
+          savedMedia.push(media);
+        }
+      } else if (mediaData && Array.isArray(mediaData)) {
+        // Enhanced media data with captions for 4-side car images
+        for (const data of mediaData) {
+          const media = await storage.insertJobCardMedia({
+            jobCardId,
+            type: data.type || 'IMAGE',
+            url: data.url,
+            caption: data.caption || ''
+          });
+          savedMedia.push(media);
+        }
       }
       
       res.json({ message: "Media uploaded successfully", media: savedMedia });
@@ -2666,10 +2716,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // File upload route for job cards
+  // File upload route for job cards (using image upload middleware)
   app.post("/api/job-cards/upload-media", 
     authenticate,
-    upload.single('file'),
+    imageUpload.single('file'),
     auditLog('job_card_media', 'upload'),
     async (req, res) => {
       try {
