@@ -1325,6 +1325,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Get single partner by ID
+  app.get("/api/partners/:id", 
+    authenticate, 
+    requireOEMAccess, 
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const partner = await storage.getPartner(id);
+        
+        if (!partner) {
+          return res.status(404).json({ error: "Partner not found" });
+        }
+        
+        res.json(partner);
+      } catch (error) {
+        console.error("Get partner error:", error);
+        res.status(500).json({ error: "Failed to fetch partner" });
+      }
+    }
+  );
+
   app.put("/api/partners/:id", 
     authenticate, 
     requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),

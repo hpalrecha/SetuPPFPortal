@@ -177,8 +177,6 @@ export default function JobCardsNew() {
       // Fetch job cards using the proper apiRequest function
       const response = await apiRequest('GET', '/api/job-cards');
       const rawJobCards: JobCard[] = await response.json();
-      console.log('🔍 Raw job cards:', rawJobCards.slice(0, 2));
-      
       // Extract unique IDs for batch fetching
       const workOrderIds = Array.from(new Set(
         rawJobCards.map(jc => jc.workOrderId).filter(Boolean)
@@ -201,14 +199,32 @@ export default function JobCardsNew() {
           })
         ).then(results => results.filter(Boolean)) : [],
         
-        // Fetch partners
+        // Fetch partners using working pattern from use-job-cards.ts
         partnerIds.length > 0 ? Promise.all(
           partnerIds.map(async (id) => {
             try {
-              const res = await apiRequest('GET', `/api/partners/${id}`);
-              return await res.json();
+              const token = localStorage.getItem('auth_token');
+              const partnerHeaders: HeadersInit = { 
+                'Authorization': `Bearer ${token}` 
+              };
+              if (selectedOemId) {
+                partnerHeaders['x-oem-id'] = selectedOemId;
+              }
+              
+              const res = await fetch(`/api/partners/${id}`, {
+                headers: partnerHeaders,
+                credentials: 'include',
+                cache: 'no-store', // Prevent 304 responses
+              });
+              
+              if (res.ok || res.status === 304) {
+                return await res.json();
+              } else {
+                console.error(`Partner API failed for ${id}:`, res.status, res.statusText);
+                return null;
+              }
             } catch (error) {
-              console.error('Error fetching partner:', id, error);
+              console.error('❌ Error fetching partner:', id, error);
               return null;
             }
           })
@@ -219,21 +235,11 @@ export default function JobCardsNew() {
       const workOrderMap = new Map(workOrdersData.map((wo: WorkOrder) => [wo.id, wo]));
       const partnerMap = new Map(partnersData.map((p: Partner) => [p.id, p]));
       
-      console.log('🔍 Partners fetched:', partnersData.slice(0, 2));
-      console.log('🔍 Partner map:', Array.from(partnerMap.entries()).slice(0, 2));
-
       // Enrich job cards with related data
       const enrichedJobCards: EnrichedJobCard[] = rawJobCards.map(jobCard => {
         const workOrder = workOrderMap.get(jobCard.workOrderId || '');
         const partner = partnerMap.get(jobCard.partnerId || '');
 
-        console.log(`🔍 Enriching job card ${jobCard.id.slice(-6)}:`, {
-          jobCardPartnerId: jobCard.partnerId,
-          partnerFound: !!partner,
-          partnerData: partner,
-          partnerDisplayName: partner?.displayName,
-          partnerCompanyName: partner?.companyName
-        });
 
         const enriched: EnrichedJobCard = {
           ...jobCard,
@@ -245,7 +251,7 @@ export default function JobCardsNew() {
             ? `${workOrder.oemName || ''} ${workOrder.vehicleModelName}${workOrder.vehicleVariant ? ` (${workOrder.vehicleVariant})` : ''}`.trim()
             : 'N/A',
           serviceDisplay: workOrder?.serviceName || 'N/A',
-          partnerDisplay: partner?.displayName || partner?.display_name || partner?.companyName || partner?.company_name || (jobCard.partnerId ? 'Partner Info Loading...' : 'Unassigned Partner')
+          partnerDisplay: partner?.displayName || (jobCard.partnerId ? 'Partner Info Loading...' : 'Unassigned Partner')
         };
 
         return enriched;
