@@ -149,10 +149,6 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
       }
       return response.json();
     },
-    onError: (error: Error) => {
-      console.error('Team members fetch error:', error);
-      toast({ title: 'Error', description: 'Failed to load team members.', variant: 'destructive' });
-    },
     enabled: !!partnerId && isOpen
   });
 

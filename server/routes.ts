@@ -2673,7 +2673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/job-cards/:id/media", authenticate, async (req, res) => {
+  app.post("/api/job-cards/:id/media", authenticate, requireOEMAccess, async (req, res) => {
     try {
       const { mediaUrls, mediaData } = req.body;
       
@@ -2698,12 +2698,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else if (mediaData && Array.isArray(mediaData)) {
         // Enhanced media data with captions for 4-side car images
+        const validAngles = ['front', 'back', 'left', 'right'];
+        
         for (const data of mediaData) {
+          // Validate required fields
+          if (!data.url) {
+            return res.status(400).json({ error: "URL is required for each media item" });
+          }
+          
+          // Validate angle if provided
+          if (data.angle && !validAngles.includes(data.angle.toLowerCase())) {
+            return res.status(400).json({ 
+              error: `Invalid angle. Must be one of: ${validAngles.join(', ')}` 
+            });
+          }
+          
           const media = await storage.insertJobCardMedia({
             jobCardId,
             type: data.type || 'IMAGE',
             url: data.url,
-            caption: data.caption || ''
+            caption: data.angle || data.caption || ''
           });
           savedMedia.push(media);
         }
@@ -2719,6 +2733,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // File upload route for job cards (using image upload middleware)
   app.post("/api/job-cards/upload-media", 
     authenticate,
+    requireOEMAccess,
     imageUpload.single('file'),
     auditLog('job_card_media', 'upload'),
     async (req, res) => {
@@ -2733,13 +2748,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Job card ID is required" });
         }
 
-        // Upload file to object storage
-        const objectStorageService = new ObjectStorageService();
-        const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+        // Generate a safe filename for object storage
+        const timestamp = Date.now();
+        const safeFilename = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileName = `job-card-media/${jobCardId}/${timestamp}-${safeFilename}`;
         
-        // For now, we'll just return the URL pattern expected by the frontend
-        // In a real implementation, you'd upload to cloud storage and get back the final URL
-        const mediaUrl = `/api/objects/${Date.now()}-${req.file.originalname}`;
+        // For now, store in a temporary location and return a URL
+        // In production, this would upload to object storage via presigned URL
+        const mediaUrl = `/api/media/job-cards/${fileName}`;
 
         // Save media record to database
         const media = await storage.insertJobCardMedia({
