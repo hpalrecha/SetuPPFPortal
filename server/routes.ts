@@ -1584,11 +1584,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (workOrder) {
           // Use the proper detailer pricing resolution
           const pricingResult = await storage.resolveDetailerPricing(
-            jobCard.partnerId,
-            workOrder.vehicleModelId,
-            workOrder.serviceId,
-            workOrder.dealershipId,
-            workOrder.showroomId
+            jobCard.partnerId,        // detailerId
+            workOrder.serviceId,      // serviceId
+            null,                     // serviceCategoryId
+            workOrder.vehicleModelId, // vehicleModelId
+            workOrder.dealershipId,   // dealershipId
+            workOrder.showroomId      // showroomId
           );
 
           let payoutAmount = '0.00';
@@ -1653,32 +1654,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/job-cards/:id/approve", 
-    authenticate, 
-    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN']),
-    async (req, res) => {
-      try {
-        const { remarks } = req.body;
-        
-        const jobCard = await storage.updateJobCard(req.params.id, {
-          status: 'APPROVED',
-          approvedAt: new Date(),
-          approvedByUserId: req.user!.id
-        });
-        
-        if (!jobCard) {
-          return res.status(404).json({ error: "Job card not found" });
-        }
-
-        // TODO: Trigger payout and commission calculation
-
-        res.json(jobCard);
-      } catch (error) {
-        console.error("Approve job card error:", error);
-        res.status(500).json({ error: "Failed to approve job card" });
-      }
-    }
-  );
 
   app.post("/api/job-cards/:id/request-rework", 
     authenticate, 

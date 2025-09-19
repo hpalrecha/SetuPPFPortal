@@ -130,11 +130,12 @@ export class JobCardService {
 
       // Use the proper detailer pricing resolution
       const pricingResult = await storage.resolveDetailerPricing(
-        jobCard.partnerId,
-        workOrder.vehicleModelId,
-        workOrder.serviceId, // This will resolve to service category internally
-        workOrder.dealershipId,
-        workOrder.showroomId
+        jobCard.partnerId,        // detailerId
+        workOrder.serviceId,      // serviceId
+        null,                     // serviceCategoryId
+        workOrder.vehicleModelId, // vehicleModelId
+        workOrder.dealershipId,   // dealershipId
+        workOrder.showroomId      // showroomId
       );
 
       let payoutAmount = '0.00';
