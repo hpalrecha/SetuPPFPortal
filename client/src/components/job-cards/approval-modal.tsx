@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,17 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
   const queryClient = useQueryClient();
   const [comments, setComments] = useState("");
 
+  // Fetch job card data to access media
+  const { data: jobCard } = useQuery({
+    queryKey: ['/api/job-cards', jobCardId],
+    queryFn: async () => {
+      if (!jobCardId) return null;
+      const response = await apiRequest('GET', `/api/job-cards/${jobCardId}`);
+      return response.json();
+    },
+    enabled: !!jobCardId && isOpen
+  });
+
   const approveMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", `/api/job-cards/${jobCardId}/approve`, {
@@ -27,7 +38,10 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/job-cards"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/job-cards", jobCardId] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/payouts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
       toast({
         title: "Job Card Approved",
         description: "The job card has been approved successfully."
@@ -127,7 +141,7 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
   if (!isOpen || !jobCardId) return null;
 
   // Use real images from job card data, fallback to empty array
-  const proofImages = selectedJobCard?.media || [];
+  const proofImages = jobCard?.media || [];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" data-testid="approval-modal">

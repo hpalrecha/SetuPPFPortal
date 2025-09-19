@@ -224,7 +224,9 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
       return response.json();
     },
     onSuccess: () => {
+      // Invalidate queries to refresh both the job cards list and specific job card  
       queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards', jobCardId] });
       toast({ title: 'Job Completed', description: 'Job card has been completed and submitted for approval.' });
       setCurrentView('details');
     },
