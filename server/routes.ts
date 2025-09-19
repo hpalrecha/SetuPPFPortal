@@ -1368,11 +1368,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else {
             // Recalculate payout with proper pricing 
             const pricingResult = await storage.resolveDetailerPricing(
-              jobCard.partnerId,
-              workOrder.vehicleModelId,
-              workOrder.serviceId,
-              workOrder.dealershipId,
-              workOrder.showroomId
+              jobCard.partnerId,        // detailerId
+              workOrder.serviceId,      // serviceId
+              null,                     // serviceCategoryId (not used in this context)
+              workOrder.vehicleModelId, // vehicleModelId
+              workOrder.dealershipId,   // dealershipId
+              workOrder.showroomId      // showroomId
             );
 
             let payoutAmount = '0.00';
