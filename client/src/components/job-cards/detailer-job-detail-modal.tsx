@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { CalendarIcon, ClockIcon, CheckCircle2, PlayCircle, PauseCircle, UploadIcon, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon, Users } from 'lucide-react';
+import { CalendarIcon, ClockIcon, CheckCircle2, PlayCircle, PauseCircle, UploadIcon, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon, Users, Camera } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -573,6 +573,37 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                 </div>
               </CardContent>
             </Card>
+
+            {/* Uploaded Images */}
+            {jobCard?.media && jobCard.media.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Camera className="h-5 w-5 text-green-600" />
+                    Uploaded Images
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-3">
+                    {jobCard.media.map((mediaItem: any, index: number) => (
+                      <div key={mediaItem.id || index} className="relative group">
+                        <img 
+                          src={mediaItem.url} 
+                          alt={mediaItem.caption || `Job card image ${index + 1}`} 
+                          className="w-full h-32 object-cover rounded-lg border border-gray-200 group-hover:border-green-500 transition-colors"
+                          data-testid={`uploaded-image-${index}`}
+                        />
+                        {mediaItem.caption && (
+                          <p className="text-xs text-gray-600 mt-1 text-center" data-testid={`image-caption-${index}`}>
+                            {mediaItem.caption}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Additional Information */}
             {(jobCard?.workOrder?.notes || jobCard.partnerRemarks) && (

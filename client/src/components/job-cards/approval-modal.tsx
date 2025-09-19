@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { X, Check, RotateCcw, CheckCircle } from "lucide-react";
+import { X, Check, RotateCcw, CheckCircle, Camera } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -126,12 +126,8 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
 
   if (!isOpen || !jobCardId) return null;
 
-  const mockProofImages = [
-    "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?w=400&h=300&fit=crop",
-    "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=300&fit=crop",
-    "https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=400&h=300&fit=crop",
-    "https://images.unsplash.com/photo-1571068316344-75bc76f77890?w=400&h=300&fit=crop"
-  ];
+  // Use real images from job card data, fallback to empty array
+  const proofImages = selectedJobCard?.media || [];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" data-testid="approval-modal">
@@ -213,17 +209,30 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
             {/* Proof Images */}
             <div>
               <h4 className="font-semibold text-foreground mb-3">Proof Images</h4>
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                {mockProofImages.map((imageUrl, index) => (
-                  <img 
-                    key={index}
-                    src={imageUrl} 
-                    alt={`PPF installation progress ${index + 1}`} 
-                    className="rounded-lg border aspect-square object-cover"
-                    data-testid={`proof-image-${index}`}
-                  />
-                ))}
-              </div>
+              {proofImages.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {proofImages.map((mediaItem: any, index: number) => (
+                    <div key={mediaItem.id || index} className="space-y-1">
+                      <img 
+                        src={mediaItem.url} 
+                        alt={mediaItem.caption || `Proof image ${index + 1}`} 
+                        className="rounded-lg border aspect-square object-cover w-full"
+                        data-testid={`proof-image-${index}`}
+                      />
+                      {mediaItem.caption && (
+                        <p className="text-xs text-muted-foreground text-center" data-testid={`proof-caption-${index}`}>
+                          {mediaItem.caption}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-8 text-center text-muted-foreground" data-testid="no-images-message">
+                  <Camera className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No proof images uploaded yet</p>
+                </div>
+              )}
 
               {/* Approval Actions */}
               <div className="space-y-3">
