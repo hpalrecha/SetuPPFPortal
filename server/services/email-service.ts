@@ -28,8 +28,8 @@ export class EmailService {
       EMAIL_SENDER = 'noreply@setupppf.com'
     } = process.env;
 
-    // Check if AWS credentials are available - temporarily disabled for testing
-    if (false && AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) {
+    // Check if AWS credentials are available
+    if (AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) {
       try {
         this.transporter = nodemailer.createTransport({
           host: `email-smtp.${AWS_REGION}.amazonaws.com`,
