@@ -106,6 +106,60 @@ export class AuthService {
     return bcrypt.hash(password, 10);
   }
 
+  async generateResetToken(): Promise<string> {
+    const crypto = await import('crypto');
+    return crypto.randomBytes(32).toString('hex');
+  }
+
+  async requestPasswordReset(email: string): Promise<boolean> {
+    const user = await storage.getUserByEmail(email);
+    if (!user || !user.isActive) {
+      // Return true even if user doesn't exist to prevent email enumeration
+      return true;
+    }
+
+    const resetToken = await this.generateResetToken();
+    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await storage.updateUser(user.id, {
+      resetToken,
+      resetTokenExpiry
+    });
+
+    return true;
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<boolean> {
+    const user = await storage.getUserByResetToken(token);
+    if (!user || !user.resetToken || !user.resetTokenExpiry) {
+      return false;
+    }
+
+    // Check if token has expired
+    if (new Date() > user.resetTokenExpiry) {
+      return false;
+    }
+
+    const hashedPassword = await this.hashPassword(newPassword);
+    
+    await storage.updateUser(user.id, {
+      passwordHash: hashedPassword,
+      resetToken: null,
+      resetTokenExpiry: null
+    });
+
+    return true;
+  }
+
+  async validateResetToken(token: string): Promise<boolean> {
+    const user = await storage.getUserByResetToken(token);
+    if (!user || !user.resetToken || !user.resetTokenExpiry) {
+      return false;
+    }
+
+    return new Date() <= user.resetTokenExpiry;
+  }
+
   async register(userData: {
     email: string;
     password: string;

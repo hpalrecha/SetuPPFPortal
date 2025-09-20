@@ -153,6 +153,8 @@ export const users = pgTable("users", {
   partnerId: uuid("partner_id"),
   isActive: boolean("is_active").default(true),
   name: text("name").notNull(),
+  resetToken: text("reset_token"),
+  resetTokenExpiry: timestamp("reset_token_expiry"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });

@@ -232,6 +232,77 @@ export class EmailService {
     });
   }
 
+  async sendPasswordResetEmail(
+    recipientEmail: string,
+    resetToken: string,
+    userName: string
+  ): Promise<boolean> {
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Password Reset Request</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; }
+          .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: #dc2626; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center; }
+          .content { padding: 30px; }
+          .reset-button { background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 20px 0; font-weight: bold; }
+          .reset-link { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; margin: 15px 0; word-break: break-all; font-family: monospace; color: #475569; }
+          .footer { background: #f1f5f9; padding: 20px; border-radius: 0 0 8px 8px; text-align: center; color: #64748b; font-size: 14px; }
+          .warning { background: #fef3c7; border: 1px solid #f59e0b; padding: 15px; border-radius: 6px; margin: 15px 0; color: #92400e; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0;">🔒 Password Reset Request</h1>
+          </div>
+          <div class="content">
+            <p>Hello ${userName},</p>
+            
+            <p>We received a request to reset your password for your SetuPPF account. If you didn't make this request, you can safely ignore this email.</p>
+            
+            <p>To reset your password, click the button below:</p>
+            
+            <a href="${resetUrl}" class="reset-button">Reset My Password</a>
+            
+            <p>Or copy and paste this link into your browser:</p>
+            <div class="reset-link">${resetUrl}</div>
+            
+            <div class="warning">
+              <strong>⚠️ Security Notice:</strong>
+              <ul style="margin: 5px 0; padding-left: 20px;">
+                <li>This link will expire in <strong>1 hour</strong> for security</li>
+                <li>This link can only be used once</li>
+                <li>If you didn't request this reset, please ignore this email</li>
+              </ul>
+            </div>
+            
+            <p>If you continue to have problems, please contact our support team.</p>
+            
+            <p>Thank you,<br>The SetuPPF Team</p>
+          </div>
+          <div class="footer">
+            <p>SetuPPF - Professional Paint Protection Film Services<br>
+            This is an automated message, please do not reply.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    return this.sendEmail({
+      to: recipientEmail,
+      subject: 'Password Reset Request - SetuPPF',
+      html
+    });
+  }
+
   async sendOTPEmail(
     recipientEmail: string,
     otp: string,

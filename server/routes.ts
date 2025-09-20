@@ -3112,6 +3112,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     );
   }
 
+  // Password Reset Routes
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      await authService.requestPasswordReset(email);
+      
+      // Send password reset email
+      try {
+        const user = await storage.getUserByEmail(email);
+        if (user && user.isActive && user.resetToken) {
+          await emailService.sendPasswordResetEmail(
+            user.email,
+            user.resetToken,
+            user.name
+          );
+        }
+      } catch (emailError) {
+        console.error("Failed to send password reset email:", emailError);
+      }
+
+      // Always return success to prevent email enumeration
+      res.json({ message: "If that email address is in our database, we will send you a password reset link." });
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      res.status(500).json({ error: "Failed to process password reset request" });
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, newPassword } = req.body;
+      
+      if (!token || !newPassword) {
+        return res.status(400).json({ error: "Token and new password are required" });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters long" });
+      }
+
+      const success = await authService.resetPassword(token, newPassword);
+      
+      if (!success) {
+        return res.status(400).json({ error: "Invalid or expired reset token" });
+      }
+
+      res.json({ message: "Password reset successfully" });
+    } catch (error) {
+      console.error("Reset password error:", error);
+      res.status(500).json({ error: "Failed to reset password" });
+    }
+  });
+
+  app.get("/api/auth/validate-reset-token/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      
+      const isValid = await authService.validateResetToken(token);
+      
+      res.json({ valid: isValid });
+    } catch (error) {
+      console.error("Validate reset token error:", error);
+      res.status(500).json({ error: "Failed to validate token" });
+    }
+  });
+
   // Test email endpoint
   app.post("/api/test-email", authenticate, async (req, res) => {
     try {
@@ -3136,6 +3207,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Test email error:", error);
       res.status(500).json({ error: "Failed to send test email" });
+    }
+  });
+
+  // Send test password reset email directly to jaggi13js@gmail.com
+  app.post("/api/test-password-reset", async (req, res) => {
+    try {
+      const testEmail = "jaggi13js@gmail.com";
+      const testToken = "test_token_123456789abcdef";
+      
+      const success = await emailService.sendPasswordResetEmail(
+        testEmail,
+        testToken,
+        "Test User"
+      );
+
+      if (success) {
+        res.json({ 
+          message: "Test password reset email sent successfully to " + testEmail,
+          testToken: testToken,
+          note: "This is a test email with test data. In production, use /api/auth/forgot-password"
+        });
+      } else {
+        res.status(500).json({ error: "Failed to send test password reset email" });
+      }
+    } catch (error) {
+      console.error("Test password reset email error:", error);
+      res.status(500).json({ error: "Failed to send test password reset email" });
     }
   });
 
