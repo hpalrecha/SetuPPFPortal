@@ -1,68 +1,80 @@
-import { Twilio } from 'twilio';
+// Meta WhatsApp Business API integration
 
 export interface WhatsAppMessage {
   to: string; // Phone number with country code (e.g., +919876543210)
-  template?: string; // WhatsApp template name
-  templateParams?: string[]; // Template parameters
-  body?: string; // For non-template messages (sandbox mode)
-  mediaUrl?: string; // Optional media attachment
+  type: 'template' | 'text' | 'image' | 'document';
+  template?: {
+    name: string;
+    language: string;
+    components?: any[];
+  };
+  text?: {
+    body: string;
+  };
+  image?: {
+    link: string;
+    caption?: string;
+  };
 }
 
-export interface WhatsAppTemplate {
-  name: string;
-  params: string[];
+export interface MetaWABAConfig {
+  accessToken: string;
+  phoneNumberId: string;
+  businessAccountId: string;
+  apiVersion?: string;
 }
 
 export class WhatsAppService {
-  private client: Twilio | null = null;
+  private config: MetaWABAConfig | null = null;
   private isConfigured = false;
-  private fromNumber: string;
+  private baseUrl: string;
 
   constructor() {
-    this.fromNumber = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886'; // Twilio sandbox default
+    this.baseUrl = 'https://graph.facebook.com';
     this.initialize();
   }
 
   private initialize() {
     const {
-      TWILIO_ACCOUNT_SID,
-      TWILIO_AUTH_TOKEN,
-      TWILIO_WHATSAPP_FROM
+      META_WABA_ACCESS_TOKEN,
+      META_WABA_PHONE_NUMBER_ID,
+      META_WABA_BUSINESS_ACCOUNT_ID,
+      META_WABA_API_VERSION = 'v18.0'
     } = process.env;
 
-    if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
+    if (META_WABA_ACCESS_TOKEN && META_WABA_PHONE_NUMBER_ID && META_WABA_BUSINESS_ACCOUNT_ID) {
       try {
-        this.client = new Twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+        this.config = {
+          accessToken: META_WABA_ACCESS_TOKEN,
+          phoneNumberId: META_WABA_PHONE_NUMBER_ID,
+          businessAccountId: META_WABA_BUSINESS_ACCOUNT_ID,
+          apiVersion: META_WABA_API_VERSION
+        };
         this.isConfigured = true;
-        console.log('✅ Twilio WhatsApp service configured successfully');
-        console.log(`📱 WhatsApp messages will be sent from: ${this.fromNumber}`);
+        console.log('✅ Meta WhatsApp Business API configured successfully');
+        console.log(`📱 WhatsApp messages will be sent from Phone Number ID: ${META_WABA_PHONE_NUMBER_ID}`);
       } catch (error) {
-        console.error('❌ Failed to configure Twilio WhatsApp service:', error);
+        console.error('❌ Failed to configure Meta WhatsApp Business API:', error);
         this.isConfigured = false;
       }
     } else {
-      console.log('⚠️ Twilio WhatsApp credentials not found - running in development mode');
+      console.log('⚠️ Meta WABA credentials not found - running in development mode');
       this.isConfigured = false;
     }
   }
 
   async sendMessage(message: WhatsAppMessage): Promise<boolean> {
     try {
-      const { to, template, templateParams, body, mediaUrl } = message;
-
-      if (!this.isConfigured || !this.client) {
+      if (!this.isConfigured || !this.config) {
         // Development mode - log message content
         console.log('📱 [DEV MODE] WhatsApp message would be sent:');
-        console.log('From:', this.fromNumber);
-        console.log('To:', to);
-        if (template) {
-          console.log('Template:', template);
-          console.log('Parameters:', templateParams);
-        } else {
-          console.log('Body:', body);
-        }
-        if (mediaUrl) {
-          console.log('Media URL:', mediaUrl);
+        console.log('To:', message.to);
+        console.log('Type:', message.type);
+        if (message.template) {
+          console.log('Template:', message.template.name);
+          console.log('Language:', message.template.language);
+        } else if (message.text) {
+          console.log('Text:', message.text.body);
         }
         console.log('--- WhatsApp Message Content ---');
         console.log(this.formatMessageForLog(message));
@@ -70,35 +82,32 @@ export class WhatsAppService {
         return true;
       }
 
-      // Ensure the 'to' number has WhatsApp prefix
-      const whatsappTo = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
-
-      // Production mode - send actual WhatsApp message
-      let messageBody: string;
+      // Production mode - send actual WhatsApp message via Meta API
+      const endpoint = `${this.baseUrl}/${this.config.apiVersion}/${this.config.phoneNumberId}/messages`;
       
-      if (template && templateParams) {
-        // Use WhatsApp template (for approved templates)
-        messageBody = this.buildTemplateMessage(template, templateParams);
-      } else if (body) {
-        // Use plain text (for sandbox mode or freeform messages)
-        messageBody = body;
-      } else {
-        throw new Error('Either template or body must be provided');
-      }
-
-      const messageOptions: any = {
-        from: this.fromNumber,
-        to: whatsappTo,
-        body: messageBody
+      const payload = {
+        messaging_product: 'whatsapp',
+        to: this.formatPhoneNumber(message.to),
+        type: message.type,
+        ...this.buildMessagePayload(message)
       };
 
-      if (mediaUrl) {
-        messageOptions.mediaUrl = [mediaUrl];
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.config.accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Meta WABA API error: ${response.status} - ${errorText}`);
       }
 
-      const result = await this.client.messages.create(messageOptions);
-      
-      console.log(`✅ WhatsApp message sent successfully. SID: ${result.sid}`);
+      const result = await response.json();
+      console.log(`✅ WhatsApp message sent successfully. Message ID: ${result.messages?.[0]?.id}`);
       return true;
     } catch (error) {
       console.error('❌ Failed to send WhatsApp message:', error);
@@ -106,29 +115,34 @@ export class WhatsAppService {
     }
   }
 
-  private buildTemplateMessage(templateName: string, params: string[]): string {
-    // For approved templates, Twilio handles the template formatting
-    // For development, we'll simulate the template rendering
-    const templates: Record<string, string> = {
-      'job_card_assigned': `🔧 *New Job Assignment*\n\nJob Card: {{1}}\nCustomer: {{2}}\nVehicle: {{3}}\nService: {{4}}\n\nPlease acknowledge within 2 hours.\n\n_SetuPPF Team_`,
-      'job_card_completed': `✅ *Job Completed*\n\nJob Card: {{1}}\nCompleted by: {{2}}\nStatus: {{3}}\n\nThank you for your service!\n\n_SetuPPF Team_`
-    };
-
-    let template = templates[templateName] || '{{1}}';
-    
-    // Replace placeholders with actual parameters
-    params.forEach((param, index) => {
-      template = template.replace(new RegExp(`\\{\\{${index + 1}\\}\\}`, 'g'), param);
-    });
-
-    return template;
+  private buildMessagePayload(message: WhatsAppMessage): any {
+    switch (message.type) {
+      case 'template':
+        return {
+          template: message.template
+        };
+      case 'text':
+        return {
+          text: message.text
+        };
+      case 'image':
+        return {
+          image: message.image
+        };
+      default:
+        throw new Error(`Unsupported message type: ${message.type}`);
+    }
   }
 
   private formatMessageForLog(message: WhatsAppMessage): string {
-    if (message.template && message.templateParams) {
-      return this.buildTemplateMessage(message.template, message.templateParams);
+    if (message.template) {
+      return `Template: ${message.template.name} (${message.template.language})`;
+    } else if (message.text) {
+      return message.text.body;
+    } else if (message.image) {
+      return `Image: ${message.image.link} ${message.image.caption ? '- ' + message.image.caption : ''}`;
     }
-    return message.body || 'No message body';
+    return 'Unknown message format';
   }
 
   // Predefined WhatsApp templates for SetuPPF
@@ -141,8 +155,22 @@ export class WhatsAppService {
   ): Promise<boolean> {
     return this.sendMessage({
       to: phoneNumber,
-      template: 'job_card_assigned',
-      templateParams: [jobCardId, customerName, vehicleModel, serviceName]
+      type: 'template',
+      template: {
+        name: 'job_card_assigned',
+        language: 'en',
+        components: [
+          {
+            type: 'body',
+            parameters: [
+              { type: 'text', text: jobCardId },
+              { type: 'text', text: customerName },
+              { type: 'text', text: vehicleModel },
+              { type: 'text', text: serviceName }
+            ]
+          }
+        ]
+      }
     });
   }
 
@@ -154,34 +182,50 @@ export class WhatsAppService {
   ): Promise<boolean> {
     return this.sendMessage({
       to: phoneNumber,
-      template: 'job_card_completed',
-      templateParams: [jobCardId, detailerName, status]
+      type: 'template',
+      template: {
+        name: 'job_card_completed',
+        language: 'en',
+        components: [
+          {
+            type: 'body',
+            parameters: [
+              { type: 'text', text: jobCardId },
+              { type: 'text', text: detailerName },
+              { type: 'text', text: status }
+            ]
+          }
+        ]
+      }
     });
   }
 
   async sendCustomMessage(phoneNumber: string, message: string): Promise<boolean> {
     return this.sendMessage({
       to: phoneNumber,
-      body: message
+      type: 'text',
+      text: {
+        body: message
+      }
     });
   }
 
   // Utility method to validate phone number format
   formatPhoneNumber(phone: string): string {
-    // Remove all non-numeric characters
-    const cleaned = phone.replace(/\D/g, '');
+    // Remove all non-numeric characters except +
+    const cleaned = phone.replace(/[^\d+]/g, '');
     
     // Add country code if not present (assuming India +91)
-    if (cleaned.length === 10) {
-      return `+91${cleaned}`;
+    if (cleaned.length === 10 && !cleaned.startsWith('+')) {
+      return `91${cleaned}`;
     }
     
-    // Add + if not present
-    if (cleaned.length > 10 && !phone.startsWith('+')) {
-      return `+${cleaned}`;
+    // Remove + for Meta API (it expects numbers without +)
+    if (cleaned.startsWith('+')) {
+      return cleaned.substring(1);
     }
     
-    return phone.startsWith('+') ? phone : `+${phone}`;
+    return cleaned;
   }
 
   // Check if WhatsApp service is available
@@ -190,11 +234,23 @@ export class WhatsAppService {
   }
 
   // Get configuration status
-  getStatus(): { configured: boolean; fromNumber: string } {
+  getStatus(): { configured: boolean; phoneNumberId?: string; businessAccountId?: string } {
     return {
       configured: this.isConfigured,
-      fromNumber: this.fromNumber
+      phoneNumberId: this.config?.phoneNumberId,
+      businessAccountId: this.config?.businessAccountId
     };
+  }
+
+  // Verify webhook signature (for receiving webhook events)
+  verifyWebhookSignature(payload: string, signature: string, appSecret: string): boolean {
+    const crypto = require('crypto');
+    const expectedSignature = crypto
+      .createHmac('sha256', appSecret)
+      .update(payload)
+      .digest('hex');
+    
+    return `sha256=${expectedSignature}` === signature;
   }
 }
 

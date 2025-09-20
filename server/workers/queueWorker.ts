@@ -239,8 +239,12 @@ export class QueueWorker {
       if (template && templateParams) {
         await whatsappService.sendMessage({
           to: targetPhoneNumber,
-          template,
-          templateParams
+          type: 'template',
+          template: {
+            name: template,
+            language: 'en',
+            components: templateParams
+          }
         });
       } else {
         await whatsappService.sendCustomMessage(targetPhoneNumber, message);
@@ -277,7 +281,7 @@ export class QueueWorker {
 
   private async checkJobCardSLA(jobCardId: string) {
     const jobCard = await storage.getJobCard(jobCardId);
-    if (!jobCard) return;
+    if (!jobCard || !jobCard.createdAt || !jobCard.status) return;
 
     const now = new Date();
     const slaHours = {
@@ -301,29 +305,30 @@ export class QueueWorker {
     // Check completion SLA
     if (['ACKNOWLEDGED', 'SCHEDULED', 'IN_PROGRESS'].includes(jobCard.status)) {
       const startTime = jobCard.acknowledgedAt || jobCard.createdAt;
-      const hoursOverdue = this.getHoursOverdue(startTime, now, slaHours.completion);
-      if (hoursOverdue > 0) {
-        await this.scheduleJob('sla.alert', {
-          type: 'COMPLETION_OVERDUE',
-          entityId: jobCardId,
-          overdueDuration: `${hoursOverdue.toFixed(1)} hours`
-        });
+      if (startTime) {
+        const hoursOverdue = this.getHoursOverdue(startTime, now, slaHours.completion);
+        if (hoursOverdue > 0) {
+          await this.scheduleJob('sla.alert', {
+            type: 'COMPLETION_OVERDUE',
+            entityId: jobCardId,
+            overdueDuration: `${hoursOverdue.toFixed(1)} hours`
+          });
+        }
       }
     }
 
     // Check approval SLA
     if (jobCard.status === 'PENDING_APPROVAL') {
-      const hoursOverdue = this.getHoursOverdue(
-        jobCard.approvalRequestedAt || jobCard.completedAt || jobCard.createdAt, 
-        now, 
-        slaHours.approval
-      );
-      if (hoursOverdue > 0) {
-        await this.scheduleJob('sla.alert', {
-          type: 'APPROVAL_OVERDUE',
-          entityId: jobCardId,
-          overdueDuration: `${hoursOverdue.toFixed(1)} hours`
-        });
+      const approvalStartTime = jobCard.approvalRequestedAt || jobCard.completedAt || jobCard.createdAt;
+      if (approvalStartTime) {
+        const hoursOverdue = this.getHoursOverdue(approvalStartTime, now, slaHours.approval);
+        if (hoursOverdue > 0) {
+          await this.scheduleJob('sla.alert', {
+            type: 'APPROVAL_OVERDUE',
+            entityId: jobCardId,
+            overdueDuration: `${hoursOverdue.toFixed(1)} hours`
+          });
+        }
       }
     }
   }
@@ -333,8 +338,12 @@ export class QueueWorker {
     console.log(`Checking work order SLA for ${workOrderId}`);
   }
 
-  private getHoursOverdue(startTime: string | Date, currentTime: Date, slaHours: number): number {
+  private getHoursOverdue(startTime: string | Date | null, currentTime: Date, slaHours: number): number {
+    if (!startTime) return 0;
+    
     const start = new Date(startTime);
+    if (isNaN(start.getTime())) return 0;
+    
     const elapsedMs = currentTime.getTime() - start.getTime();
     const elapsedHours = elapsedMs / (1000 * 60 * 60);
     return Math.max(0, elapsedHours - slaHours);

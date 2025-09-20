@@ -2,33 +2,37 @@
 
 ## Overview
 
-SetuPPF now supports WhatsApp Business API notifications for job card events. This integration sends real-time WhatsApp messages to detailers when job cards are assigned and to showroom managers when jobs are completed.
+SetuPPF now supports Meta WhatsApp Business API notifications for job card events. This integration sends real-time WhatsApp messages to detailers when job cards are assigned and to showroom managers when jobs are completed.
 
 ## Required Environment Variables
 
 Add these environment variables to your production deployment:
 
 ```bash
-# Twilio WhatsApp Business API Configuration
-TWILIO_ACCOUNT_SID=your_twilio_account_sid_here
-TWILIO_AUTH_TOKEN=your_twilio_auth_token_here
-TWILIO_WHATSAPP_FROM=whatsapp:+14155238886  # Your Twilio WhatsApp number
+# Meta WhatsApp Business API Configuration
+META_WABA_ACCESS_TOKEN=your_access_token_here
+META_WABA_PHONE_NUMBER_ID=your_phone_number_id_here
+META_WABA_BUSINESS_ACCOUNT_ID=your_business_account_id_here
+META_WABA_API_VERSION=v18.0  # Optional, defaults to v18.0
 ```
 
 ## Development Mode
 
-In development mode (when Twilio credentials are not provided), the system will log WhatsApp messages to the console instead of sending them. This allows for testing without requiring WhatsApp API access.
+In development mode (when Meta WABA credentials are not provided), the system will log WhatsApp messages to the console instead of sending them. This allows for testing without requiring WhatsApp API access.
 
 ## Production Setup
 
-### 1. Twilio WhatsApp Business API Setup
+### 1. Meta WhatsApp Business API Setup
 
-1. **Sign up for Twilio** at https://www.twilio.com/
-2. **Apply for WhatsApp Business API** access
-3. **Get approved WhatsApp templates** for:
+1. **Apply for WhatsApp Business API** at https://business.facebook.com/
+2. **Get approved for WhatsApp Business API** access through Meta
+3. **Create WhatsApp Business Account** and get your credentials:
+   - Access Token
+   - Phone Number ID  
+   - Business Account ID
+4. **Get approved WhatsApp templates** for:
    - Job card assignment notifications
    - Job completion notifications
-4. **Configure your sender phone number** (WhatsApp Business number)
 
 ### 2. WhatsApp Message Templates
 
@@ -120,7 +124,7 @@ _SetuPPF Team_
 
 ### Production Logs
 ```
-✅ WhatsApp message sent successfully. SID: SM1234567890abcdef
+✅ WhatsApp message sent successfully. Message ID: wamid.ABC123def456
 📱 WhatsApp notification sent to detailer John Smith for job card JC123456
 ```
 
@@ -137,30 +141,35 @@ _SetuPPF Team_
 - **Professional communication** with branded templates
 - **Automatic fallback** to push notifications if WhatsApp fails
 - **Development-friendly** with console logging when API is not configured
+- **Direct Meta integration** - no third-party service fees
 
 ## Troubleshooting
 
 ### Common Issues
 
 1. **No WhatsApp messages in production**
-   - Verify TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are set
-   - Check Twilio console for API errors
+   - Verify META_WABA_ACCESS_TOKEN and other credentials are set
+   - Check Meta Business Manager for API errors
    - Ensure templates are approved by WhatsApp
 
 2. **Template not found errors**
-   - Verify template names match approved templates
-   - Check template approval status in Twilio console
+   - Verify template names match approved templates in Meta Business Manager
+   - Check template approval status in WhatsApp Business API dashboard
 
 3. **Phone number formatting issues**
    - Ensure users have valid phone numbers in their profiles
-   - Check phone number format in user records
+   - Check phone number format in user records (numbers should not include + for Meta API)
 
 4. **Rate limiting**
-   - WhatsApp has message limits - monitor usage in Twilio console
+   - WhatsApp has message limits - monitor usage in Meta Business Manager
    - Consider implementing retry logic for failed messages
+
+5. **Authentication errors**
+   - Verify Access Token is valid and has necessary permissions
+   - Check if Phone Number ID belongs to your Business Account
 
 ### Support
 
-For WhatsApp Business API support:
-- Twilio Documentation: https://www.twilio.com/docs/whatsapp
-- WhatsApp Business API Documentation: https://developers.facebook.com/docs/whatsapp
+For Meta WhatsApp Business API support:
+- Meta WhatsApp Business API Documentation: https://developers.facebook.com/docs/whatsapp
+- Meta Business Help Center: https://business.facebook.com/help
