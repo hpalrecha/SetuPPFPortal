@@ -1,5 +1,6 @@
 import { storage } from '../storage';
 import type { WorkOrder, JobCard, User } from '@shared/schema';
+import { whatsappService } from './whatsapp-service';
 
 export interface NotificationPayload {
   title: string;
@@ -17,7 +18,7 @@ interface NotificationChannel {
 export class NotificationService {
   async sendNotification(
     userId: string,
-    channel: 'EMAIL' | 'SMS' | 'PUSH',
+    channel: 'EMAIL' | 'SMS' | 'PUSH' | 'WHATSAPP',
     payload: NotificationPayload
   ): Promise<void> {
     try {
@@ -45,7 +46,7 @@ export class NotificationService {
 
   async sendBulkNotification(
     userIds: string[],
-    channel: 'EMAIL' | 'SMS' | 'PUSH',
+    channel: 'EMAIL' | 'SMS' | 'PUSH' | 'WHATSAPP',
     payload: NotificationPayload
   ): Promise<void> {
     const promises = userIds.map(userId => 
@@ -56,7 +57,7 @@ export class NotificationService {
   }
 
   private async processNotificationByChannel(
-    channel: 'EMAIL' | 'SMS' | 'PUSH',
+    channel: 'EMAIL' | 'SMS' | 'PUSH' | 'WHATSAPP',
     userId: string,
     payload: NotificationPayload
   ): Promise<void> {
@@ -69,6 +70,9 @@ export class NotificationService {
         break;
       case 'PUSH':
         await this.sendPushNotification(userId, payload);
+        break;
+      case 'WHATSAPP':
+        await this.sendWhatsApp(userId, payload);
         break;
     }
   }
@@ -97,6 +101,25 @@ export class NotificationService {
     if (process.env.FIREBASE_SERVER_KEY) {
       // TODO: Implement actual push notification sending
       console.log(`🔔 Push notification sent to user ${userId}`);
+    }
+  }
+
+  private async sendWhatsApp(userId: string, payload: NotificationPayload): Promise<void> {
+    try {
+      const user = await storage.getUser(userId);
+      if (!user || !user.phone) {
+        console.warn(`⚠️ Cannot send WhatsApp to user ${userId}: No phone number found`);
+        return;
+      }
+
+      const formattedPhone = whatsappService.constructor.formatPhoneNumber(user.phone);
+      const message = `*${payload.title}*\n\n${payload.message}`;
+      
+      await whatsappService.sendCustomMessage(formattedPhone, message);
+      console.log(`📱 WhatsApp notification sent to user ${userId} at ${formattedPhone}`);
+    } catch (error) {
+      console.error(`❌ Failed to send WhatsApp notification to user ${userId}:`, error);
+      throw error;
     }
   }
 
