@@ -8,23 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Shield } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string().min(1, "Password is required"),
-  oemId: z.string().optional()
+  password: z.string().min(1, "Password is required")
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
 
-const MOCK_OEMS = [
-  { id: "tata", name: "Tata Motors" },
-  { id: "kia", name: "Kia Motors" },
-  { id: "mahindra", name: "Mahindra & Mahindra" }
-];
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -36,15 +29,14 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
     defaultValues: {
       email: "",
-      password: "",
-      oemId: ""
+      password: ""
     }
   });
 
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true);
     try {
-      await login(data.email, data.password, data.oemId);
+      await login(data.email, data.password);
       setLocation("/dashboard");
     } catch (error) {
       toast({
@@ -76,26 +68,6 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              {/* Organization Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="oemId">Organization</Label>
-                <Select 
-                  value={form.watch("oemId")} 
-                  onValueChange={(value) => form.setValue("oemId", value)}
-                  data-testid="select-organization"
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your organization" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MOCK_OEMS.map((oem) => (
-                      <SelectItem key={oem.id} value={oem.id}>
-                        {oem.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -136,9 +108,14 @@ export default function LoginPage() {
             </form>
 
             <div className="mt-4 text-center">
-              <a href="#" className="text-sm text-primary hover:text-primary/80">
+              <button 
+                type="button"
+                onClick={() => setLocation("/forgot-password")}
+                className="text-sm text-primary hover:text-primary/80 underline"
+                data-testid="link-forgot-password"
+              >
                 Forgot your password?
-              </a>
+              </button>
             </div>
           </CardContent>
         </Card>
