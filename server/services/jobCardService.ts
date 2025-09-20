@@ -2,6 +2,7 @@ import { storage } from '../storage';
 import { pricingService } from './pricingService';
 import { commissionService } from './commissionService';
 import { notificationService } from './notificationService';
+import { emailService } from './email-service';
 import type { 
   JobCard, 
   InsertJobCard
@@ -110,6 +111,29 @@ export class JobCardService {
 
     // Request approval automatically
     await this.requestApproval(jobCardId, userId);
+
+    // Send email notification to customer/showroom about completion
+    try {
+      const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+      if (workOrder) {
+        const showroom = await storage.getShowroom(workOrder.showroomId);
+        if (showroom?.email) {
+          await emailService.sendJobCardCompletionNotification(
+            showroom.email,
+            {
+              jobCardId: updatedJobCard.id,
+              workOrderNumber: workOrder.workOrderNumber || workOrder.id.slice(0, 8),
+              vehicleDetails: `${workOrder.vehicleModel || 'Vehicle'} ${workOrder.vehicleVariant || ''}`.trim(),
+              completedAt: updatedJobCard.completedAt || new Date(),
+              partnerName: (await storage.getPartner(jobCard.partnerId))?.businessName || 'Partner'
+            }
+          );
+        }
+      }
+    } catch (emailError) {
+      console.error("Failed to send completion email:", emailError);
+      // Don't fail the completion if email fails
+    }
 
     return updatedJobCard;
   }

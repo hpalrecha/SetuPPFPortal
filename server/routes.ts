@@ -17,6 +17,7 @@ import {
 } from "@shared/schema";
 import { storage } from "./storage";
 import { authService } from "./auth";
+import { emailService } from "./services/email-service";
 import { authenticate, requireRole, requireOEMAccess, auditLog } from "./middleware";
 import { ObjectStorageService } from "./objectStorage";
 import multer from "multer";
@@ -1400,6 +1401,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (payoutError) {
           console.error("Failed to update payout for job card:", payoutError);
           // Don't fail the approval if payout update fails
+        }
+
+        // Send email notification to partner about approval
+        try {
+          const partner = await storage.getPartner(jobCard.partnerId);
+          if (partner?.email) {
+            await emailService.sendJobCardApprovalNotification(
+              partner.email,
+              {
+                jobCardId: updatedJobCard.id,
+                workOrderNumber: workOrder.workOrderNumber || workOrder.id.slice(0, 8),
+                vehicleDetails: `${workOrder.vehicleModel || 'Vehicle'} ${workOrder.vehicleVariant || ''}`.trim(),
+                approvedAt: updatedJobCard.approvedAt || new Date(),
+                approvedBy: req.user!.name || req.user!.email,
+                payoutAmount: pricingResult?.amount
+              }
+            );
+          }
+        } catch (emailError) {
+          console.error("Failed to send approval email:", emailError);
+          // Don't fail the approval if email fails
         }
 
         res.json({ message: "Job card approved successfully", jobCard: updatedJobCard });
@@ -3089,6 +3111,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     );
   }
+
+  // Test email endpoint
+  app.post("/api/test-email", authenticate, async (req, res) => {
+    try {
+      const { to, subject, message } = req.body;
+      
+      if (!to || !subject || !message) {
+        return res.status(400).json({ error: "Missing required fields: to, subject, message" });
+      }
+
+      const success = await emailService.sendEmail({
+        to,
+        subject,
+        html: `<p>${message}</p>`,
+        text: message
+      });
+
+      if (success) {
+        res.json({ message: "Email sent successfully" });
+      } else {
+        res.status(500).json({ error: "Failed to send email" });
+      }
+    } catch (error) {
+      console.error("Test email error:", error);
+      res.status(500).json({ error: "Failed to send test email" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;
