@@ -167,7 +167,7 @@ export class WhatsAppService {
   }
 
   // Utility method to validate phone number format
-  static formatPhoneNumber(phone: string): string {
+  formatPhoneNumber(phone: string): string {
     // Remove all non-numeric characters
     const cleaned = phone.replace(/\D/g, '');
     

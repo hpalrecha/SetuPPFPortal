@@ -1,5 +1,6 @@
 import { notificationService } from '../services/notificationService';
 import { storage } from '../storage';
+import { whatsappService } from '../services/whatsapp-service';
 
 interface Job {
   id: string;
@@ -29,6 +30,7 @@ export class QueueWorker {
     this.processors.set('notification.email', this.processEmailNotification.bind(this));
     this.processors.set('notification.sms', this.processSMSNotification.bind(this));
     this.processors.set('notification.push', this.processPushNotification.bind(this));
+    this.processors.set('notification.whatsapp', this.processWhatsAppNotification.bind(this));
 
     // SLA monitoring
     this.processors.set('sla.check', this.processSLACheck.bind(this));
@@ -206,6 +208,46 @@ export class QueueWorker {
       
     } catch (error) {
       console.error('Failed to send push notification:', error);
+      throw error;
+    }
+  }
+
+  private async processWhatsAppNotification(data: any) {
+    const { userId, phoneNumber, message, template, templateParams } = data;
+    
+    try {
+      console.log(`📱 Sending WhatsApp notification to ${phoneNumber || `user ${userId}`}: ${template || 'custom message'}`);
+      
+      let targetPhoneNumber = phoneNumber;
+      
+      // If no phone number provided, fetch from user record
+      if (!targetPhoneNumber && userId) {
+        const user = await storage.getUser(userId);
+        if (user?.phone) {
+          targetPhoneNumber = whatsappService.formatPhoneNumber(user.phone);
+        } else {
+          console.warn(`⚠️ No phone number found for user ${userId}`);
+          return;
+        }
+      }
+
+      if (!targetPhoneNumber) {
+        throw new Error('No phone number provided for WhatsApp notification');
+      }
+
+      // Send WhatsApp message
+      if (template && templateParams) {
+        await whatsappService.sendMessage({
+          to: targetPhoneNumber,
+          template,
+          templateParams
+        });
+      } else {
+        await whatsappService.sendCustomMessage(targetPhoneNumber, message);
+      }
+      
+    } catch (error) {
+      console.error('Failed to send WhatsApp notification:', error);
       throw error;
     }
   }

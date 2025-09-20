@@ -112,7 +112,7 @@ export class NotificationService {
         return;
       }
 
-      const formattedPhone = whatsappService.constructor.formatPhoneNumber(user.phone);
+      const formattedPhone = whatsappService.formatPhoneNumber(user.phone);
       const message = `*${payload.title}*\n\n${payload.message}`;
       
       await whatsappService.sendCustomMessage(formattedPhone, message);
@@ -195,6 +195,92 @@ export class NotificationService {
   }
 
   // Job Card Notifications
+  async sendJobCardCreated(jobCard: JobCard): Promise<void> {
+    const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+    if (!workOrder || !jobCard.assignedToUserId) return;
+
+    const assignedUser = await storage.getUser(jobCard.assignedToUserId);
+    if (!assignedUser) return;
+
+    // Send WhatsApp notification to assigned detailer/installer
+    if (assignedUser.phone) {
+      try {
+        await whatsappService.sendJobCardAssigned(
+          whatsappService.formatPhoneNumber(assignedUser.phone),
+          jobCard.id.slice(0, 8),
+          workOrder.customerName,
+          workOrder.vehicleModel,
+          workOrder.serviceName
+        );
+        console.log(`📱 WhatsApp notification sent to detailer ${assignedUser.name} for job card ${jobCard.id.slice(0, 8)}`);
+      } catch (error) {
+        console.error(`❌ Failed to send WhatsApp notification for job card creation:`, error);
+      }
+    }
+
+    // Also send push notification as backup
+    await this.sendNotification(assignedUser.id, 'PUSH', {
+      title: 'New Job Assignment',
+      message: `Job card ${jobCard.id.slice(0, 8)} assigned for ${workOrder.vehicleModel} - ${workOrder.serviceName}. Please acknowledge within 2 hours.`,
+      type: 'WARNING',
+      data: { 
+        jobCardId: jobCard.id, 
+        workOrderId: workOrder.id,
+        type: 'job_card_created',
+        priority: 'high'
+      }
+    });
+  }
+
+  async sendJobCardCompleted(jobCard: JobCard): Promise<void> {
+    const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+    if (!workOrder) return;
+
+    // Get showroom managers to notify
+    const showroomManagers = await this.getUsersByRole(
+      ['SHOWROOM_MANAGER'], 
+      { showroomId: workOrder.showroomId }
+    );
+
+    const detailerName = jobCard.assignedToUserId 
+      ? (await storage.getUser(jobCard.assignedToUserId))?.name || 'Unknown'
+      : 'Unknown';
+
+    // Send WhatsApp notifications to showroom managers
+    for (const manager of showroomManagers) {
+      if (manager.phone) {
+        try {
+          await whatsappService.sendJobCardCompleted(
+            whatsappService.formatPhoneNumber(manager.phone),
+            jobCard.id.slice(0, 8),
+            detailerName,
+            jobCard.status
+          );
+          console.log(`📱 WhatsApp completion notification sent to showroom manager ${manager.name}`);
+        } catch (error) {
+          console.error(`❌ Failed to send WhatsApp completion notification:`, error);
+        }
+      }
+    }
+
+    // Also send push notifications as backup
+    await this.sendBulkNotification(
+      showroomManagers.map(manager => manager.id),
+      'PUSH',
+      {
+        title: 'Job Completed',
+        message: `PPF installation completed for job ${jobCard.id.slice(0, 8)} by ${detailerName}.`,
+        type: 'SUCCESS',
+        data: { 
+          jobCardId: jobCard.id, 
+          workOrderId: workOrder.id,
+          detailerName,
+          type: 'job_card_completed'
+        }
+      }
+    );
+  }
+
   async sendJobCardAcknowledged(jobCard: JobCard): Promise<void> {
     const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
     if (!workOrder) return;
