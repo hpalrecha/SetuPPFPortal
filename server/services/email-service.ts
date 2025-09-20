@@ -31,8 +31,14 @@ export class EmailService {
     // Check if AWS credentials are available
     if (AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) {
       try {
+        // Handle case where AWS_REGION might already include the full hostname
+        const cleanRegion = AWS_REGION.trim();
+        const sesHost = cleanRegion.includes('email-smtp') 
+          ? cleanRegion 
+          : `email-smtp.${cleanRegion}.amazonaws.com`;
+          
         this.transporter = nodemailer.createTransport({
-          host: `email-smtp.${AWS_REGION}.amazonaws.com`,
+          host: sesHost,
           port: 587,
           secure: false, // Use STARTTLS
           auth: {
