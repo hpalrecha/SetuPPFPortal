@@ -3,12 +3,25 @@ import bcrypt from 'bcryptjs';
 import { storage } from './storage';
 import type { User } from '@shared/schema';
 
-const JWT_SECRET = process.env.JWT_SECRET || (() => {
+const JWT_SECRET = (() => {
+  const secret = process.env.JWT_SECRET;
+  
+  if (secret) {
+    return secret;
+  }
+  
   if (process.env.NODE_ENV === 'development') {
     console.warn('⚠️  WARNING: Using default JWT secret in development. Set JWT_SECRET env var for production!');
     return 'dev-secret-key-change-in-production';
   } else {
     console.error('FATAL ERROR: JWT_SECRET environment variable is required in production');
+    console.error('');
+    console.error('To fix this deployment issue:');
+    console.error('1. Add JWT_SECRET to your production secrets/environment variables');
+    console.error('2. Generate a secure secret using: openssl rand -base64 32');
+    console.error('3. In Replit: Go to Secrets tab and add JWT_SECRET with the generated value');
+    console.error('');
+    console.error('Application cannot start securely without JWT_SECRET. Exiting...');
     process.exit(1);
   }
 })();
