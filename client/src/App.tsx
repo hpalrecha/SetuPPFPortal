@@ -28,6 +28,8 @@ import PartnerStaffPage from "./pages/partner-staff";
 import PayoutsPage from "./pages/payouts";
 import MainLayout from "./components/layout/main-layout";
 import NotFound from "@/pages/not-found";
+import ForgotPasswordPage from "@/pages/forgot-password";
+import ResetPasswordPage from "@/pages/reset-password";
 import { OemSelector } from "@/components/OemSelector";
 import { useOemContext } from "./hooks/use-oem-context";
 
@@ -53,6 +55,8 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={LoginPage} />
+      <Route path="/forgot-password" component={ForgotPasswordPage} />
+      <Route path="/reset-password" component={ResetPasswordPage} />
       <Route
         path="/"
         component={() => <ProtectedRoute component={DashboardPage} />}
