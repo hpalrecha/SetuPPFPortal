@@ -1415,7 +1415,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 vehicleDetails: `${workOrder.vehicleModel || 'Vehicle'} ${workOrder.vehicleVariant || ''}`.trim(),
                 approvedAt: updatedJobCard.approvedAt || new Date(),
                 approvedBy: req.user!.name || req.user!.email,
-                payoutAmount: pricingResult?.amount
+                payoutAmount: payoutAmount
               }
             );
           }
