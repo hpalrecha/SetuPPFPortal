@@ -248,16 +248,41 @@ export class JobCardService {
       throw new Error('Associated work order not found');
     }
 
-    // Resolve final pricing
-    const pricing = await pricingService.resolvePricing(
+    // Resolve detailer pricing for payout calculation - look for DETAILER_PRICING rules
+    let detailerPayoutAmount = 0;
+    try {
+      const detailerPricingRules = await storage.getPricingRules({
+        detailerId: jobCard.partnerId,
+        vehicleModelId: workOrder.vehicleModelId,
+        pricingType: 'DETAILER_PRICING'
+      });
+      
+      // Find matching rule for this service (either service_id or service_category_id match)
+      const matchingRule = detailerPricingRules.find(rule => 
+        rule.serviceId === workOrder.serviceId || 
+        (rule.serviceCategoryId && workOrder.serviceCategoryId === rule.serviceCategoryId)
+      );
+      
+      if (matchingRule) {
+        detailerPayoutAmount = Number(matchingRule.priceAmount);
+        console.log(`✅ Found detailer pricing: ₹${detailerPayoutAmount} for partner ${jobCard.partnerId}`);
+      } else {
+        console.warn(`⚠️ No detailer pricing rule found for partner ${jobCard.partnerId}, service ${workOrder.serviceId}, vehicle ${workOrder.vehicleModelId}`);
+      }
+    } catch (error) {
+      console.error('Error resolving detailer pricing:', error);
+    }
+    
+    // For work order final price, use dealership pricing
+    const dealershipPricing = await pricingService.resolvePricing(
       jobCard.partnerId,
       'SHOWROOM',
       workOrder.showroomId,
       workOrder.vehicleModelId,
       workOrder.serviceId
     );
-
-    const finalPrice = pricing?.priceAmount || workOrder.estimatedPrice || 0;
+    
+    const finalPrice = dealershipPricing?.priceAmount || workOrder.estimatedPrice || 0;
 
     // Calculate commission
     let commissionAmount = 0;
@@ -275,10 +300,10 @@ export class JobCardService {
       status: 'APPROVED',
       approvedAt: new Date(),
       approvedByUserId: userId,
-      pricingSnapshotJson: pricing ? {
-        priceAmount: pricing.priceAmount,
-        currency: pricing.currency,
-        ruleId: pricing.id
+      pricingSnapshotJson: dealershipPricing ? {
+        priceAmount: dealershipPricing.priceAmount,
+        currency: dealershipPricing.currency,
+        ruleId: dealershipPricing.id
       } : null,
       commissionSnapshotJson: workOrder.salesPersonId ? {
         salesPersonId: workOrder.salesPersonId,
@@ -305,20 +330,20 @@ export class JobCardService {
     // Update existing payout instead of creating duplicate
     const existingPayouts = await storage.getPayouts({ jobCardId });
     if (existingPayouts.length > 0) {
-      // Update existing payout with final amounts
+      // Update existing payout with detailer payout amount  
       await storage.updatePayout(existingPayouts[0].id, {
-        grossAmount: finalPrice,
-        netAmount: finalPrice,
+        grossAmount: detailerPayoutAmount,
+        netAmount: detailerPayoutAmount,
         status: 'COMPUTED'
       });
-      console.log(`✅ Updated existing payout to COMPUTED status with final price: ₹${finalPrice}`);
+      console.log(`✅ Updated existing payout to COMPUTED status with detailer payout: ₹${detailerPayoutAmount}`);
     } else {
       // Fallback: create payout if somehow none exists
       await storage.createPayout({
         jobCardId,
         partnerId: jobCard.partnerId,
-        grossAmount: finalPrice,
-        netAmount: finalPrice,
+        grossAmount: detailerPayoutAmount,
+        netAmount: detailerPayoutAmount,
         status: 'COMPUTED'
       });
       console.log(`⚠️ No existing payout found, created new COMPUTED payout`);
