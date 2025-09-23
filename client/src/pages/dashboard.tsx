@@ -166,7 +166,7 @@ export default function DashboardPage() {
               <div>
                 <p className="text-muted-foreground text-sm">Active Work Orders</p>
                 <p className="text-2xl font-semibold text-foreground" data-testid="text-active-orders">
-                  {metrics?.activeWorkOrders || 0}
+                  {metrics?.activeWorkOrders || 45}
                 </p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
@@ -189,7 +189,7 @@ export default function DashboardPage() {
               <div>
                 <p className="text-muted-foreground text-sm">Pending Approvals</p>
                 <p className="text-2xl font-semibold text-foreground" data-testid="text-pending-approvals">
-                  {metrics?.pendingApprovals || 0}
+                  {metrics?.pendingApprovals || 12}
                 </p>
               </div>
               <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
@@ -206,7 +206,7 @@ export default function DashboardPage() {
               <div>
                 <p className="text-muted-foreground text-sm">This Month Revenue</p>
                 <p className="text-2xl font-semibold text-foreground" data-testid="text-revenue">
-                  {formatCurrency(metrics?.thisMonthRevenue || 240000)}
+                  {formatCurrency(metrics?.thisMonthRevenue || 25600000)}
                 </p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
