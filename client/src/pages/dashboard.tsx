@@ -34,7 +34,8 @@ import {
   LineChart,
   Line,
   Area,
-  AreaChart
+  AreaChart,
+  ComposedChart
 } from 'recharts';
 
 interface DashboardMetrics {
@@ -258,7 +259,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={ppfOrdersData}>
+              <ComposedChart data={ppfOrdersData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis yAxisId="left" />
@@ -270,7 +271,7 @@ export default function DashboardPage() {
                 <Legend />
                 <Bar yAxisId="left" dataKey="orders" fill="#8884d8" name="Orders" />
                 <Line yAxisId="right" type="monotone" dataKey="revenue" stroke="#82ca9d" strokeWidth={3} name="Revenue" />
-              </AreaChart>
+              </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
@@ -310,7 +311,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={vehicleCategoryUpsellData}>
+                <ComposedChart data={vehicleCategoryUpsellData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="category" angle={-45} textAnchor="end" height={80} />
                   <YAxis yAxisId="left" />
@@ -322,7 +323,7 @@ export default function DashboardPage() {
                   <Legend />
                   <Bar yAxisId="left" dataKey="upsells" fill="#8884d8" name="Upsells" />
                   <Line yAxisId="right" type="monotone" dataKey="upsellRate" stroke="#82ca9d" strokeWidth={3} name="Upsell Rate %" />
-                </AreaChart>
+                </ComposedChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
@@ -396,7 +397,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={monthlyTrendData}>
+              <ComposedChart data={monthlyTrendData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis yAxisId="left" />
@@ -410,7 +411,7 @@ export default function DashboardPage() {
                 <Bar yAxisId="left" dataKey="completedOrders" fill="#8884d8" name="Completed Orders" />
                 <Line yAxisId="right" type="monotone" dataKey="avgTAT" stroke="#ff7300" strokeWidth={2} name="Avg TAT (days)" />
                 <Line yAxisId="right" type="monotone" dataKey="customerSatisfaction" stroke="#82ca9d" strokeWidth={2} name="Customer Satisfaction" />
-              </AreaChart>
+              </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
