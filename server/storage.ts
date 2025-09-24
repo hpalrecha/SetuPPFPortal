@@ -840,6 +840,16 @@ export class DatabaseStorage implements IStorage {
     limit?: number;
     offset?: number;
   }): Promise<JobCard[]> {
+    // Special handling for partner-based filtering considering allocations
+    if (filters?.partnerId && !filters?.oemId && !filters?.dealershipId && !filters?.showroomId) {
+      return await this.getJobCardsForPartner(filters.partnerId, {
+        workOrderId: filters.workOrderId,
+        status: filters.status,
+        limit: filters.limit,
+        offset: filters.offset
+      });
+    }
+    
     // Need to join with workOrders for showroomId, dealershipId, and oemId filtering
     if (filters?.showroomId || filters?.dealershipId || filters?.oemId) {
       let query = db.select(jobCards).from(jobCards).innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id));
@@ -895,6 +905,67 @@ export class DatabaseStorage implements IStorage {
 
       return await query;
     }
+  }
+
+  async getJobCardsForPartner(partnerId: string, filters?: {
+    workOrderId?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<JobCard[]> {
+    // Get partner allocations to determine which job cards they can access
+    const allocations = await this.getAllocations({ partnerId, active: true });
+    
+    if (allocations.length === 0) {
+      // No allocations, return only directly assigned job cards
+      return await this.getJobCards({
+        partnerId,
+        workOrderId: filters?.workOrderId,
+        status: filters?.status,
+        limit: filters?.limit,
+        offset: filters?.offset
+      });
+    }
+
+    // Build query to include job cards from allocated showrooms/dealerships/OEMs
+    let query = db.select(jobCards)
+      .from(jobCards)
+      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
+      .innerJoin(showrooms, eq(workOrders.showroomId, showrooms.id))
+      .innerJoin(dealerships, eq(showrooms.dealershipId, dealerships.id));
+
+    // Build OR conditions for different allocation levels
+    const allocationConditions = [];
+
+    for (const allocation of allocations) {
+      if (allocation.level === 'OEM') {
+        allocationConditions.push(eq(dealerships.oemId, allocation.levelId));
+      } else if (allocation.level === 'DEALERSHIP') {
+        allocationConditions.push(eq(showrooms.dealershipId, allocation.levelId));
+      } else if (allocation.level === 'SHOWROOM') {
+        allocationConditions.push(eq(workOrders.showroomId, allocation.levelId));
+      }
+    }
+
+    // Also include directly assigned job cards
+    allocationConditions.push(eq(jobCards.partnerId, partnerId));
+
+    const conditions = [or(...allocationConditions)];
+    
+    if (filters?.workOrderId) conditions.push(eq(jobCards.workOrderId, filters.workOrderId));
+    if (filters?.status) conditions.push(eq(jobCards.status, filters.status as any));
+
+    query = query.where(and(...conditions));
+    query = query.orderBy(desc(jobCards.createdAt));
+
+    if (filters?.limit) {
+      query = query.limit(filters.limit);
+    }
+    if (filters?.offset) {
+      query = query.offset(filters.offset);
+    }
+
+    return await query;
   }
 
   async getJobCard(id: string): Promise<JobCard | undefined> {
