@@ -50,8 +50,8 @@ export function useJobCards() {
         'Authorization': `Bearer ${token}`,
       };
       
-      // Only add OEM filter for non-partner users or when partner explicitly selects an OEM
-      if (shouldIncludeOemFilter) {
+      // Only add OEM filter for non-partner users - NEVER for partners
+      if (shouldIncludeOemFilter && selectedOemId) {
         headers['x-oem-id'] = selectedOemId;
       }
       
