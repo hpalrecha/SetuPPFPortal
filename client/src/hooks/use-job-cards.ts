@@ -30,11 +30,14 @@ export interface JobCardView extends JobCard {
 
 export function useJobCards() {
   const { user } = useAuth();
-  const { selectedOemId } = useOemContext();
+  const { selectedOemId, isPartnerUser } = useOemContext();
+  
+  // For partner users, allow them to see all job cards when no OEM is selected
+  const shouldIncludeOemFilter = selectedOemId && !isPartnerUser;
   
   return useQuery({
-    queryKey: ["/api/job-cards", selectedOemId, "v4"],
-    enabled: !!user && !!selectedOemId && user.role !== undefined,
+    queryKey: ["/api/job-cards", shouldIncludeOemFilter ? selectedOemId : 'all', "v5"],
+    enabled: !!user && user.role !== undefined,
     refetchOnWindowFocus: false,
     staleTime: 30000,
     queryFn: async (): Promise<JobCardView[]> => {
@@ -46,7 +49,8 @@ export function useJobCards() {
         'Authorization': `Bearer ${token}`,
       };
       
-      if (selectedOemId) {
+      // Only add OEM filter for non-partner users or when partner explicitly selects an OEM
+      if (shouldIncludeOemFilter) {
         headers['x-oem-id'] = selectedOemId;
       }
       
