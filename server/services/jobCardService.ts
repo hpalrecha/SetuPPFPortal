@@ -75,6 +75,9 @@ export class JobCardService {
       status: 'IN_PROGRESS'
     });
 
+    // 🚀 NEW FLOW: AUTO-CREATE DETAILER PAYOUT when work starts (not completion)
+    await this.createDetailerPayout(jobCardId);
+
     // Send notification
     await notificationService.sendJobCardStarted(updatedJobCard);
 
@@ -106,8 +109,7 @@ export class JobCardService {
       checklistJson
     });
 
-    // 🚀 AUTO-CREATE DETAILER PAYOUT when job card is completed
-    await this.createDetailerPayout(jobCardId);
+    // Note: Payout creation moved to when work starts (IN_PROGRESS status), not completion
 
     // Request approval automatically
     await this.requestApproval(jobCardId, userId);
