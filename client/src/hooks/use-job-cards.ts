@@ -32,8 +32,9 @@ export function useJobCards() {
   const { user } = useAuth();
   const { selectedOemId, isPartnerUser } = useOemContext();
   
-  // For partner users, allow them to see all job cards when no OEM is selected
-  const shouldIncludeOemFilter = selectedOemId && !isPartnerUser;
+  // For partner users, never include OEM filter to show all their job cards
+  // For non-partner users, include OEM filter if they have one selected
+  const shouldIncludeOemFilter = !isPartnerUser && selectedOemId;
   
   return useQuery({
     queryKey: ["/api/job-cards", shouldIncludeOemFilter ? selectedOemId : 'all', "v5"],

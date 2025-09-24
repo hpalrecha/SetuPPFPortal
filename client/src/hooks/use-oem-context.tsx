@@ -34,14 +34,13 @@ export function OemProvider({ children }: { children: ReactNode }) {
       const stored = localStorage.getItem(`${OEM_SELECTION_KEY}_${user.id}`);
       
       if (isPartnerUser) {
-        // For partner users, check if stored OEM is still valid
+        // For partner users, don't auto-select OEMs - let them see all their job cards
+        // They can manually select an OEM if they want to filter
         if (stored && availableOems.includes(stored)) {
-          setSelectedOemIdState(stored);
-        } else if (availableOems.length === 1) {
-          // Auto-select if only one OEM available
-          setSelectedOemIdState(availableOems[0]);
-          localStorage.setItem(`${OEM_SELECTION_KEY}_${user.id}`, availableOems[0]);
+          // Only load stored OEM if explicitly selected before
+          // setSelectedOemIdState(stored);
         }
+        // Don't auto-select even if only one OEM available - show all job cards
       } else {
         // For non-partner users, use their oemId  
         // SUPER_ADMIN users should auto-select the first available OEM if they don't have one assigned

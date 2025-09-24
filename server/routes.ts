@@ -1108,6 +1108,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         filters.partnerId = req.user!.partnerId;
         
+        console.log(`🔍 Partner ${req.user!.partnerId} requesting job cards with OEM filter: ${selectedOemId || 'NONE'}`);
+        console.log(`🔍 Current filters:`, filters);
+        
         // Validate OEM access for partners using partner-OEM mappings
         if (selectedOemId) {
           // Check if partner has access to this OEM
@@ -1207,7 +1210,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (status) filters.status = status as string;
 
+      console.log(`🎯 Final filters for job cards query:`, filters);
       const jobCards = await storage.getJobCards(filters);
+      console.log(`📋 Returned ${jobCards.length} job cards for partner`);
       res.json(jobCards);
     } catch (error) {
       console.error("Get job cards error:", error);
