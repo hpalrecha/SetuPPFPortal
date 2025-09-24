@@ -384,6 +384,9 @@ export const approvals = pgTable("approvals", {
 });
 
 // Money and Reporting
+// Define payout status enum
+export const payoutStatusEnum = pgEnum("payout_status", ["pending_review", "due", "paid"]);
+
 export const payouts = pgTable("payouts", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   jobCardId: uuid("job_card_id").references(() => jobCards.id).notNull(),
@@ -391,7 +394,7 @@ export const payouts = pgTable("payouts", {
   grossAmount: decimal("gross_amount", { precision: 10, scale: 2 }).notNull(),
   adjustmentsJson: jsonb("adjustments_json"),
   netAmount: decimal("net_amount", { precision: 10, scale: 2 }).notNull(),
-  status: text("status").default("PENDING"),
+  status: payoutStatusEnum("status").default("pending_review"),
   paidAt: timestamp("paid_at"),
   paymentReference: text("payment_reference"),
   settledBy: uuid("settled_by").references(() => users.id),
