@@ -2065,7 +2065,7 @@ export class DatabaseStorage implements IStorage {
       if (exactMatch.length > 0) {
         console.log("✅ Found exact pricing match:", exactMatch[0]);
         return {
-          amount: exactMatch[0].amount,
+          amount: exactMatch[0].priceAmount,
           ruleId: exactMatch[0].id
         };
       }
@@ -2087,7 +2087,7 @@ export class DatabaseStorage implements IStorage {
       if (globalMatch.length > 0) {
         console.log("✅ Found global pricing match:", globalMatch[0]);
         return {
-          amount: globalMatch[0].amount,
+          amount: globalMatch[0].priceAmount,
           ruleId: globalMatch[0].id
         };
       }

@@ -2654,6 +2654,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // NEW: Payout approval endpoint (pending_review → due)
+  app.post("/api/payouts/:id/approve", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    auditLog('payout', 'approve'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        
+        // Get payout to verify status
+        const payout = await storage.getPayout(id);
+        if (!payout) {
+          return res.status(404).json({ error: "Payout not found" });
+        }
+        
+        // Check tenant access permissions
+        if (!storage.canUserAccessPayout(req.user!, payout)) {
+          return res.status(403).json({ error: "Access denied - insufficient permissions" });
+        }
+        
+        // Update status to 'due'
+        const updatedPayout = await storage.updatePayout(id, {
+          status: 'due'
+        });
+        
+        res.json(updatedPayout);
+      } catch (error) {
+        console.error("Approve payout error:", error);
+        res.status(500).json({ error: "Failed to approve payout" });
+      }
+    }
+  );
+
   app.post("/api/payouts/:id/settle", 
     authenticate, 
     requireOEMAccess,
