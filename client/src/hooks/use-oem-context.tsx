@@ -25,8 +25,8 @@ export function OemProvider({ children }: { children: ReactNode }) {
   // Get available OEMs for partner users
   const availableOems = user?.allowedOemIds || [];
   
-  // Partner users need OEM selection if they have no OEM selected (and have available OEMs)
-  const needsOemSelection = isPartnerUser && !selectedOemId && availableOems.length > 0;
+  // Partner users NEVER need OEM selection - they see all their job cards
+  const needsOemSelection = false;
 
   // Load selected OEM from localStorage on mount
   useEffect(() => {
