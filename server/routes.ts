@@ -1120,54 +1120,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           filters.oemId = selectedOemId;
         } else {
-          // If no OEM selected, get all OEMs the partner has access to
-          let partnerOemIds = await storage.getPartnerOems(req.user!.partnerId);
-          
-          // If no direct OEM allocations, check for showroom-level allocations
-          if (partnerOemIds.length === 0) {
-            console.log(`🔍 No direct OEM allocations found for partner ${req.user!.partnerId}, checking showroom allocations...`);
-            
-            // Get partner's showroom allocations and find their OEMs
-            const partnerAllocations = await storage.getAllocations({ partnerId: req.user!.partnerId });
-            const showroomAllocations = partnerAllocations.filter(a => a.level === 'SHOWROOM' && a.active);
-            
-            if (showroomAllocations.length > 0) {
-              // Get the showrooms and their parent OEMs
-              const showroomIds = showroomAllocations.map(a => a.levelId);
-              const showrooms = await storage.getShowrooms();
-              const dealerships = await storage.getDealerships();
-              
-              // Find OEMs through showroom -> dealership -> OEM chain
-              const oemIds = new Set<string>();
-              for (const showroomId of showroomIds) {
-                const showroom = showrooms.find(s => s.id === showroomId);
-                if (showroom) {
-                  const dealership = dealerships.find(d => d.id === showroom.dealershipId);
-                  if (dealership) {
-                    oemIds.add(dealership.oemId);
-                  }
-                }
-              }
-              
-              partnerOemIds = Array.from(oemIds);
-              console.log(`✅ Found ${partnerOemIds.length} OEMs through showroom allocations for partner ${req.user!.partnerId}`);
-            }
-          }
-          
-          if (partnerOemIds.length === 0) {
-            return res.status(403).json({ error: "No OEM access configured" });
-          }
-          
-          // Query each OEM separately and combine results (storage doesn't support oemIds array)
-          const allJobCards = [];
-          for (const oemId of partnerOemIds) {
-            const jobCardsForOem = await storage.getJobCards({
-              ...filters,
-              oemId,
-            });
-            allJobCards.push(...jobCardsForOem);
-          }
-          return res.json(allJobCards);
+          // NEW: If no OEM selected, show ALL partner job cards without OEM filtering
+          console.log(`✅ No OEM filter - showing ALL job cards for partner ${req.user!.partnerId}`);
+          // Don't add any oemId filter - let partner see all their allocated job cards
         }
       } else if (req.user!.role === 'SHOWROOM_MANAGER' || req.user!.role === 'SALES_PERSON') {
         // Showroom managers and sales persons see job cards for their showroom
