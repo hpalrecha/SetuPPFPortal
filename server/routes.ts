@@ -1303,52 +1303,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // TEST ENDPOINT: Debug pricing resolution
-  app.post("/api/test-pricing/:jobCardId", authenticate, async (req, res) => {
-    try {
-      const jobCard = await storage.getJobCard(req.params.jobCardId);
-      if (!jobCard) {
-        return res.status(404).json({ error: "Job card not found" });
-      }
-
-      const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
-      if (!workOrder) {
-        return res.status(404).json({ error: "Work order not found" });
-      }
-
-      const service = await storage.getService(workOrder.serviceId);
-      const serviceCategoryId = service?.serviceCategoryId || null;
-
-      console.log("🧪 TESTING PRICING RESOLUTION FOR JOB CARD:", req.params.jobCardId);
-      
-      // Test the pricing resolution with detailed debugging
-      const pricingResult = await storage.resolveDetailerPricing(
-        jobCard.partnerId,
-        workOrder.serviceId,
-        serviceCategoryId,
-        workOrder.vehicleModelId,
-        workOrder.dealershipId,
-        workOrder.showroomId
-      );
-
-      res.json({
-        jobCardId: req.params.jobCardId,
-        pricingResult,
-        testParameters: {
-          detailerId: jobCard.partnerId,
-          serviceId: workOrder.serviceId,
-          serviceCategoryId,
-          vehicleModelId: workOrder.vehicleModelId,
-          dealershipId: workOrder.dealershipId,
-          showroomId: workOrder.showroomId
-        }
-      });
-    } catch (error) {
-      console.error("Test pricing resolution error:", error);
-      res.status(500).json({ error: "Failed to test pricing resolution" });
-    }
-  });
-
   // Job Card Approval endpoint
   app.post("/api/job-cards/:id/approve",
     authenticate,
@@ -1392,34 +1346,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           completedAt: new Date()
         });
 
-        // TEST: Debug pricing resolution automatically when approving
-        try {
-          const service = await storage.getService(workOrder.serviceId);
-          const serviceCategoryId = service?.serviceCategoryId || null;
-          
-          console.log("🧪 AUTO-TESTING PRICING RESOLUTION ON APPROVAL:", {
-            jobCardId,
-            detailerId: jobCard.partnerId,
-            serviceId: workOrder.serviceId,
-            serviceCategoryId,
-            vehicleModelId: workOrder.vehicleModelId,
-            dealershipId: workOrder.dealershipId,
-            showroomId: workOrder.showroomId
-          });
-          
-          const testPricingResult = await storage.resolveDetailerPricing(
-            jobCard.partnerId,
-            workOrder.serviceId,
-            serviceCategoryId,
-            workOrder.vehicleModelId,
-            workOrder.dealershipId,
-            workOrder.showroomId
-          );
-          
-          console.log("🧪 PRICING TEST RESULT:", testPricingResult);
-        } catch (debugError) {
-          console.error("🧪 DEBUG ERROR:", debugError);
-        }
 
         if (!updatedJobCard) {
           return res.status(500).json({ error: "Failed to approve job card" });

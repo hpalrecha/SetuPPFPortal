@@ -2041,15 +2041,6 @@ export class DatabaseStorage implements IStorage {
 
   async resolveDetailerPricing(detailerId: string, serviceId: string, serviceCategoryId: string | null, vehicleModelId: string, dealershipId?: string, showroomId?: string): Promise<{ amount: string; ruleId: string; context: string } | null> {
     try {
-      console.log(`🔍 DETAILER PRICING RESOLUTION DEBUG:`, {
-        detailerId,
-        serviceId,
-        serviceCategoryId,
-        vehicleModelId,
-        dealershipId,
-        showroomId
-      });
-
       // Base conditions for all queries
       const now = new Date();
       const baseConditions = [
@@ -2092,22 +2083,10 @@ export class DatabaseStorage implements IStorage {
         { type: 'generic', condition: isNull(pricingRules.vehicleModelId) }
       ];
 
-      // First, let's check what rules actually exist in the database
-      const allDetailerRules = await db.select().from(pricingRules)
-        .where(eq(pricingRules.pricingType, 'DETAILER_PRICING'))
-        .limit(10);
-      
-      console.log(`🔍 Found ${allDetailerRules.length} DETAILER_PRICING rules in database:`);
-      allDetailerRules.forEach(rule => {
-        console.log(`  Rule ${rule.id}: detailerId=${rule.detailerId}, serviceId=${rule.serviceId}, serviceCategoryId=${rule.serviceCategoryId}, vehicleModelId=${rule.vehicleModelId}, amount=₹${rule.priceAmount}, status=${rule.status}`);
-      });
-
       // Search with full precedence matrix
       for (const location of locationContexts) {
         for (const service of servicePrecedence) {
           for (const vehicle of vehiclePrecedence) {
-            console.log(`🔍 Testing combination: ${location.context}-${service.type}-${vehicle.type}`);
-            
             const conditions = [...baseConditions, service.condition, vehicle.condition];
             
             // Add location context if specified
@@ -2125,9 +2104,7 @@ export class DatabaseStorage implements IStorage {
               .orderBy(desc(pricingRules.effectiveFrom))
               .limit(1);
             
-            console.log(`  Found ${rules.length} matching rules`);
             if (rules.length > 0) {
-              console.log(`  ✅ MATCH FOUND: Rule ${rules[0].id} with amount ₹${rules[0].priceAmount}`);
               return { 
                 amount: rules[0].priceAmount, // Keep as string to avoid floating point issues
                 ruleId: rules[0].id,
@@ -2137,8 +2114,6 @@ export class DatabaseStorage implements IStorage {
           }
         }
       }
-
-      console.log(`❌ NO PRICING RULE FOUND after testing all combinations`);
 
       return null; // No pricing rule found
     } catch (error) {
