@@ -2039,6 +2039,68 @@ export class DatabaseStorage implements IStorage {
     return rules[0] || null;
   }
 
+  // NEW SIMPLIFIED PAYOUT PRICING: Vehicle Model + Service Category + Installer
+  async resolvePayoutPricing(
+    partnerId: string,
+    serviceCategoryId: string,
+    vehicleModelId: string
+  ): Promise<{ amount: string; ruleId: string } | null> {
+    try {
+      console.log("🎯 NEW SIMPLIFIED PRICING:", { partnerId, serviceCategoryId, vehicleModelId });
+      
+      // Simple rule: Find pricing for specific installer + category + vehicle
+      const exactMatch = await this.db.select()
+        .from(pricingRules)
+        .where(
+          and(
+            eq(pricingRules.pricingType, "DETAILER_PRICING"),
+            eq(pricingRules.detailerId, partnerId),
+            eq(pricingRules.serviceCategoryId, serviceCategoryId),
+            eq(pricingRules.vehicleModelId, vehicleModelId),
+            eq(pricingRules.status, "ACTIVE")
+          )
+        )
+        .limit(1);
+      
+      if (exactMatch.length > 0) {
+        console.log("✅ Found exact pricing match:", exactMatch[0]);
+        return {
+          amount: exactMatch[0].amount,
+          ruleId: exactMatch[0].id
+        };
+      }
+
+      // Fallback: Global category rule for vehicle (any installer)
+      const globalMatch = await this.db.select()
+        .from(pricingRules)
+        .where(
+          and(
+            eq(pricingRules.pricingType, "DETAILER_PRICING"),
+            eq(pricingRules.serviceCategoryId, serviceCategoryId),
+            eq(pricingRules.vehicleModelId, vehicleModelId),
+            eq(pricingRules.status, "ACTIVE"),
+            isNull(pricingRules.detailerId)
+          )
+        )
+        .limit(1);
+      
+      if (globalMatch.length > 0) {
+        console.log("✅ Found global pricing match:", globalMatch[0]);
+        return {
+          amount: globalMatch[0].amount,
+          ruleId: globalMatch[0].id
+        };
+      }
+
+      console.log("❌ No pricing rule found for simplified pricing");
+      return null;
+    } catch (error) {
+      console.error("Error resolving payout pricing:", error);
+      return null;
+    }
+  }
+
+  // LEGACY: Complex pricing logic (keeping for backward compatibility)
   async resolveDetailerPricing(detailerId: string, serviceId: string, serviceCategoryId: string | null, vehicleModelId: string, dealershipId?: string, showroomId?: string): Promise<{ amount: string; ruleId: string; context: string } | null> {
     try {
       // Base conditions for all queries

@@ -156,15 +156,14 @@ export class JobCardService {
       const service = await storage.getService(workOrder.serviceId);
       const serviceCategoryId = service?.serviceCategoryId || null;
 
-      // Use the proper detailer pricing resolution
-      const pricingResult = await storage.resolveDetailerPricing(
-        jobCard.partnerId,        // detailerId
-        workOrder.serviceId,      // serviceId
-        serviceCategoryId,        // serviceCategoryId - now properly passed
-        workOrder.vehicleModelId, // vehicleModelId
-        workOrder.dealershipId,   // dealershipId
-        workOrder.showroomId      // showroomId
-      );
+      // Use the NEW simplified payout pricing
+      const pricingResult = serviceCategoryId 
+        ? await storage.resolvePayoutPricing(
+            jobCard.partnerId,    // partnerId
+            serviceCategoryId,    // serviceCategoryId
+            workOrder.vehicleModelId // vehicleModelId
+          )
+        : null;
 
       let payoutAmount = '0.00';
       let payoutStatus: 'PENDING' | 'NEEDS_REVIEW' = 'PENDING';
