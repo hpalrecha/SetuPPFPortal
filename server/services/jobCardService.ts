@@ -252,26 +252,28 @@ export class JobCardService {
       throw new Error('Associated work order not found');
     }
 
-    // Resolve detailer pricing for payout calculation - look for DETAILER_PRICING rules
+    // Resolve detailer pricing for payout calculation using the same logic as completion
     let detailerPayoutAmount = 0;
     try {
-      const detailerPricingRules = await storage.getPricingRules({
-        detailerId: jobCard.partnerId,
-        vehicleModelId: workOrder.vehicleModelId,
-        pricingType: 'DETAILER_PRICING'
-      });
-      
-      // Find matching rule for this service (either service_id or service_category_id match)
-      const matchingRule = detailerPricingRules.find(rule => 
-        rule.serviceId === workOrder.serviceId || 
-        (rule.serviceCategoryId && workOrder.serviceCategoryId === rule.serviceCategoryId)
+      // Get service details for category-based pricing (FIXED: approval was missing this!)
+      const service = await storage.getService(workOrder.serviceId);
+      const serviceCategoryId = service?.serviceCategoryId || null;
+
+      // Use the same proper detailer pricing resolution as completion
+      const pricingResult = await storage.resolveDetailerPricing(
+        jobCard.partnerId,        // detailerId
+        workOrder.serviceId,      // serviceId
+        serviceCategoryId,        // serviceCategoryId - FIXED: now properly passed
+        workOrder.vehicleModelId, // vehicleModelId
+        workOrder.dealershipId,   // dealershipId
+        workOrder.showroomId      // showroomId
       );
-      
-      if (matchingRule) {
-        detailerPayoutAmount = Number(matchingRule.priceAmount);
-        console.log(`✅ Found detailer pricing: ₹${detailerPayoutAmount} for partner ${jobCard.partnerId}`);
+
+      if (pricingResult) {
+        detailerPayoutAmount = Number(pricingResult.amount);
+        console.log(`✅ Resolved detailer pricing: ₹${detailerPayoutAmount} using rule ${pricingResult.ruleId} (${pricingResult.context})`);
       } else {
-        console.warn(`⚠️ No detailer pricing rule found for partner ${jobCard.partnerId}, service ${workOrder.serviceId}, vehicle ${workOrder.vehicleModelId}`);
+        console.log(`⚠️ No pricing rule found for detailer payout - marked as NEEDS_REVIEW`);
       }
     } catch (error) {
       console.error('Error resolving detailer pricing:', error);

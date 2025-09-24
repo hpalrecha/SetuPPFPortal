@@ -1304,6 +1304,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
 
+
   // Job Card Approval endpoint
   app.post("/api/job-cards/:id/approve",
     authenticate,
