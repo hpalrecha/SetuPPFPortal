@@ -152,11 +152,15 @@ export class JobCardService {
         throw new Error('Associated work order not found');
       }
 
+      // Get service details for category-based pricing
+      const service = await storage.getService(workOrder.serviceId);
+      const serviceCategoryId = service?.serviceCategoryId || null;
+
       // Use the proper detailer pricing resolution
       const pricingResult = await storage.resolveDetailerPricing(
         jobCard.partnerId,        // detailerId
         workOrder.serviceId,      // serviceId
-        null,                     // serviceCategoryId
+        serviceCategoryId,        // serviceCategoryId - now properly passed
         workOrder.vehicleModelId, // vehicleModelId
         workOrder.dealershipId,   // dealershipId
         workOrder.showroomId      // showroomId

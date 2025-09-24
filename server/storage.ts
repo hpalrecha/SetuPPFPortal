@@ -1975,7 +1975,11 @@ export class DatabaseStorage implements IStorage {
       const baseConditions = [
         eq(pricingRules.status, 'ACTIVE'),
         eq(pricingRules.pricingType, 'DETAILER_PRICING'),
-        eq(pricingRules.detailerId, detailerId),
+        // Allow both detailer-specific rules and global rules (detailerId = NULL)
+        or(
+          eq(pricingRules.detailerId, detailerId),
+          isNull(pricingRules.detailerId)
+        ),
         lte(pricingRules.effectiveFrom, now),
         or(
           isNull(pricingRules.effectiveTo),
