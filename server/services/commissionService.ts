@@ -2,6 +2,85 @@ import { storage } from '../storage';
 import type { CommissionRule } from '@shared/schema';
 
 export class CommissionService {
+  // 🔥 ROBUST COMMISSION CREATION - Works for any work order (existing or new)
+  async createCommissionForWorkOrder(workOrderId: string): Promise<{ success: boolean; message: string; commissionId?: string }> {
+    try {
+      console.log(`🔥 REBUILDING COMMISSION for Work Order ${workOrderId}`);
+
+      // Get work order details
+      const workOrder = await storage.getWorkOrder(workOrderId);
+      if (!workOrder) {
+        return { success: false, message: 'Work order not found' };
+      }
+
+      // Must have salesperson to create commission
+      if (!workOrder.salesPersonId || !workOrder.showroomId) {
+        return { success: false, message: 'Work order missing salesperson or showroom - commission not applicable' };
+      }
+
+      // Check if commission already exists
+      const existingCommissions = await storage.getCommissions({ workOrderId });
+      if (existingCommissions.commissions.length > 0) {
+        return { success: false, message: `Commission already exists for work order ${workOrderId}` };
+      }
+
+      console.log(`📊 Commission parameters:`, {
+        workOrderId,
+        showroomId: workOrder.showroomId,
+        salesPersonId: workOrder.salesPersonId,
+        serviceId: workOrder.serviceId || 'none'
+      });
+
+      // Find applicable commission rule using storage method
+      const applicableRule = await storage.resolveCommissionRule(
+        workOrder.oemId || '',
+        workOrder.dealershipId || '',
+        workOrder.showroomId,
+        workOrder.salesPersonId,
+        workOrder.serviceId
+      );
+
+      if (!applicableRule) {
+        return { success: false, message: 'No applicable commission rule found' };
+      }
+
+      console.log(`💰 Found commission rule:`, {
+        ruleId: applicableRule.id,
+        type: applicableRule.type,
+        value: applicableRule.valueNumeric,
+        resolutionPath: applicableRule.resolutionPath || 'direct'
+      });
+
+      // Create commission record
+      const commission = await storage.createCommission({
+        workOrderId: workOrder.id,
+        showroomId: workOrder.showroomId,
+        salesPersonId: workOrder.salesPersonId,
+        basis: applicableRule.type,
+        value: Number(applicableRule.valueNumeric),
+        computedAmount: 0, // Will be calculated when work order pricing is finalized
+        status: 'PENDING'
+      });
+
+      console.log(`✅ Commission created successfully:`, {
+        commissionId: commission.id,
+        basis: commission.basis,
+        value: commission.value,
+        status: commission.status
+      });
+
+      return {
+        success: true,
+        message: `Commission created with ${commission.basis} rate of ${commission.value}${commission.basis === 'PERCENT' ? '%' : ''}`,
+        commissionId: commission.id
+      };
+
+    } catch (error) {
+      console.error(`❌ Failed to create commission for work order ${workOrderId}:`, error);
+      return { success: false, message: `Error creating commission: ${error.message}` };
+    }
+  }
+
   async calculateCommission(
     showroomId: string,
     salesPersonId?: string,
