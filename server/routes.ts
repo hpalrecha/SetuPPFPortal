@@ -1353,22 +1353,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(500).json({ error: "Failed to approve job card" });
         }
 
-        // Update existing payout with NEW UNIFIED pricing logic during approval
+        // 🔄 ENHANCED: Update existing payout with NEW UNIFIED pricing logic during approval
         let payoutAmount = '0.00';
+        console.log(`🚀 APPROVAL STARTED: Processing payout for job card ${jobCardId}`);
+        
         try {
           // Check for existing payout (should exist from completion step)
           const existingPayouts = await storage.getPayouts({ jobCardId });
+          console.log(`📋 PAYOUT CHECK: Found ${existingPayouts.length} existing payouts for job card ${jobCardId}`);
           
           if (existingPayouts.length === 0) {
-            console.error(`⚠️ No payout found for job card ${jobCardId} during approval - this should not happen`);
-            // Don't create here - payout should have been created during completion
-          } else {
-            // 🚀 FIXED: Use NEW UNIFIED PRICING LOGIC (same as JobCardService)
-            // Get service details for category-based pricing
+            console.error(`⚠️ CRITICAL: No payout found for job card ${jobCardId} during approval - creating emergency payout`);
+            // Emergency payout creation if missing
+            await storage.createPayout({
+              jobCardId,
+              partnerId: jobCard.partnerId,
+              grossAmount: '0.00',
+              netAmount: '0.00',
+              status: 'pending_review'
+            });
+            const newPayouts = await storage.getPayouts({ jobCardId });
+            console.log(`🆘 EMERGENCY: Created payout ${newPayouts[0]?.id} for job card ${jobCardId}`);
+          }
+
+          // Get the payout (either existing or newly created)
+          const currentPayouts = await storage.getPayouts({ jobCardId });
+          const existingPayout = currentPayouts[0];
+          
+          if (existingPayout) {
+            console.log(`💰 PAYOUT FOUND: ${existingPayout.id} with current amount ₹${existingPayout.grossAmount} (status: ${existingPayout.status})`);
+            
+            // 🚀 APPLY NEW UNIFIED PRICING LOGIC
             const service = await storage.getService(workOrder.serviceId);
             const serviceCategoryId = service?.serviceCategoryId || null;
+            console.log(`🔍 SERVICE LOOKUP: Service ${workOrder.serviceId} has category ${serviceCategoryId}`);
 
             if (serviceCategoryId) {
+              console.log(`🎯 PRICING PARAMS: partnerId=${jobCard.partnerId}, serviceCategoryId=${serviceCategoryId}, vehicleModelId=${workOrder.vehicleModelId}`);
+              
               const pricingResult = await storage.resolvePayoutPricing(
                 jobCard.partnerId,       // partnerId (FIRST)
                 serviceCategoryId,       // serviceCategoryId (SECOND)  
@@ -1377,28 +1399,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
               if (pricingResult) {
                 payoutAmount = pricingResult.amount;
-                console.log(`🚀 NEW UNIFIED APPROVAL PRICING: ₹${payoutAmount} using rule ${pricingResult.ruleId}`);
+                console.log(`✅ PRICING SUCCESS: Found rule ${pricingResult.ruleId} → ₹${payoutAmount}`);
               } else {
-                console.log(`⚠️ No pricing rule found with NEW logic - payout marked as pending review`);
+                console.log(`❌ PRICING FAILED: No rule found for partner=${jobCard.partnerId}, category=${serviceCategoryId}, vehicle=${workOrder.vehicleModelId}`);
                 payoutAmount = '0.00';
               }
             } else {
-              console.log(`⚠️ No service category found for pricing calculation`);
+              console.log(`❌ SERVICE ERROR: No service category found for service ${workOrder.serviceId}`);
               payoutAmount = '0.00';
             }
 
             // Update existing payout with NEW status and correct pricing
-            const existingPayout = existingPayouts[0];
+            const newStatus = payoutAmount !== '0.00' ? 'due' : 'pending_review';
+            console.log(`🔄 UPDATING PAYOUT: ${existingPayout.id} → ₹${payoutAmount} (${newStatus})`);
+            
             await storage.updatePayout(existingPayout.id, {
               grossAmount: payoutAmount,
               netAmount: payoutAmount,
-              status: payoutAmount !== '0.00' ? 'due' : 'pending_review'  // NEW STATUS PROGRESSION
+              status: newStatus
             });
 
-            console.log(`✅ UNIFIED APPROVAL: Updated payout to ₹${payoutAmount} (${payoutAmount !== '0.00' ? 'due' : 'pending_review'}) for job card ${jobCardId}`);
+            console.log(`✅ APPROVAL COMPLETE: Payout ${existingPayout.id} updated to ₹${payoutAmount} (${newStatus}) for job card ${jobCardId}`);
           }
         } catch (payoutError) {
-          console.error("Failed to update payout for job card:", payoutError);
+          console.error(`❌ PAYOUT ERROR: Failed to update payout for job card ${jobCardId}:`, payoutError);
           // Don't fail the approval if payout update fails
         }
 
