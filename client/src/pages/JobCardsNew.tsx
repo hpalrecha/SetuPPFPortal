@@ -1078,8 +1078,11 @@ export default function JobCardsNew() {
                                 src={imageUrl}
                                 alt={imageName}
                                 className="w-full h-24 object-cover rounded-lg border cursor-pointer hover:opacity-75 transition-opacity"
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
                                   console.log('Image clicked:', imageUrl, index);
+                                  alert(`Image clicked: ${imageName}`);
                                   setSelectedImageUrl(imageUrl);
                                   setSelectedImageIndex(index);
                                 }}
@@ -1088,7 +1091,7 @@ export default function JobCardsNew() {
                               <div className="absolute bottom-1 left-1 bg-black/70 text-white text-xs px-1 rounded">
                                 {imageName}
                               </div>
-                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                                 <Eye className="h-6 w-6 text-white drop-shadow-lg" />
                               </div>
                             </div>
