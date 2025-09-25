@@ -253,28 +253,27 @@ export class JobCardService {
       throw new Error('Associated work order not found');
     }
 
-    // Resolve detailer pricing for payout calculation using the same logic as completion
+    // FIXED: Use the SAME NEW simplified pricing logic as completion
     let detailerPayoutAmount = 0;
     try {
-      // Get service details for category-based pricing (FIXED: approval was missing this!)
+      // Get service details for category-based pricing
       const service = await storage.getService(workOrder.serviceId);
       const serviceCategoryId = service?.serviceCategoryId || null;
 
-      // Use the same proper detailer pricing resolution as completion
-      const pricingResult = await storage.resolveDetailerPricing(
-        jobCard.partnerId,        // detailerId
-        workOrder.serviceId,      // serviceId
-        serviceCategoryId,        // serviceCategoryId - FIXED: now properly passed
-        workOrder.vehicleModelId, // vehicleModelId
-        workOrder.dealershipId,   // dealershipId
-        workOrder.showroomId      // showroomId
-      );
+      // Use the NEW simplified payout pricing (SAME as completion!)
+      const pricingResult = serviceCategoryId 
+        ? await storage.resolvePayoutPricing(
+            jobCard.partnerId,       // partnerId (FIRST)
+            serviceCategoryId,       // serviceCategoryId (SECOND)  
+            workOrder.vehicleModelId // vehicleModelId (THIRD)
+          )
+        : null;
 
       if (pricingResult) {
         detailerPayoutAmount = Number(pricingResult.amount);
-        console.log(`✅ Resolved detailer pricing: ₹${detailerPayoutAmount} using rule ${pricingResult.ruleId} (${pricingResult.context})`);
+        console.log(`✅ NEW SIMPLIFIED PRICING: ₹${detailerPayoutAmount} using rule ${pricingResult.ruleId}`);
       } else {
-        console.log(`⚠️ No pricing rule found for detailer payout - marked as NEEDS_REVIEW`);
+        console.log(`⚠️ No pricing rule found - payout marked as pending_review for manual review`);
       }
     } catch (error) {
       console.error('Error resolving detailer pricing:', error);
