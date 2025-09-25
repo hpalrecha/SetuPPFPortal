@@ -2048,13 +2048,14 @@ export class DatabaseStorage implements IStorage {
     try {
       console.log("🎯 NEW SIMPLIFIED PRICING:", { partnerId, serviceCategoryId, vehicleModelId });
       
+      // 🔧 FIXED: Use global 'db' instead of 'this.db' and correct column name 'partnerId'
       // Simple rule: Find pricing for specific installer + category + vehicle
-      const exactMatch = await this.db.select()
+      const exactMatch = await db.select()
         .from(pricingRules)
         .where(
           and(
             eq(pricingRules.pricingType, "DETAILER_PRICING"),
-            eq(pricingRules.detailerId, partnerId),
+            eq(pricingRules.partnerId, partnerId),  // FIXED: use partnerId not detailerId
             eq(pricingRules.serviceCategoryId, serviceCategoryId),
             eq(pricingRules.vehicleModelId, vehicleModelId),
             eq(pricingRules.status, "ACTIVE")
@@ -2071,7 +2072,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Fallback: Global category rule for vehicle (any installer)
-      const globalMatch = await this.db.select()
+      const globalMatch = await db.select()
         .from(pricingRules)
         .where(
           and(
@@ -2079,7 +2080,7 @@ export class DatabaseStorage implements IStorage {
             eq(pricingRules.serviceCategoryId, serviceCategoryId),
             eq(pricingRules.vehicleModelId, vehicleModelId),
             eq(pricingRules.status, "ACTIVE"),
-            isNull(pricingRules.detailerId)
+            isNull(pricingRules.partnerId)  // FIXED: use partnerId not detailerId
           )
         )
         .limit(1);
