@@ -25,7 +25,9 @@ export class JobCardService {
     });
 
     // Send notification
-    await notificationService.sendJobCardAcknowledged(updatedJobCard);
+    if (updatedJobCard) {
+      await notificationService.sendJobCardAcknowledged(updatedJobCard);
+    }
 
     return updatedJobCard;
   }
@@ -50,7 +52,9 @@ export class JobCardService {
     });
 
     // Send notification
-    await notificationService.sendJobCardScheduled(updatedJobCard);
+    if (updatedJobCard) {
+      await notificationService.sendJobCardScheduled(updatedJobCard);
+    }
 
     return updatedJobCard;
   }
@@ -79,7 +83,9 @@ export class JobCardService {
     await this.createDetailerPayout(jobCardId);
 
     // Send notification
-    await notificationService.sendJobCardStarted(updatedJobCard);
+    if (updatedJobCard) {
+      await notificationService.sendJobCardStarted(updatedJobCard);
+    }
 
     return updatedJobCard;
   }
@@ -127,7 +133,7 @@ export class JobCardService {
               workOrderNumber: workOrder.workOrderNumber || workOrder.id.slice(0, 8),
               vehicleDetails: `${workOrder.vehicleModel || 'Vehicle'} ${workOrder.vehicleVariant || ''}`.trim(),
               completedAt: updatedJobCard.completedAt || new Date(),
-              partnerName: (await storage.getPartner(jobCard.partnerId))?.businessName || 'Partner'
+              partnerName: (await storage.getPartner(jobCard.partnerId))?.displayName || 'Partner'
             }
           );
         }
@@ -321,38 +327,38 @@ export class JobCardService {
     // Update work order
     await storage.updateWorkOrder(jobCard.workOrderId, {
       status: 'APPROVED',
-      finalPrice,
+      estimatedPrice: finalPrice,  // Use estimatedPrice instead of finalPrice
       approvedAt: new Date()
     });
 
-    // Create approval record
-    await storage.createApproval({
-      jobCardId,
-      approverUserId: userId,
-      status: 'APPROVED',
-      remarks
-    });
+    // TODO: Create approval record (createApproval method needs to be implemented)
+    // await storage.createApproval({
+    //   jobCardId,
+    //   approverUserId: userId,
+    //   status: 'APPROVED',
+    //   remarks
+    // });
 
-    // Update existing payout instead of creating duplicate
+    // FIXED: Update existing payout using NEW status and logic
     const existingPayouts = await storage.getPayouts({ jobCardId });
     if (existingPayouts.length > 0) {
-      // Update existing payout with detailer payout amount  
+      // Update existing payout with NEW simplified pricing amount and status
       await storage.updatePayout(existingPayouts[0].id, {
-        grossAmount: detailerPayoutAmount,
-        netAmount: detailerPayoutAmount,
-        status: 'COMPUTED'
+        grossAmount: detailerPayoutAmount.toString(),
+        netAmount: detailerPayoutAmount.toString(), 
+        status: 'due'  // NEW STATUS: pending_review → due → paid
       });
-      console.log(`✅ Updated existing payout to COMPUTED status with detailer payout: ₹${detailerPayoutAmount}`);
+      console.log(`✅ Updated existing payout to DUE status with NEW pricing: ₹${detailerPayoutAmount}`);
     } else {
-      // Fallback: create payout if somehow none exists
+      // Fallback: create payout using NEW logic if somehow none exists
       await storage.createPayout({
         jobCardId,
         partnerId: jobCard.partnerId,
-        grossAmount: detailerPayoutAmount,
-        netAmount: detailerPayoutAmount,
-        status: 'COMPUTED'
+        grossAmount: detailerPayoutAmount.toString(),
+        netAmount: detailerPayoutAmount.toString(),
+        status: 'due'  // NEW STATUS: pending_review → due → paid
       });
-      console.log(`⚠️ No existing payout found, created new COMPUTED payout`);
+      console.log(`⚠️ No existing payout found, created new DUE payout with NEW pricing: ₹${detailerPayoutAmount}`);
     }
 
     // Update existing commission instead of creating duplicate
