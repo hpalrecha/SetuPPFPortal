@@ -69,7 +69,9 @@ export class WorkOrderService {
         workOrder.showroomId,
         workOrder.salesPersonId,
         workOrder.serviceId,
-        Number(workOrder.estimatedPrice || 0)
+        Number(workOrder.estimatedPrice || 0),
+        workOrder.oemId,
+        workOrder.dealershipId
       );
 
       console.log(`💰 Commission calculation result:`, {
@@ -105,7 +107,11 @@ export class WorkOrderService {
         const salesPerson = await storage.getSalesPerson(workOrder.salesPersonId);
         const salesPersonName = salesPerson?.name || `ID:${workOrder.salesPersonId}`;
         
-        console.log(`✅ Commission created for ${salesPersonName} on Work Order ${workOrderId} = ₹${commission.amount}`);
+        console.log(`✅ Commission created for ${salesPersonName} on Work Order ${workOrderId} = ₹${commission.amount} (Rule found: ${commission.ruleFound})`);
+        
+        if (!commission.ruleFound) {
+          console.log(`⚠️ WARNING: No commission rule found for ${salesPersonName} in showroom ${workOrder.showroomId}`);
+        }
       } else {
         console.log(`⚠️ Commission already exists for work order ${workOrderId}, skipping creation. Existing count: ${existingCommissions.commissions.length}`);
       }
@@ -142,7 +148,9 @@ export class WorkOrderService {
         workOrder.showroomId,
         workOrder.salesPersonId,
         workOrder.serviceId,
-        finalPrice
+        finalPrice,
+        workOrder.oemId,
+        workOrder.dealershipId
       );
 
       console.log(`💰 Updated commission calculation:`, {
