@@ -130,6 +130,10 @@ export interface IStorage {
   insertJobCardMedia(media: { jobCardId: string; type: string; url: string; caption?: string }): Promise<any>;
   getJobCardMedia(filters: { jobCardId: string }): Promise<any[]>;
 
+  // Approval management  
+  createApproval(approval: { jobCardId: string; approverUserId: string; status: string; remarks?: string }): Promise<any>;
+  getApprovals(filters?: { jobCardId?: string }): Promise<any[]>;
+
   // Partner management
   getPartners(filters?: { oemId?: string; type?: string }): Promise<Partner[]>;
   getPartner(id: string): Promise<Partner | undefined>;
@@ -1041,6 +1045,29 @@ export class DatabaseStorage implements IStorage {
     return media;
   }
 
+  // ====================== Approval Management ======================
+  async createApproval(approval: { jobCardId: string; approverUserId: string; status: string; remarks?: string }): Promise<any> {
+    const [created] = await db.insert(approvals).values({
+      jobCardId: approval.jobCardId,
+      approverUserId: approval.approverUserId,
+      status: approval.status,
+      remarks: approval.remarks || null,
+      decidedAt: new Date()
+    }).returning();
+    return created;
+  }
+
+  async getApprovals(filters?: { jobCardId?: string }): Promise<any[]> {
+    let query = db.select().from(approvals);
+    
+    if (filters?.jobCardId) {
+      query = query.where(eq(approvals.jobCardId, filters.jobCardId));
+    }
+    
+    return await query;
+  }
+
+  // ====================== Partner CRUD ======================
   async getPartners(filters?: { oemId?: string; type?: string }): Promise<Partner[]> {
     let query = db.select().from(partners).where(eq(partners.active, true));
     
