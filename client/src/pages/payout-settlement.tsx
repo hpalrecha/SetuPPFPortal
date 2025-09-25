@@ -107,13 +107,14 @@ export default function PayoutSettlementPage() {
     switch (status) {
       case 'PAID': return 'bg-green-100 text-green-800 border-green-200';
       case 'PENDING': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'due': return 'bg-orange-100 text-orange-800 border-orange-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
   // Calculate totals
   const currentData = payoutType === "detailers" ? payouts : commissions;
-  const pendingData = currentData.filter((item: any) => item.status === 'PENDING');
+  const pendingData = currentData.filter((item: any) => item.status === 'PENDING' || item.status === 'due');
   const totalPending = pendingData.reduce((sum: number, item: any) => {
     const amount = payoutType === "detailers" ? item.netAmount : item.computedAmount;
     return sum + Number(amount);
@@ -318,7 +319,7 @@ export default function PayoutSettlementPage() {
                       )}
                     </div>
                     
-                    {item.status === 'PENDING' && (
+                    {(item.status === 'PENDING' || item.status === 'due') && (
                       <div className="flex space-x-2">
                         <Button
                           onClick={() => handleSettle(item, payoutType === "detailers" ? "payout" : "commission")}
