@@ -175,6 +175,7 @@ const STATUS_LABELS = {
 export default function JobCardsNew() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedJobCard, setSelectedJobCard] = useState<EnrichedJobCard | null>(null);
+  const [selectedJobCardId, setSelectedJobCardId] = useState<string | null>(null);
   const [selectedDetailerJobCard, setSelectedDetailerJobCard] = useState<string | null>(null);
   const [selectedApprovalJobCard, setSelectedApprovalJobCard] = useState<string | null>(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
@@ -258,6 +259,17 @@ export default function JobCardsNew() {
       
       return enrichedJobCards;
     }
+  });
+
+  // Fetch detailed job card data including media when one is selected
+  const { data: detailedJobCard } = useQuery({
+    queryKey: ['/api/job-cards', selectedJobCardId],
+    queryFn: async () => {
+      if (!selectedJobCardId) return null;
+      const response = await apiRequest('GET', `/api/job-cards/${selectedJobCardId}`);
+      return response.json();
+    },
+    enabled: !!selectedJobCardId
   });
 
   const formatDate = (dateString?: string) => {
@@ -350,8 +362,8 @@ export default function JobCardsNew() {
       // Show approval modal for showroom users
       setSelectedApprovalJobCard(jobCard.id);
     } else {
-      // Show basic details modal for other cases
-      setSelectedJobCard(jobCard);
+      // Show basic details modal for other cases - fetch detailed data including media
+      setSelectedJobCardId(jobCard.id);
     }
   };
   
@@ -769,7 +781,10 @@ export default function JobCardsNew() {
       )}
 
       {/* Job Card Detail Modal - Enhanced UI */}
-      <Dialog open={!!selectedJobCard} onOpenChange={() => setSelectedJobCard(null)}>
+      <Dialog open={!!selectedJobCardId} onOpenChange={() => {
+        setSelectedJobCardId(null);
+        setSelectedJobCard(null);
+      }}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b pb-4">
             <div className="flex items-center gap-3">
@@ -778,7 +793,7 @@ export default function JobCardsNew() {
               </div>
               <div>
                 <DialogTitle className="text-xl font-bold">
-                  Job Card Details - {selectedJobCard?.id}
+                  Job Card Details - {detailedJobCard?.id}
                 </DialogTitle>
                 <p className="text-sm text-muted-foreground mt-1">
                   Comprehensive job card information and status tracking
@@ -787,7 +802,7 @@ export default function JobCardsNew() {
             </div>
           </DialogHeader>
           
-          {selectedJobCard && (
+          {detailedJobCard && (
             <div className="flex-1 pr-2">
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 py-4">
                 
@@ -803,24 +818,24 @@ export default function JobCardsNew() {
                     <div>
                       <span className="text-sm text-muted-foreground">Job Card ID</span>
                       <p className="font-mono text-xs bg-muted px-2 py-1 rounded mt-1 break-all" data-testid="text-job-card-id">
-                        {selectedJobCard.id}
+                        {detailedJobCard.id}
                       </p>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Status</span>
-                      {getStatusBadge(selectedJobCard.status)}
+                      {getStatusBadge(detailedJobCard.status)}
                     </div>
                     <div>
                       <span className="text-sm text-muted-foreground">Work Order ID</span>
                       <p className="font-mono text-xs bg-muted px-2 py-1 rounded mt-1 break-all" data-testid="text-work-order-id">
-                        {selectedJobCard.workOrderId}
+                        {detailedJobCard.workOrderId}
                       </p>
                     </div>
-                    {selectedJobCard.acknowledgedAt && (
+                    {detailedJobCard.acknowledgedAt && (
                       <div>
                         <span className="text-sm text-muted-foreground">Acknowledged Date</span>
                         <p className="font-medium text-sm" data-testid="text-acknowledged-date">
-                          {formatDateTime(selectedJobCard.acknowledgedAt)}
+                          {formatDateTime(detailedJobCard.acknowledgedAt)}
                         </p>
                       </div>
                     )}
@@ -828,12 +843,12 @@ export default function JobCardsNew() {
                       <div className="flex items-center gap-2 text-sm">
                         <Calendar className="h-4 w-4 text-green-600" />
                         <span className="text-muted-foreground">Created:</span>
-                        <span className="font-medium">{formatDateTime(selectedJobCard.createdAt)}</span>
+                        <span className="font-medium">{formatDateTime(detailedJobCard?.createdAt)}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                         <Clock className="h-4 w-4 text-orange-600" />
                         <span className="text-muted-foreground">Updated:</span>
-                        <span className="font-medium">{formatDateTime(selectedJobCard.updatedAt)}</span>
+                        <span className="font-medium">{formatDateTime(detailedJobCard?.updatedAt)}</span>
                       </div>
                     </div>
                   </CardContent>
@@ -852,7 +867,7 @@ export default function JobCardsNew() {
                       <User className="h-4 w-4 text-muted-foreground" />
                       <div>
                         <span className="text-sm text-muted-foreground">Name</span>
-                        <p className="font-medium">{selectedJobCard.customerName}</p>
+                        <p className="font-medium">{detailedJobCard.workOrder?.customerName}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -860,7 +875,7 @@ export default function JobCardsNew() {
                       <div>
                         <span className="text-sm text-muted-foreground">Phone</span>
                         <p className="font-medium font-mono">
-                          {selectedJobCard.workOrder?.customerPhone || 'N/A'}
+                          {detailedJobCard.workOrder?.customerPhone || 'N/A'}
                         </p>
                       </div>
                     </div>
@@ -869,7 +884,7 @@ export default function JobCardsNew() {
                       <div>
                         <span className="text-sm text-muted-foreground">Email</span>
                         <p className="font-medium text-sm">
-                          {selectedJobCard.workOrder?.customerEmail || 'N/A'}
+                          {detailedJobCard.workOrder?.customerEmail || 'N/A'}
                         </p>
                       </div>
                     </div>
@@ -890,7 +905,7 @@ export default function JobCardsNew() {
                       <div>
                         <span className="text-sm text-muted-foreground">Vehicle</span>
                         <p className="font-medium text-sm leading-relaxed">
-                          {selectedJobCard.vehicleDisplay}
+                          {detailedJobCard.workOrder?.vehicleModel?.modelName || 'N/A'}
                         </p>
                       </div>
                     </div>
@@ -898,16 +913,16 @@ export default function JobCardsNew() {
                       <ServiceIcon className="h-4 w-4 text-muted-foreground mt-1" />
                       <div>
                         <span className="text-sm text-muted-foreground">Service</span>
-                        <p className="font-medium text-sm">{selectedJobCard.serviceDisplay}</p>
+                        <p className="font-medium text-sm">{detailedJobCard.workOrder?.service?.name || 'N/A'}</p>
                       </div>
                     </div>
-                    {selectedJobCard.workOrder?.serviceDescription && (
+                    {detailedJobCard.workOrder?.service?.description && (
                       <div className="flex items-start gap-3">
                         <FileText className="h-4 w-4 text-muted-foreground mt-1" />
                         <div>
                           <span className="text-sm text-muted-foreground">Description</span>
                           <p className="text-sm leading-relaxed">
-                            {selectedJobCard.workOrder.serviceDescription}
+                            {detailedJobCard.workOrder.service.description}
                           </p>
                         </div>
                       </div>
@@ -928,21 +943,21 @@ export default function JobCardsNew() {
                       <Building2 className="h-4 w-4 text-muted-foreground mt-1" />
                       <div>
                         <span className="text-sm text-muted-foreground">Partner</span>
-                        <p className="font-medium">{selectedJobCard.partnerDisplay}</p>
+                        <p className="font-medium">{detailedJobCard.partner?.displayName || 'N/A'}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <Users className="h-4 w-4 text-muted-foreground" />
                       <div>
                         <span className="text-sm text-muted-foreground">Business Type</span>
-                        <p className="font-medium">{selectedJobCard.partner?.businessType || 'N/A'}</p>
+                        <p className="font-medium">{detailedJobCard.partner?.businessType || 'N/A'}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <User className="h-4 w-4 text-muted-foreground" />
                       <div>
                         <span className="text-sm text-muted-foreground">Contact Person</span>
-                        <p className="font-medium">{selectedJobCard.partner?.contactPersonName || 'N/A'}</p>
+                        <p className="font-medium">{detailedJobCard.partner?.contactPersonName || 'N/A'}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -950,7 +965,7 @@ export default function JobCardsNew() {
                       <div>
                         <span className="text-sm text-muted-foreground">Contact Phone</span>
                         <p className="font-medium font-mono">
-                          {selectedJobCard.partner?.contactPersonPhone || 'N/A'}
+                          {detailedJobCard.partner?.contactPersonPhone || 'N/A'}
                         </p>
                       </div>
                     </div>
@@ -968,11 +983,11 @@ export default function JobCardsNew() {
                   <CardContent className="space-y-3">
                     <div className="space-y-2">
                       {[
-                        { label: 'Acknowledged', date: selectedJobCard.acknowledgedAt, icon: CheckCircle2 },
-                        { label: 'Scheduled', date: selectedJobCard.scheduledAt, icon: Calendar },
-                        { label: 'Started', date: selectedJobCard.startedAt, icon: Play },
-                        { label: 'Completed', date: selectedJobCard.completedAt, icon: Wrench },
-                        { label: 'Approved', date: selectedJobCard.approvedAt, icon: Trophy }
+                        { label: 'Acknowledged', date: detailedJobCard?.acknowledgedAt, icon: CheckCircle2 },
+                        { label: 'Scheduled', date: detailedJobCard?.scheduledAt, icon: Calendar },
+                        { label: 'Started', date: detailedJobCard.startedAt, icon: Play },
+                        { label: 'Completed', date: detailedJobCard.completedAt, icon: Wrench },
+                        { label: 'Approved', date: detailedJobCard.approvedAt, icon: Trophy }
                       ].map((item, index) => (
                         <div key={index} className="flex items-center gap-3 text-sm">
                           <item.icon className={`h-4 w-4 ${item.date ? 'text-green-600' : 'text-gray-300'}`} />
@@ -999,32 +1014,32 @@ export default function JobCardsNew() {
                       <div>
                         <span className="text-sm text-muted-foreground">Assigned Installer</span>
                         <p className="font-medium text-sm" data-testid="text-assigned-installer">
-                          {selectedJobCard.assignedInstaller?.displayName || selectedJobCard.assignedInstallerId || 'Not assigned'}
+                          {detailedJobCard.assignedInstaller?.displayName || detailedJobCard.assignedInstallerId || 'Not assigned'}
                         </p>
                       </div>
-                      {selectedJobCard.remarks && (
+                      {detailedJobCard.remarks && (
                         <div>
                           <span className="text-sm text-muted-foreground">Remarks</span>
                           <p className="text-sm leading-relaxed bg-muted p-2 rounded">
-                            {selectedJobCard.remarks}
+                            {detailedJobCard.remarks}
                           </p>
                         </div>
                       )}
-                      {selectedJobCard.partnerRemarks && (
+                      {detailedJobCard.partnerRemarks && (
                         <div>
                           <span className="text-sm text-muted-foreground">Partner Remarks</span>
                           <p className="text-sm leading-relaxed bg-orange-50 p-2 rounded">
-                            {selectedJobCard.partnerRemarks}
+                            {detailedJobCard.partnerRemarks}
                           </p>
                         </div>
                       )}
-                      {selectedJobCard.batchNumbers && (
+                      {detailedJobCard.batchNumbers && (
                         <div>
                           <span className="text-sm text-muted-foreground">Batch Numbers</span>
                           <div className="flex flex-wrap gap-1 mt-1">
-                            {(Array.isArray(selectedJobCard.batchNumbers) 
-                              ? selectedJobCard.batchNumbers 
-                              : [selectedJobCard.batchNumbers]
+                            {(Array.isArray(detailedJobCard.batchNumbers) 
+                              ? detailedJobCard.batchNumbers 
+                              : [detailedJobCard.batchNumbers]
                             ).map((batch, i) => (
                               <span key={i} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
                                 {batch}
@@ -1046,9 +1061,9 @@ export default function JobCardsNew() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {selectedJobCard.media && selectedJobCard.media.length > 0 ? (
+                    {detailedJobCard?.media && detailedJobCard.media.length > 0 ? (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {selectedJobCard.media.map((mediaItem: any, index: number) => {
+                        {detailedJobCard.media.map((mediaItem: any, index: number) => {
                           const imageUrl = mediaItem.url;
                           const imageName = mediaItem.caption || ['Front', 'Back', 'Left', 'Right'][index] || `Image ${index + 1}`;
                           return (
@@ -1080,7 +1095,7 @@ export default function JobCardsNew() {
                 </Card>
 
                 {/* Admin Approval Section */}
-                {isAdmin && (selectedJobCard.status === 'COMPLETED' || selectedJobCard.status === 'PENDING_APPROVAL') && (
+                {isAdmin && (detailedJobCard.status === 'COMPLETED' || detailedJobCard.status === 'PENDING_APPROVAL') && (
                   <Card className="col-span-1 lg:col-span-2 xl:col-span-3 border-2 border-dashed border-blue-200 bg-blue-50/50">
                     <CardHeader className="pb-3">
                       <div className="flex items-center gap-2">
@@ -1091,7 +1106,7 @@ export default function JobCardsNew() {
                     <CardContent>
                       <div className="flex flex-col sm:flex-row gap-3">
                         <Button
-                          onClick={() => approveJobCardMutation.mutate(selectedJobCard.id)}
+                          onClick={() => approveJobCardMutation.mutate(detailedJobCard.id)}
                           disabled={approveJobCardMutation.isPending}
                           className="bg-green-600 hover:bg-green-700 text-white"
                           data-testid="button-approve"
@@ -1107,7 +1122,7 @@ export default function JobCardsNew() {
                           onClick={() => {
                             const reason = prompt('Please provide a reason for requesting rework:');
                             if (reason) {
-                              rejectJobCardMutation.mutate({ jobCardId: selectedJobCard.id, reason });
+                              rejectJobCardMutation.mutate({ jobCardId: detailedJobCard.id, reason });
                             }
                           }}
                           disabled={rejectJobCardMutation.isPending}
