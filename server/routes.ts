@@ -2062,6 +2062,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Partner Payout Settlement - Allow partners to settle their own payouts  
+  app.post("/api/partner-staff/payouts/:id/settle",
+    authenticate,
+    requireRole(['PARTNER_STAFF', 'PARTNER_ADMIN']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const user = req.user!;
+        
+        // Get payment reference from request body
+        const { paymentReference } = req.body;
+        
+        // Verify the payout exists and belongs to this partner
+        const payout = await storage.getPayout(id);
+        if (!payout) {
+          return res.status(404).json({ error: "Payout not found" });
+        }
+        
+        // Security check: Partner can only settle their own payouts
+        if (payout.partnerId !== user.partnerId) {
+          return res.status(403).json({ error: "Access denied - you can only settle your own payouts" });
+        }
+        
+        // Check if already settled
+        if (payout.status === 'paid') {
+          return res.json({ message: "Payout already settled", payout });
+        }
+        
+        // Check if payout is due (can only settle due payouts)
+        if (payout.status !== 'due') {
+          return res.status(400).json({ error: "Payout must be in 'due' status to be settled" });
+        }
+        
+        // Settle the payout
+        const success = await storage.settlePayout(id, {
+          paymentReference: paymentReference || `PAY-${Date.now()}`,
+          settledAt: new Date(),
+          settledBy: user.id
+        });
+        
+        if (success) {
+          res.json({ message: "Payout settled successfully" });
+        } else {
+          res.status(500).json({ error: "Failed to settle payout" });
+        }
+      } catch (error) {
+        console.error("Partner settle payout error:", error);
+        res.status(500).json({ error: "Failed to settle payout" });
+      }
+    }
+  );
+
   // Pricing Rules Routes
   app.get("/api/pricing-rules", authenticate, requireOEMAccess, async (req, res) => {
     try {
