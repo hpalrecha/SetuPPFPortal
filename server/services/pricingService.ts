@@ -171,6 +171,73 @@ export class PricingService {
       return rule.status === 'ACTIVE';
     });
   }
+
+  /**
+   * Calculate estimated price for a work order based on DEALERSHIP_PRICING rules
+   * This is specifically for work order creation, not partner pricing
+   */
+  async calculateWorkOrderPrice(
+    dealershipId: string,
+    vehicleModelId: string,
+    serviceId: string,
+    quantity: number = 1
+  ): Promise<{ price: number; ruleFound: boolean; source?: string; rule?: any }> {
+    try {
+      console.log(`💰 Calculating work order price:`, {
+        dealershipId,
+        vehicleModelId,
+        serviceId,
+        quantity
+      });
+
+      // Look for DEALERSHIP_PRICING rule
+      const dealershipRules = await storage.getPricingRules({
+        pricingType: 'DEALERSHIP_PRICING',
+        dealershipId
+      });
+
+      // Find rule that matches vehicle model and service
+      const matchingRule = dealershipRules.find(rule => 
+        rule.vehicleModelId === vehicleModelId && 
+        rule.serviceId === serviceId &&
+        rule.status === 'ACTIVE'
+      );
+
+      if (matchingRule) {
+        const totalPrice = Number(matchingRule.priceAmount) * quantity;
+        
+        console.log(`✅ Found dealership pricing rule:`, {
+          ruleId: matchingRule.id,
+          priceAmount: matchingRule.priceAmount,
+          quantity,
+          totalPrice
+        });
+
+        return {
+          price: totalPrice,
+          ruleFound: true,
+          source: 'DEALERSHIP_PRICING',
+          rule: matchingRule
+        };
+      }
+
+      console.log(`❌ No dealership pricing rule found for service ${serviceId} and vehicle ${vehicleModelId}`);
+      
+      return {
+        price: 0,
+        ruleFound: false,
+        source: 'NO_RULE_FOUND'
+      };
+
+    } catch (error) {
+      console.error('Error calculating work order price:', error);
+      return {
+        price: 0,
+        ruleFound: false,
+        source: 'ERROR'
+      };
+    }
+  }
 }
 
 export const pricingService = new PricingService();
