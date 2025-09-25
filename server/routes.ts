@@ -1353,7 +1353,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(500).json({ error: "Failed to approve job card" });
         }
 
-        // Update existing payout with proper pricing during approval
+        // Update existing payout with NEW UNIFIED pricing logic during approval
+        let payoutAmount = '0.00';
         try {
           // Check for existing payout (should exist from completion step)
           const existingPayouts = await storage.getPayouts({ jobCardId });
@@ -1362,35 +1363,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.error(`⚠️ No payout found for job card ${jobCardId} during approval - this should not happen`);
             // Don't create here - payout should have been created during completion
           } else {
-            // Recalculate payout with proper pricing 
-            const pricingResult = await storage.resolveDetailerPricing(
-              jobCard.partnerId,        // detailerId
-              workOrder.serviceId,      // serviceId
-              null,                     // serviceCategoryId (not used in this context)
-              workOrder.vehicleModelId, // vehicleModelId
-              workOrder.dealershipId,   // dealershipId
-              workOrder.showroomId      // showroomId
-            );
+            // 🚀 FIXED: Use NEW UNIFIED PRICING LOGIC (same as JobCardService)
+            // Get service details for category-based pricing
+            const service = await storage.getService(workOrder.serviceId);
+            const serviceCategoryId = service?.serviceCategoryId || null;
 
-            let payoutAmount = '0.00';
-            let payoutStatus: 'pending_review' | 'due' | 'paid' = 'pending_review';
+            if (serviceCategoryId) {
+              const pricingResult = await storage.resolvePayoutPricing(
+                jobCard.partnerId,       // partnerId (FIRST)
+                serviceCategoryId,       // serviceCategoryId (SECOND)  
+                workOrder.vehicleModelId // vehicleModelId (THIRD)
+              );
 
-            if (pricingResult) {
-              payoutAmount = pricingResult.amount;
-              console.log(`✅ Resolved detailer pricing: ₹${payoutAmount} using rule ${pricingResult.ruleId} (${pricingResult.context})`);
+              if (pricingResult) {
+                payoutAmount = pricingResult.amount;
+                console.log(`🚀 NEW UNIFIED APPROVAL PRICING: ₹${payoutAmount} using rule ${pricingResult.ruleId}`);
+              } else {
+                console.log(`⚠️ No pricing rule found with NEW logic - payout marked as pending review`);
+                payoutAmount = '0.00';
+              }
             } else {
-              console.log(`⚠️ No pricing rule found for detailer payout - marked as pending_review`);
+              console.log(`⚠️ No service category found for pricing calculation`);
+              payoutAmount = '0.00';
             }
 
-            // Update existing payout with correct pricing
+            // Update existing payout with NEW status and correct pricing
             const existingPayout = existingPayouts[0];
             await storage.updatePayout(existingPayout.id, {
               grossAmount: payoutAmount,
               netAmount: payoutAmount,
-              status: payoutStatus
+              status: payoutAmount !== '0.00' ? 'due' : 'pending_review'  // NEW STATUS PROGRESSION
             });
 
-            console.log(`✅ Updated existing detailer payout: ₹${payoutAmount} (${payoutStatus}) for job card ${jobCardId}`);
+            console.log(`✅ UNIFIED APPROVAL: Updated payout to ₹${payoutAmount} (${payoutAmount !== '0.00' ? 'due' : 'pending_review'}) for job card ${jobCardId}`);
           }
         } catch (payoutError) {
           console.error("Failed to update payout for job card:", payoutError);
