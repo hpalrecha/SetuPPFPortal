@@ -89,48 +89,6 @@ export class WorkOrderService {
       // Don't fail the work order creation if commission creation fails
     }
   }
-      });
-
-      // Create commission even if amount is 0 (will be recalculated when price is confirmed)
-      // Check for existing commission to prevent duplicates
-      const existingCommissions = await storage.getCommissions({
-        workOrderId
-      });
-      
-      if (existingCommissions.commissions.length === 0) {
-        // Create sales commission (PENDING status)
-        const commissionData = {
-          workOrderId,
-          showroomId: workOrder.showroomId,
-          salesPersonId: workOrder.salesPersonId,
-          basis: commission.rule?.type || 'PERCENT',
-          value: Number(commission.rule?.valueNumeric || 0),
-          computedAmount: commission.amount,
-          status: 'PENDING'
-        };
-        
-        console.log(`📝 Creating commission record:`, commissionData);
-        
-        const createdCommission = await storage.createCommission(commissionData);
-        
-        // Get salesperson name for better logging
-        const salesPerson = await storage.getSalesPerson(workOrder.salesPersonId);
-        const salesPersonName = salesPerson?.name || `ID:${workOrder.salesPersonId}`;
-        
-        console.log(`✅ Commission created for ${salesPersonName} on Work Order ${workOrderId} = ₹${commission.amount} (Rule found: ${commission.ruleFound})`);
-        
-        if (!commission.ruleFound) {
-          console.log(`⚠️ WARNING: No commission rule found for ${salesPersonName} in showroom ${workOrder.showroomId}`);
-        }
-      } else {
-        console.log(`⚠️ Commission already exists for work order ${workOrderId}, skipping creation. Existing count: ${existingCommissions.commissions.length}`);
-      }
-    } catch (error) {
-      console.error(`❌ CRITICAL ERROR: Failed to auto-create sales commission for work order ${workOrderId}:`, error);
-      console.error(`📋 Error stack:`, error.stack);
-      // Don't fail the work order creation if commission creation fails
-    }
-  }
 
   // Helper method to update commission with accurate pricing when work order is assigned
   private async updateCommissionWithPricing(workOrderId: string, finalPrice: number): Promise<void> {
