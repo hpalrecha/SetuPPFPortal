@@ -41,44 +41,32 @@ export class WorkOrderService {
     return workOrder;
   }
 
-  // Enhanced method: Auto-create sales commission when work order is created
+  // 🔥 ROBUST COMMISSION CREATION - Uses new bulletproof logic
   private async createSalesCommission(workOrderId: string): Promise<void> {
     try {
-      console.log(`🔍 Commission calculation started for Work Order ${workOrderId}`);
+      console.log(`🔥 ROBUST Commission creation started for Work Order ${workOrderId}`);
       
-      const workOrder = await storage.getWorkOrder(workOrderId);
-      if (!workOrder || !workOrder.salesPersonId || !workOrder.showroomId) {
-        console.log(`❌ Commission skipped for WO ${workOrderId} - Missing required data:`, {
-          workOrderExists: !!workOrder,
-          salesPersonId: workOrder?.salesPersonId || null,
-          showroomId: workOrder?.showroomId || null
+      // Use new robust commission creation method
+      const result = await commissionService.createCommissionForWorkOrder(workOrderId);
+      
+      if (result.success) {
+        console.log(`✅ Commission creation SUCCESS:`, {
+          workOrderId,
+          commissionId: result.commissionId,
+          message: result.message
         });
-        return;
+      } else {
+        console.log(`⚠️ Commission creation SKIPPED:`, {
+          workOrderId,
+          reason: result.message
+        });
       }
-
-      console.log(`📊 Commission calculation parameters:`, {
-        workOrderId,
-        showroomId: workOrder.showroomId,
-        salesPersonId: workOrder.salesPersonId,
-        serviceId: workOrder.serviceId,
-        estimatedPrice: workOrder.estimatedPrice || 0
-      });
-
-      // Calculate commission using existing service (use estimatedPrice or 0 for now)
-      const commission = await commissionService.calculateCommission(
-        workOrder.showroomId,
-        workOrder.salesPersonId,
-        workOrder.serviceId,
-        Number(workOrder.estimatedPrice || 0),
-        workOrder.oemId,
-        workOrder.dealershipId
-      );
-
-      console.log(`💰 Commission calculation result:`, {
-        amount: commission.amount,
-        ruleFound: !!commission.rule,
-        ruleId: commission.rule?.id,
-        calculation: commission.calculation
+    } catch (error) {
+      console.error(`❌ CRITICAL ERROR: Failed to create commission for work order ${workOrderId}:`, error);
+      console.error(`📋 Error stack:`, error.stack);
+      // Don't fail the work order creation if commission creation fails
+    }
+  }
       });
 
       // Create commission even if amount is 0 (will be recalculated when price is confirmed)

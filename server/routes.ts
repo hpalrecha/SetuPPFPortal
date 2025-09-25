@@ -3345,6 +3345,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 🔥 CREATE COMMISSION FOR SPECIFIC WORK ORDER - Robust commission creation
+  app.post("/api/work-orders/:workOrderId/commission", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    async (req, res) => {
+      try {
+        const { workOrderId } = req.params;
+        
+        console.log(`🔥 Manual commission creation requested for work order: ${workOrderId}`);
+        
+        // Use the new robust commission creation method
+        const result = await commissionService.createCommissionForWorkOrder(workOrderId);
+        
+        if (result.success) {
+          res.json({
+            success: true,
+            commissionId: result.commissionId,
+            message: result.message
+          });
+        } else {
+          res.status(400).json({
+            success: false,
+            error: result.message
+          });
+        }
+      } catch (error) {
+        console.error('Commission creation error:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: 'Failed to create commission',
+          details: error.message
+        });
+      }
+    }
+  );
+
   // 🔧 COMMISSION BACKFILL ENDPOINT - Admin only for running commission backfill
   app.post("/api/commissions/backfill", 
     authenticate, 
