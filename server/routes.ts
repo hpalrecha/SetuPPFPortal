@@ -1,5 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import path from "path";
+import fs from "fs";
 import { z } from "zod";
 import { createInsertSchema } from "drizzle-zod";
 import { 
@@ -40,9 +42,24 @@ const upload = multer({
   }
 });
 
-// Configure multer for image uploads (job card media)
+// Configure multer for image uploads (job card media) - save to disk
 const imageUpload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const uploadDir = path.join(process.cwd(), 'uploads', 'job-cards');
+      // Ensure directory exists
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      // Use timestamp and safe filename
+      const timestamp = Date.now();
+      const safeFilename = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      cb(null, `${timestamp}-${safeFilename}`);
+    }
+  }),
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit for images
   },
@@ -3189,14 +3206,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // Generate a safe filename for object storage
-        const timestamp = Date.now();
-        const safeFilename = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-        const fileName = `job-card-media/${jobCardId}/${timestamp}-${safeFilename}`;
-        
-        // For now, store in a temporary location and return a URL
-        // In production, this would upload to object storage via presigned URL
-        const mediaUrl = `/api/media/job-cards/${fileName}`;
+        // File is already saved by multer to uploads/job-cards/
+        // Generate the URL to serve the file
+        const mediaUrl = `/api/media/job-cards/${req.file.filename}`;
 
         // Save media record to database
         const media = await storage.insertJobCardMedia({
@@ -3217,6 +3229,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   );
+
+  // Serve uploaded job card media files
+  app.get("/api/media/job-cards/:filename", async (req, res) => {
+    try {
+      const filename = req.params.filename;
+      const fullPath = path.join(process.cwd(), 'uploads', 'job-cards', filename);
+      
+      // Check if file exists
+      if (!fs.existsSync(fullPath)) {
+        return res.status(404).json({ error: "Media file not found" });
+      }
+      
+      // Serve the file with proper headers
+      res.sendFile(fullPath);
+    } catch (error) {
+      console.error("Error serving media file:", error);
+      res.status(500).json({ error: "Failed to serve media file" });
+    }
+  });
 
   // Test route for payout recalculation (development/testing only - SUPER_ADMIN access only)
   if (process.env.NODE_ENV !== 'production') {
