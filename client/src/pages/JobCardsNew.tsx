@@ -43,6 +43,7 @@ import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import DetailerJobDetailModal from "@/components/job-cards/detailer-job-detail-modal";
 import ApprovalModal from "@/components/job-cards/approval-modal";
+import { ImageModal } from "@/components/ui/image-modal";
 
 // Enhanced Job Card types to match API structure
 interface JobCard {
@@ -179,6 +180,7 @@ export default function JobCardsNew() {
   const [selectedDetailerJobCard, setSelectedDetailerJobCard] = useState<string | null>(null);
   const [selectedApprovalJobCard, setSelectedApprovalJobCard] = useState<string | null>(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   
   // Get current user for admin check
   const { user } = useAuth();
@@ -1072,7 +1074,10 @@ export default function JobCardsNew() {
                                 src={imageUrl}
                                 alt={imageName}
                                 className="w-full h-24 object-cover rounded-lg border cursor-pointer hover:opacity-75 transition-opacity"
-                                onClick={() => setSelectedImageUrl(imageUrl)}
+                                onClick={() => {
+                                  setSelectedImageUrl(imageUrl);
+                                  setSelectedImageIndex(index);
+                                }}
                                 data-testid={`thumbnail-${imageName.toLowerCase()}`}
                               />
                               <div className="absolute bottom-1 left-1 bg-black/70 text-white text-xs px-1 rounded">
@@ -1152,23 +1157,22 @@ export default function JobCardsNew() {
       </Dialog>
 
       {/* Image Preview Modal */}
-      <Dialog open={!!selectedImageUrl} onOpenChange={() => setSelectedImageUrl(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle>Image Preview</DialogTitle>
-          </DialogHeader>
-          {selectedImageUrl && (
-            <div className="flex justify-center">
-              <img
-                src={selectedImageUrl}
-                alt="Job card proof"
-                className="max-w-full max-h-[70vh] object-contain rounded-lg"
-                data-testid="preview-image"
-              />
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {detailedJobCard?.media && detailedJobCard.media.length > 0 && (
+        <ImageModal
+          images={detailedJobCard.media.map((mediaItem: any, index: number) => ({
+            id: mediaItem.id || `media-${index}`,
+            url: mediaItem.url,
+            caption: mediaItem.caption || ['Front', 'Back', 'Left', 'Right'][index] || `Image ${index + 1}`,
+            alt: `Job card media ${index + 1}`
+          }))}
+          initialIndex={selectedImageIndex}
+          isOpen={!!selectedImageUrl}
+          onClose={() => {
+            setSelectedImageUrl(null);
+            setSelectedImageIndex(0);
+          }}
+        />
+      )}
 
       {/* Detailer Job Management Modal */}
       <DetailerJobDetailModal 
