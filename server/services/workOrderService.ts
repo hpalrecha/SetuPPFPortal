@@ -22,7 +22,7 @@ export class WorkOrderService {
       console.log(`📈 Commission creation triggered for WO ${workOrder.id} - Salesperson: ${workOrder.salesPersonId}`);
       await this.createSalesCommission(workOrder.id);
     } else {
-      console.log(`⚠️ No commission creation for WO ${workOrder.id} - Sales Person: ${workOrder.salesPersonId || 'NULL'}, Showroom: ${workOrder.showroomId || 'NULL'}`);
+      console.log(`⚠️ No Salesperson mapped → commission skipped.`);
     }
 
     // Auto-assign partner and create job card immediately for showroom work orders
@@ -99,9 +99,13 @@ export class WorkOrderService {
         
         console.log(`📝 Creating commission record:`, commissionData);
         
-        await storage.createCommission(commissionData);
+        const createdCommission = await storage.createCommission(commissionData);
         
-        console.log(`✅ SUCCESS: Auto-created sales commission ₹${commission.amount} for WO ${workOrderId} (Sales Person: ${workOrder.salesPersonId})`);
+        // Get salesperson name for better logging
+        const salesPerson = await storage.getSalesPerson(workOrder.salesPersonId);
+        const salesPersonName = salesPerson?.name || `ID:${workOrder.salesPersonId}`;
+        
+        console.log(`✅ Commission created for ${salesPersonName} on Work Order ${workOrderId} = ₹${commission.amount}`);
       } else {
         console.log(`⚠️ Commission already exists for work order ${workOrderId}, skipping creation. Existing count: ${existingCommissions.commissions.length}`);
       }
