@@ -1063,10 +1063,6 @@ export default function JobCardsNew() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {(() => {
-                      console.log('JobCard media:', detailedJobCard?.media);
-                      return null;
-                    })()}
                     {detailedJobCard?.media && detailedJobCard.media.length > 0 ? (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {detailedJobCard.media.map((mediaItem: any, index: number) => {
@@ -1081,8 +1077,6 @@ export default function JobCardsNew() {
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  console.log('Image clicked:', imageUrl, index);
-                                  alert(`Image clicked: ${imageName}`);
                                   setSelectedImageUrl(imageUrl);
                                   setSelectedImageIndex(index);
                                 }}
@@ -1175,7 +1169,6 @@ export default function JobCardsNew() {
         initialIndex={selectedImageIndex}
         isOpen={!!selectedImageUrl && !!detailedJobCard?.media}
         onClose={() => {
-          console.log('Modal closing');
           setSelectedImageUrl(null);
           setSelectedImageIndex(0);
         }}

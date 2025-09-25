@@ -132,14 +132,15 @@ export function ImageModal({ images, initialIndex, isOpen, onClose }: ImageModal
         )}
 
         {/* Main image */}
-        <div className="flex items-center justify-center h-[95vh] p-8 overflow-hidden">
+        <div className="flex items-center justify-center h-[95vh] p-8 overflow-auto">
           <img
             src={currentImage.url}
             alt={currentImage.alt || currentImage.caption || `Image ${currentIndex + 1}`}
-            className="max-w-none max-h-none object-contain cursor-grab active:cursor-grabbing"
+            className="max-w-full max-h-full object-contain cursor-grab active:cursor-grabbing"
             style={{
               transform: `scale(${zoomLevel})`,
               transition: 'transform 0.2s ease-in-out',
+              transformOrigin: 'center center',
             }}
             onClick={resetZoom}
             data-testid={`modal-image-${currentIndex}`}
