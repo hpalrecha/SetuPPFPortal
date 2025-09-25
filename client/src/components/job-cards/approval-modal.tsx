@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { X, Check, RotateCcw, CheckCircle, Camera } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { ImageModal } from "@/components/ui/image-modal";
 
 interface ApprovalModalProps {
   jobCardId: string | null;
@@ -17,6 +18,8 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [comments, setComments] = useState("");
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   // Fetch job card data to access media
   const { data: jobCard } = useQuery({
@@ -144,6 +147,7 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
   const proofImages = jobCard?.media || [];
 
   return (
+    <>
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" data-testid="approval-modal">
       <div className="bg-card rounded-lg border shadow-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-border">
@@ -230,8 +234,12 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
                       <img 
                         src={mediaItem.url} 
                         alt={mediaItem.caption || `Proof image ${index + 1}`} 
-                        className="rounded-lg border aspect-square object-cover w-full"
+                        className="rounded-lg border aspect-square object-cover w-full cursor-pointer hover:opacity-80 transition-opacity"
                         data-testid={`proof-image-${index}`}
+                        onClick={() => {
+                          setSelectedImageIndex(index);
+                          setImageModalOpen(true);
+                        }}
                       />
                       {mediaItem.caption && (
                         <p className="text-xs text-muted-foreground text-center" data-testid={`proof-caption-${index}`}>
@@ -299,5 +307,19 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
         </div>
       </div>
     </div>
+    
+    {/* Image Modal */}
+    <ImageModal
+      images={proofImages.map((item: any, idx: number) => ({
+        id: item.id || idx.toString(),
+        url: item.url,
+        caption: item.caption,
+        alt: item.caption || `Proof image ${idx + 1}`
+      }))}
+      initialIndex={selectedImageIndex}
+      isOpen={imageModalOpen}
+      onClose={() => setImageModalOpen(false)}
+    />
+    </>
   );
 }

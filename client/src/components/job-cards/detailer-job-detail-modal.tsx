@@ -12,6 +12,7 @@ import { CalendarIcon, ClockIcon, CheckCircle2, PlayCircle, PauseCircle, UploadI
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { ImageModal } from '@/components/ui/image-modal';
 import { format } from 'date-fns';
 
 interface JobCard {
@@ -77,6 +78,10 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const [completionRemarks, setCompletionRemarks] = useState('');
   const [selectedTeamMemberId, setSelectedTeamMemberId] = useState<string>('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  
+  // Image modal state
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   
   // Material consumption form fields
   const [materialProductName, setMaterialProductName] = useState('');
@@ -312,6 +317,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   }
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -592,8 +598,12 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                         <img 
                           src={mediaItem.url} 
                           alt={mediaItem.caption || `Job card image ${index + 1}`} 
-                          className="w-full h-32 object-cover rounded-lg border border-gray-200 group-hover:border-green-500 transition-colors"
+                          className="w-full h-32 object-cover rounded-lg border border-gray-200 group-hover:border-green-500 transition-colors cursor-pointer hover:opacity-80"
                           data-testid={`uploaded-image-${index}`}
+                          onClick={() => {
+                            setSelectedImageIndex(index);
+                            setImageModalOpen(true);
+                          }}
                         />
                         {mediaItem.caption && (
                           <p className="text-xs text-gray-600 mt-1 text-center" data-testid={`image-caption-${index}`}>
@@ -878,5 +888,21 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
         )}
       </DialogContent>
     </Dialog>
+    
+    {/* Image Modal */}
+    {jobCard?.media && (
+      <ImageModal
+        images={jobCard.media.map((item: any, idx: number) => ({
+          id: item.id || idx.toString(),
+          url: item.url,
+          caption: item.caption,
+          alt: item.caption || `Job card image ${idx + 1}`
+        }))}
+        initialIndex={selectedImageIndex}
+        isOpen={imageModalOpen}
+        onClose={() => setImageModalOpen(false)}
+      />
+    )}
+    </>
   );
 }
