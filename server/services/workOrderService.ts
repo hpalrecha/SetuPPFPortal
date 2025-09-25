@@ -17,7 +17,13 @@ export class WorkOrderService {
       status: 'PENDING'
     });
 
-    // Note: Sales commission creation moved to after assignment when estimatedPrice is available
+    // 🚀 AUTO-CREATE SALES COMMISSION immediately if salesperson is mapped
+    if (workOrder.salesPersonId && workOrder.showroomId) {
+      console.log(`📈 Commission creation triggered for WO ${workOrder.id} - Salesperson: ${workOrder.salesPersonId}`);
+      await this.createSalesCommission(workOrder.id);
+    } else {
+      console.log(`⚠️ No commission creation for WO ${workOrder.id} - Sales Person: ${workOrder.salesPersonId || 'NULL'}, Showroom: ${workOrder.showroomId || 'NULL'}`);
+    }
 
     // Auto-assign partner and create job card immediately for showroom work orders
     if (workOrder.showroomId) {
@@ -35,15 +41,30 @@ export class WorkOrderService {
     return workOrder;
   }
 
-  // New method: Auto-create sales commission when work order is created
+  // Enhanced method: Auto-create sales commission when work order is created
   private async createSalesCommission(workOrderId: string): Promise<void> {
     try {
+      console.log(`🔍 Commission calculation started for Work Order ${workOrderId}`);
+      
       const workOrder = await storage.getWorkOrder(workOrderId);
       if (!workOrder || !workOrder.salesPersonId || !workOrder.showroomId) {
-        return; // Skip if no sales person assigned
+        console.log(`❌ Commission skipped for WO ${workOrderId} - Missing required data:`, {
+          workOrderExists: !!workOrder,
+          salesPersonId: workOrder?.salesPersonId || null,
+          showroomId: workOrder?.showroomId || null
+        });
+        return;
       }
 
-      // Calculate commission using existing service
+      console.log(`📊 Commission calculation parameters:`, {
+        workOrderId,
+        showroomId: workOrder.showroomId,
+        salesPersonId: workOrder.salesPersonId,
+        serviceId: workOrder.serviceId,
+        estimatedPrice: workOrder.estimatedPrice || 0
+      });
+
+      // Calculate commission using existing service (use estimatedPrice or 0 for now)
       const commission = await commissionService.calculateCommission(
         workOrder.showroomId,
         workOrder.salesPersonId,
@@ -51,32 +72,91 @@ export class WorkOrderService {
         Number(workOrder.estimatedPrice || 0)
       );
 
-      if (commission.amount > 0) {
-        // Check for existing commission to prevent duplicates
-        const existingCommissions = await storage.getCommissions({
-          workOrderId
-        });
+      console.log(`💰 Commission calculation result:`, {
+        amount: commission.amount,
+        ruleFound: !!commission.rule,
+        ruleId: commission.rule?.id,
+        calculation: commission.calculation
+      });
+
+      // Create commission even if amount is 0 (will be recalculated when price is confirmed)
+      // Check for existing commission to prevent duplicates
+      const existingCommissions = await storage.getCommissions({
+        workOrderId
+      });
+      
+      if (existingCommissions.commissions.length === 0) {
+        // Create sales commission (PENDING status)
+        const commissionData = {
+          workOrderId,
+          showroomId: workOrder.showroomId,
+          salesPersonId: workOrder.salesPersonId,
+          basis: commission.rule?.type || 'PERCENT',
+          value: Number(commission.rule?.valueNumeric || 0),
+          computedAmount: commission.amount,
+          status: 'PENDING'
+        };
         
-        if (existingCommissions.commissions.length === 0) {
-          // Create sales commission (PENDING status)
-          await storage.createCommission({
-            workOrderId,
-            showroomId: workOrder.showroomId,
-            salesPersonId: workOrder.salesPersonId,
-            basis: commission.rule?.type || 'PERCENT', // Fix: Use PERCENT not PERCENTAGE
-            value: Number(commission.rule?.valueNumeric || 0),
-            computedAmount: commission.amount,
-            status: 'PENDING'
-          });
-          
-          console.log(`✅ Auto-created sales commission: ₹${commission.amount} for work order ${workOrderId}`);
-        } else {
-          console.log(`⚠️ Commission already exists for work order ${workOrderId}, skipping creation`);
-        }
+        console.log(`📝 Creating commission record:`, commissionData);
+        
+        await storage.createCommission(commissionData);
+        
+        console.log(`✅ SUCCESS: Auto-created sales commission ₹${commission.amount} for WO ${workOrderId} (Sales Person: ${workOrder.salesPersonId})`);
+      } else {
+        console.log(`⚠️ Commission already exists for work order ${workOrderId}, skipping creation. Existing count: ${existingCommissions.commissions.length}`);
       }
     } catch (error) {
-      console.error(`❌ Failed to auto-create sales commission for work order ${workOrderId}:`, error);
+      console.error(`❌ CRITICAL ERROR: Failed to auto-create sales commission for work order ${workOrderId}:`, error);
+      console.error(`📋 Error stack:`, error.stack);
       // Don't fail the work order creation if commission creation fails
+    }
+  }
+
+  // Helper method to update commission with accurate pricing when work order is assigned
+  private async updateCommissionWithPricing(workOrderId: string, finalPrice: number): Promise<void> {
+    try {
+      console.log(`🔄 Commission pricing update started for WO ${workOrderId} with price ₹${finalPrice}`);
+      
+      const workOrder = await storage.getWorkOrder(workOrderId);
+      if (!workOrder || !workOrder.salesPersonId) {
+        console.log(`❌ Cannot update commission for WO ${workOrderId} - missing work order or sales person`);
+        return;
+      }
+
+      // Get existing commission
+      const existingCommissions = await storage.getCommissions({ workOrderId });
+      if (existingCommissions.commissions.length === 0) {
+        console.log(`⚠️ No existing commission found for WO ${workOrderId}, creating new one`);
+        await this.createSalesCommission(workOrderId);
+        return;
+      }
+
+      const existingCommission = existingCommissions.commissions[0];
+      
+      // Recalculate commission with accurate pricing
+      const commission = await commissionService.calculateCommission(
+        workOrder.showroomId,
+        workOrder.salesPersonId,
+        workOrder.serviceId,
+        finalPrice
+      );
+
+      console.log(`💰 Updated commission calculation:`, {
+        previousAmount: existingCommission.computedAmount,
+        newAmount: commission.amount,
+        priceDifference: finalPrice - Number(workOrder.estimatedPrice || 0)
+      });
+
+      // Update the commission with new amount
+      await storage.updateCommission(existingCommission.id, {
+        computedAmount: commission.amount,
+        value: Number(commission.rule?.valueNumeric || 0),
+        basis: commission.rule?.type || 'PERCENT'
+      });
+
+      console.log(`✅ Commission updated successfully for WO ${workOrderId}: ₹${commission.amount}`);
+    } catch (error) {
+      console.error(`❌ Failed to update commission pricing for WO ${workOrderId}:`, error);
     }
   }
 
@@ -181,9 +261,10 @@ Please acknowledge receipt and provide estimated completion time.
       assignedJobCardId: jobCard.id
     });
 
-    // 🚀 AUTO-CREATE SALES COMMISSION now that estimatedPrice is available
+    // 🔄 UPDATE EXISTING COMMISSION with accurate pricing (if commission was created with estimated price = 0)
     if (workOrder.salesPersonId && workOrder.showroomId && pricing?.priceAmount) {
-      await this.createSalesCommission(workOrderId);
+      console.log(`💡 Updating commission with accurate pricing for WO ${workOrderId}: ₹${pricing.priceAmount}`);
+      await this.updateCommissionWithPricing(workOrderId, Number(pricing.priceAmount));
     }
 
     // Send notifications
