@@ -1,11 +1,7 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
   DollarSign, 
   TrendingUp, 
@@ -15,13 +11,9 @@ import {
   Eye,
   Wallet,
   TrendingDown,
-  BarChart3,
-  CreditCard
+  BarChart3
 } from "lucide-react";
 import { format } from "date-fns";
-import { useState } from "react";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 
 // Types
 interface Payout {
@@ -93,10 +85,6 @@ function formatCurrency(amount: string | number, currency: string = 'INR') {
 }
 
 export default function PayoutsPage() {
-  const [paymentReference, setPaymentReference] = useState("");
-  const [selectedPayoutId, setSelectedPayoutId] = useState<string | null>(null);
-  const { toast } = useToast();
-
   // Fetch earnings summary
   const { data: summary, isLoading: summaryLoading } = useQuery<EarningsSummary>({
     queryKey: ['/api/partner-staff/earnings-summary'],
@@ -111,42 +99,6 @@ export default function PayoutsPage() {
   const { data: serviceRates = [], isLoading: ratesLoading } = useQuery<ServiceRate[]>({
     queryKey: ['/api/partner-staff/service-rates'],
   });
-
-  // Mutation to mark payout as paid
-  const settlePayout = useMutation({
-    mutationFn: async ({ payoutId, paymentRef }: { payoutId: string; paymentRef: string }) => {
-      return apiRequest(`/api/partner-staff/payouts/${payoutId}/settle`, {
-        method: 'POST',
-        body: JSON.stringify({ paymentReference: paymentRef })
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/partner-staff/payouts'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/partner-staff/earnings-summary'] });
-      toast({
-        title: "Payment Settled",
-        description: "The payout has been marked as paid successfully."
-      });
-      setSelectedPayoutId(null);
-      setPaymentReference("");
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Settlement Failed",
-        description: error.message || "Failed to settle the payment. Please try again.",
-        variant: "destructive"
-      });
-    }
-  });
-
-  const handleSettlement = () => {
-    if (selectedPayoutId) {
-      settlePayout.mutate({ 
-        payoutId: selectedPayoutId, 
-        paymentRef: paymentReference || `PAY-${Date.now()}` 
-      });
-    }
-  };
 
   return (
     <div className="space-y-6 p-6">
@@ -362,50 +314,6 @@ export default function PayoutsPage() {
                           <div className="text-sm text-gray-500">
                             Gross: {formatCurrency(payout.grossAmount)}
                           </div>
-                          {payout.status === 'due' && (
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button 
-                                  size="sm" 
-                                  className="mt-2"
-                                  data-testid={`button-settle-${payout.id}`}
-                                  onClick={() => setSelectedPayoutId(payout.id)}
-                                >
-                                  <CreditCard className="h-4 w-4 mr-1" />
-                                  Mark as Paid
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Settle Payment</DialogTitle>
-                                  <DialogDescription>
-                                    Mark this payout as paid for Job #{payout.jobCardNumber} ({formatCurrency(payout.netAmount)})
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <div className="space-y-4">
-                                  <div>
-                                    <Label htmlFor="payment-reference">Payment Reference (Optional)</Label>
-                                    <Input
-                                      id="payment-reference"
-                                      placeholder="Enter payment reference or transaction ID"
-                                      value={paymentReference}
-                                      onChange={(e) => setPaymentReference(e.target.value)}
-                                      data-testid="input-payment-reference"
-                                    />
-                                  </div>
-                                </div>
-                                <DialogFooter>
-                                  <Button 
-                                    onClick={handleSettlement} 
-                                    disabled={settlePayout.isPending}
-                                    data-testid="button-confirm-settlement"
-                                  >
-                                    {settlePayout.isPending ? "Processing..." : "Confirm Payment"}
-                                  </Button>
-                                </DialogFooter>
-                              </DialogContent>
-                            </Dialog>
-                          )}
                         </div>
                       </div>
                     </div>
