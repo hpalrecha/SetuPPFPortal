@@ -6,13 +6,48 @@ export class CommissionService {
     showroomId: string,
     salesPersonId?: string,
     serviceId?: string,
-    orderValue?: number
-  ): Promise<{ amount: number; rule?: CommissionRule; calculation: any }> {
-    const rule = await storage.resolveCommissionRule(showroomId, salesPersonId, serviceId);
+    orderValue?: number,
+    oemId?: string,
+    dealershipId?: string,
+    serviceCategoryId?: string
+  ): Promise<{ amount: number; ruleFound: boolean; rule?: CommissionRule; calculation: any }> {
+    // Get missing parameters if not provided - we need these for proper rule resolution
+    let resolvedOemId = oemId;
+    let resolvedDealershipId = dealershipId;
+    let resolvedServiceCategoryId = serviceCategoryId;
+    
+    if (!resolvedOemId || !resolvedDealershipId) {
+      // Get the organizational hierarchy from showroom
+      const showroom = await storage.getShowroom(showroomId);
+      if (showroom) {
+        resolvedDealershipId = resolvedDealershipId || showroom.dealershipId;
+        
+        if (!resolvedOemId) {
+          const dealership = await storage.getDealership(showroom.dealershipId);
+          resolvedOemId = dealership?.oemId;
+        }
+      }
+    }
+    
+    if (!resolvedServiceCategoryId && serviceId) {
+      // Get service category from service
+      const service = await storage.getService(serviceId);
+      resolvedServiceCategoryId = service?.serviceCategoryId;
+    }
+    
+    const rule = await storage.resolveCommissionRule(
+      resolvedOemId, 
+      resolvedDealershipId, 
+      showroomId, 
+      salesPersonId, 
+      serviceId, 
+      resolvedServiceCategoryId
+    );
 
     if (!rule) {
       return {
         amount: 0,
+        ruleFound: false,
         calculation: { reason: 'No applicable commission rule found' }
       };
     }
@@ -50,6 +85,7 @@ export class CommissionService {
 
     return {
       amount: calculatedAmount,
+      ruleFound: true,
       rule,
       calculation
     };
