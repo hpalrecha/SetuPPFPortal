@@ -51,15 +51,32 @@ export class CommissionService {
         resolutionPath: applicableRule.resolutionPath || 'direct'
       });
 
-      // Create commission record
+      // Calculate commission amount using estimated price
+      let computedAmount = 0;
+      const orderValue = Number(workOrder.estimatedPrice || 0);
+      
+      if (applicableRule.type === 'PERCENT') {
+        computedAmount = (orderValue * Number(applicableRule.valueNumeric)) / 100;
+      } else if (applicableRule.type === 'AMOUNT') {
+        computedAmount = Number(applicableRule.valueNumeric);
+      }
+
+      console.log(`💰 Commission calculation:`, {
+        orderValue,
+        ruleType: applicableRule.type,
+        ruleValue: applicableRule.valueNumeric,
+        computedAmount
+      });
+
+      // Create commission record with calculated amount
       const commission = await storage.createCommission({
         workOrderId: workOrder.id,
         showroomId: workOrder.showroomId,
         salesPersonId: workOrder.salesPersonId,
         basis: applicableRule.type,
         value: Number(applicableRule.valueNumeric),
-        computedAmount: 0, // Will be calculated when work order pricing is finalized
-        status: 'PENDING'
+        computedAmount: computedAmount,
+        status: computedAmount > 0 ? 'PENDING' : 'PENDING' // Always PENDING, even if 0
       });
 
       console.log(`✅ Commission created successfully:`, {
