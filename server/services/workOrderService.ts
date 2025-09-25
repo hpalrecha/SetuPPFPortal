@@ -394,6 +394,51 @@ Please acknowledge receipt and provide estimated completion time.
     // TODO: Add metrics tracking for unassigned work orders
   }
 
+  // 🔧 BACKFILL SCRIPT: Generate missing commissions for existing Work Orders
+  async backfillMissingCommissions(): Promise<{ processed: number; created: number; errors: string[] }> {
+    console.log(`🚀 COMMISSION BACKFILL STARTED`);
+    
+    const results = {
+      processed: 0,
+      created: 0, 
+      errors: [] as string[]
+    };
+
+    try {
+      // Find Work Orders with Salesperson but NO commission entries
+      const workOrdersWithoutCommissions = await storage.getWorkOrdersWithoutCommissions();
+      
+      console.log(`📊 Found ${workOrdersWithoutCommissions.length} Work Orders with missing commissions`);
+      
+      for (const workOrder of workOrdersWithoutCommissions) {
+        try {
+          results.processed++;
+          
+          console.log(`⚙️ Processing WO ${workOrder.id} (Customer: ${workOrder.customerName}, Sales: ${workOrder.salesPersonName})`);
+          
+          // Use the existing createSalesCommission method
+          await this.createSalesCommission(workOrder.id);
+          
+          results.created++;
+          console.log(`✅ Commission backfilled for WO ${workOrder.id}`);
+          
+        } catch (error) {
+          const errorMsg = `Failed to backfill commission for WO ${workOrder.id}: ${error.message}`;
+          console.error(`❌ ${errorMsg}`);
+          results.errors.push(errorMsg);
+        }
+      }
+      
+      console.log(`🎯 BACKFILL COMPLETE:`, results);
+      return results;
+      
+    } catch (error) {
+      console.error(`❌ CRITICAL ERROR during backfill:`, error);
+      results.errors.push(`Critical error: ${error.message}`);
+      return results;
+    }
+  }
+
   canUserAccessWorkOrder(user: User, workOrder: WorkOrder): boolean {
     switch (user.role) {
       case 'SUPER_ADMIN':

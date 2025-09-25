@@ -3345,6 +3345,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 🔧 COMMISSION BACKFILL ENDPOINT - Admin only for running commission backfill
+  app.post("/api/commissions/backfill", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    async (req, res) => {
+      try {
+        console.log(`🚀 Commission backfill requested by user ${req.user!.email}`);
+        
+        const { workOrderService } = await import('./services/workOrderService');
+        const results = await workOrderService.backfillMissingCommissions();
+        
+        console.log(`✅ Backfill completed:`, results);
+        res.json({
+          success: true,
+          ...results,
+          message: `Successfully processed ${results.processed} work orders and created ${results.created} missing commissions`
+        });
+      } catch (error) {
+        console.error("Commission backfill error:", error);
+        res.status(500).json({ error: "Failed to run commission backfill" });
+      }
+    }
+  );
+
   const httpServer = createServer(app);
   return httpServer;
 }

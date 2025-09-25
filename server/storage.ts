@@ -107,6 +107,7 @@ export interface IStorage {
     offset?: number;
   }): Promise<WorkOrder[]>;
   getWorkOrder(id: string): Promise<WorkOrder | undefined>;
+  getWorkOrdersWithoutCommissions(): Promise<any[]>;
   createWorkOrder(workOrder: InsertWorkOrder): Promise<WorkOrder>;
   updateWorkOrder(id: string, updates: Partial<InsertWorkOrder>): Promise<WorkOrder | undefined>;
 
@@ -811,6 +812,34 @@ export class DatabaseStorage implements IStorage {
     }
     
     return enriched;
+  }
+
+  // 🔧 Get Work Orders with Salesperson but missing commissions (for backfill)
+  async getWorkOrdersWithoutCommissions(): Promise<any[]> {
+    const workOrdersWithoutCommissions = await db
+      .select({
+        id: workOrders.id,
+        customerName: workOrders.customerName,
+        salesPersonId: workOrders.salesPersonId,
+        showroomId: workOrders.showroomId,
+        serviceId: workOrders.serviceId,
+        createdAt: workOrders.createdAt,
+        salesPersonName: salesPersons.name,
+        showroomName: showrooms.name
+      })
+      .from(workOrders)
+      .leftJoin(commissions, eq(commissions.workOrderId, workOrders.id))
+      .leftJoin(salesPersons, eq(salesPersons.id, workOrders.salesPersonId))  
+      .leftJoin(showrooms, eq(showrooms.id, workOrders.showroomId))
+      .where(
+        and(
+          isNull(commissions.id), // No commission exists
+          ne(workOrders.salesPersonId, null) // Has sales person assigned
+        )
+      );
+    
+    console.log(`🔍 Found ${workOrdersWithoutCommissions.length} Work Orders with missing commissions`);
+    return workOrdersWithoutCommissions;
   }
 
   async createWorkOrder(insertWorkOrder: InsertWorkOrder): Promise<WorkOrder> {
