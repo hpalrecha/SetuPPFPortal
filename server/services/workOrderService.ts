@@ -11,8 +11,30 @@ import type {
 
 export class WorkOrderService {
   async createWorkOrder(data: InsertWorkOrder, userId: string): Promise<WorkOrder> {
+    // 💰 Calculate estimated price from pricing rules
+    let estimatedPrice = 0;
+    try {
+      const pricingResult = await pricingService.calculateWorkOrderPrice(
+        data.dealershipId,
+        data.vehicleModelId,
+        data.serviceId,
+        data.quantity || 1
+      );
+      
+      if (pricingResult.ruleFound) {
+        estimatedPrice = pricingResult.price;
+        console.log(`💰 Estimated price calculated: ₹${estimatedPrice} (${pricingResult.source})`);
+      } else {
+        console.log(`⚠️ No pricing rule found - work order will have zero estimated price`);
+      }
+    } catch (error) {
+      console.error('Error calculating estimated price:', error);
+      // Continue with zero price if calculation fails
+    }
+
     const workOrder = await storage.createWorkOrder({
       ...data,
+      estimatedPrice,
       createdByUserId: userId,
       status: 'PENDING'
     });

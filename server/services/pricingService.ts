@@ -74,7 +74,7 @@ export class PricingService {
 
     return {
       price: totalPrice,
-      currency: rule.currency,
+      currency: rule.currency || 'INR',
       rule
     };
   }
@@ -103,13 +103,12 @@ export class PricingService {
     }
 
     // Check for overlapping rules
-    if (rule.partnerId && rule.scope && rule.scopeId && rule.serviceId) {
+    if (rule.partnerId && rule.scope && rule.scopeId) {
       const existingRules = await storage.getPricingRules({
-        partnerId: rule.partnerId,
-        serviceId: rule.serviceId
+        partnerId: rule.partnerId
       });
 
-      const overlapping = existingRules.pricingRules.find(existing => 
+      const overlapping = existingRules.find((existing: any) => 
         existing.id !== rule.id &&
         existing.scope === rule.scope &&
         existing.scopeId === rule.scopeId &&
@@ -117,7 +116,7 @@ export class PricingService {
         existing.status === 'ACTIVE' &&
         this.dateRangesOverlap(
           rule.effectiveFrom || new Date(),
-          rule.effectiveTo,
+          rule.effectiveTo || null,
           existing.effectiveFrom,
           existing.effectiveTo
         )
@@ -151,14 +150,13 @@ export class PricingService {
     vehicleModelId?: string;
     effectiveDate?: Date;
   }) {
-    const { pricingRules } = await storage.getPricingRules({
-      partnerId: filters.partnerId,
-      serviceId: filters.serviceId
+    const pricingRules = await storage.getPricingRules({
+      partnerId: filters.partnerId
     });
 
     const effectiveDate = filters.effectiveDate || new Date();
 
-    return pricingRules.filter(rule => {
+    return pricingRules.filter((rule: any) => {
       // Check scope match
       if (filters.scopeType && rule.scope !== filters.scopeType) return false;
       if (filters.scopeId && rule.scopeId !== filters.scopeId) return false;
