@@ -362,6 +362,12 @@ export const jobCards = pgTable("job_cards", {
   approvedByUserId: uuid("approved_by_user_id").references(() => users.id),
   pricingSnapshotJson: jsonb("pricing_snapshot_json"),
   commissionSnapshotJson: jsonb("commission_snapshot_json"),
+  // Rework tracking fields
+  reworkReason: text("rework_reason"), // Reason for requesting rework
+  reworkRequestedAt: timestamp("rework_requested_at"), // When rework was requested
+  reworkRequestedBy: uuid("rework_requested_by").references(() => users.id), // Who requested rework
+  reworkCompletedAt: timestamp("rework_completed_at"), // When rework was completed
+  reworkCompletedBy: uuid("rework_completed_by").references(() => users.id), // Who completed rework
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });

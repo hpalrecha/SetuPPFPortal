@@ -28,6 +28,11 @@ interface JobCard {
   batchNumbers?: string;
   checklistJson?: any;
   assignedInstallerId?: string;
+  reworkReason?: string;
+  reworkRequestedAt?: string;
+  reworkRequestedBy?: string;
+  reworkCompletedAt?: string;
+  reworkCompletedBy?: string;
   workOrder: {
     id: string;
     customerName: string;
@@ -47,6 +52,12 @@ interface JobCard {
     };
     showroom: {
       name: string;
+      address?: string;
+      city?: string;
+      state?: string;
+      contactPerson?: string;
+      phone?: string;
+      email?: string;
     };
   };
   partner: {
@@ -72,7 +83,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const queryClient = useQueryClient();
   
   // State for different forms
-  const [currentView, setCurrentView] = useState<'details' | 'acknowledge' | 'schedule' | 'start' | 'complete'>('details');
+  const [currentView, setCurrentView] = useState<'details' | 'acknowledge' | 'schedule' | 'start' | 'complete' | 'mark-fixed'>('details');
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   const [completionRemarks, setCompletionRemarks] = useState('');
@@ -241,6 +252,23 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     }
   });
 
+  const markFixedMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/mark-fixed`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards', jobCardId] });
+      toast({ title: 'Rework Completed', description: 'Job has been marked as fixed and resubmitted for approval.' });
+      onClose();
+    },
+    onError: (error: Error) => {
+      const errorMessage = error.message || 'Failed to mark job as fixed.';
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
+    }
+  });
+
   const getStatusColor = (status: string) => {
     const colors = {
       'AWAITING_ACK': 'bg-yellow-100 text-yellow-800',
@@ -249,7 +277,8 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
       'IN_PROGRESS': 'bg-orange-100 text-orange-800',
       'COMPLETED': 'bg-green-100 text-green-800',
       'PENDING_APPROVAL': 'bg-indigo-100 text-indigo-800',
-      'APPROVED': 'bg-emerald-100 text-emerald-800'
+      'APPROVED': 'bg-emerald-100 text-emerald-800',
+      'REWORK_REQUESTED': 'bg-yellow-100 text-yellow-800'
     };
     return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800';
   };
@@ -258,6 +287,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const canSchedule = jobCard?.status === 'ACKNOWLEDGED';
   const canStart = jobCard?.status === 'SCHEDULED';
   const canComplete = jobCard?.status === 'IN_PROGRESS';
+  const needsRework = jobCard?.status === 'REWORK_REQUESTED';
 
   const resetForm = () => {
     setCurrentView('details');
@@ -358,7 +388,39 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                   Complete Job
                 </Button>
               )}
+              {needsRework && (
+                <Button onClick={() => markFixedMutation.mutate()} disabled={markFixedMutation.isPending} className="bg-green-600 hover:bg-green-700" data-testid="button-mark-fixed">
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  {markFixedMutation.isPending ? 'Marking as Fixed...' : 'Mark as Fixed'}
+                </Button>
+              )}
             </div>
+
+            {/* Rework Information */}
+            {needsRework && jobCard?.reworkReason && (
+              <Card className="border-2 border-yellow-200 bg-yellow-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base text-yellow-800 flex items-center gap-2">
+                    <WrenchIcon className="h-5 w-5" />
+                    Rework Required
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-yellow-800">Admin Request:</p>
+                    <p className="text-sm text-yellow-700 bg-yellow-100 p-3 rounded border">{jobCard.reworkReason}</p>
+                    {jobCard.reworkRequestedAt && (
+                      <p className="text-xs text-yellow-600">
+                        Requested on: {format(new Date(jobCard.reworkRequestedAt), 'PPp')}
+                      </p>
+                    )}
+                    <p className="text-sm text-yellow-800 font-medium mt-3">
+                      ⚠️ Please address the issues mentioned above and click "Mark as Fixed" when completed.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Team Member Assignment */}
             {teamMembers.length > 0 && (

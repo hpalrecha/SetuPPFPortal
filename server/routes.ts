@@ -1472,62 +1472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // Job Card Rework Request endpoint
-  app.post("/api/job-cards/:id/rework",
-    authenticate,
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN']),
-    auditLog('job_card', 'request_rework'),
-    async (req, res) => {
-      try {
-        const jobCardId = req.params.id;
-        const { reason } = req.body;
-        
-        // Get job card first to check access
-        const jobCard = await storage.getJobCard(jobCardId);
-        if (!jobCard) {
-          return res.status(404).json({ error: "Job card not found" });
-        }
-
-        // Get work order to verify access permissions
-        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
-        if (!workOrder) {
-          return res.status(404).json({ error: "Associated work order not found" });
-        }
-
-        // Check if user has permission to request rework for this job card
-        let hasAccess = false;
-        if (req.user!.role === 'SUPER_ADMIN') {
-          hasAccess = true;
-        } else if (req.user!.role === 'OEM_ADMIN') {
-          hasAccess = workOrder.oemId === req.user!.oemId;
-        } else if (req.user!.role === 'DEALERSHIP_ADMIN') {
-          hasAccess = workOrder.dealershipId === req.user!.dealershipId;
-        } else if (req.user!.role === 'SHOWROOM_MANAGER') {
-          hasAccess = workOrder.showroomId === req.user!.showroomId;
-        }
-
-        if (!hasAccess) {
-          return res.status(403).json({ error: "Access denied - insufficient permissions" });
-        }
-
-        // Update job card status to REWORK_REQUIRED
-        const updatedJobCard = await storage.updateJobCard(jobCardId, {
-          status: 'REWORK_REQUIRED',
-          reworkReason: reason || 'Rework requested by admin',
-          reworkRequestedAt: new Date()
-        });
-
-        if (!updatedJobCard) {
-          return res.status(500).json({ error: "Failed to request rework" });
-        }
-
-        res.json({ message: "Rework requested successfully", jobCard: updatedJobCard });
-      } catch (error) {
-        console.error("Job card rework request error:", error);
-        res.status(500).json({ error: "Failed to request rework" });
-      }
-    }
-  );
+  // REMOVED - Duplicate endpoint replaced by enhanced /request-rework below
 
   app.put("/api/job-cards/:id", 
     authenticate,
@@ -1718,32 +1663,159 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/job-cards/:id/request-rework", 
     authenticate, 
-    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN']),
+    auditLog('job_card', 'request_rework'),
     async (req, res) => {
       try {
         // Validate rework request data
         const reworkSchema = z.object({
-          remarks: z.string().min(1, "Remarks are required for rework requests")
+          remarks: z.string().min(1, "Reason is required for rework requests")
         });
         
         const { remarks } = reworkSchema.parse(req.body);
+        const jobCardId = req.params.id;
         
-        const jobCard = await storage.updateJobCard(req.params.id, {
-          status: 'REWORK_REQUESTED',
-          remarks
-        });
-        
+        // Get job card first to check status and access
+        const jobCard = await storage.getJobCard(jobCardId);
         if (!jobCard) {
           return res.status(404).json({ error: "Job card not found" });
         }
 
-        res.json(jobCard);
+        // Only allow rework requests on PENDING_APPROVAL or COMPLETED jobs
+        if (jobCard.status !== 'PENDING_APPROVAL' && jobCard.status !== 'COMPLETED') {
+          return res.status(400).json({ 
+            error: "Job card must be pending approval or completed to request rework",
+            currentStatus: jobCard.status 
+          });
+        }
+
+        // Get associated work order for access check
+        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+        if (!workOrder) {
+          return res.status(404).json({ error: "Associated work order not found" });
+        }
+
+        // Check if user has permission to request rework for this job card
+        let hasAccess = false;
+        if (req.user!.role === 'SUPER_ADMIN') {
+          hasAccess = true;
+        } else if (req.user!.role === 'OEM_ADMIN') {
+          hasAccess = workOrder.oemId === req.user!.oemId;
+        } else if (req.user!.role === 'DEALERSHIP_ADMIN') {
+          hasAccess = workOrder.dealershipId === req.user!.dealershipId;
+        } else if (req.user!.role === 'SHOWROOM_MANAGER') {
+          hasAccess = workOrder.showroomId === req.user!.showroomId;
+        }
+
+        if (!hasAccess) {
+          return res.status(403).json({ error: "Access denied to this job card" });
+        }
+
+        // Update job card status to REWORK_REQUESTED
+        const updatedJobCard = await storage.updateJobCard(jobCardId, {
+          status: 'REWORK_REQUESTED',
+          reworkReason: remarks,
+          reworkRequestedAt: new Date(),
+          reworkRequestedBy: req.user!.id
+        });
+        
+        if (!updatedJobCard) {
+          return res.status(500).json({ error: "Failed to request rework" });
+        }
+
+        // Update work order status as well
+        await storage.updateWorkOrder(jobCard.workOrderId, {
+          status: 'REWORK_REQUESTED'
+        });
+
+        // Create approval record for audit trail
+        await storage.createApproval({
+          jobCardId,
+          approverUserId: req.user!.id,
+          status: 'REWORK_REQUESTED',
+          remarks
+        });
+
+        console.log(`🟡 Rework requested on ${jobCard.id} by ${req.user!.role}: '${remarks}'`);
+
+        res.json({ 
+          message: "Rework requested successfully", 
+          jobCard: updatedJobCard,
+          reason: remarks
+        });
       } catch (error) {
         if (error instanceof z.ZodError) {
           return res.status(400).json({ error: "Invalid rework request data", details: error.errors });
         }
         console.error("Request rework error:", error);
         res.status(500).json({ error: "Failed to request rework" });
+      }
+    }
+  );
+
+  // Job Card Mark as Fixed (for detailers after rework)
+  app.post("/api/job-cards/:id/mark-fixed", 
+    authenticate, 
+    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF']),
+    auditLog('job_card', 'mark_fixed'),
+    async (req, res) => {
+      try {
+        const jobCardId = req.params.id;
+        
+        // Get job card first to check status and access
+        const jobCard = await storage.getJobCard(jobCardId);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        // Only allow marking as fixed if status is REWORK_REQUESTED
+        if (jobCard.status !== 'REWORK_REQUESTED') {
+          return res.status(400).json({ 
+            error: "Job card must be in rework requested status to mark as fixed",
+            currentStatus: jobCard.status 
+          });
+        }
+
+        // Check if partner has access to this job card
+        if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+          if (jobCard.partnerId !== req.user!.partnerId) {
+            return res.status(403).json({ error: "Access denied - this job card is not assigned to your partner" });
+          }
+        }
+
+        // Update job card status back to PENDING_APPROVAL
+        const updatedJobCard = await storage.updateJobCard(jobCardId, {
+          status: 'PENDING_APPROVAL',
+          reworkCompletedAt: new Date(),
+          reworkCompletedBy: req.user!.id
+        });
+        
+        if (!updatedJobCard) {
+          return res.status(500).json({ error: "Failed to mark job card as fixed" });
+        }
+
+        // Update work order status as well
+        await storage.updateWorkOrder(jobCard.workOrderId, {
+          status: 'COMPLETED_PENDING_APPROVAL'
+        });
+
+        // Create approval record for audit trail
+        await storage.createApproval({
+          jobCardId,
+          approverUserId: req.user!.id,
+          status: 'REWORK_COMPLETED',
+          remarks: 'Rework completed by detailer - resubmitted for approval'
+        });
+
+        console.log(`✅ Rework completed on ${jobCard.id} by ${req.user!.role} → resubmitted for approval`);
+
+        res.json({ 
+          message: "Job card marked as fixed and resubmitted for approval", 
+          jobCard: updatedJobCard
+        });
+      } catch (error) {
+        console.error("Mark fixed error:", error);
+        res.status(500).json({ error: "Failed to mark job card as fixed" });
       }
     }
   );
