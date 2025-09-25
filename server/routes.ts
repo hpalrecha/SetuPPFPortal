@@ -3146,7 +3146,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // File upload route for job cards (using image upload middleware)
   app.post("/api/job-cards/upload-media", 
     authenticate,
-    requireOEMAccess,
     imageUpload.single('file'),
     auditLog('job_card_media', 'upload'),
     async (req, res) => {
@@ -3159,6 +3158,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (!jobCardId) {
           return res.status(400).json({ error: "Job card ID is required" });
+        }
+
+        // Get the job card to verify access and get OEM ID
+        const jobCard = await storage.getJobCard(jobCardId);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        // For partner users, verify they have access to this job card
+        if (req.user?.role === 'PARTNER_ADMIN' || req.user?.role === 'PARTNER_STAFF') {
+          if (!req.user.partnerId) {
+            return res.status(403).json({ error: "Partner ID not found in user context" });
+          }
+          
+          // Check if this partner has access to the job card
+          if (jobCard.partnerId !== req.user.partnerId) {
+            return res.status(403).json({ error: "Access denied - job card belongs to different partner" });
+          }
+        } else {
+          // For non-partner users, use existing OEM access validation
+          const oemId = req.headers['x-oem-id'] as string;
+          if (!oemId) {
+            return res.status(400).json({ error: 'OEM ID required' });
+          }
+          
+          // Verify the job card belongs to the specified OEM
+          if (jobCard.workOrder?.oemId !== oemId) {
+            return res.status(403).json({ error: "Access denied - job card belongs to different OEM" });
+          }
         }
 
         // Generate a safe filename for object storage
