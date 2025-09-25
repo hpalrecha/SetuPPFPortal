@@ -2239,7 +2239,7 @@ export class DatabaseStorage implements IStorage {
       );
 
       if (!pricingResult) {
-        // When no pricing rule found, create payout with NEEDS_REVIEW status
+        // When no pricing rule found, create payout with pending_review status
         const existingPayout = await db
           .select({ id: payouts.id })
           .from(payouts)
@@ -2253,7 +2253,7 @@ export class DatabaseStorage implements IStorage {
             .set({
               grossAmount: '0.00',
               netAmount: '0.00',
-              status: 'NEEDS_REVIEW',
+              status: 'pending_review',
               updatedAt: new Date()
             })
             .where(eq(payouts.id, existingPayout[0].id));
@@ -2266,12 +2266,12 @@ export class DatabaseStorage implements IStorage {
               partnerId: jobCard[0].partnerId,
               grossAmount: '0.00',
               netAmount: '0.00',
-              status: 'NEEDS_REVIEW',
+              status: 'pending_review',
               createdAt: new Date()
             });
         }
 
-        return { success: true, message: 'No pricing rule found - payout marked as NEEDS_REVIEW', amount: '0.00' };
+        return { success: true, message: 'No pricing rule found - payout marked as pending_review', amount: '0.00' };
       }
 
       // Update or create payout with resolved pricing

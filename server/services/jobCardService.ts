@@ -161,9 +161,9 @@ export class JobCardService {
       // Use the NEW simplified payout pricing
       const pricingResult = serviceCategoryId 
         ? await storage.resolvePayoutPricing(
-            jobCard.partnerId,    // partnerId
-            serviceCategoryId,    // serviceCategoryId
-            workOrder.vehicleModelId // vehicleModelId
+            jobCard.partnerId,    // partnerId (FIRST)
+            serviceCategoryId,    // serviceCategoryId (SECOND)
+            workOrder.vehicleModelId // vehicleModelId (THIRD)
           )
         : null;
 

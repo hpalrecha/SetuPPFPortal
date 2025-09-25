@@ -57,12 +57,19 @@ interface ServiceRate {
 }
 
 function getStatusBadge(status: string) {
-  switch (status.toUpperCase()) {
-    case 'PAID':
+  switch (status.toLowerCase()) {
+    case 'paid':
       return <Badge className="bg-green-100 text-green-800 border-green-200">Paid</Badge>;
-    case 'PENDING':
+    case 'pending_review':
+      return <Badge className="bg-orange-100 text-orange-800 border-orange-200">Pending Review</Badge>;
+    case 'due':
+      return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Due</Badge>;
+    // Legacy status support
+    case 'pending':
       return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Pending</Badge>;
-    case 'PROCESSING':
+    case 'needs_review':
+      return <Badge className="bg-orange-100 text-orange-800 border-orange-200">Needs Review</Badge>;
+    case 'processing':
       return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Processing</Badge>;
     default:
       return <Badge variant="secondary">{status}</Badge>;

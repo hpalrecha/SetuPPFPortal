@@ -1373,14 +1373,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             );
 
             let payoutAmount = '0.00';
-            let payoutStatus: 'PENDING' | 'NEEDS_REVIEW' = 'PENDING';
+            let payoutStatus: 'pending_review' | 'due' | 'paid' = 'pending_review';
 
             if (pricingResult) {
               payoutAmount = pricingResult.amount;
               console.log(`✅ Resolved detailer pricing: ₹${payoutAmount} using rule ${pricingResult.ruleId} (${pricingResult.context})`);
             } else {
-              payoutStatus = 'NEEDS_REVIEW';
-              console.log(`⚠️ No pricing rule found for detailer payout - marked as NEEDS_REVIEW`);
+              console.log(`⚠️ No pricing rule found for detailer payout - marked as pending_review`);
             }
 
             // Update existing payout with correct pricing
@@ -1610,14 +1609,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
 
           let payoutAmount = '0.00';
-          let payoutStatus: 'PENDING' | 'NEEDS_REVIEW' = 'PENDING';
+          let payoutStatus: 'pending_review' | 'due' | 'paid' = 'pending_review';
 
           if (pricingResult) {
             payoutAmount = pricingResult.amount;
             console.log(`✅ Resolved detailer pricing: ₹${payoutAmount} using rule ${pricingResult.ruleId} (${pricingResult.context})`);
           } else {
-            payoutStatus = 'NEEDS_REVIEW';
-            console.log(`⚠️ No pricing rule found for detailer payout - marked as NEEDS_REVIEW`);
+            console.log(`⚠️ No pricing rule found for detailer payout - marked as pending_review`);
           }
 
           // Check for existing payout to prevent duplicates
