@@ -268,7 +268,7 @@ export function CreateWorkOrderModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="modal-responsive max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Work Order</DialogTitle>
         </DialogHeader>
@@ -676,13 +676,14 @@ export function CreateWorkOrderModal({
               />
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="flex-col sm:flex-row space-y-2 sm:space-y-0">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
                 disabled={isLoading}
                 data-testid="button-cancel"
+                className="w-full sm:w-auto order-2 sm:order-1"
               >
                 Cancel
               </Button>
@@ -690,6 +691,7 @@ export function CreateWorkOrderModal({
                 type="submit"
                 disabled={isLoading}
                 data-testid="button-create-work-order"
+                className="w-full sm:w-auto order-1 sm:order-2"
               >
                 {isLoading ? "Creating..." : "Create Work Order"}
               </Button>

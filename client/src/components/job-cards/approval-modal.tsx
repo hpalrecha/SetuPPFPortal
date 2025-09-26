@@ -159,20 +159,20 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
 
   return (
     <>
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" data-testid="approval-modal">
-      <div className="bg-card rounded-lg border shadow-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b border-border">
-          <div>
-            <h3 className="text-lg font-semibold text-foreground">Job Card Approval</h3>
-            <p className="text-sm text-muted-foreground">JC-{jobCardId.slice(-3)} - Vehicle PPF Installation</p>
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-2 sm:p-4" data-testid="approval-modal">
+      <div className="bg-card rounded-lg border shadow-lg modal-responsive w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden">
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-border">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base sm:text-lg font-semibold text-foreground truncate">Job Card Approval</h3>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">JC-{jobCardId.slice(-3)} - Vehicle PPF Installation</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleClose} data-testid="button-close">
+          <Button variant="ghost" size="sm" onClick={handleClose} data-testid="button-close" className="flex-shrink-0 ml-2">
             <X className="h-4 w-4" />
           </Button>
         </div>
         
-        <div className="p-6 overflow-y-auto max-h-[70vh]">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="p-4 sm:p-6 overflow-y-auto max-h-[75vh] sm:max-h-[70vh]">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             {/* Work Details */}
             <div className="space-y-4">
               <div className="bg-muted rounded-lg p-4">
@@ -281,9 +281,9 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
                   />
                 </div>
                 
-                <div className="flex space-x-3">
+                <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
                   <Button 
-                    className="flex-1" 
+                    className="flex-1 order-1" 
                     onClick={handleApprove}
                     disabled={approveMutation.isPending}
                     data-testid="button-approve"
@@ -292,24 +292,24 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
                     {approveMutation.isPending ? "Approving..." : "Approve"}
                   </Button>
                   <Button 
-                    variant="destructive" 
-                    className="flex-1" 
-                    onClick={handleReject}
-                    disabled={rejectMutation.isPending}
-                    data-testid="button-reject"
-                  >
-                    <X className="mr-2 h-4 w-4" />
-                    {rejectMutation.isPending ? "Rejecting..." : "Reject"}
-                  </Button>
-                  <Button 
                     variant="secondary" 
-                    className="flex-1" 
+                    className="flex-1 order-2" 
                     onClick={handleRework}
                     disabled={reworkMutation.isPending}
                     data-testid="button-rework"
                   >
                     <RotateCcw className="mr-2 h-4 w-4" />
                     {reworkMutation.isPending ? "Requesting..." : "Rework"}
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    className="flex-1 order-3" 
+                    onClick={handleReject}
+                    disabled={rejectMutation.isPending}
+                    data-testid="button-reject"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    {rejectMutation.isPending ? "Rejecting..." : "Reject"}
                   </Button>
                 </div>
               </div>

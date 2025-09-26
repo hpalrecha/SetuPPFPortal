@@ -119,15 +119,13 @@ export default function WorkOrdersPage() {
 
   const handleSubmitWorkOrder = async (id: string) => {
     try {
-      const response = await apiRequest(`/api/work-orders/${id}/submit`, {
-        method: 'POST'
-      });
+      const response = await apiRequest('POST', `/api/work-orders/${id}/submit`);
       toast({
         title: "Success",
         description: "Work order submitted successfully and assigned to partner"
       });
       // Refetch work orders to show updated status
-      workOrdersQuery.refetch();
+      queryClient.invalidateQueries({ queryKey: ['/api/work-orders'] });
     } catch (error: any) {
       console.error("Submit work order error:", error);
       
@@ -206,16 +204,16 @@ export default function WorkOrdersPage() {
                   <h3 className="font-medium text-sm text-muted-foreground">Created Date</h3>
                   <p className="text-sm">{new Date(workOrder.createdAt!).toLocaleDateString()}</p>
                 </div>
-                {workOrder.submittedAt && (
+                {(workOrder as any).submittedAt && (
                   <div>
                     <h3 className="font-medium text-sm text-muted-foreground">Submitted Date</h3>
-                    <p className="text-sm">{new Date(workOrder.submittedAt).toLocaleDateString()}</p>
+                    <p className="text-sm">{new Date((workOrder as any).submittedAt).toLocaleDateString()}</p>
                   </div>
                 )}
-                {workOrder.assignedAt && (
+                {(workOrder as any).assignedAt && (
                   <div>
                     <h3 className="font-medium text-sm text-muted-foreground">Assigned Date</h3>
-                    <p className="text-sm">{new Date(workOrder.assignedAt).toLocaleDateString()}</p>
+                    <p className="text-sm">{new Date((workOrder as any).assignedAt).toLocaleDateString()}</p>
                   </div>
                 )}
               </div>
