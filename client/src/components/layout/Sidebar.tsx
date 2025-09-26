@@ -85,8 +85,6 @@ export function Sidebar({ collapsed, onToggle, className, isMobile = false }: Si
   
   const navigation = getFilteredNavigation(user?.role) || [];
 
-  console.log('Sidebar render:', { collapsed, isMobile, className });
-  
   return (
     <div className={cn(
       "flex flex-col bg-card border-r border-border transition-all duration-300",

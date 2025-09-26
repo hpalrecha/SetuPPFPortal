@@ -33,10 +33,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
             variant="ghost"
             size="sm"
             className="md:hidden p-2"
-            onClick={() => {
-              console.log('Hamburger clicked!');
-              onToggleSidebar();
-            }}
+            onClick={onToggleSidebar}
             data-testid="button-toggle-mobile-sidebar"
           >
             <svg

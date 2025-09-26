@@ -20,18 +20,15 @@ export default function MainLayout({ children }: MainLayoutProps) {
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
-      console.log('Mobile check:', { width: window.innerWidth, mobile, currentCollapsed: sidebarCollapsed });
       setIsMobile(mobile);
-      // Auto-collapse on mobile, auto-expand on desktop
-      if (mobile && !sidebarCollapsed) {
-        setSidebarCollapsed(true);
-      }
+      // Only auto-collapse when switching FROM desktop TO mobile
+      // Don't interfere with manual toggles
     };
     
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
-  }, [sidebarCollapsed]);
+  }, []); // Remove sidebarCollapsed dependency to prevent re-triggering
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -53,10 +50,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header onToggleSidebar={() => {
-        console.log('Toggle sidebar called. Current state:', { sidebarCollapsed, isMobile });
-        setSidebarCollapsed(!sidebarCollapsed);
-      }} />
+      <Header onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)} />
       
       {/* Mobile overlay */}
       {isMobile && !sidebarCollapsed && (
