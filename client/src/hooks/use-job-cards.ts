@@ -86,24 +86,24 @@ export function useJobCards() {
       ));
 
       
-      // Fetch related work orders
-      const workOrders: WorkOrder[] = workOrderIds.length > 0 ? await Promise.all(
-        workOrderIds.map(async (id) => {
-          const workOrderHeaders: HeadersInit = { 
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}` 
-          };
-          if (selectedOemId) {
-            workOrderHeaders['x-oem-id'] = selectedOemId;
-          }
-          
-          const res = await fetch(`/api/work-orders/${id}`, {
-            headers: workOrderHeaders,
-            credentials: 'include',
-            cache: 'no-store', // Prevent 304 responses
-          });
-          return (res.ok || res.status === 304) ? res.json() : null;
-        })
-      ).then(results => results.filter(Boolean)) : [];
+      // Bulk fetch work orders (replaces N+1 queries)
+      const workOrders: WorkOrder[] = workOrderIds.length > 0 ? await (async () => {
+        const workOrderHeaders: HeadersInit = { 
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json'
+        };
+        if (selectedOemId) {
+          workOrderHeaders['x-oem-id'] = selectedOemId;
+        }
+        
+        const res = await fetch('/api/work-orders/bulk', {
+          method: 'POST',
+          headers: workOrderHeaders,
+          credentials: 'include',
+          body: JSON.stringify({ ids: workOrderIds })
+        });
+        return res.ok ? res.json() : [];
+      })() : [];
       
       // Collect service and vehicle model IDs from work orders
       workOrders.forEach(wo => {
@@ -114,18 +114,22 @@ export function useJobCards() {
       // Fetch services, vehicle models, and partners in parallel
       
       const [services, vehicleModels, partners] = await Promise.all([
-        serviceIds.size > 0 ? Promise.all(Array.from(serviceIds).map(async (id) => {
-          const serviceHeaders: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` };
+        serviceIds.size > 0 ? (async () => {
+          const serviceHeaders: HeadersInit = { 
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+            'Content-Type': 'application/json'
+          };
           if (selectedOemId) {
             serviceHeaders['x-oem-id'] = selectedOemId;
           }
-          const res = await fetch(`/api/services/${id}`, {
+          const res = await fetch('/api/services/bulk', {
+            method: 'POST',
             headers: serviceHeaders,
             credentials: 'include',
-            cache: 'no-store', // Prevent 304 responses
+            body: JSON.stringify({ ids: Array.from(serviceIds) })
           });
-          return (res.ok || res.status === 304) ? res.json() : null;
-        })).then(results => results.filter(Boolean)) : [],
+          return res.ok ? res.json() : [];
+        })() : [],
         
         vehicleModelIds.size > 0 ? Promise.all(Array.from(vehicleModelIds).map(async (id) => {
           const vehicleHeaders: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` };
@@ -140,18 +144,22 @@ export function useJobCards() {
           return (res.ok || res.status === 304) ? res.json() : null;
         })).then(results => results.filter(Boolean)) : [],
         
-        partnerIds.length > 0 ? Promise.all(partnerIds.map(async (id) => {
-          const partnerHeaders: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` };
+        partnerIds.length > 0 ? (async () => {
+          const partnerHeaders: HeadersInit = { 
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+            'Content-Type': 'application/json'
+          };
           if (selectedOemId) {
             partnerHeaders['x-oem-id'] = selectedOemId;
           }
-          const res = await fetch(`/api/partners/${id}`, {
+          const res = await fetch('/api/partners/bulk', {
+            method: 'POST',
             headers: partnerHeaders,
             credentials: 'include',
-            cache: 'no-store', // Prevent 304 responses
+            body: JSON.stringify({ ids: partnerIds })
           });
-          return (res.ok || res.status === 304) ? res.json() : null;
-        })).then(results => results.filter(Boolean)) : []
+          return res.ok ? res.json() : [];
+        })() : []
       ]);
       
       
