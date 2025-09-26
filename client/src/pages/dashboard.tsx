@@ -169,7 +169,7 @@ export default function DashboardPage() {
         <div className="mt-4 sm:mt-0 flex-shrink-0 flex items-center space-x-2 sm:space-x-3">
           {/* Role Switcher for Super Admin */}
           {user?.role === 'SUPER_ADMIN' && (
-            <Select value={viewAsRole || ''} onValueChange={(value) => setViewAsRole(value || null)}>
+            <Select value={viewAsRole || user?.role || 'SUPER_ADMIN'} onValueChange={(value) => setViewAsRole(value === user?.role ? null : value)}>
               <SelectTrigger className="w-48" data-testid="select-view-as-role">
                 <div className="flex items-center space-x-2">
                   <Eye className="h-4 w-4" />
@@ -177,7 +177,7 @@ export default function DashboardPage() {
                 </div>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">View as Super Admin</SelectItem>
+                <SelectItem value="SUPER_ADMIN">View as Super Admin</SelectItem>
                 <SelectItem value="OEM_ADMIN">View as OEM Admin</SelectItem>
                 <SelectItem value="DEALERSHIP_ADMIN">View as Dealership Admin</SelectItem>
                 <SelectItem value="SHOWROOM_MANAGER">View as Showroom Manager</SelectItem>
@@ -296,6 +296,52 @@ export default function DashboardPage() {
                   0.3d
                 </span>
                 from last month
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Pending Job Cards - Specific for Detailer roles */}
+        {canViewSection(['PARTNER_ADMIN', 'PARTNER_STAFF']) && (
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-sm">Pending Job Cards</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-pending-jobs">
+                    {metrics?.pendingApprovals || 8}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                  <Clock className="h-6 w-6 text-orange-600" />
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">Awaiting your action</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* In Progress Job Cards - Specific for Detailer roles */}
+        {canViewSection(['PARTNER_ADMIN', 'PARTNER_STAFF']) && (
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-sm">In Progress Jobs</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-in-progress-jobs">
+                    5
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <Activity className="h-6 w-6 text-blue-600" />
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                <span className="text-blue-600 flex items-center">
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  Active work
+                </span>
+                in progress
               </p>
             </CardContent>
           </Card>
