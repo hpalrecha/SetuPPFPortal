@@ -29,6 +29,7 @@ interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
   className?: string;
+  isMobile?: boolean;
 }
 
 const baseNavigation = [
@@ -78,7 +79,7 @@ const getFilteredNavigation = (userRole: string | undefined) => {
   return navigation;
 };
 
-export function Sidebar({ collapsed, onToggle, className }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, className, isMobile = false }: SidebarProps) {
   const [location, navigate] = useLocation();
   const { user } = useAuth();
   
@@ -87,7 +88,12 @@ export function Sidebar({ collapsed, onToggle, className }: SidebarProps) {
   return (
     <div className={cn(
       "flex flex-col bg-card border-r border-border transition-all duration-300",
-      collapsed ? "w-16" : "w-64",
+      // Different width behavior for mobile vs desktop
+      isMobile 
+        ? (collapsed ? "-translate-x-full" : "translate-x-0 w-64") 
+        : (collapsed ? "w-16" : "w-64"),
+      // Hide sidebar completely on mobile when collapsed
+      isMobile && collapsed && "hidden",
       className
     )}>
       {/* Toggle Button */}
