@@ -265,15 +265,15 @@ export default function JobCardListView({
                         <User className="h-5 w-5 text-purple-600 mt-1" />
                         <div>
                           <h4 className="text-xs font-semibold text-purple-800 uppercase tracking-wide mb-1">
-                            Job Details
+                            Customer Details
                           </h4>
                           <p className="text-sm font-bold text-purple-900">
-                            Job #{job.id.slice(-6)}
+                            {(job as any).customerName || `Customer #${job.id.slice(-6)}`}
                           </p>
                           <div className="flex items-center gap-1 mt-1">
                             <Phone className="h-3 w-3 text-purple-600" />
                             <span className="text-xs text-purple-700">
-                              {job.remarks ? `Notes: ${job.remarks}` : 'Work Order ID: ' + job.workOrderId?.slice(-6)}
+                              {(job as any).customerPhone || 'Contact info loading...'}
                             </span>
                           </div>
                         </div>

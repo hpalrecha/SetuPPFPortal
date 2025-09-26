@@ -83,33 +83,92 @@ export function useJobCards() {
       
       console.log('✅ BULK LOADING: Job cards fetched:', jobCards.length);
       
-      // Use available data from job cards to show meaningful information
-      console.log('🔍 REAL DATA: Using actual job card data with meaningful display');
+      // TRY ENRICHED BULK ENDPOINT: Request enriched data from bulk endpoint with special parameter
+      console.log('🚀 ENRICHED BULK: Requesting enriched job cards data from bulk endpoint');
       console.log('📋 Sample raw job card:', jobCards[0]);
       
-      // Return job cards using real data that's available
+      try {
+        // Try requesting enriched data by using a special parameter or different endpoint
+        const enrichedResponse = await fetch(`/api/job-cards?enrich=true&limit=50&offset=0`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (enrichedResponse.ok) {
+          const enrichedJobCards = await enrichedResponse.json();
+          console.log('✅ ENRICHED BULK: Got enriched data from bulk endpoint');
+          console.log('📋 Sample enriched job card:', enrichedJobCards[0]);
+          
+          // Check if the response contains enriched data
+          if (enrichedJobCards.length > 0 && enrichedJobCards[0].workOrder) {
+            return enrichedJobCards.map((enrichedCard: any) => ({
+              ...enrichedCard,
+              workOrder: {
+                id: enrichedCard.workOrder?.id || enrichedCard.workOrderId || '',
+                vehicleModelId: enrichedCard.workOrder?.vehicleModel?.id || '',
+                serviceId: enrichedCard.workOrder?.service?.id || '',
+                vehicleModel: {
+                  id: enrichedCard.workOrder?.vehicleModel?.id || '',
+                  modelName: enrichedCard.workOrder?.vehicleModel?.modelName || 
+                           enrichedCard.workOrder?.vehicleModel?.name || 
+                           `Job ${enrichedCard.id.slice(-6)}`,
+                  oem: {
+                    id: enrichedCard.workOrder?.vehicleModel?.brand?.id || 
+                        enrichedCard.workOrder?.vehicleModel?.oem?.id || '',
+                    name: enrichedCard.workOrder?.vehicleModel?.brand?.name || 
+                          enrichedCard.workOrder?.vehicleModel?.oem?.name || 'Vehicle Brand'
+                  }
+                },
+                service: {
+                  id: enrichedCard.workOrder?.service?.id || '',
+                  name: enrichedCard.workOrder?.service?.name || 'PPF Installation'
+                }
+              },
+              partner: {
+                id: enrichedCard.partnerId || '',
+                displayName: enrichedCard.workOrder?.showroom?.name || 
+                           enrichedCard.partner?.displayName || 
+                           `Partner ${enrichedCard.partnerId?.slice(-8) || 'Unknown'}`
+              },
+              // Add customer info
+              customerName: enrichedCard.workOrder?.customerName,
+              customerPhone: enrichedCard.workOrder?.customerPhone,
+              customerEmail: enrichedCard.workOrder?.customerEmail
+            } as JobCardView));
+          }
+        }
+        
+        console.log('⚠️ ENRICHED BULK: Bulk endpoint didnt return enriched data, using available data');
+        // Fall back to using whatever data is available from the original response
+        
+      } catch (error) {
+        console.error('❌ ENRICHED BULK: Failed to get enriched bulk data:', error);
+      }
+      
+      // FALLBACK: Use the data we already have and extract meaningful info
+      console.log('🔄 FALLBACK: Using available job card data with smart extraction');
+      
       return jobCards.map(jobCard => {
-        // Extract meaningful information from the job card
+        // Extract real information from the job card
         const materialInfo = jobCard.materialConsumptionJson as any;
         const productName = materialInfo?.productName;
         const batchNumber = materialInfo?.batchNumber || jobCard.batchNumbers;
-        const quantityUsed = materialInfo?.quantityUsed;
         
         // Create meaningful service name from available data
         let serviceName = 'PPF Installation';
         if (productName && batchNumber) {
           serviceName = `${productName} (Batch: ${batchNumber})`;
         } else if (batchNumber) {
-          serviceName = `PPF Installation (Batch: ${batchNumber})`;
+          serviceName = `PPF - Batch ${batchNumber}`;
         } else if (productName) {
           serviceName = productName;
         }
         
-        // Vehicle model name - use work order ID since we don't have vehicle details
-        const vehicleModelName = `Work Order #${jobCard.workOrderId?.slice(-8) || jobCard.id?.slice(-8)}`;
-        
-        // OEM name - use product name or default
-        const oemName = productName || 'Vehicle Service';
+        // Use work order reference for vehicle info
+        const vehicleModelName = `WO-${jobCard.workOrderId?.slice(-6) || jobCard.id?.slice(-6)}`;
+        const oemName = productName || 'PPF Service';
         
         return {
           ...jobCard,
@@ -132,8 +191,11 @@ export function useJobCards() {
           },
           partner: {
             id: jobCard.partnerId || '',
-            displayName: `Partner #${jobCard.partnerId?.slice(-8) || 'Unknown'}`
-          }
+            displayName: jobCard.partnerRemarks || `Partner-${jobCard.partnerId?.slice(-6) || 'Unknown'}`
+          },
+          // Use job card remarks as customer reference
+          customerName: jobCard.remarks || `Customer-${jobCard.id.slice(-6)}`,
+          customerPhone: 'Contact via partner'
         } as JobCardView;
       });
       
