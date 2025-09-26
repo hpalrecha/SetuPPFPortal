@@ -143,14 +143,15 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Dashboard Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold text-foreground">Dashboard</h2>
-          <p className="text-muted-foreground mt-1">Overview of your PPF installation operations</p>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-xl sm:text-2xl font-semibold text-foreground truncate">Dashboard</h2>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">Overview of your PPF installation operations</p>
         </div>
-        <div className="mt-4 sm:mt-0">
+        <div className="mt-4 sm:mt-0 flex-shrink-0">
           <Button 
             onClick={() => setLocation("/work-orders")}
             data-testid="button-new-work-order"
+            className="w-full sm:w-auto"
           >
             <Plus className="mr-2 h-4 w-4" />
             New Work Order
@@ -159,9 +160,9 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-muted-foreground text-sm">Active Work Orders</p>
@@ -184,7 +185,7 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-muted-foreground text-sm">Pending Approvals</p>
@@ -201,7 +202,7 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-muted-foreground text-sm">This Month Revenue</p>
@@ -224,7 +225,7 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-muted-foreground text-sm">Avg. TAT</p>
@@ -258,7 +259,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250} className="sm:!h-[300px]">
               <ComposedChart data={ppfOrdersData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
@@ -277,7 +278,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Dealership Performance & Vehicle Category Upsells */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -286,7 +287,7 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={250} className="sm:!h-[300px]">
                 <BarChart data={dealershipPerformanceData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
@@ -310,7 +311,7 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={250} className="sm:!h-[300px]">
                 <ComposedChart data={vehicleCategoryUpsellData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="category" angle={-45} textAnchor="end" height={80} />
@@ -330,7 +331,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Territory Performance & Service Popularity */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -339,7 +340,7 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={250} className="sm:!h-[300px]">
                 <AreaChart data={territoryPerformanceData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="territory" angle={-45} textAnchor="end" height={80} />
@@ -364,7 +365,7 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={250} className="sm:!h-[300px]">
                 <PieChart>
                   <Pie
                     data={servicePopularityData}
@@ -396,7 +397,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250} className="sm:!h-[300px]">
               <ComposedChart data={monthlyTrendData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
@@ -417,7 +418,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Performance Summary Tables */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Top Dealerships Table */}
           <Card>
             <CardHeader>
