@@ -74,34 +74,6 @@ export function useJobCards() {
       const jobCards: JobCard[] = await response.json();
       
       console.log('✅ BULK LOADING: Job cards fetched:', jobCards.length);
-      console.log('🚀 TEMPORARY FIX: Returning basic job cards to display');
-      
-      // TEMPORARY: Return basic job cards without enrichment
-      // This allows the new UI to display while we fix the enrichment logic
-      return jobCards.map(jobCard => ({
-        ...jobCard,
-        workOrder: {
-          id: jobCard.workOrderId || '',
-          vehicleModelId: '',
-          serviceId: '',
-          vehicleModel: {
-            id: '',
-            modelName: 'Loading...',
-            oem: {
-              id: '',
-              name: 'Loading...'
-            }
-          },
-          service: {
-            id: '',
-            name: 'Loading...'
-          }
-        },
-        partner: {
-          id: jobCard.partnerId || '',
-          displayName: 'Loading...'
-        }
-      } as JobCardView));
       
       // Extract unique IDs for batch fetching with defensive field mapping
       const workOrderIds = Array.from(new Set(
@@ -123,7 +95,8 @@ export function useJobCards() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         };
-        if (selectedOemId) {
+        // Only add OEM filter for non-partner users
+        if (shouldIncludeOemFilter && selectedOemId) {
           workOrderHeaders['x-oem-id'] = selectedOemId;
         }
         
@@ -140,7 +113,7 @@ export function useJobCards() {
           // Fallback to individual calls if bulk fails
           return Promise.all(workOrderIds.map(async (id) => {
             const fallbackHeaders: HeadersInit = { 'Authorization': `Bearer ${token}` };
-            if (selectedOemId) fallbackHeaders['x-oem-id'] = selectedOemId;
+            if (shouldIncludeOemFilter && selectedOemId) fallbackHeaders['x-oem-id'] = selectedOemId;
             const fallbackRes = await fetch(`/api/work-orders/${id}`, {
               headers: fallbackHeaders,
               credentials: 'include',
@@ -167,7 +140,7 @@ export function useJobCards() {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           };
-          if (selectedOemId) {
+          if (shouldIncludeOemFilter && selectedOemId) {
             serviceHeaders['x-oem-id'] = selectedOemId;
           }
           const res = await fetch('/api/services/bulk', {
@@ -185,7 +158,7 @@ export function useJobCards() {
         
         vehicleModelIds.size > 0 ? Promise.all(Array.from(vehicleModelIds).map(async (id) => {
           const vehicleHeaders: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` };
-          if (selectedOemId) {
+          if (shouldIncludeOemFilter && selectedOemId) {
             vehicleHeaders['x-oem-id'] = selectedOemId;
           }
           const res = await fetch(`/api/vehicle-models/${id}`, {
@@ -201,7 +174,7 @@ export function useJobCards() {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           };
-          if (selectedOemId) {
+          if (shouldIncludeOemFilter && selectedOemId) {
             partnerHeaders['x-oem-id'] = selectedOemId;
           }
           const res = await fetch('/api/partners/bulk', {
@@ -226,7 +199,7 @@ export function useJobCards() {
       const oems: Oem[] = oemIds.length > 0 ? await Promise.all(
         oemIds.map(async (id) => {
           const oemHeaders: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` };
-          if (selectedOemId) {
+          if (shouldIncludeOemFilter && selectedOemId) {
             oemHeaders['x-oem-id'] = selectedOemId;
           }
           const res = await fetch(`/api/oems/${id}`, {
