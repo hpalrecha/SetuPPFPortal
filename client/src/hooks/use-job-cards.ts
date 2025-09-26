@@ -74,9 +74,35 @@ export function useJobCards() {
       const jobCards: JobCard[] = await response.json();
       
       console.log('✅ BULK LOADING: Job cards fetched:', jobCards.length);
+      console.log('🚀 TEMPORARY FIX: Returning basic job cards to display');
       
-      // Extract unique IDs for batch fetching
-
+      // TEMPORARY: Return basic job cards without enrichment
+      // This allows the new UI to display while we fix the enrichment logic
+      return jobCards.map(jobCard => ({
+        ...jobCard,
+        workOrder: {
+          id: jobCard.workOrderId || '',
+          vehicleModelId: '',
+          serviceId: '',
+          vehicleModel: {
+            id: '',
+            modelName: 'Loading...',
+            oem: {
+              id: '',
+              name: 'Loading...'
+            }
+          },
+          service: {
+            id: '',
+            name: 'Loading...'
+          }
+        },
+        partner: {
+          id: jobCard.partnerId || '',
+          displayName: 'Loading...'
+        }
+      } as JobCardView));
+      
       // Extract unique IDs for batch fetching with defensive field mapping
       const workOrderIds = Array.from(new Set(
         jobCards.map(jc => jc.workOrderId || jc.id || (jc as any).jobCard?.workOrderId).filter(Boolean)

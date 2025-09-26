@@ -104,17 +104,23 @@ export default function JobCardListView({
     );
   };
 
-  // Sort job cards by priority and date
+  // Sort job cards by priority and date with safer access
   const sortedJobCards = [...jobCards].sort((a, b) => {
-    const priorityA = getPriority(a.status!, a.createdAt!);
-    const priorityB = getPriority(b.status!, b.createdAt!);
+    const statusA = a.status || 'AWAITING_ACK';
+    const statusB = b.status || 'AWAITING_ACK';
+    const dateA = a.createdAt || new Date().toISOString();
+    const dateB = b.createdAt || new Date().toISOString();
+    
+    const priorityA = getPriority(statusA, dateA);
+    const priorityB = getPriority(statusB, dateB);
     
     const priorityOrder = { urgent: 4, high: 3, medium: 2, normal: 1 };
     const diff = (priorityOrder[priorityA as keyof typeof priorityOrder] || 0) - (priorityOrder[priorityB as keyof typeof priorityOrder] || 0);
     
     if (diff !== 0) return -diff;
-    return new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime();
+    return new Date(dateB).getTime() - new Date(dateA).getTime();
   });
+
 
   return (
     <div className="space-y-6">
