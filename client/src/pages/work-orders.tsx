@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Search, Eye, Edit, ArrowLeft, Save } from "lucide-react";
 import type { WorkOrder } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
@@ -167,19 +168,19 @@ export default function WorkOrdersPage() {
   // Render individual work order view
   if (currentView === 'view' && workOrder) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center">
-          <Button variant="ghost" onClick={handleBackToList} className="mr-4">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col space-y-3 sm:space-y-0 sm:flex-row sm:items-center">
+          <Button variant="ghost" onClick={handleBackToList} className="self-start sm:mr-4">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Work Orders
           </Button>
           <div>
-            <h2 className="text-2xl font-semibold text-foreground">Work Order Details</h2>
-            <p className="text-muted-foreground mt-1">WO-{workOrder.id.slice(-6)}</p>
+            <h2 className="text-xl sm:text-2xl font-semibold text-foreground">Work Order Details</h2>
+            <p className="text-muted-foreground mt-1 text-sm sm:text-base">WO-{workOrder.id.slice(-6)}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {/* Work Order Information */}
           <Card>
             <CardHeader>
@@ -371,7 +372,7 @@ export default function WorkOrdersPage() {
               <CardTitle>Job Card Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <h3 className="font-medium text-sm text-muted-foreground">Job Card Status</h3>
                   <Badge variant="outline">{(workOrder as any).jobCard.status?.replace(/_/g, " ")}</Badge>
@@ -390,13 +391,13 @@ export default function WorkOrdersPage() {
         {/* Action Buttons */}
         <Card>
           <CardContent className="pt-6">
-            <div className="flex space-x-2">
-              <Button onClick={() => setLocation(`/work-orders/${workOrder.id}/edit`)}>
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+              <Button onClick={() => setLocation(`/work-orders/${workOrder.id}/edit`)} className="w-full sm:w-auto">
                 <Edit className="h-4 w-4 mr-2" />
                 Edit Work Order
               </Button>
               {workOrder.status === 'PENDING' && (
-                <Button onClick={() => handleSubmitWorkOrder(workOrder.id)} variant="default">
+                <Button onClick={() => handleSubmitWorkOrder(workOrder.id)} variant="default" className="w-full sm:w-auto">
                   Submit Work Order
                 </Button>
               )}
@@ -441,14 +442,14 @@ export default function WorkOrdersPage() {
 
   // Render work orders list (default view)
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-foreground">Work Orders</h2>
-          <p className="text-muted-foreground mt-1">Manage PPF installation requests</p>
+          <h2 className="text-xl sm:text-2xl font-semibold text-foreground">Work Orders</h2>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">Manage PPF installation requests</p>
         </div>
         {canCreateWorkOrder && (
-          <Button onClick={handleCreateWorkOrder} data-testid="button-create-work-order">
+          <Button onClick={handleCreateWorkOrder} data-testid="button-create-work-order" className="w-full sm:w-auto">
             <Plus className="mr-2 h-4 w-4" />
             Create Work Order
           </Button>
@@ -457,8 +458,8 @@ export default function WorkOrdersPage() {
 
       {/* Filters */}
       <Card>
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <CardContent className="p-3 sm:p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <Select 
               value={filters.status} 
               onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
@@ -496,75 +497,82 @@ export default function WorkOrdersPage() {
               value={filters.dateFrom}
               onChange={(e) => setFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
               data-testid="input-date-filter"
+              className="text-sm"
             />
 
-            <Button variant="secondary" data-testid="button-search">
+            <Button variant="secondary" data-testid="button-search" className="w-full sm:w-auto">
               <Search className="mr-2 h-4 w-4" />
-              Search
+              <span className="sm:inline">Search</span>
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Work Orders Table */}
-      <Card>
+      {/* Work Orders Table - Desktop View */}
+      <Card className="hide-mobile">
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-muted">
-                <tr>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">WO ID</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Vehicle</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Service</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Customer</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Status</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Partner</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Created</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
+          <div className="table-wrapper">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="sticky left-0 bg-background z-10">WO ID</TableHead>
+                  <TableHead>Vehicle</TableHead>
+                  <TableHead className="hide-mobile">Service</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="hide-mobile">Partner</TableHead>
+                  <TableHead className="hide-mobile">Created</TableHead>
+                  <TableHead className="sticky right-0 bg-background z-10">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {workOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-8 text-center text-muted-foreground">
+                  <TableRow>
+                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                       No work orders found. Create your first work order to get started.
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   workOrders.map((order) => (
-                    <tr key={order.id} className="hover:bg-accent" data-testid={`row-work-order-${order.id}`}>
-                      <td className="py-3 px-4">
-                        <span className="font-mono text-sm text-primary">WO-{order.id.slice(-6)}</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{(order as any).vehicleModelName || "Vehicle Model"}</p>
-                          <p className="text-xs text-muted-foreground">{order.regNo || "Not specified"}</p>
+                    <TableRow key={order.id} data-testid={`row-work-order-${order.id}`}>
+                      <TableCell className="font-mono text-sm text-primary sticky left-0 bg-background z-10">
+                        WO-{order.id.slice(-6)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="max-w-32">
+                          <p className="text-sm font-medium text-foreground truncate">{(order as any).vehicleModelName || "Vehicle Model"}</p>
+                          <p className="text-xs text-muted-foreground truncate">{order.regNo || "Not specified"}</p>
                         </div>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-foreground">{(order as any).serviceName || "Service Name"}</td>
-                      <td className="py-3 px-4">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{order.customerName || "N/A"}</p>
-                          <p className="text-xs text-muted-foreground">{order.customerPhone || ""}</p>
+                      </TableCell>
+                      <TableCell className="hide-mobile">
+                        <div className="max-w-24 truncate text-sm">
+                          {(order as any).serviceName || "Service Name"}
                         </div>
-                      </td>
-                      <td className="py-3 px-4">
+                      </TableCell>
+                      <TableCell>
+                        <div className="max-w-32">
+                          <p className="text-sm font-medium text-foreground truncate">{order.customerName || "N/A"}</p>
+                          <p className="text-xs text-muted-foreground truncate">{order.customerPhone || ""}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
                         <Badge 
                           className={statusColors[order.status as keyof typeof statusColors] || "bg-gray-100 text-gray-800"}
                           data-testid={`status-${order.id}`}
                         >
                           {order.status?.replace(/_/g, " ")}
                         </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-foreground">
-                        {order.assignedPartnerId ? ((order as any).assignedPartner?.displayName || "Partner Assigned") : "Not assigned"}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="hide-mobile">
+                        <div className="max-w-24 truncate text-sm">
+                          {order.assignedPartnerId ? ((order as any).assignedPartner?.displayName || "Partner Assigned") : "Not assigned"}
+                        </div>
+                      </TableCell>
+                      <TableCell className="hide-mobile text-sm text-muted-foreground">
                         {new Date(order.createdAt!).toLocaleDateString()}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex space-x-2">
+                      </TableCell>
+                      <TableCell className="sticky right-0 bg-background z-10">
+                        <div className="flex space-x-1">
                           {order.status === 'PENDING' && (
                             <Button 
                               variant="default" 
@@ -592,15 +600,110 @@ export default function WorkOrdersPage() {
                             <Edit className="h-4 w-4" />
                           </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
+      
+      {/* Mobile Card View */}
+      <div className="mobile-only space-y-3">
+        {workOrders.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              No work orders found. Create your first work order to get started.
+            </CardContent>
+          </Card>
+        ) : (
+          workOrders.map((order) => (
+            <Card key={order.id} className="p-4" data-testid={`card-mobile-work-order-${order.id}`}>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-sm font-medium text-primary">
+                    WO-{order.id.slice(-6)}
+                  </span>
+                  <Badge 
+                    className={statusColors[order.status as keyof typeof statusColors] || "bg-gray-100 text-gray-800"}
+                    data-testid={`status-${order.id}`}
+                  >
+                    {order.status?.replace(/_/g, " ")}
+                  </Badge>
+                </div>
+                
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Vehicle:</span>
+                    <span className="font-medium truncate ml-2">
+                      {(order as any).vehicleModelName || "Vehicle Model"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Reg No:</span>
+                    <span className="truncate ml-2">
+                      {order.regNo || "Not specified"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Service:</span>
+                    <span className="truncate ml-2">
+                      {(order as any).serviceName || "Service Name"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Customer:</span>
+                    <span className="font-medium truncate ml-2">
+                      {order.customerName || "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Created:</span>
+                    <span className="text-xs">
+                      {new Date(order.createdAt!).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex space-x-2 pt-2">
+                  {order.status === 'PENDING' && (
+                    <Button 
+                      variant="default" 
+                      size="sm"
+                      onClick={() => handleSubmitWorkOrder(order.id)}
+                      data-testid={`button-submit-${order.id}`}
+                      className="flex-1"
+                    >
+                      Submit
+                    </Button>
+                  )}
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleViewWorkOrder(order.id)}
+                    data-testid={`button-view-${order.id}`}
+                    className="flex-1"
+                  >
+                    <Eye className="h-4 w-4 mr-1" />
+                    View
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleEditWorkOrder(order.id)}
+                    data-testid={`button-edit-${order.id}`}
+                    className="px-3"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))
+        )}
+      </div>
 
       {/* Create Work Order Modal */}
       <CreateWorkOrderModal 
