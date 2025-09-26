@@ -83,13 +83,16 @@ export function useJobCards() {
       
       console.log('✅ BULK LOADING: Job cards fetched:', jobCards.length);
       
-      // QUICK FIX: Return basic job cards with better display data
-      console.log('🚀 QUICK FIX: Returning job cards with enhanced display data');
-      return jobCards.map((jobCard, index) => {
-        // Generate more realistic vehicle and service names
-        const vehicleModels = ['BMW X5', 'Audi Q7', 'Mercedes GLC', 'Toyota Camry', 'Honda Civic', 'Tesla Model 3', 'Volvo XC90'];
-        const services = ['Full Body PPF', 'Front End PPF', 'Hood & Fenders PPF', 'Door Handle PPF', 'Mirror PPF'];
-        const showrooms = ['Downtown BMW', 'City Audi Center', 'Premium Motors', 'Elite Auto Gallery', 'Luxury Car Hub'];
+      // Use REAL job card data instead of dummy data
+      console.log('🔍 Using real job card data from API');
+      console.log('📋 Sample raw job card:', jobCards[0]);
+      
+      // Return job cards with actual data from the API
+      return jobCards.map(jobCard => {
+        // Extract real information from materialConsumptionJson if available
+        const materialInfo = jobCard.materialConsumptionJson as any;
+        const productName = materialInfo?.productName || 'PPF Installation';
+        const batchNumber = materialInfo?.batchNumber || jobCard.batchNumbers;
         
         return {
           ...jobCard,
@@ -99,20 +102,20 @@ export function useJobCards() {
             serviceId: '',
             vehicleModel: {
               id: '',
-              modelName: vehicleModels[index % vehicleModels.length],
+              modelName: `Job ${jobCard.id.slice(-6)}`, // Use actual job card ID
               oem: {
                 id: '',
-                name: vehicleModels[index % vehicleModels.length].split(' ')[0] // Get brand name
+                name: productName || 'Vehicle Service' // Use real product name
               }
             },
             service: {
               id: '',
-              name: services[index % services.length]
+              name: batchNumber ? `PPF - Batch ${batchNumber}` : 'PPF Installation'
             }
           },
           partner: {
             id: jobCard.partnerId || '',
-            displayName: showrooms[index % showrooms.length]
+            displayName: jobCard.partnerRemarks || `Partner ${jobCard.partnerId?.slice(-6) || ''}`
           }
         } as JobCardView;
       });
