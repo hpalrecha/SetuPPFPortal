@@ -37,7 +37,7 @@ export function useJobCards() {
   const shouldIncludeOemFilter = !isPartnerUser && selectedOemId;
   
   return useQuery({
-    queryKey: ["/api/job-cards", shouldIncludeOemFilter ? selectedOemId : 'all', "v5"],
+    queryKey: ["/api/job-cards", shouldIncludeOemFilter ? selectedOemId : 'all', "v7"],
     enabled: !!user && user.role !== undefined,
     refetchOnWindowFocus: false,
     staleTime: 30000,
@@ -86,10 +86,11 @@ export function useJobCards() {
       ));
 
       
+      console.log('🚀 Starting bulk loading for', workOrderIds.length, 'work orders');
       // Bulk fetch work orders (replaces N+1 queries)
       const workOrders: WorkOrder[] = workOrderIds.length > 0 ? await (async () => {
         const workOrderHeaders: HeadersInit = { 
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         };
         if (selectedOemId) {
@@ -102,7 +103,20 @@ export function useJobCards() {
           credentials: 'include',
           body: JSON.stringify({ ids: workOrderIds })
         });
-        return res.ok ? res.json() : [];
+        if (!res.ok) {
+          console.error('Bulk work orders failed:', res.status, await res.text());
+          // Fallback to individual calls if bulk fails
+          return Promise.all(workOrderIds.map(async (id) => {
+            const fallbackHeaders: HeadersInit = { 'Authorization': `Bearer ${token}` };
+            if (selectedOemId) fallbackHeaders['x-oem-id'] = selectedOemId;
+            const fallbackRes = await fetch(`/api/work-orders/${id}`, {
+              headers: fallbackHeaders,
+              credentials: 'include',
+            });
+            return fallbackRes.ok ? fallbackRes.json() : null;
+          })).then(results => results.filter(Boolean));
+        }
+        return res.json();
       })() : [];
       
       // Collect service and vehicle model IDs from work orders
@@ -116,7 +130,7 @@ export function useJobCards() {
       const [services, vehicleModels, partners] = await Promise.all([
         serviceIds.size > 0 ? (async () => {
           const serviceHeaders: HeadersInit = { 
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           };
           if (selectedOemId) {
@@ -128,7 +142,11 @@ export function useJobCards() {
             credentials: 'include',
             body: JSON.stringify({ ids: Array.from(serviceIds) })
           });
-          return res.ok ? res.json() : [];
+          if (!res.ok) {
+            console.error('Bulk services failed:', res.status);
+            return [];
+          }
+          return res.json();
         })() : [],
         
         vehicleModelIds.size > 0 ? Promise.all(Array.from(vehicleModelIds).map(async (id) => {
@@ -146,7 +164,7 @@ export function useJobCards() {
         
         partnerIds.length > 0 ? (async () => {
           const partnerHeaders: HeadersInit = { 
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           };
           if (selectedOemId) {
@@ -158,7 +176,11 @@ export function useJobCards() {
             credentials: 'include',
             body: JSON.stringify({ ids: partnerIds })
           });
-          return res.ok ? res.json() : [];
+          if (!res.ok) {
+            console.error('Bulk partners failed:', res.status);
+            return [];
+          }
+          return res.json();
         })() : []
       ]);
       
@@ -188,11 +210,11 @@ export function useJobCards() {
       ).then(results => results.filter(Boolean)) : [];
       
       // Create lookup maps for efficient data joining
-      const workOrderMap = new Map(workOrders.map(wo => [wo.id, wo]));
-      const serviceMap = new Map(services.map(s => [s.id, s]));
-      const vehicleModelMap = new Map(vehicleModels.map(vm => [vm.id, vm]));
-      const oemMap = new Map(oems.map(o => [o.id, o]));
-      const partnerMap = new Map(partners.map(p => [p.id, p]));
+      const workOrderMap = new Map(workOrders.map((wo: any) => [wo.id, wo]));
+      const serviceMap = new Map(services.map((s: any) => [s.id, s]));
+      const vehicleModelMap = new Map(vehicleModels.map((vm: any) => [vm.id, vm]));
+      const oemMap = new Map(oems.map((o: any) => [o.id, o]));
+      const partnerMap = new Map(partners.map((p: any) => [p.id, p]));
 
       
       // Enrich job cards with related data
@@ -234,10 +256,10 @@ export function useJobCards() {
             // Add service
             if (workOrder.serviceId) {
               const service = serviceMap.get(workOrder.serviceId);
-              if (service) {
+              if (service && typeof service === 'object' && 'id' in service && 'name' in service) {
                 enriched.workOrder.service = {
-                  id: service.id,
-                  name: service.name,
+                  id: (service as any).id,
+                  name: (service as any).name,
                 };
               }
             }
@@ -247,10 +269,10 @@ export function useJobCards() {
         // Add partner
         if (jobCard.partnerId) {
           const partner = partnerMap.get(jobCard.partnerId);
-          if (partner) {
+          if (partner && typeof partner === 'object' && 'id' in partner && 'displayName' in partner) {
             enriched.partner = {
-              id: partner.id,
-              displayName: partner.displayName,
+              id: (partner as any).id,
+              displayName: (partner as any).displayName,
             };
           }
         }
