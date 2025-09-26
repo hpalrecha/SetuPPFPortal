@@ -411,24 +411,26 @@ export default function JobCardsNew() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header with gradient styling matching old design */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Job Cards
           </h2>
-          <p className="text-muted-foreground mt-1 text-lg">Track installation progress and approvals</p>
+          <p className="text-muted-foreground mt-1 text-base sm:text-lg">Track installation progress and approvals</p>
         </div>
-        <div className="flex items-center gap-2 mt-4 sm:mt-0">
-          <Badge variant="outline" className="text-sm">
-            <Target className="h-3 w-3 mr-1" />
-            Live Tracking
-          </Badge>
-          <Badge variant="outline" className="text-sm">
-            <Zap className="h-3 w-3 mr-1" />
-            Auto-Refresh
-          </Badge>
+        <div className="stack-mobile">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs sm:text-sm hide-mobile">
+              <Target className="h-3 w-3 mr-1" />
+              Live Tracking
+            </Badge>
+            <Badge variant="outline" className="text-xs sm:text-sm hide-mobile">
+              <Zap className="h-3 w-3 mr-1" />
+              Auto-Refresh
+            </Badge>
+          </div>
           
           {/* View Toggle */}
           <div className="flex items-center bg-muted rounded-lg p-1">
@@ -436,21 +438,21 @@ export default function JobCardsNew() {
               variant={viewMode === 'list' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('list')}
-              className="h-8 px-2"
+              className="h-8 px-2 text-xs sm:text-sm"
               data-testid="button-list-view"
             >
               <List className="h-3 w-3 mr-1" />
-              List
+              <span className="hidden sm:inline">List</span>
             </Button>
             <Button
               variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('kanban')}
-              className="h-8 px-2"
+              className="h-8 px-2 text-xs sm:text-sm"
               data-testid="button-kanban-view"
             >
               <Grid3X3 className="h-3 w-3 mr-1" />
-              Kanban
+              <span className="hidden sm:inline">Kanban</span>
             </Button>
           </div>
         </div>
@@ -469,77 +471,143 @@ export default function JobCardsNew() {
         </Card>
       )}
 
-      {/* List View */}
+      {/* List View - Desktop Table */}
       {!isLoading && jobCards.length > 0 && viewMode === 'list' && (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Vehicle</TableHead>
-                  <TableHead>Service</TableHead>
-                  <TableHead>Partner</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Scheduled</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {jobCards.map((jobCard) => (
-                  <TableRow key={jobCard.id} data-testid={`row-job-card-${jobCard.id}`}>
-                    <TableCell className="font-mono text-sm" data-testid={`text-id-${jobCard.id}`}>
+        <>
+          {/* Desktop Table View */}
+          <Card className="hide-mobile">
+            <CardContent className="p-0">
+              <div className="table-wrapper">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky left-0 bg-background z-10">ID</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead className="hide-mobile">Phone</TableHead>
+                      <TableHead>Vehicle</TableHead>
+                      <TableHead className="hide-mobile">Service</TableHead>
+                      <TableHead className="hide-mobile">Partner</TableHead>
+                      <TableHead className="hide-mobile">Created</TableHead>
+                      <TableHead className="hide-mobile">Scheduled</TableHead>
+                      <TableHead className="sticky right-0 bg-background z-10">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {jobCards.map((jobCard) => (
+                      <TableRow key={jobCard.id} data-testid={`row-job-card-${jobCard.id}`}>
+                        <TableCell className="font-mono text-sm sticky left-0 bg-background z-10" data-testid={`text-id-${jobCard.id}`}>
+                          JC-{jobCard.id.slice(-6)}
+                        </TableCell>
+                        <TableCell data-testid={`status-${jobCard.id}`}>
+                          {getStatusBadge(jobCard.status)}
+                        </TableCell>
+                        <TableCell data-testid={`text-customer-${jobCard.id}`}>
+                          <div className="max-w-32 truncate">{jobCard.customerName}</div>
+                        </TableCell>
+                        <TableCell className="hide-mobile" data-testid={`text-phone-${jobCard.id}`}>
+                          {jobCard.workOrder?.customerPhone || 'N/A'}
+                        </TableCell>
+                        <TableCell data-testid={`text-vehicle-${jobCard.id}`}>
+                          <div className="max-w-32 truncate">{jobCard.vehicleDisplay}</div>
+                        </TableCell>
+                        <TableCell className="hide-mobile" data-testid={`text-service-${jobCard.id}`}>
+                          <div className="max-w-32 truncate">{jobCard.serviceDisplay}</div>
+                        </TableCell>
+                        <TableCell className="hide-mobile" data-testid={`text-partner-${jobCard.id}`}>
+                          <div className="max-w-32 truncate">{jobCard.partnerDisplay}</div>
+                        </TableCell>
+                        <TableCell className="hide-mobile" data-testid={`text-created-${jobCard.id}`}>
+                          {formatDate(jobCard.createdAt)}
+                        </TableCell>
+                        <TableCell className="hide-mobile" data-testid={`text-scheduled-${jobCard.id}`}>
+                          {formatDate(jobCard.scheduledAt)}
+                        </TableCell>
+                        <TableCell className="sticky right-0 bg-background z-10">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleViewJobCard(jobCard)}
+                            data-testid={`button-view-${jobCard.id}`}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Mobile Card View */}
+          <div className="mobile-only space-y-3">
+            {jobCards.map((jobCard) => (
+              <Card key={jobCard.id} className="p-4" data-testid={`card-mobile-job-${jobCard.id}`}>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-sm font-medium" data-testid={`text-id-${jobCard.id}`}>
                       JC-{jobCard.id.slice(-6)}
-                    </TableCell>
-                    <TableCell data-testid={`status-${jobCard.id}`}>
+                    </span>
+                    <div data-testid={`status-${jobCard.id}`}>
                       {getStatusBadge(jobCard.status)}
-                    </TableCell>
-                    <TableCell data-testid={`text-customer-${jobCard.id}`}>
-                      {jobCard.customerName}
-                    </TableCell>
-                    <TableCell data-testid={`text-phone-${jobCard.id}`}>
-                      {jobCard.workOrder?.customerPhone || 'N/A'}
-                    </TableCell>
-                    <TableCell data-testid={`text-vehicle-${jobCard.id}`}>
-                      {jobCard.vehicleDisplay}
-                    </TableCell>
-                    <TableCell data-testid={`text-service-${jobCard.id}`}>
-                      {jobCard.serviceDisplay}
-                    </TableCell>
-                    <TableCell data-testid={`text-partner-${jobCard.id}`}>
-                      {jobCard.partnerDisplay}
-                    </TableCell>
-                    <TableCell data-testid={`text-created-${jobCard.id}`}>
-                      {formatDate(jobCard.createdAt)}
-                    </TableCell>
-                    <TableCell data-testid={`text-scheduled-${jobCard.id}`}>
-                      {formatDate(jobCard.scheduledAt)}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleViewJobCard(jobCard)}
-                        data-testid={`button-view-${jobCard.id}`}
-                      >
-                        <Eye className="h-3 w-3 mr-1" />
-                        View
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Customer:</span>
+                      <span className="font-medium truncate ml-2" data-testid={`text-customer-${jobCard.id}`}>
+                        {jobCard.customerName}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Vehicle:</span>
+                      <span className="truncate ml-2" data-testid={`text-vehicle-${jobCard.id}`}>
+                        {jobCard.vehicleDisplay}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Service:</span>
+                      <span className="truncate ml-2" data-testid={`text-service-${jobCard.id}`}>
+                        {jobCard.serviceDisplay}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Partner:</span>
+                      <span className="truncate ml-2" data-testid={`text-partner-${jobCard.id}`}>
+                        {jobCard.partnerDisplay}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Created:</span>
+                      <span data-testid={`text-created-${jobCard.id}`}>
+                        {formatDate(jobCard.createdAt)}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={() => handleViewJobCard(jobCard)}
+                    data-testid={`button-view-${jobCard.id}`}
+                  >
+                    <Eye className="h-3 w-3 mr-2" />
+                    View Details
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Kanban View with gradient cards matching old design */}
       {!isLoading && jobCards.length > 0 && viewMode === 'kanban' && (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {/* Awaiting Acknowledgment */}
           <Card className="border-l-4 border-l-red-500 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-red-50 to-orange-50">
             <CardHeader className="pb-4">
@@ -787,7 +855,7 @@ export default function JobCardsNew() {
         setSelectedJobCardId(null);
         setSelectedJobCard(null);
       }}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="modal-responsive max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b pb-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
@@ -806,7 +874,7 @@ export default function JobCardsNew() {
           
           {detailedJobCard && (
             <div className="flex-1 pr-2">
-              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 py-4">
                 
                 {/* Basic Information Card */}
                 <Card className="col-span-1">
@@ -1042,7 +1110,7 @@ export default function JobCardsNew() {
                             {(Array.isArray(detailedJobCard.batchNumbers) 
                               ? detailedJobCard.batchNumbers 
                               : [detailedJobCard.batchNumbers]
-                            ).map((batch, i) => (
+                            ).map((batch: string, i: number) => (
                               <span key={i} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
                                 {batch}
                               </span>
