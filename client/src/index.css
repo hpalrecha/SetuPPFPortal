@@ -80,14 +80,98 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
+
+  /* Responsive text sizing */
+  html {
+    @apply text-sm sm:text-base;
+  }
+
+  /* Prevent horizontal overflow */
+  html, body {
+    @apply overflow-x-hidden;
+  }
+}
+
+@layer components {
+  /* Responsive container utilities */
+  .container-responsive {
+    @apply w-full max-w-full px-2 sm:px-4 lg:px-6 xl:px-8;
+  }
+
+  /* Responsive grid utilities */
+  .grid-responsive {
+    @apply grid gap-3 sm:gap-4 lg:gap-6;
+    @apply grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
+  }
+
+  /* Responsive card utilities */
+  .card-responsive {
+    @apply p-3 sm:p-4 lg:p-6;
+  }
+
+  /* Mobile-first table wrapper */
+  .table-wrapper {
+    @apply w-full overflow-x-auto;
+    @apply rounded-lg border border-border;
+  }
+
+  /* Mobile-first button groups */
+  .button-group-responsive {
+    @apply flex flex-col gap-2 sm:flex-row sm:gap-3;
+  }
+
+  /* Action buttons that stack on mobile */
+  .actions-responsive {
+    @apply flex flex-col gap-2 sm:flex-row sm:gap-3 sm:items-center;
+  }
+
+  /* Hide on mobile, show on larger screens */
+  .hide-mobile {
+    @apply hidden md:block;
+  }
+
+  /* Show on mobile only */
+  .mobile-only {
+    @apply block md:hidden;
+  }
+
+  /* Responsive text truncation */
+  .text-responsive {
+    @apply text-xs sm:text-sm lg:text-base;
+  }
+
+  /* Stack on mobile, side-by-side on desktop */
+  .stack-mobile {
+    @apply flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4;
+  }
 }
 
 .sidebar-transition {
   transition: transform 0.3s ease-in-out;
 }
 
+/* Enhanced responsive sidebar */
 @media (max-width: 768px) {
   .sidebar-hidden {
     transform: translateX(-100%);
+  }
+}
+
+/* Responsive modal adjustments */
+@media (max-width: 640px) {
+  .modal-responsive {
+    @apply mx-2 max-h-[95vh] overflow-y-auto;
+  }
+}
+
+/* Responsive table cells that stack on mobile */
+@media (max-width: 640px) {
+  .table-cell-responsive {
+    @apply block border-b border-border p-2 text-left;
+  }
+  
+  .table-cell-responsive:before {
+    content: attr(data-label) ": ";
+    @apply font-medium text-muted-foreground;
   }
 }
