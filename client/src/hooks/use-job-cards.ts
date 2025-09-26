@@ -37,10 +37,10 @@ export function useJobCards() {
   const shouldIncludeOemFilter = !isPartnerUser && selectedOemId;
   
   return useQuery({
-    queryKey: ["/api/job-cards", shouldIncludeOemFilter ? selectedOemId : 'all', Date.now().toString()],
+    queryKey: ["/api/job-cards", shouldIncludeOemFilter ? selectedOemId : 'all'],
     enabled: !!user && user.role !== undefined,
     refetchOnWindowFocus: false,
-    staleTime: 0,
+    staleTime: 30000,
     queryFn: async (): Promise<JobCardView[]> => {
       console.log('🎯 BULK LOADING: JobCards query function started - CACHE DISABLED');
       // Get headers with OEM ID

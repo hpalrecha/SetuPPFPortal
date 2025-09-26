@@ -40,11 +40,14 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/job-cards"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/job-cards", jobCardId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/metrics"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/payouts"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
+      // Invalidate all job cards queries (with any parameters)
+      queryClient.invalidateQueries({ predicate: (query) => 
+        query.queryKey[0] === "/api/job-cards" 
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/metrics"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["/api/payouts"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["/api/earnings"], exact: false });
+      console.log('🔄 Cache invalidated after approval - listing should update automatically');
       toast({
         title: "Job Card Approved",
         description: "The job card has been approved successfully."
@@ -68,7 +71,11 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/job-cards"] });
+      // Invalidate all job cards queries (with any parameters)
+      queryClient.invalidateQueries({ predicate: (query) => 
+        query.queryKey[0] === "/api/job-cards" 
+      });
+      console.log('🔄 Cache invalidated after rejection - listing should update automatically');
       toast({
         title: "Job Card Rejected",
         description: "The job card has been rejected."
@@ -92,7 +99,11 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/job-cards"] });
+      // Invalidate all job cards queries (with any parameters)
+      queryClient.invalidateQueries({ predicate: (query) => 
+        query.queryKey[0] === "/api/job-cards" 
+      });
+      console.log('🔄 Cache invalidated after rework request - listing should update automatically');
       toast({
         title: "Rework Requested",
         description: "Rework has been requested for this job card."
