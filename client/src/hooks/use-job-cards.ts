@@ -37,11 +37,12 @@ export function useJobCards() {
   const shouldIncludeOemFilter = !isPartnerUser && selectedOemId;
   
   return useQuery({
-    queryKey: ["/api/job-cards", shouldIncludeOemFilter ? selectedOemId : 'all', "v7"],
+    queryKey: ["/api/job-cards", shouldIncludeOemFilter ? selectedOemId : 'all', "v9-force-refresh"],
     enabled: !!user && user.role !== undefined,
     refetchOnWindowFocus: false,
     staleTime: 30000,
     queryFn: async (): Promise<JobCardView[]> => {
+      console.log('🎯 JobCards query function started');
       // Get headers with OEM ID
       const token = localStorage.getItem('auth_token');
       
@@ -72,6 +73,7 @@ export function useJobCards() {
       
       const jobCards: JobCard[] = await response.json();
       
+      console.log('✅ Job cards fetched:', jobCards.length);
       
       // Extract unique IDs for batch fetching
 
@@ -79,6 +81,8 @@ export function useJobCards() {
       const workOrderIds = Array.from(new Set(
         jobCards.map(jc => jc.workOrderId || jc.id || (jc as any).jobCard?.workOrderId).filter(Boolean)
       ));
+      
+      console.log('🔍 Work order IDs to fetch:', workOrderIds.length, workOrderIds);
       const serviceIds = new Set<string>();
       const vehicleModelIds = new Set<string>();
       const partnerIds = Array.from(new Set(
@@ -104,7 +108,9 @@ export function useJobCards() {
           body: JSON.stringify({ ids: workOrderIds })
         });
         if (!res.ok) {
-          console.error('Bulk work orders failed:', res.status, await res.text());
+          const errorText = await res.text();
+          console.error('❌ Bulk work orders failed:', res.status, errorText);
+          console.log('🔄 Falling back to individual calls...');
           // Fallback to individual calls if bulk fails
           return Promise.all(workOrderIds.map(async (id) => {
             const fallbackHeaders: HeadersInit = { 'Authorization': `Bearer ${token}` };
@@ -116,7 +122,9 @@ export function useJobCards() {
             return fallbackRes.ok ? fallbackRes.json() : null;
           })).then(results => results.filter(Boolean));
         }
-        return res.json();
+        const result = await res.json();
+        console.log('✅ Bulk work orders success:', result.length, 'fetched');
+        return result;
       })() : [];
       
       // Collect service and vehicle model IDs from work orders
