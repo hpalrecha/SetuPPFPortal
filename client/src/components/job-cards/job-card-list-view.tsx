@@ -2,18 +2,29 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { AlertCircle, Clock, Wrench, CheckCircle2, Trophy, Settings, Play, Eye } from "lucide-react";
+import { AlertCircle, Clock, Wrench, CheckCircle2, Trophy, Settings, Play, Eye, Phone, Car, User, Calendar, MapPin } from "lucide-react";
 import type { JobCardView } from "@/hooks/use-job-cards";
 
 const statusColors = {
-  AWAITING_ACK: "bg-red-100 text-red-800 border-red-200",
-  ACKNOWLEDGED: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  SCHEDULED: "bg-blue-100 text-blue-800 border-blue-200", 
-  IN_PROGRESS: "bg-blue-100 text-blue-800 border-blue-200",
-  COMPLETED: "bg-green-100 text-green-800 border-green-200",
-  PENDING_APPROVAL: "bg-orange-100 text-orange-800 border-orange-200",
-  APPROVED: "bg-green-100 text-green-800 border-green-200",
-  CLOSED: "bg-gray-100 text-gray-800 border-gray-200"
+  AWAITING_ACK: "bg-red-50 text-red-700 border-red-200 shadow-red-100",
+  ACKNOWLEDGED: "bg-yellow-50 text-yellow-700 border-yellow-200 shadow-yellow-100",
+  SCHEDULED: "bg-blue-50 text-blue-700 border-blue-200 shadow-blue-100", 
+  IN_PROGRESS: "bg-indigo-50 text-indigo-700 border-indigo-200 shadow-indigo-100",
+  COMPLETED: "bg-emerald-50 text-emerald-700 border-emerald-200 shadow-emerald-100",
+  PENDING_APPROVAL: "bg-orange-50 text-orange-700 border-orange-200 shadow-orange-100",
+  APPROVED: "bg-green-50 text-green-700 border-green-200 shadow-green-100",
+  CLOSED: "bg-slate-50 text-slate-700 border-slate-200 shadow-slate-100"
+};
+
+const statusColorClasses = {
+  AWAITING_ACK: "bg-red-100 text-red-600",
+  ACKNOWLEDGED: "bg-yellow-100 text-yellow-600",
+  SCHEDULED: "bg-blue-100 text-blue-600", 
+  IN_PROGRESS: "bg-indigo-100 text-indigo-600",
+  COMPLETED: "bg-emerald-100 text-emerald-600",
+  PENDING_APPROVAL: "bg-orange-100 text-orange-600",
+  APPROVED: "bg-green-100 text-green-600",
+  CLOSED: "bg-slate-100 text-slate-600"
 };
 
 const statusIcons = {
@@ -190,10 +201,16 @@ export default function JobCardListView({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold">Job Cards ({jobCards.length})</h3>
-          <p className="text-sm text-muted-foreground">Sorted by priority and creation date</p>
+          <h3 className="text-xl font-bold text-foreground">Job Cards ({jobCards.length})</h3>
+          <p className="text-sm text-muted-foreground mt-1">Sorted by priority and creation date</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs">
+            <Clock className="h-3 w-3 mr-1" />
+            Real-time updates
+          </Badge>
         </div>
       </div>
 
@@ -221,81 +238,115 @@ export default function JobCardListView({
             return (
               <Card 
                 key={job.id} 
-                className={`transition-shadow hover:shadow-md ${
-                  priority === 'high' ? 'border-l-4 border-l-red-500 bg-red-50/20' : 
-                  priority === 'medium' ? 'border-l-4 border-l-orange-500 bg-orange-50/20' : 
-                  'border-l-4 border-l-gray-300'
-                } ${isCompleted ? 'opacity-75' : ''}`}
+                className={`group transition-all duration-200 hover:shadow-lg hover:scale-[1.02] border-0 shadow-sm ${
+                  priority === 'high' ? 'border-l-4 border-l-red-500 bg-gradient-to-r from-red-50/30 to-white' : 
+                  priority === 'medium' ? 'border-l-4 border-l-orange-500 bg-gradient-to-r from-orange-50/30 to-white' : 
+                  'border-l-4 border-l-slate-200 bg-gradient-to-r from-slate-50/30 to-white'
+                } ${isCompleted ? 'opacity-80 hover:opacity-100' : ''}`}
                 data-testid={`card-job-${job.id}`}
               >
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    {/* Left side - Job Info */}
-                    <div className="flex items-center space-x-4 flex-1">
-                      {/* Status Icon */}
-                      <div className={`p-2 rounded-lg ${statusColors[job.status! as keyof typeof statusColors]?.split(' ')[0]} bg-opacity-50`}>
-                        <StatusIcon className="h-4 w-4" />
+                <CardContent className="p-6">
+                  {/* Header Row */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-4">
+                      {/* Status Icon with enhanced styling */}
+                      <div className={`p-3 rounded-xl ${statusColorClasses[job.status! as keyof typeof statusColorClasses]} shadow-sm`}>
+                        <StatusIcon className="h-5 w-5" />
                       </div>
                       
-                      {/* Job Details */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-1">
-                          <span className="font-mono text-sm font-medium">JC-{job.id.slice(-6)}</span>
+                      {/* Job ID and Status */}
+                      <div>
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="font-mono text-lg font-bold text-foreground">JC-{job.id.slice(-6)}</span>
                           <Badge 
-                            variant="outline" 
-                            className={statusColors[job.status! as keyof typeof statusColors]}
+                            className={`px-3 py-1 font-medium ${statusColors[job.status! as keyof typeof statusColors]}`}
                           >
                             {job.status?.replace(/_/g, " ")}
                           </Badge>
                           {priority !== 'normal' && (
-                            <Badge variant={priority === 'high' ? 'destructive' : 'default'} className="text-xs">
-                              {priority === 'high' ? 'URGENT' : 'PRIORITY'}
+                            <Badge 
+                              variant={priority === 'high' ? 'destructive' : 'default'} 
+                              className="text-xs font-bold px-2 py-1 animate-pulse"
+                            >
+                              {priority === 'high' ? '🚨 URGENT' : '⚡ PRIORITY'}
                             </Badge>
                           )}
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">Vehicle: </span>
-                            <span className="font-medium">
-                              {job.workOrder?.vehicleModel?.oem?.name} {job.workOrder?.vehicleModel?.modelName} - {job.workOrder?.service?.name}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Partner: </span>
-                            <span>{job.partner?.displayName || 'Unassigned Partner'}</span>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Created: </span>
-                            <span>{getTimeAgo(job.createdAt!)}</span>
-                          </div>
-                        </div>
-                        
-                        {/* Progress bar for active jobs */}
+                        {/* Progress bar for active jobs - moved to header */}
                         {['ACKNOWLEDGED', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'PENDING_APPROVAL'].includes(job.status!) && (
-                          <div className="mt-2 flex items-center gap-2">
-                            <Progress value={progressValue} className="h-2 flex-1" />
-                            <span className="text-xs text-muted-foreground min-w-[3rem]">{progressValue}%</span>
+                          <div className="flex items-center gap-3 mb-2">
+                            <Progress value={progressValue} className="h-3 w-32" />
+                            <span className="text-sm font-medium text-muted-foreground">{progressValue}% complete</span>
                           </div>
                         )}
                       </div>
                     </div>
                     
-                    {/* Right side - Actions */}
-                    <div className="flex items-center gap-3">
-                      {/* Additional info */}
+                    {/* Time info */}
+                    <div className="text-right">
+                      <div className="flex items-center gap-1 text-muted-foreground mb-1">
+                        <Clock className="h-3 w-3" />
+                        <span className="text-sm">{getTimeAgo(job.createdAt!)}</span>
+                      </div>
                       {job.scheduledAt && (
-                        <div className="text-xs text-muted-foreground text-right">
-                          <div>Scheduled</div>
-                          <div>{new Date(job.scheduledAt).toLocaleDateString()}</div>
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          <span className="text-xs">Scheduled {new Date(job.scheduledAt).toLocaleDateString()}</span>
                         </div>
                       )}
-                      
-                      {/* Action buttons */}
-                      <div className="flex flex-col gap-2">
-                        {renderActionButtons(job)}
+                    </div>
+                  </div>
+
+                  {/* Details Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+                    {/* Vehicle Info */}
+                    <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
+                      <Car className="h-4 w-4 text-slate-600 mt-0.5" />
+                      <div>
+                        <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Vehicle & Service</div>
+                        <div className="font-semibold text-sm text-foreground">
+                          {job.workOrder?.vehicleModel?.oem?.name} {job.workOrder?.vehicleModel?.modelName}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {job.workOrder?.service?.name}
+                        </div>
                       </div>
                     </div>
+
+                    {/* Partner Info */}
+                    <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
+                      <MapPin className="h-4 w-4 text-blue-600 mt-0.5" />
+                      <div>
+                        <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Installation Partner</div>
+                        <div className="font-semibold text-sm text-foreground">
+                          {job.partner?.displayName || 'Unassigned Partner'}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Pending assignment
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Customer Info */}
+                    <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
+                      <User className="h-4 w-4 text-green-600 mt-0.5" />
+                      <div>
+                        <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Customer</div>
+                        <div className="font-semibold text-sm text-foreground">
+                          Customer Info
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Phone className="h-3 w-3" />
+                          Contact available
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex justify-end">
+                    {renderActionButtons(job)}
                   </div>
                 </CardContent>
               </Card>
