@@ -964,7 +964,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Bulk Work Orders endpoint to solve N+1 problem
-  app.post("/api/work-orders/bulk", authenticate, async (req, res) => {
+  app.post("/api/work-orders/bulk", authenticate, requireOEMAccess, async (req, res) => {
     try {
       const { ids } = req.body;
       
@@ -1874,7 +1874,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Bulk Partners endpoint
-  app.post("/api/partners/bulk", authenticate, async (req, res) => {
+  app.post("/api/partners/bulk", authenticate, requireOEMAccess, async (req, res) => {
     try {
       const { ids } = req.body;
       
@@ -2630,7 +2630,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Bulk Services endpoint
-  app.post("/api/services/bulk", authenticate, async (req, res) => {
+  app.post("/api/services/bulk", authenticate, requireOEMAccess, async (req, res) => {
     try {
       const { ids } = req.body;
       
