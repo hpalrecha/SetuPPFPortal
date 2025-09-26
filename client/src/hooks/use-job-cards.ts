@@ -37,12 +37,12 @@ export function useJobCards() {
   const shouldIncludeOemFilter = !isPartnerUser && selectedOemId;
   
   return useQuery({
-    queryKey: ["/api/job-cards", shouldIncludeOemFilter ? selectedOemId : 'all', "v9-force-refresh"],
+    queryKey: ["/api/job-cards", shouldIncludeOemFilter ? selectedOemId : 'all', Date.now().toString()],
     enabled: !!user && user.role !== undefined,
     refetchOnWindowFocus: false,
-    staleTime: 30000,
+    staleTime: 0,
     queryFn: async (): Promise<JobCardView[]> => {
-      console.log('🎯 JobCards query function started');
+      console.log('🎯 BULK LOADING: JobCards query function started - CACHE DISABLED');
       // Get headers with OEM ID
       const token = localStorage.getItem('auth_token');
       
@@ -73,7 +73,7 @@ export function useJobCards() {
       
       const jobCards: JobCard[] = await response.json();
       
-      console.log('✅ Job cards fetched:', jobCards.length);
+      console.log('✅ BULK LOADING: Job cards fetched:', jobCards.length);
       
       // Extract unique IDs for batch fetching
 
@@ -82,7 +82,7 @@ export function useJobCards() {
         jobCards.map(jc => jc.workOrderId || jc.id || (jc as any).jobCard?.workOrderId).filter(Boolean)
       ));
       
-      console.log('🔍 Work order IDs to fetch:', workOrderIds.length, workOrderIds);
+      console.log('🔍 BULK LOADING: Work order IDs to fetch:', workOrderIds.length);
       const serviceIds = new Set<string>();
       const vehicleModelIds = new Set<string>();
       const partnerIds = Array.from(new Set(
@@ -90,7 +90,7 @@ export function useJobCards() {
       ));
 
       
-      console.log('🚀 Starting bulk loading for', workOrderIds.length, 'work orders');
+      console.log('🚀 BULK LOADING: Starting for', workOrderIds.length, 'work orders');
       // Bulk fetch work orders (replaces N+1 queries)
       const workOrders: WorkOrder[] = workOrderIds.length > 0 ? await (async () => {
         const workOrderHeaders: HeadersInit = { 
