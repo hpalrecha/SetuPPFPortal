@@ -83,16 +83,33 @@ export function useJobCards() {
       
       console.log('✅ BULK LOADING: Job cards fetched:', jobCards.length);
       
-      // Use REAL job card data instead of dummy data
-      console.log('🔍 Using real job card data from API');
+      // Use available data from job cards to show meaningful information
+      console.log('🔍 REAL DATA: Using actual job card data with meaningful display');
       console.log('📋 Sample raw job card:', jobCards[0]);
       
-      // Return job cards with actual data from the API
+      // Return job cards using real data that's available
       return jobCards.map(jobCard => {
-        // Extract real information from materialConsumptionJson if available
+        // Extract meaningful information from the job card
         const materialInfo = jobCard.materialConsumptionJson as any;
-        const productName = materialInfo?.productName || 'PPF Installation';
+        const productName = materialInfo?.productName;
         const batchNumber = materialInfo?.batchNumber || jobCard.batchNumbers;
+        const quantityUsed = materialInfo?.quantityUsed;
+        
+        // Create meaningful service name from available data
+        let serviceName = 'PPF Installation';
+        if (productName && batchNumber) {
+          serviceName = `${productName} (Batch: ${batchNumber})`;
+        } else if (batchNumber) {
+          serviceName = `PPF Installation (Batch: ${batchNumber})`;
+        } else if (productName) {
+          serviceName = productName;
+        }
+        
+        // Vehicle model name - use work order ID since we don't have vehicle details
+        const vehicleModelName = `Work Order #${jobCard.workOrderId?.slice(-8) || jobCard.id?.slice(-8)}`;
+        
+        // OEM name - use product name or default
+        const oemName = productName || 'Vehicle Service';
         
         return {
           ...jobCard,
@@ -102,20 +119,20 @@ export function useJobCards() {
             serviceId: '',
             vehicleModel: {
               id: '',
-              modelName: `Job ${jobCard.id.slice(-6)}`, // Use actual job card ID
+              modelName: vehicleModelName,
               oem: {
                 id: '',
-                name: productName || 'Vehicle Service' // Use real product name
+                name: oemName
               }
             },
             service: {
               id: '',
-              name: batchNumber ? `PPF - Batch ${batchNumber}` : 'PPF Installation'
+              name: serviceName
             }
           },
           partner: {
             id: jobCard.partnerId || '',
-            displayName: jobCard.partnerRemarks || `Partner ${jobCard.partnerId?.slice(-6) || ''}`
+            displayName: `Partner #${jobCard.partnerId?.slice(-8) || 'Unknown'}`
           }
         } as JobCardView;
       });
