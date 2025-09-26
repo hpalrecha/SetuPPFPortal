@@ -963,6 +963,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Bulk Work Orders endpoint to solve N+1 problem
+  app.post("/api/work-orders/bulk", authenticate, async (req, res) => {
+    try {
+      const { ids } = req.body;
+      
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "Invalid IDs array" });
+      }
+
+      // Limit to reasonable batch size
+      if (ids.length > 100) {
+        return res.status(400).json({ error: "Too many IDs requested (max 100)" });
+      }
+
+      const workOrders = await storage.getWorkOrders({ 
+        workOrderIds: ids,
+        limit: 100 
+      });
+
+      // Filter based on user permissions
+      const filteredWorkOrders = workOrders.filter(workOrder => {
+        if (req.user!.role === 'SUPER_ADMIN') return true;
+        if (req.user!.role === 'OEM_ADMIN') return workOrder.oemId === req.user!.oemId;
+        if (req.user!.role === 'DEALERSHIP_ADMIN') return workOrder.dealershipId === req.user!.dealershipId;
+        if (req.user!.role === 'SHOWROOM_MANAGER') return workOrder.showroomId === req.user!.showroomId;
+        return false; // Partners handled separately
+      });
+
+      res.json(filteredWorkOrders);
+    } catch (error) {
+      console.error("Bulk work orders error:", error);
+      res.status(500).json({ error: "Failed to fetch work orders" });
+    }
+  });
+
   app.get("/api/work-orders/:id", authenticate, async (req, res) => {
     try {
       // Disable caching to ensure fresh data
@@ -1838,6 +1873,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk Partners endpoint
+  app.post("/api/partners/bulk", authenticate, async (req, res) => {
+    try {
+      const { ids } = req.body;
+      
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "Invalid IDs array" });
+      }
+
+      if (ids.length > 100) {
+        return res.status(400).json({ error: "Too many IDs requested (max 100)" });
+      }
+
+      const filters: any = { partnerIds: ids };
+      
+      // Add OEM filter for non-admin users
+      if (req.user!.role !== 'SUPER_ADMIN' && req.user!.oemId) {
+        filters.oemId = req.user!.oemId;
+      }
+
+      const partners = await storage.getPartners(filters);
+      res.json(partners);
+    } catch (error) {
+      console.error("Bulk partners error:", error);
+      res.status(500).json({ error: "Failed to fetch partners" });
+    }
+  });
+
   app.post("/api/partners", 
     authenticate, 
     requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
@@ -2562,6 +2625,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(services);
     } catch (error) {
       console.error("Get services error:", error);
+      res.status(500).json({ error: "Failed to fetch services" });
+    }
+  });
+
+  // Bulk Services endpoint
+  app.post("/api/services/bulk", authenticate, async (req, res) => {
+    try {
+      const { ids } = req.body;
+      
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "Invalid IDs array" });
+      }
+
+      if (ids.length > 100) {
+        return res.status(400).json({ error: "Too many IDs requested (max 100)" });
+      }
+
+      const filters: any = { serviceIds: ids };
+      
+      // Add OEM filter for non-admin users
+      if (req.user!.role !== 'SUPER_ADMIN' && req.user!.oemId) {
+        filters.oemId = req.user!.oemId;
+      }
+
+      const services = await storage.getServices(filters);
+      res.json(services);
+    } catch (error) {
+      console.error("Bulk services error:", error);
       res.status(500).json({ error: "Failed to fetch services" });
     }
   });

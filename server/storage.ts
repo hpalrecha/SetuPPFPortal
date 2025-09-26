@@ -70,7 +70,7 @@ export interface IStorage {
   deleteServiceCategory(id: string): Promise<boolean>;
 
   // Services management
-  getServices(filters?: { oemId?: string; dealershipId?: string }): Promise<any[]>;
+  getServices(filters?: { oemId?: string; dealershipId?: string; serviceIds?: string[] }): Promise<any[]>;
   getService(id: string): Promise<any>;
   createService(service: any): Promise<any>;
   updateService(id: string, updates: any): Promise<any>;
@@ -103,6 +103,7 @@ export interface IStorage {
     showroomId?: string; 
     partnerId?: string; 
     status?: string;
+    workOrderIds?: string[];  // Add bulk support
     limit?: number;
     offset?: number;
   }): Promise<WorkOrder[]>;
@@ -135,7 +136,7 @@ export interface IStorage {
   getApprovals(filters?: { jobCardId?: string }): Promise<any[]>;
 
   // Partner management
-  getPartners(filters?: { oemId?: string; type?: string }): Promise<Partner[]>;
+  getPartners(filters?: { oemId?: string; type?: string; partnerIds?: string[] }): Promise<Partner[]>;
   getPartner(id: string): Promise<Partner | undefined>;
   createPartner(partner: InsertPartner): Promise<Partner>;
   updatePartner(id: string, updates: Partial<InsertPartner>): Promise<Partner | undefined>;
@@ -404,8 +405,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Services management
-  async getServices(filters?: { oemId?: string; dealershipId?: string }): Promise<any[]> {
+  async getServices(filters?: { oemId?: string; dealershipId?: string; serviceIds?: string[] }): Promise<any[]> {
     let query = db.select().from(services);
+    
+    // Handle bulk service IDs query
+    if (filters?.serviceIds && filters.serviceIds.length > 0) {
+      query = query.where(
+        and(
+          eq(services.active, true),
+          inArray(services.id, filters.serviceIds)
+        )
+      );
+      return await query;
+    }
     
     if (filters?.dealershipId) {
       // For dealership-specific services, include GLOBAL, OEM-specific, dealership-specific, and MULTIPLE
@@ -663,6 +675,7 @@ export class DatabaseStorage implements IStorage {
     showroomId?: string; 
     partnerId?: string; 
     status?: string;
+    workOrderIds?: string[];  // Add bulk support
     limit?: number;
     offset?: number;
   }): Promise<any[]> {
@@ -674,6 +687,11 @@ export class DatabaseStorage implements IStorage {
     if (filters?.showroomId) conditions.push(eq(workOrders.showroomId, filters.showroomId));
     if (filters?.partnerId) conditions.push(eq(workOrders.assignedPartnerId, filters.partnerId));
     if (filters?.status) conditions.push(eq(workOrders.status, filters.status as any));
+    
+    // Add bulk support for multiple work order IDs
+    if (filters?.workOrderIds && filters.workOrderIds.length > 0) {
+      conditions.push(inArray(workOrders.id, filters.workOrderIds));
+    }
 
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
@@ -1068,8 +1086,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ====================== Partner CRUD ======================
-  async getPartners(filters?: { oemId?: string; type?: string }): Promise<Partner[]> {
+  async getPartners(filters?: { oemId?: string; type?: string; partnerIds?: string[] }): Promise<Partner[]> {
     let query = db.select().from(partners).where(eq(partners.active, true));
+    
+    // Handle bulk partner IDs query
+    if (filters?.partnerIds && filters.partnerIds.length > 0) {
+      query = query.where(
+        and(
+          eq(partners.active, true),
+          inArray(partners.id, filters.partnerIds)
+        )
+      );
+      return await query;
+    }
     
     if (filters?.type) {
       query = query.where(eq(partners.type, filters.type as any));
