@@ -61,21 +61,57 @@ export function useJobCards() {
         credentials: 'include',
       });
       
-      
       if (!response.ok) {
         throw new Error(`Failed to fetch job cards: ${response.status} ${response.statusText}`);
       }
       
       const contentType = response.headers.get('content-type');
       if (!contentType?.includes('application/json')) {
+        const responseText = await response.text();
+        console.error('❌ Non-JSON response from /api/job-cards:', responseText.substring(0, 200));
         throw new Error(`Expected JSON response but got ${contentType} from /api/job-cards`);
       }
       
-      const jobCards: JobCard[] = await response.json();
+      let jobCards: JobCard[];
+      try {
+        jobCards = await response.json();
+      } catch (parseError) {
+        const responseText = await response.text();
+        console.error('❌ JSON parse error from /api/job-cards:', responseText.substring(0, 200));
+        throw new Error(`Failed to parse JSON response from /api/job-cards: ${parseError}`);
+      }
       
       console.log('✅ BULK LOADING: Job cards fetched:', jobCards.length);
       
-      // Extract unique IDs for batch fetching with defensive field mapping
+      // QUICK FIX: Return basic job cards with minimal data to get the UI working
+      // We'll add enrichment back later once the basic view is working
+      console.log('🚀 QUICK FIX: Returning simplified job cards to display immediately');
+      return jobCards.map(jobCard => ({
+        ...jobCard,
+        workOrder: {
+          id: jobCard.workOrderId || '',
+          vehicleModelId: '',
+          serviceId: '',
+          vehicleModel: {
+            id: '',
+            modelName: `Job ${jobCard.id?.slice(-6) || 'Card'}`,
+            oem: {
+              id: '',
+              name: 'Vehicle'
+            }
+          },
+          service: {
+            id: '',
+            name: 'PPF Service'
+          }
+        },
+        partner: {
+          id: jobCard.partnerId || '',
+          displayName: 'Partner'
+        }
+      } as JobCardView));
+      
+      // Complex enrichment logic below (currently skipped)
       const workOrderIds = Array.from(new Set(
         jobCards.map(jc => jc.workOrderId || jc.id || (jc as any).jobCard?.workOrderId).filter(Boolean)
       ));
