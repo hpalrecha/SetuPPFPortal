@@ -90,10 +90,8 @@ export function Sidebar({ collapsed, onToggle, className, isMobile = false }: Si
       "flex flex-col bg-card border-r border-border transition-all duration-300",
       // Different width behavior for mobile vs desktop
       isMobile 
-        ? (collapsed ? "-translate-x-full" : "translate-x-0 w-64") 
+        ? (collapsed ? "-translate-x-full w-64" : "translate-x-0 w-64") 
         : (collapsed ? "w-16" : "w-64"),
-      // Hide sidebar completely on mobile when collapsed
-      isMobile && collapsed && "hidden",
       className
     )}>
       {/* Toggle Button */}
