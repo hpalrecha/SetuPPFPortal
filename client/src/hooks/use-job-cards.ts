@@ -83,121 +83,33 @@ export function useJobCards() {
       
       console.log('✅ BULK LOADING: Job cards fetched:', jobCards.length);
       
-      // TRY ENRICHED BULK ENDPOINT: Request enriched data from bulk endpoint with special parameter
-      console.log('🚀 ENRICHED BULK: Requesting enriched job cards data from bulk endpoint');
-      console.log('📋 Sample raw job card:', jobCards[0]);
+      // SIMPLE APPROACH: Return basic job cards with minimal processing
+      console.log('✅ SIMPLE: Returning job cards with basic information');
       
-      try {
-        // Try requesting enriched data by using a special parameter or different endpoint
-        const enrichedResponse = await fetch(`/api/job-cards?enrich=true&limit=50&offset=0`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        if (enrichedResponse.ok) {
-          const enrichedJobCards = await enrichedResponse.json();
-          console.log('✅ ENRICHED BULK: Got enriched data from bulk endpoint');
-          console.log('📋 Sample enriched job card:', enrichedJobCards[0]);
-          
-          // Check if the response contains enriched data
-          if (enrichedJobCards.length > 0 && enrichedJobCards[0].workOrder) {
-            return enrichedJobCards.map((enrichedCard: any) => ({
-              ...enrichedCard,
-              workOrder: {
-                id: enrichedCard.workOrder?.id || enrichedCard.workOrderId || '',
-                vehicleModelId: enrichedCard.workOrder?.vehicleModel?.id || '',
-                serviceId: enrichedCard.workOrder?.service?.id || '',
-                vehicleModel: {
-                  id: enrichedCard.workOrder?.vehicleModel?.id || '',
-                  modelName: enrichedCard.workOrder?.vehicleModel?.modelName || 
-                           enrichedCard.workOrder?.vehicleModel?.name || 
-                           `Job ${enrichedCard.id.slice(-6)}`,
-                  oem: {
-                    id: enrichedCard.workOrder?.vehicleModel?.brand?.id || 
-                        enrichedCard.workOrder?.vehicleModel?.oem?.id || '',
-                    name: enrichedCard.workOrder?.vehicleModel?.brand?.name || 
-                          enrichedCard.workOrder?.vehicleModel?.oem?.name || 'Vehicle Brand'
-                  }
-                },
-                service: {
-                  id: enrichedCard.workOrder?.service?.id || '',
-                  name: enrichedCard.workOrder?.service?.name || 'PPF Installation'
-                }
-              },
-              partner: {
-                id: enrichedCard.partnerId || '',
-                displayName: enrichedCard.workOrder?.showroom?.name || 
-                           enrichedCard.partner?.displayName || 
-                           `Partner ${enrichedCard.partnerId?.slice(-8) || 'Unknown'}`
-              },
-              // Add customer info
-              customerName: enrichedCard.workOrder?.customerName,
-              customerPhone: enrichedCard.workOrder?.customerPhone,
-              customerEmail: enrichedCard.workOrder?.customerEmail
-            } as JobCardView));
-          }
-        }
-        
-        console.log('⚠️ ENRICHED BULK: Bulk endpoint didnt return enriched data, using available data');
-        // Fall back to using whatever data is available from the original response
-        
-      } catch (error) {
-        console.error('❌ ENRICHED BULK: Failed to get enriched bulk data:', error);
-      }
-      
-      // FALLBACK: Use the data we already have and extract meaningful info
-      console.log('🔄 FALLBACK: Using available job card data with smart extraction');
-      
-      return jobCards.map(jobCard => {
-        // Extract real information from the job card
-        const materialInfo = jobCard.materialConsumptionJson as any;
-        const productName = materialInfo?.productName;
-        const batchNumber = materialInfo?.batchNumber || jobCard.batchNumbers;
-        
-        // Create meaningful service name from available data
-        let serviceName = 'PPF Installation';
-        if (productName && batchNumber) {
-          serviceName = `${productName} (Batch: ${batchNumber})`;
-        } else if (batchNumber) {
-          serviceName = `PPF - Batch ${batchNumber}`;
-        } else if (productName) {
-          serviceName = productName;
-        }
-        
-        // Use work order reference for vehicle info
-        const vehicleModelName = `WO-${jobCard.workOrderId?.slice(-6) || jobCard.id?.slice(-6)}`;
-        const oemName = productName || 'PPF Service';
-        
-        return {
-          ...jobCard,
-          workOrder: {
-            id: jobCard.workOrderId || '',
-            vehicleModelId: '',
-            serviceId: '',
-            vehicleModel: {
+      return jobCards.map(jobCard => ({
+        ...jobCard,
+        workOrder: {
+          id: jobCard.workOrderId || '',
+          vehicleModelId: '',
+          serviceId: '',
+          vehicleModel: {
+            id: '',
+            modelName: `Job ${jobCard.id.slice(-6)}`,
+            oem: {
               id: '',
-              modelName: vehicleModelName,
-              oem: {
-                id: '',
-                name: oemName
-              }
-            },
-            service: {
-              id: '',
-              name: serviceName
+              name: 'Vehicle'
             }
           },
-          partner: {
-            id: jobCard.partnerId || '',
-            displayName: jobCard.partnerRemarks || `Partner-${jobCard.partnerId?.slice(-6) || 'Unknown'}`
-          },
-          // Use job card remarks as customer reference
-          customerName: jobCard.remarks || `Customer-${jobCard.id.slice(-6)}`,
-          customerPhone: 'Contact via partner'
-        } as JobCardView;
-      });
+          service: {
+            id: '',
+            name: 'PPF Installation'
+          }
+        },
+        partner: {
+          id: jobCard.partnerId || '',
+          displayName: 'Installation Partner'
+        }
+      } as JobCardView));
       
       // Complex enrichment logic below (currently skipped)
       const workOrderIds = Array.from(new Set(

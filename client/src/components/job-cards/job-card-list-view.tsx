@@ -232,10 +232,10 @@ export default function JobCardListView({
                             Vehicle & Service
                           </h4>
                           <p className="text-sm font-bold text-blue-900">
-                            {job.workOrder?.vehicleModel?.oem?.name} {job.workOrder?.vehicleModel?.modelName}
+                            Job #{job.id.slice(-6)}
                           </p>
                           <p className="text-xs text-blue-700 mt-1">
-                            {job.workOrder?.service?.name}
+                            PPF Installation
                           </p>
                         </div>
                       </div>
@@ -250,7 +250,7 @@ export default function JobCardListView({
                             Showroom Details
                           </h4>
                           <p className="text-sm font-bold text-green-900">
-                            {job.partner?.displayName || 'Partner Showroom'}
+                            Installation Partner
                           </p>
                           <p className="text-xs text-green-700 mt-1">
                             Ready for assignment
@@ -268,12 +268,12 @@ export default function JobCardListView({
                             Customer Details
                           </h4>
                           <p className="text-sm font-bold text-purple-900">
-                            {(job as any).customerName || `Customer #${job.id.slice(-6)}`}
+                            Job Card #{job.id.slice(-6)}
                           </p>
                           <div className="flex items-center gap-1 mt-1">
                             <Phone className="h-3 w-3 text-purple-600" />
                             <span className="text-xs text-purple-700">
-                              {(job as any).customerPhone || 'Contact info loading...'}
+                              Work Order: {job.workOrderId?.slice(-6) || 'N/A'}
                             </span>
                           </div>
                         </div>
