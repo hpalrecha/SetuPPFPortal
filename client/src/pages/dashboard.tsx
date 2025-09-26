@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { 
   BarChart3, 
@@ -17,7 +20,8 @@ import {
   MapPin,
   Car,
   Building2,
-  Target
+  Target,
+  Eye
 } from "lucide-react";
 import { 
   BarChart, 
@@ -106,11 +110,21 @@ const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff88'];
 
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
+  
+  // Role switcher for SUPER_ADMIN (Admin can view as other roles)
+  const [viewAsRole, setViewAsRole] = useState<string | null>(null);
+  const effectiveRole = viewAsRole || user?.role;
 
   const { data: metrics, isLoading } = useQuery<DashboardMetrics>({
     queryKey: ["/api/dashboard/metrics"],
     refetchInterval: 30000 // Refresh every 30 seconds
   });
+
+  // Role-based visibility helper
+  const canViewSection = (allowedRoles: string[]) => {
+    return allowedRoles.includes(effectiveRole || '');
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -145,113 +159,206 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div className="flex-1 min-w-0">
           <h2 className="text-xl sm:text-2xl font-semibold text-foreground truncate">Dashboard</h2>
-          <p className="text-sm sm:text-base text-muted-foreground mt-1">Overview of your PPF installation operations</p>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
+            Overview of your PPF installation operations
+            {viewAsRole && (
+              <span className="text-orange-600 font-medium"> (Viewing as {viewAsRole.replace('_', ' ')})</span>
+            )}
+          </p>
         </div>
-        <div className="mt-4 sm:mt-0 flex-shrink-0">
-          <Button 
-            onClick={() => setLocation("/work-orders")}
-            data-testid="button-new-work-order"
-            className="w-full sm:w-auto"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            New Work Order
-          </Button>
+        <div className="mt-4 sm:mt-0 flex-shrink-0 flex items-center space-x-2 sm:space-x-3">
+          {/* Role Switcher for Super Admin */}
+          {user?.role === 'SUPER_ADMIN' && (
+            <Select value={viewAsRole || ''} onValueChange={(value) => setViewAsRole(value || null)}>
+              <SelectTrigger className="w-48" data-testid="select-view-as-role">
+                <div className="flex items-center space-x-2">
+                  <Eye className="h-4 w-4" />
+                  <SelectValue placeholder="View as role" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">View as Super Admin</SelectItem>
+                <SelectItem value="OEM_ADMIN">View as OEM Admin</SelectItem>
+                <SelectItem value="DEALERSHIP_ADMIN">View as Dealership Admin</SelectItem>
+                <SelectItem value="SHOWROOM_MANAGER">View as Showroom Manager</SelectItem>
+                <SelectItem value="SALES_PERSON">View as Sales Person</SelectItem>
+                <SelectItem value="PARTNER_ADMIN">View as Detailer Admin</SelectItem>
+                <SelectItem value="PARTNER_STAFF">View as Detailer Staff</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+          
+          {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'SALES_PERSON']) && (
+            <Button 
+              onClick={() => setLocation("/work-orders")}
+              data-testid="button-new-work-order"
+              className="w-full sm:w-auto"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              New Work Order
+            </Button>
+          )}
         </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-muted-foreground text-sm">Active Work Orders</p>
-                <p className="text-2xl font-semibold text-foreground" data-testid="text-active-orders">
-                  {metrics?.activeWorkOrders || 45}
-                </p>
+        {/* Active Work Orders - Visible to Admin, OEM, Dealership, Showroom */}
+        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']) && (
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-sm">Active Work Orders</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-active-orders">
+                    {metrics?.activeWorkOrders || 45}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <BarChart3 className="h-6 w-6 text-blue-600" />
+                </div>
               </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <BarChart3 className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground mt-2">
-              <span className="text-green-600 flex items-center">
-                <TrendingUp className="h-3 w-3 mr-1" />
-                12%
-              </span>
-              from last month
-            </p>
-          </CardContent>
-        </Card>
+              <p className="text-sm text-muted-foreground mt-2">
+                <span className="text-green-600 flex items-center">
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  12%
+                </span>
+                from last month
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-muted-foreground text-sm">Pending Approvals</p>
-                <p className="text-2xl font-semibold text-foreground" data-testid="text-pending-approvals">
-                  {metrics?.pendingApprovals || 12}
-                </p>
+        {/* Pending Approvals - Visible to Admin, OEM, Dealership, Showroom */}
+        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']) && (
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-sm">Pending Approvals</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-pending-approvals">
+                    {metrics?.pendingApprovals || 12}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                  <Clock className="h-6 w-6 text-orange-600" />
+                </div>
               </div>
-              <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                <Clock className="h-6 w-6 text-orange-600" />
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground mt-2">Requires your attention</p>
-          </CardContent>
-        </Card>
+              <p className="text-sm text-muted-foreground mt-2">Requires your attention</p>
+            </CardContent>
+          </Card>
+        )}
 
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-muted-foreground text-sm">This Month Revenue</p>
-                <p className="text-2xl font-semibold text-foreground" data-testid="text-revenue">
-                  {formatCurrency(metrics?.thisMonthRevenue || 25600000)}
-                </p>
+        {/* This Month Revenue - Visible to Admin, OEM, Dealership, Showroom */}
+        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']) && (
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-sm">This Month Revenue</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-revenue">
+                    {formatCurrency(metrics?.thisMonthRevenue || 25600000)}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                  <DollarSign className="h-6 w-6 text-green-600" />
+                </div>
               </div>
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground mt-2">
-              <span className="text-green-600 flex items-center">
-                <TrendingUp className="h-3 w-3 mr-1" />
-                8%
-              </span>
-              from last month
-            </p>
-          </CardContent>
-        </Card>
+              <p className="text-sm text-muted-foreground mt-2">
+                <span className="text-green-600 flex items-center">
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  8%
+                </span>
+                from last month
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-muted-foreground text-sm">Avg. TAT</p>
-                <p className="text-2xl font-semibold text-foreground" data-testid="text-avg-tat">
-                  {metrics?.avgTAT || 3.2} days
-                </p>
+        {/* Avg TAT - Visible to Admin, OEM, Dealership, Showroom, Detailer */}
+        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'PARTNER_ADMIN', 'PARTNER_STAFF']) && (
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-sm">Avg. TAT</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-avg-tat">
+                    {metrics?.avgTAT || 3.2} days
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                  <Timer className="h-6 w-6 text-purple-600" />
+                </div>
               </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                <Timer className="h-6 w-6 text-purple-600" />
+              <p className="text-sm text-muted-foreground mt-2">
+                <span className="text-red-600 flex items-center">
+                  <TrendingDown className="h-3 w-3 mr-1" />
+                  0.3d
+                </span>
+                from last month
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Jobs Completed Card - Specific for Detailer roles */}
+        {canViewSection(['PARTNER_ADMIN', 'PARTNER_STAFF']) && (
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-sm">Jobs Completed</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-jobs-completed">
+                    {metrics?.activeWorkOrders || 28}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                  <CheckCircle className="h-6 w-6 text-green-600" />
+                </div>
               </div>
-            </div>
-            <p className="text-sm text-muted-foreground mt-2">
-              <span className="text-red-600 flex items-center">
-                <TrendingDown className="h-3 w-3 mr-1" />
-                0.3d
-              </span>
-              from last month
-            </p>
-          </CardContent>
-        </Card>
+              <p className="text-sm text-muted-foreground mt-2">
+                <span className="text-green-600 flex items-center">
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  15%
+                </span>
+                from last month
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Earnings Card - Specific for Detailer roles */}
+        {canViewSection(['PARTNER_ADMIN', 'PARTNER_STAFF']) && (
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-sm">This Month Earnings</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-earnings">
+                    {formatCurrency(850000)}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <DollarSign className="h-6 w-6 text-blue-600" />
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                <span className="text-green-600 flex items-center">
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  22%
+                </span>
+                from last month
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Analytics Charts Section */}
       <div className="space-y-6">
-        {/* PPF Orders Trend */}
-        <Card>
+        {/* PPF Orders Trend - Visible to Admin, OEM, Dealership */}
+        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']) && (
+          <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <BarChart3 className="h-5 w-5" />
@@ -276,8 +383,10 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+        )}
 
-        {/* Dealership Performance & Vehicle Category Upsells */}
+        {/* Dealership Performance & Vehicle Category Upsells - Visible to Admin, OEM */}
+        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN']) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           <Card>
             <CardHeader>
@@ -329,8 +438,10 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+        )}
 
-        {/* Territory Performance & Service Popularity */}
+        {/* Territory Performance & Service Popularity - Visible to Admin, OEM, Dealership */}
+        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           <Card>
             <CardHeader>
@@ -387,8 +498,10 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+        )}
 
-        {/* Monthly Performance Trends */}
+        {/* Monthly Performance Trends - Visible to Admin, OEM, Dealership, Showroom */}
+        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']) && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
@@ -416,8 +529,10 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+        )}
 
-        {/* Performance Summary Tables */}
+        {/* Performance Summary Tables - Visible to Admin, OEM */}
+        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN']) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Top Dealerships Table */}
           <Card>
@@ -477,6 +592,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+        )}
       </div>
     </div>
   );
