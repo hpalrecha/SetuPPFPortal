@@ -103,6 +103,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ user: req.user });
   });
 
+  // User Routes
+  app.get("/api/users", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']), async (req, res) => {
+    try {
+      const { dealershipId, oemId, showroomId, role } = req.query;
+      
+      const filters: any = {};
+      if (dealershipId) filters.dealershipId = dealershipId as string;
+      if (oemId) filters.oemId = oemId as string;
+      if (showroomId) filters.showroomId = showroomId as string;
+      if (role) filters.role = role as string;
+      
+      const users = await storage.getUsers(filters);
+      res.json(users);
+    } catch (error) {
+      console.error("Get users error:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
   // OEM Routes
   app.get("/api/oems", authenticate, requireRole(['SUPER_ADMIN', 'PARTNER_ADMIN', 'PARTNER_STAFF']), async (req, res) => {
     try {
