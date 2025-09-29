@@ -2676,7 +2676,8 @@ export class DatabaseStorage implements IStorage {
         or(
           eq(jobCards.status, 'AWAITING_ACK'),
           eq(jobCards.status, 'ACKNOWLEDGED'),
-          eq(jobCards.status, 'SCHEDULED')
+          eq(jobCards.status, 'SCHEDULED'),
+          eq(jobCards.status, 'PENDING_APPROVAL')
         )
       ));
 
@@ -2697,7 +2698,8 @@ export class DatabaseStorage implements IStorage {
         eq(jobCards.assignedInstallerId, staffId),
         or(
           eq(jobCards.status, 'APPROVED'),
-          eq(jobCards.status, 'CLOSED')
+          eq(jobCards.status, 'CLOSED'),
+          eq(jobCards.status, 'COMPLETED')
         )
       ));
 
@@ -2711,7 +2713,11 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         eq(jobCards.partnerId, partnerId),
         eq(jobCards.assignedInstallerId, staffId),
-        eq(jobCards.status, 'APPROVED'),
+        or(
+          eq(jobCards.status, 'APPROVED'),
+          eq(jobCards.status, 'CLOSED'),
+          eq(jobCards.status, 'COMPLETED')
+        ),
         isNotNull(jobCards.startedAt),
         isNotNull(jobCards.completedAt),
         sql`job_cards.completed_at >= CURRENT_DATE - INTERVAL '3 months'`
