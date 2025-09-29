@@ -471,11 +471,11 @@ export default function JobCardsNew() {
         </Card>
       )}
 
-      {/* List View - Desktop Table */}
+      {/* List View - Responsive Table */}
       {!isLoading && jobCards.length > 0 && viewMode === 'list' && (
         <>
-          {/* Desktop Table View */}
-          <div className="rounded-lg border border-border overflow-hidden">
+          {/* Desktop & Tablet Table View */}
+          <div className="hidden lg:block rounded-lg border border-border overflow-hidden">
             {/* Table Header */}
             <div className="bg-muted/50 border-b border-border px-4 py-3">
               <div className="grid grid-cols-12 gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -583,51 +583,180 @@ export default function JobCardsNew() {
               ))}
             </div>
           </div>
+
+          {/* Tablet Compact View */}
+          <div className="hidden md:block lg:hidden rounded-lg border border-border overflow-hidden">
+            {/* Table Header */}
+            <div className="bg-muted/50 border-b border-border px-3 py-2">
+              <div className="grid grid-cols-8 gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <div className="col-span-1">ID</div>
+                <div className="col-span-1">Status</div>
+                <div className="col-span-2">Customer</div>
+                <div className="col-span-2">Vehicle</div>
+                <div className="col-span-1">Partner</div>
+                <div className="col-span-1">Actions</div>
+              </div>
+            </div>
+
+            {/* Table Body */}
+            <div className="divide-y divide-border">
+              {jobCards.map((jobCard) => (
+                <div 
+                  key={jobCard.id}
+                  className="px-3 py-3 hover:bg-muted/30 transition-colors"
+                  data-testid={`row-tablet-job-card-${jobCard.id}`}
+                >
+                  <div className="grid grid-cols-8 gap-2 items-center">
+                    {/* ID Column */}
+                    <div className="col-span-1">
+                      <span className="font-mono text-xs font-semibold" data-testid={`text-id-${jobCard.id}`}>
+                        JC-{jobCard.id.slice(-6)}
+                      </span>
+                    </div>
+
+                    {/* Status Column */}
+                    <div className="col-span-1" data-testid={`status-${jobCard.id}`}>
+                      {getStatusBadge(jobCard.status)}
+                      <div className="mt-1">
+                        <Progress value={getProgressValue(jobCard.status)} className="h-1 w-full" />
+                      </div>
+                    </div>
+
+                    {/* Customer Column */}
+                    <div className="col-span-2">
+                      <div className="text-xs font-medium truncate" data-testid={`text-customer-${jobCard.id}`}>
+                        {jobCard.customerName}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate" data-testid={`text-phone-${jobCard.id}`}>
+                        {jobCard.workOrder?.customerPhone || 'N/A'}
+                      </div>
+                    </div>
+
+                    {/* Vehicle Column */}
+                    <div className="col-span-2">
+                      <div className="text-xs font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`}>
+                        {jobCard.vehicleDisplay}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate" data-testid={`text-service-${jobCard.id}`}>
+                        {jobCard.serviceDisplay}
+                      </div>
+                    </div>
+
+                    {/* Partner Column */}
+                    <div className="col-span-1">
+                      <div className="text-xs font-medium truncate" data-testid={`text-partner-${jobCard.id}`}>
+                        {jobCard.partnerDisplay}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatDate(jobCard.createdAt)}
+                      </div>
+                    </div>
+
+                    {/* Actions Column */}
+                    <div className="col-span-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleViewJobCard(jobCard)}
+                        data-testid={`button-view-${jobCard.id}`}
+                        className="w-full text-xs px-2"
+                      >
+                        <Eye className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
           
           {/* Mobile Card View */}
-          <div className="mobile-only space-y-3">
+          <div className="block md:hidden space-y-4">
             {jobCards.map((jobCard) => (
-              <Card key={jobCard.id} className="p-4" data-testid={`card-mobile-job-${jobCard.id}`}>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-sm font-medium" data-testid={`text-id-${jobCard.id}`}>
-                      JC-{jobCard.id.slice(-6)}
-                    </span>
+              <Card key={jobCard.id} className="shadow-sm border-l-4 border-l-blue-500" data-testid={`card-mobile-job-${jobCard.id}`}>
+                <CardContent className="p-4">
+                  {/* Header Row */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-bold" data-testid={`text-id-${jobCard.id}`}>
+                        JC-{jobCard.id.slice(-6)}
+                      </span>
+                    </div>
                     <div data-testid={`status-${jobCard.id}`}>
                       {getStatusBadge(jobCard.status)}
                     </div>
                   </div>
+
+                  {/* Progress Bar */}
+                  <div className="mb-3">
+                    <Progress value={getProgressValue(jobCard.status)} className="h-2 w-full" />
+                    <div className="text-xs text-muted-foreground mt-1 text-center">
+                      {getProgressValue(jobCard.status)}% Complete
+                    </div>
+                  </div>
                   
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Customer:</span>
-                      <span className="font-medium truncate ml-2" data-testid={`text-customer-${jobCard.id}`}>
-                        {jobCard.customerName}
-                      </span>
+                  {/* Details Grid */}
+                  <div className="grid grid-cols-1 gap-2 text-sm mb-4">
+                    <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
+                      <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-muted-foreground">Customer</div>
+                        <div className="font-medium truncate" data-testid={`text-customer-${jobCard.id}`}>
+                          {jobCard.customerName}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Vehicle:</span>
-                      <span className="truncate ml-2" data-testid={`text-vehicle-${jobCard.id}`}>
-                        {jobCard.vehicleDisplay}
-                      </span>
+
+                    <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
+                      <Car className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-muted-foreground">Vehicle</div>
+                        <div className="font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`}>
+                          {jobCard.vehicleDisplay}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Service:</span>
-                      <span className="truncate ml-2" data-testid={`text-service-${jobCard.id}`}>
-                        {jobCard.serviceDisplay}
-                      </span>
+
+                    <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
+                      <ServiceIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-muted-foreground">Service</div>
+                        <div className="font-medium truncate" data-testid={`text-service-${jobCard.id}`}>
+                          {jobCard.serviceDisplay}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Partner:</span>
-                      <span className="truncate ml-2" data-testid={`text-partner-${jobCard.id}`}>
-                        {jobCard.partnerDisplay}
-                      </span>
+
+                    <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
+                      <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-muted-foreground">Partner</div>
+                        <div className="font-medium truncate" data-testid={`text-partner-${jobCard.id}`}>
+                          {jobCard.partnerDisplay}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Created:</span>
-                      <span data-testid={`text-created-${jobCard.id}`}>
-                        {formatDate(jobCard.createdAt)}
-                      </span>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
+                        <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs text-muted-foreground">Created</div>
+                          <div className="text-xs font-medium" data-testid={`text-created-${jobCard.id}`}>
+                            {formatDate(jobCard.createdAt)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
+                        <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs text-muted-foreground">Phone</div>
+                          <div className="text-xs font-medium truncate" data-testid={`text-phone-${jobCard.id}`}>
+                            {jobCard.workOrder?.customerPhone || 'N/A'}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   
@@ -637,10 +766,10 @@ export default function JobCardsNew() {
                     onClick={() => handleViewJobCard(jobCard)}
                     data-testid={`button-view-${jobCard.id}`}
                   >
-                    <Eye className="h-3 w-3 mr-2" />
+                    <Eye className="h-4 w-4 mr-2" />
                     View Details
                   </Button>
-                </div>
+                </CardContent>
               </Card>
             ))}
           </div>
