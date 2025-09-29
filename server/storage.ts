@@ -20,6 +20,8 @@ import {
   approvals,
   payouts,
   commissions,
+  oemRoyaltyRules,
+  oemRoyaltyCalculations,
   auditLogs,
   type User, 
   type InsertUser,
@@ -42,7 +44,11 @@ import {
   type ServiceCategory,
   type InsertServiceCategory,
   type PartnerServiceCategory,
-  type InsertPartnerServiceCategory
+  type InsertPartnerServiceCategory,
+  type OemRoyaltyRule,
+  type InsertOemRoyaltyRule,
+  type OemRoyaltyCalculation,
+  type InsertOemRoyaltyCalculation
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count, avg, sum, lte, gte, or, isNull, isNotNull, asc, inArray, ne, like } from "drizzle-orm";
@@ -222,6 +228,20 @@ export interface IStorage {
   updateCommission(id: string, updates: any): Promise<any>;
   canUserAccessPayout(user: User, payout: any): boolean;
   canUserAccessCommission(user: User, commission: any): boolean;
+
+  // OEM Royalty Management
+  getOemRoyaltyRules(filters?: { oemId?: string; isActive?: boolean }): Promise<OemRoyaltyRule[]>;
+  getOemRoyaltyRule(id: string): Promise<OemRoyaltyRule | undefined>;
+  getOemRoyaltyRuleByOem(oemId: string): Promise<OemRoyaltyRule | undefined>;
+  createOemRoyaltyRule(rule: InsertOemRoyaltyRule, createdBy: string): Promise<OemRoyaltyRule>;
+  updateOemRoyaltyRule(id: string, updates: Partial<InsertOemRoyaltyRule>, updatedBy: string): Promise<OemRoyaltyRule | undefined>;
+  deactivateOemRoyaltyRule(id: string, updatedBy: string): Promise<boolean>;
+  
+  // OEM Royalty Calculations
+  getOemRoyaltyCalculations(filters?: { oemId?: string; workOrderId?: string; status?: string }): Promise<OemRoyaltyCalculation[]>;
+  createOemRoyaltyCalculation(calculation: InsertOemRoyaltyCalculation): Promise<OemRoyaltyCalculation>;
+  updateOemRoyaltyCalculation(id: string, updates: Partial<InsertOemRoyaltyCalculation>): Promise<OemRoyaltyCalculation | undefined>;
+  calculateRoyaltyForWorkOrder(workOrderId: string, workOrderValue: number, oemId: string): Promise<OemRoyaltyCalculation | null>;
   settlePayout(id: string, settlement: { paymentReference: string; settledAt: Date; settledBy: string }): Promise<boolean>;
   settleCommission(id: string, settlement: { paymentReference: string; settledAt: Date; settledBy: string }): Promise<boolean>;
   recalculatePayoutWithPricing(jobCardId: string): Promise<{ success: boolean; message: string; amount?: string }>;
@@ -3333,6 +3353,182 @@ export class DatabaseStorage implements IStorage {
       action: log.action,
       diffJson: log.diffJson
     });
+  }
+
+  // OEM Royalty Management Implementation
+  async getOemRoyaltyRules(filters?: { oemId?: string; isActive?: boolean }): Promise<OemRoyaltyRule[]> {
+    let query = db.select().from(oemRoyaltyRules);
+    
+    const conditions = [];
+    
+    if (filters?.oemId) {
+      conditions.push(eq(oemRoyaltyRules.oemId, filters.oemId));
+    }
+    
+    if (filters?.isActive !== undefined) {
+      conditions.push(eq(oemRoyaltyRules.isActive, filters.isActive));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    return await query.orderBy(desc(oemRoyaltyRules.createdAt));
+  }
+
+  async getOemRoyaltyRule(id: string): Promise<OemRoyaltyRule | undefined> {
+    const [rule] = await db
+      .select()
+      .from(oemRoyaltyRules)
+      .where(eq(oemRoyaltyRules.id, id));
+    return rule || undefined;
+  }
+
+  async getOemRoyaltyRuleByOem(oemId: string): Promise<OemRoyaltyRule | undefined> {
+    const [rule] = await db
+      .select()
+      .from(oemRoyaltyRules)
+      .where(and(
+        eq(oemRoyaltyRules.oemId, oemId),
+        eq(oemRoyaltyRules.isActive, true)
+      ))
+      .orderBy(desc(oemRoyaltyRules.effectiveFrom));
+    return rule || undefined;
+  }
+
+  async createOemRoyaltyRule(rule: InsertOemRoyaltyRule, createdBy: string): Promise<OemRoyaltyRule> {
+    // Deactivate any existing active rule for this OEM
+    await db
+      .update(oemRoyaltyRules)
+      .set({ 
+        isActive: false, 
+        effectiveTo: sql`NOW()`,
+        updatedBy: createdBy,
+        updatedAt: sql`NOW()`
+      })
+      .where(and(
+        eq(oemRoyaltyRules.oemId, rule.oemId),
+        eq(oemRoyaltyRules.isActive, true)
+      ));
+
+    const [newRule] = await db
+      .insert(oemRoyaltyRules)
+      .values({
+        ...rule,
+        createdBy,
+        updatedBy: createdBy
+      })
+      .returning();
+    
+    return newRule;
+  }
+
+  async updateOemRoyaltyRule(id: string, updates: Partial<InsertOemRoyaltyRule>, updatedBy: string): Promise<OemRoyaltyRule | undefined> {
+    const [rule] = await db
+      .update(oemRoyaltyRules)
+      .set({
+        ...updates,
+        updatedBy,
+        updatedAt: sql`NOW()`
+      })
+      .where(eq(oemRoyaltyRules.id, id))
+      .returning();
+    
+    return rule || undefined;
+  }
+
+  async deactivateOemRoyaltyRule(id: string, updatedBy: string): Promise<boolean> {
+    const result = await db
+      .update(oemRoyaltyRules)
+      .set({ 
+        isActive: false, 
+        effectiveTo: sql`NOW()`,
+        updatedBy,
+        updatedAt: sql`NOW()`
+      })
+      .where(eq(oemRoyaltyRules.id, id));
+    
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // OEM Royalty Calculations Implementation
+  async getOemRoyaltyCalculations(filters?: { oemId?: string; workOrderId?: string; status?: string }): Promise<OemRoyaltyCalculation[]> {
+    let query = db.select().from(oemRoyaltyCalculations);
+    
+    const conditions = [];
+    
+    if (filters?.oemId) {
+      conditions.push(eq(oemRoyaltyCalculations.oemId, filters.oemId));
+    }
+    
+    if (filters?.workOrderId) {
+      conditions.push(eq(oemRoyaltyCalculations.workOrderId, filters.workOrderId));
+    }
+    
+    if (filters?.status) {
+      conditions.push(eq(oemRoyaltyCalculations.status, filters.status));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    return await query.orderBy(desc(oemRoyaltyCalculations.calculatedAt));
+  }
+
+  async createOemRoyaltyCalculation(calculation: InsertOemRoyaltyCalculation): Promise<OemRoyaltyCalculation> {
+    const [newCalculation] = await db
+      .insert(oemRoyaltyCalculations)
+      .values(calculation)
+      .returning();
+    
+    return newCalculation;
+  }
+
+  async updateOemRoyaltyCalculation(id: string, updates: Partial<InsertOemRoyaltyCalculation>): Promise<OemRoyaltyCalculation | undefined> {
+    const [calculation] = await db
+      .update(oemRoyaltyCalculations)
+      .set(updates)
+      .where(eq(oemRoyaltyCalculations.id, id))
+      .returning();
+    
+    return calculation || undefined;
+  }
+
+  async calculateRoyaltyForWorkOrder(workOrderId: string, workOrderValue: number, oemId: string): Promise<OemRoyaltyCalculation | null> {
+    // Check if royalty already calculated for this work order
+    const [existingCalculation] = await db
+      .select()
+      .from(oemRoyaltyCalculations)
+      .where(eq(oemRoyaltyCalculations.workOrderId, workOrderId));
+    
+    if (existingCalculation) {
+      return existingCalculation;
+    }
+
+    // Get active royalty rule for this OEM
+    const royaltyRule = await this.getOemRoyaltyRuleByOem(oemId);
+    
+    if (!royaltyRule) {
+      // No royalty rule found, no royalty applicable
+      return null;
+    }
+
+    // Calculate royalty amount
+    const royaltyAmount = (workOrderValue * parseFloat(royaltyRule.royaltyPercentage)) / 100;
+
+    // Create royalty calculation record
+    const newCalculation = await this.createOemRoyaltyCalculation({
+      workOrderId,
+      oemId,
+      royaltyRuleId: royaltyRule.id,
+      workOrderValue: workOrderValue.toString(),
+      royaltyPercentage: royaltyRule.royaltyPercentage,
+      royaltyAmount: royaltyAmount.toString(),
+      status: "PENDING"
+    });
+
+    return newCalculation;
   }
 }
 
