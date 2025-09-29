@@ -537,6 +537,28 @@ export function CreateShowroomModal({
             {/* Password Reset Section - Only show when editing showroom */}
             {isEditing && (
               <div className="space-y-4 border-t pt-4">
+                {/* Display current admin user details - query for Showroom Manager */}
+                {(() => {
+                  const { data: showroomUsers } = useQuery({
+                    queryKey: ['/api/users', { showroomId: showroom?.id, role: 'SHOWROOM_MANAGER' }],
+                    enabled: isEditing && !!showroom?.id,
+                    queryFn: () => fetch(`/api/users?showroomId=${showroom?.id}&role=SHOWROOM_MANAGER`).then(res => res.json())
+                  });
+                  
+                  return showroomUsers && showroomUsers.length > 0 && (
+                    <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
+                      <h4 className="font-medium text-sm mb-2">Current Showroom Manager:</h4>
+                      <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                        <p><span className="font-medium">Name:</span> {showroomUsers[0].name}</p>
+                        <p><span className="font-medium">Email:</span> {showroomUsers[0].email}</p>
+                        {showroomUsers[0].phone && (
+                          <p><span className="font-medium">Phone:</span> {showroomUsers[0].phone}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <FormField
                   control={form.control}
                   name="resetPassword"
