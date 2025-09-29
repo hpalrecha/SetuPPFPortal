@@ -25,8 +25,8 @@ export function OemProvider({ children }: { children: ReactNode }) {
   // Get available OEMs for partner users
   const availableOems = user?.allowedOemIds || [];
   
-  // Partner users need OEM selection to access dashboard and other OEM-specific features
-  const needsOemSelection = isPartnerUser && availableOems.length > 1 && !selectedOemId;
+  // Partner users NEVER need OEM selection - they see all their job cards
+  const needsOemSelection = false;
 
   // Load selected OEM from localStorage on mount
   useEffect(() => {
@@ -34,18 +34,12 @@ export function OemProvider({ children }: { children: ReactNode }) {
       const stored = localStorage.getItem(`${OEM_SELECTION_KEY}_${user.id}`);
       
       if (isPartnerUser) {
-        // For partner users, use stored OEM selection or auto-select if only one available
-        if (availableOems.length === 1) {
-          // Auto-select if only one OEM available
-          setSelectedOemIdState(availableOems[0]);
-          localStorage.setItem(`${OEM_SELECTION_KEY}_${user.id}`, availableOems[0]);
-        } else if (stored && availableOems.includes(stored)) {
-          // Use stored selection if valid
-          setSelectedOemIdState(stored);
-        } else {
-          // No selection yet - user needs to choose
-          setSelectedOemIdState(null);
+        // For partner users, NEVER set selectedOemId - always null
+        // Clear any previously stored OEM selection for partners
+        if (stored) {
+          localStorage.removeItem(`${OEM_SELECTION_KEY}_${user.id}`);
         }
+        setSelectedOemIdState(null);
       } else {
         // For non-partner users, use their oemId  
         // SUPER_ADMIN users should auto-select the first available OEM if they don't have one assigned

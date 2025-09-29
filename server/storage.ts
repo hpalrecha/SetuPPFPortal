@@ -253,6 +253,16 @@ export interface IStorage {
   deleteAllocation(id: string): Promise<boolean>;
 
   // Dashboard metrics
+  getPartnerDashboardMetrics(partnerId: string): Promise<{
+    activeWorkOrders: number;
+    pendingApprovals: number;
+    thisMonthRevenue: number;
+    avgTAT: number;
+    completedJobs: number;
+    inProgressJobs: number;
+    pendingJobs: number;
+    thisMonthEarnings: number;
+  }>;
   getDashboardMetrics(oemId: string, showroomId?: string): Promise<{
     activeWorkOrders: number;
     pendingApprovals: number;
@@ -2544,6 +2554,101 @@ export class DatabaseStorage implements IStorage {
     return !!variant;
   }
 
+  async getPartnerDashboardMetrics(partnerId: string): Promise<{
+    activeWorkOrders: number;
+    pendingApprovals: number;
+    thisMonthRevenue: number;
+    avgTAT: number;
+    completedJobs: number;
+    inProgressJobs: number;
+    pendingJobs: number;
+    thisMonthEarnings: number;
+  }> {
+    // Get counts for different job card statuses
+    const [pendingJobsResult] = await db
+      .select({ count: count() })
+      .from(jobCards)
+      .where(and(
+        eq(jobCards.partnerId, partnerId),
+        or(
+          eq(jobCards.status, 'AWAITING_ACK'),
+          eq(jobCards.status, 'ACKNOWLEDGED'),
+          eq(jobCards.status, 'SCHEDULED')
+        )
+      ));
+
+    const [inProgressJobsResult] = await db
+      .select({ count: count() })
+      .from(jobCards)
+      .where(and(
+        eq(jobCards.partnerId, partnerId),
+        eq(jobCards.status, 'IN_PROGRESS')
+      ));
+
+    const [completedJobsResult] = await db
+      .select({ count: count() })
+      .from(jobCards)
+      .where(and(
+        eq(jobCards.partnerId, partnerId),
+        or(
+          eq(jobCards.status, 'APPROVED'),
+          eq(jobCards.status, 'CLOSED')
+        )
+      ));
+
+    // Calculate average TAT for completed jobs
+    const completedJobsWithTAT = await db
+      .select({
+        startedAt: jobCards.startedAt,
+        completedAt: jobCards.completedAt
+      })
+      .from(jobCards)
+      .where(and(
+        eq(jobCards.partnerId, partnerId),
+        eq(jobCards.status, 'APPROVED'),
+        isNotNull(jobCards.startedAt),
+        isNotNull(jobCards.completedAt),
+        sql`job_cards.completed_at >= CURRENT_DATE - INTERVAL '3 months'`
+      ));
+
+    let avgTAT = 0;
+    if (completedJobsWithTAT.length > 0) {
+      const totalTATHours = completedJobsWithTAT.reduce((sum, job) => {
+        if (job.startedAt && job.completedAt) {
+          const diffInMs = job.completedAt.getTime() - job.startedAt.getTime();
+          const diffInHours = diffInMs / (1000 * 60 * 60);
+          return sum + diffInHours;
+        }
+        return sum;
+      }, 0);
+      avgTAT = Math.round((totalTATHours / completedJobsWithTAT.length / 24) * 10) / 10; // Convert to days
+    }
+
+    // Get this month's earnings from payouts using SQL SUM
+    const [thisMonthEarnings] = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(payouts.net_amount), 0)`
+      })
+      .from(payouts)
+      .innerJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
+      .where(and(
+        eq(jobCards.partnerId, partnerId),
+        sql`EXTRACT(MONTH FROM payouts.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)`,
+        sql`EXTRACT(YEAR FROM payouts.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`
+      ));
+
+    return {
+      activeWorkOrders: (pendingJobsResult?.count || 0) + (inProgressJobsResult?.count || 0),
+      pendingApprovals: pendingJobsResult?.count || 0,
+      thisMonthRevenue: Number(thisMonthEarnings?.total || 0),
+      avgTAT: avgTAT,
+      completedJobs: completedJobsResult?.count || 0,
+      inProgressJobs: inProgressJobsResult?.count || 0,
+      pendingJobs: pendingJobsResult?.count || 0,
+      thisMonthEarnings: Number(thisMonthEarnings?.total || 0)
+    };
+  }
+
   async getDashboardMetrics(oemId: string, showroomId?: string): Promise<{
     activeWorkOrders: number;
     pendingApprovals: number;
@@ -2573,7 +2678,7 @@ export class DatabaseStorage implements IStorage {
 
     // This month revenue from completed jobs
     const [revenueResult] = await db
-      .select({ total: sum(payouts.netAmount) })
+      .select({ total: sql<number>`COALESCE(SUM(payouts.net_amount), 0)` })
       .from(payouts)
       .innerJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
       .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
@@ -2644,7 +2749,7 @@ export class DatabaseStorage implements IStorage {
 
     // Partner earnings (commission from completed jobs this month)
     const [earningsResult] = await db
-      .select({ total: sum(payouts.commissionAmount) })
+      .select({ total: sql<number>`COALESCE(SUM(payouts.commission_amount), 0)` })
       .from(payouts)
       .innerJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
       .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
@@ -2683,7 +2788,7 @@ export class DatabaseStorage implements IStorage {
         monthNum: sql<number>`EXTRACT(MONTH FROM work_orders.created_at)`,
         yearNum: sql<number>`EXTRACT(YEAR FROM work_orders.created_at)`,
         orders: count(),
-        totalRevenue: sum(payouts.netAmount)
+        totalRevenue: sql<number>`COALESCE(SUM(payouts.net_amount), 0)`
       })
       .from(workOrders)
       .leftJoin(jobCards, eq(workOrders.id, jobCards.workOrderId))
@@ -2721,7 +2826,7 @@ export class DatabaseStorage implements IStorage {
         dealershipId: workOrders.dealershipId,
         name: dealerships.name,
         thisMonthOrders: count(),
-        thisMonthRevenue: sum(payouts.netAmount)
+        thisMonthRevenue: sql<number>`COALESCE(SUM(payouts.net_amount), 0)`
       })
       .from(workOrders)
       .innerJoin(dealerships, eq(workOrders.dealershipId, dealerships.id))

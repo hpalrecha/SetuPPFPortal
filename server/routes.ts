@@ -871,12 +871,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Dashboard Routes
-  app.get("/api/dashboard/metrics", authenticate, requireOEMAccess, async (req, res) => {
+  app.get("/api/dashboard/metrics", authenticate, async (req, res) => {
     try {
-      const oemId = req.user!.oemId!;
-      const showroomId = req.user!.showroomId;
+      console.log("Dashboard request - User role:", req.user!.role, "Partner ID:", req.user!.partnerId, "OEM ID:", req.user!.oemId);
       
-      const metrics = await storage.getDashboardMetrics(oemId, showroomId);
+      // For partner users, use partner-specific dashboard
+      if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+        if (!req.user!.partnerId) {
+          return res.status(400).json({ error: "Partner ID required" });
+        }
+        const metrics = await storage.getPartnerDashboardMetrics(req.user!.partnerId);
+        return res.json(metrics);
+      }
+      
+      // For non-partner users, use OEM-based dashboard
+      if (!req.user!.oemId) {
+        return res.status(400).json({ error: "OEM ID required" });
+      }
+      
+      const showroomId = req.user!.showroomId;
+      const metrics = await storage.getDashboardMetrics(req.user!.oemId, showroomId);
       res.json(metrics);
     } catch (error) {
       console.error("Dashboard metrics error:", error);
