@@ -11,9 +11,12 @@ import {
   Eye,
   Wallet,
   TrendingDown,
-  BarChart3
+  BarChart3,
+  Building2,
+  Percent
 } from "lucide-react";
 import { format } from "date-fns";
+import { useAuth } from "@/hooks/use-auth";
 
 // Types
 interface Payout {
@@ -55,6 +58,30 @@ interface ServiceRate {
   status: string;
 }
 
+interface OEMRoyaltyCalculation {
+  id: string;
+  oemId: string;
+  oemName: string;
+  workOrderId: string;
+  jobCardId: string;
+  jobCardNumber: string;
+  workOrderValue: string;
+  royaltyPercentage: string;
+  royaltyAmount: string;
+  calculatedAt: string;
+  customerName: string;
+  regNo: string;
+  serviceName: string;
+  vehicleModelName: string;
+}
+
+interface OEMRoyaltySummary {
+  totalRoyaltyEarned: number;
+  thisMonthRoyalty: number;
+  totalJobs: number;
+  thisMonthJobs: number;
+}
+
 function getStatusBadge(status: string) {
   switch (status.toLowerCase()) {
     case 'paid':
@@ -85,6 +112,9 @@ function formatCurrency(amount: string | number, currency: string = 'INR') {
 }
 
 export default function PayoutsPage() {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
   // Fetch earnings summary
   const { data: summary, isLoading: summaryLoading } = useQuery<EarningsSummary>({
     queryKey: ['/api/partner-staff/earnings-summary'],
@@ -99,6 +129,44 @@ export default function PayoutsPage() {
   const { data: serviceRates = [], isLoading: ratesLoading } = useQuery<ServiceRate[]>({
     queryKey: ['/api/partner-staff/service-rates'],
   });
+
+  // Fetch OEM royalty calculations (only for Super Admin)
+  const { data: oemRoyalties = [], isLoading: oemRoyaltiesLoading } = useQuery<OEMRoyaltyCalculation[]>({
+    queryKey: ['/api/oem-royalty-calculations'],
+    queryFn: async () => {
+      const response = await fetch('/api/oem-royalty-calculations', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch OEM royalty calculations');
+      }
+      
+      return response.json();
+    },
+    enabled: isSuperAdmin,
+  });
+
+  // Calculate OEM royalty summary
+  const oemRoyaltySummary: OEMRoyaltySummary = {
+    totalRoyaltyEarned: oemRoyalties.reduce((sum, royalty) => sum + parseFloat(royalty.royaltyAmount), 0),
+    thisMonthRoyalty: oemRoyalties
+      .filter(royalty => {
+        const calculatedDate = new Date(royalty.calculatedAt);
+        const now = new Date();
+        return calculatedDate.getMonth() === now.getMonth() && calculatedDate.getFullYear() === now.getFullYear();
+      })
+      .reduce((sum, royalty) => sum + parseFloat(royalty.royaltyAmount), 0),
+    totalJobs: oemRoyalties.length,
+    thisMonthJobs: oemRoyalties.filter(royalty => {
+      const calculatedDate = new Date(royalty.calculatedAt);
+      const now = new Date();
+      return calculatedDate.getMonth() === now.getMonth() && calculatedDate.getFullYear() === now.getFullYear();
+    }).length,
+  };
 
   return (
     <div className="space-y-6 p-6">
@@ -244,7 +312,7 @@ export default function PayoutsPage() {
 
       {/* Tabs for detailed views */}
       <Tabs defaultValue="payouts" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className={`grid w-full ${isSuperAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
           <TabsTrigger value="payouts" data-testid="tab-payouts">
             <Wallet className="h-4 w-4 mr-2" />
             Payment History
@@ -253,6 +321,12 @@ export default function PayoutsPage() {
             <DollarSign className="h-4 w-4 mr-2" />
             Service Rate Cards
           </TabsTrigger>
+          {isSuperAdmin && (
+            <TabsTrigger value="oem-royalties" data-testid="tab-oem-royalties">
+              <Building2 className="h-4 w-4 mr-2" />
+              OEM Royalties
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="payouts" className="space-y-4">
@@ -395,6 +469,153 @@ export default function PayoutsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {isSuperAdmin && (
+          <TabsContent value="oem-royalties" className="space-y-4">
+            {/* OEM Royalty Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                        Total Royalty Earned
+                      </p>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {formatCurrency(oemRoyaltySummary.totalRoyaltyEarned)}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-purple-100 dark:bg-purple-900/20 rounded-full">
+                      <Building2 className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                        This Month Royalty
+                      </p>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {formatCurrency(oemRoyaltySummary.thisMonthRoyalty)}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-full">
+                      <Percent className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                        Total Jobs
+                      </p>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {oemRoyaltySummary.totalJobs}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-green-100 dark:bg-green-900/20 rounded-full">
+                      <BarChart3 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                        This Month Jobs
+                      </p>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {oemRoyaltySummary.thisMonthJobs}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-orange-100 dark:bg-orange-900/20 rounded-full">
+                      <Calendar className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* OEM Royalty Calculations */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  OEM Royalty Calculations
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {oemRoyaltiesLoading ? (
+                  <div className="space-y-4">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="animate-pulse border rounded-lg p-4">
+                        <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
+                        <div className="h-6 bg-gray-200 rounded w-1/2"></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : oemRoyalties.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600 dark:text-gray-400">No OEM royalty calculations found</p>
+                    <p className="text-sm text-gray-500 mt-2">Royalties will appear here after job completions</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {oemRoyalties.map((royalty) => (
+                      <div
+                        key={royalty.id}
+                        className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                        data-testid={`royalty-${royalty.id}`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h3 className="font-semibold text-gray-900 dark:text-white">
+                                {royalty.oemName} - Job #{royalty.jobCardNumber}
+                              </h3>
+                              <Badge className="bg-purple-100 text-purple-800 border-purple-200">
+                                {royalty.royaltyPercentage}% Royalty
+                              </Badge>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400">
+                              <div>Customer: {royalty.customerName}</div>
+                              <div>Vehicle: {royalty.vehicleModelName} ({royalty.regNo})</div>
+                              <div>Service: {royalty.serviceName}</div>
+                              <div>Calculated: {format(new Date(royalty.calculatedAt), 'MMM dd, yyyy')}</div>
+                            </div>
+                            <div className="text-sm text-gray-500 mt-2">
+                              Work Order Value: {formatCurrency(royalty.workOrderValue)}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                              {formatCurrency(royalty.royaltyAmount)}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              Royalty Amount
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
