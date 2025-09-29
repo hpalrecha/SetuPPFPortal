@@ -48,11 +48,21 @@ export default function WorkOrdersPage() {
     offset: 0
   });
 
+  // Search filters state
+  const [searchFilters, setSearchFilters] = useState({
+    workOrderNumber: '',
+    customerName: '',
+    status: '',
+    vehicleModel: '',
+    serviceName: '',
+    partnerName: ''
+  });
+
   // Check if user can create work orders (showroom managers, sales persons, and super admin)
   const canCreateWorkOrder = user && ['SHOWROOM_MANAGER', 'SALES_PERSON', 'SUPER_ADMIN'].includes(user.role);
 
   // Query for work orders list
-  const { data: workOrders = [], isLoading } = useQuery<WorkOrder[]>({
+  const { data: allWorkOrders = [], isLoading } = useQuery<WorkOrder[]>({
     queryKey: ["/api/work-orders", filters],
     queryFn: async () => {
       const searchParams = new URLSearchParams();
@@ -97,6 +107,25 @@ export default function WorkOrdersPage() {
       return response.json();
     },
     enabled: currentView !== 'list' && !!workOrderId // Only fetch when not in list view and we have an ID
+  });
+
+  // Apply search filters to work orders
+  const workOrders = allWorkOrders.filter((order) => {
+    const workOrderNumber = `WO-${order.id.slice(-6)}`.toLowerCase();
+    const customerName = (order.customerName || '').toLowerCase();
+    const status = (order.status || '').toLowerCase();
+    const vehicleModel = ((order as any).vehicleModelName || '').toLowerCase();
+    const serviceName = ((order as any).serviceName || '').toLowerCase();
+    const partnerName = ((order as any).assignedPartner?.displayName || '').toLowerCase();
+
+    return (
+      (!searchFilters.workOrderNumber || workOrderNumber.includes(searchFilters.workOrderNumber.toLowerCase())) &&
+      (!searchFilters.customerName || customerName.includes(searchFilters.customerName.toLowerCase())) &&
+      (!searchFilters.status || status === searchFilters.status.toLowerCase()) &&
+      (!searchFilters.vehicleModel || vehicleModel.includes(searchFilters.vehicleModel.toLowerCase())) &&
+      (!searchFilters.serviceName || serviceName.includes(searchFilters.serviceName.toLowerCase())) &&
+      (!searchFilters.partnerName || partnerName.includes(searchFilters.partnerName.toLowerCase()))
+    );
   });
 
   const handleCreateWorkOrder = () => {
@@ -454,16 +483,29 @@ export default function WorkOrdersPage() {
         )}
       </div>
 
-      {/* Filters */}
+      {/* Search Filters */}
       <Card>
-        <CardContent className="p-3 sm:p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <CardContent className="p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            <Input
+              placeholder="Work Order Number (e.g., WO-123456)"
+              value={searchFilters.workOrderNumber}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, workOrderNumber: e.target.value }))}
+              data-testid="input-work-order-search"
+            />
+            
+            <Input
+              placeholder="Customer Name"
+              value={searchFilters.customerName}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, customerName: e.target.value }))}
+              data-testid="input-customer-search"
+            />
+
             <Select 
-              value={filters.status} 
-              onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
-              data-testid="select-status-filter"
+              value={searchFilters.status || undefined} 
+              onValueChange={(value) => setSearchFilters(prev => ({ ...prev, status: value || '' }))}
             >
-              <SelectTrigger>
+              <SelectTrigger data-testid="select-status-filter">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
@@ -473,47 +515,94 @@ export default function WorkOrdersPage() {
                 <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
                 <SelectItem value="COMPLETED_PENDING_APPROVAL">Pending Approval</SelectItem>
                 <SelectItem value="APPROVED">Approved</SelectItem>
+                <SelectItem value="CLOSED">Closed</SelectItem>
+                <SelectItem value="CANCELLED">Cancelled</SelectItem>
               </SelectContent>
             </Select>
 
-            <Select 
-              value={filters.partnerId} 
-              onValueChange={(value) => setFilters(prev => ({ ...prev, partnerId: value }))}
-              data-testid="select-partner-filter"
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All Partners" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="partner1">DetailCare Studio</SelectItem>
-                <SelectItem value="partner2">ProShield Installers</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Input 
-              type="date" 
-              value={filters.dateFrom}
-              onChange={(e) => setFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
-              data-testid="input-date-filter"
-              className="text-sm"
+            <Input
+              placeholder="Vehicle Model"
+              value={searchFilters.vehicleModel}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, vehicleModel: e.target.value }))}
+              data-testid="input-vehicle-search"
             />
 
-            <Button variant="secondary" data-testid="button-search" className="w-full sm:w-auto">
-              <Search className="mr-2 h-4 w-4" />
-              <span className="sm:inline">Search</span>
+            <Input
+              placeholder="Service Name"
+              value={searchFilters.serviceName}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, serviceName: e.target.value }))}
+              data-testid="input-service-search"
+            />
+
+            <Input
+              placeholder="Partner Name"
+              value={searchFilters.partnerName}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, partnerName: e.target.value }))}
+              data-testid="input-partner-search"
+            />
+          </div>
+
+          <div className="flex items-center justify-between mt-4">
+            <div className="text-sm text-muted-foreground">
+              Showing {workOrders.length} of {allWorkOrders.length} work orders
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSearchFilters({
+                workOrderNumber: '',
+                customerName: '',
+                status: '',
+                vehicleModel: '',
+                serviceName: '',
+                partnerName: ''
+              })}
+              data-testid="button-clear-filters"
+            >
+              <Search className="h-4 w-4 mr-2" />
+              Clear Filters
             </Button>
           </div>
         </CardContent>
       </Card>
 
       {/* Work Orders List - Responsive */}
-      {workOrders.length === 0 ? (
+      {!isLoading && workOrders.length === 0 && allWorkOrders.length > 0 && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-12">
+              <p className="text-muted-foreground" data-testid="text-no-filtered-results">
+                No work orders match your search criteria
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-4"
+                onClick={() => setSearchFilters({
+                  workOrderNumber: '',
+                  customerName: '',
+                  status: '',
+                  vehicleModel: '',
+                  serviceName: '',
+                  partnerName: ''
+                })}
+              >
+                Clear Filters
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!isLoading && allWorkOrders.length === 0 && (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
             No work orders found. Create your first work order to get started.
           </CardContent>
         </Card>
-      ) : (
+      )}
+
+      {workOrders.length > 0 && (
         <>
           {/* Desktop & Large Table View */}
           <div className="hidden lg:block rounded-lg border border-border overflow-hidden">
