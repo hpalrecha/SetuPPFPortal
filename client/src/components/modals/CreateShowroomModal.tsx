@@ -48,15 +48,22 @@ const showroomSchema = z.object({
   userEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
   userPhone: z.string().optional(),
   userPassword: z.string().optional(),
+  
+  // Password reset fields for editing
+  resetPassword: z.boolean().default(false),
+  newPassword: z.string().optional(),
 }).refine((data) => {
   if (data.createUser) {
     return data.userName && data.userName.length > 0 && 
            data.userEmail && data.userEmail.length > 0 &&
            data.userPassword && data.userPassword.length >= 6;
   }
+  if (data.resetPassword) {
+    return data.newPassword && data.newPassword.length >= 6;
+  }
   return true;
 }, {
-  message: "When creating a user, name, email, and password (min 6 chars) are required",
+  message: "When creating a user, name, email, and password (min 6 chars) are required. When resetting password, new password (min 6 chars) is required",
   path: ["createUser"]
 });
 
@@ -96,6 +103,8 @@ export function CreateShowroomModal({
       userEmail: "",
       userPhone: "",
       userPassword: "",
+      resetPassword: false,
+      newPassword: "",
     },
   });
 
@@ -117,6 +126,8 @@ export function CreateShowroomModal({
         userEmail: "",
         userPhone: "",
         userPassword: "",
+        resetPassword: false,
+        newPassword: "",
       });
     } else if (!showroom && open) {
       // Reset to empty values for new showroom
@@ -135,6 +146,8 @@ export function CreateShowroomModal({
         userEmail: "",
         userPhone: "",
         userPassword: "",
+        resetPassword: false,
+        newPassword: "",
       });
     }
   }, [showroom, open, form]);
@@ -161,7 +174,7 @@ export function CreateShowroomModal({
       const endpoint = isEditing ? `/api/showrooms/${showroom.id}` : "/api/showrooms";
       const method = isEditing ? "PUT" : "POST";
       
-      // Prepare request body with admin user data if creating user
+      // Prepare request body with admin user data if creating user or password reset data
       const requestBody = {
         ...data,
         ...(data.createUser && !isEditing ? {
@@ -171,11 +184,16 @@ export function CreateShowroomModal({
             phone: data.userPhone,
             password: data.userPassword
           }
+        } : {}),
+        ...(data.resetPassword && isEditing ? {
+          resetPasswordData: {
+            newPassword: data.newPassword
+          }
         } : {})
       };
 
       // Remove user fields from the main request body
-      const { userName, userEmail, userPhone, userPassword, ...showroomData } = requestBody;
+      const { userName, userEmail, userPhone, userPassword, resetPassword, newPassword, ...showroomData } = requestBody;
       
       const response = await fetch(endpoint, {
         method,
@@ -505,6 +523,58 @@ export function CreateShowroomModal({
                               placeholder="Enter password (min 6 chars)"
                               {...field}
                               data-testid="input-manager-password"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Password Reset Section - Only show when editing showroom */}
+            {isEditing && (
+              <div className="space-y-4 border-t pt-4">
+                <FormField
+                  control={form.control}
+                  name="resetPassword"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="checkbox-reset-password"
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>
+                          Reset Showroom Manager Password
+                        </FormLabel>
+                        <p className="text-sm text-muted-foreground">
+                          Reset the password for the showroom manager user
+                        </p>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
+                {form.watch("resetPassword") && (
+                  <div className="pl-7">
+                    <FormField
+                      control={form.control}
+                      name="newPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>New Password</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              placeholder="Enter new password (min 6 chars)"
+                              {...field}
+                              data-testid="input-new-password"
                             />
                           </FormControl>
                           <FormMessage />

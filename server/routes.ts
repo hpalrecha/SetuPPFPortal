@@ -504,6 +504,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  app.put("/api/showrooms/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    auditLog('showroom', 'update'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { resetPasswordData, ...showroomData } = req.body;
+        
+        // Update showroom data
+        const showroom = await storage.updateShowroom(id, showroomData);
+        
+        if (!showroom) {
+          return res.status(404).json({ error: "Showroom not found" });
+        }
+        
+        // Handle password reset if requested
+        if (resetPasswordData && resetPasswordData.newPassword) {
+          try {
+            const bcrypt = await import('bcryptjs');
+            const hashedPassword = await bcrypt.hash(resetPasswordData.newPassword, 10);
+            
+            // Find and update the showroom manager user's password
+            await storage.updateUserPasswordByShowroom(id, hashedPassword);
+            console.log(`Password reset for showroom manager of ${showroom.name}`);
+          } catch (passwordError) {
+            console.error("Failed to reset showroom manager password:", passwordError);
+            // Don't fail the showroom update if password reset fails
+            return res.status(200).json({ 
+              ...showroom, 
+              warning: "Showroom updated but password reset failed" 
+            });
+          }
+        }
+        
+        res.json(showroom);
+      } catch (error) {
+        console.error("Update showroom error:", error);
+        res.status(500).json({ error: "Failed to update showroom" });
+      }
+    }
+  );
+
   // Vehicle Data Display Route (OEM = Brand structure)
   app.get("/api/vehicle-data/:oemId", authenticate, requireOEMAccess, async (req, res) => {
     try {
