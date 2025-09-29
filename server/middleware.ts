@@ -55,17 +55,25 @@ export const requireOEMAccess = async (req: Request, res: Response, next: NextFu
     return next();
   }
 
-  // Check tenant isolation
-  const oemId = req.headers['x-oem-id'] || req.params.oemId || req.body.oemId;
-  
-  if (!oemId) {
-    return res.status(400).json({ error: 'OEM ID required' });
+  // For OEM-based roles (OEM_ADMIN, DEALERSHIP_ADMIN, SHOWROOM_MANAGER, SALES_PERSON), use their assigned oemId
+  if (['OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'SALES_PERSON'].includes(req.user.role)) {
+    if (!req.user.oemId) {
+      return res.status(400).json({ error: 'OEM ID required for this user role' });
+    }
+    return next();
   }
 
   // For partner users, check if they have access to this OEM through partner-OEM mappings
   if (req.user.role === 'PARTNER_ADMIN' || req.user.role === 'PARTNER_STAFF') {
     if (!req.user.partnerId) {
       return res.status(400).json({ error: 'Partner user must have partnerId' });
+    }
+    
+    // Check tenant isolation for partner requests
+    const oemId = req.headers['x-oem-id'] || req.params.oemId || req.body.oemId;
+    
+    if (!oemId) {
+      return res.status(400).json({ error: 'OEM ID required' });
     }
     
     try {
@@ -80,12 +88,8 @@ export const requireOEMAccess = async (req: Request, res: Response, next: NextFu
     }
   }
 
-  // For other roles, check direct OEM membership
-  if (req.user.oemId !== oemId) {
-    return res.status(403).json({ error: 'Access denied to this OEM' });
-  }
-
-  next();
+  // Fallback for any other roles - should not normally reach here
+  return res.status(403).json({ error: 'Access denied' });
 };
 
 export const auditLog = (entity: string, action: string) => {
