@@ -384,8 +384,8 @@ export default function JobCardsNew() {
   const groupedJobCards = {
     AWAITING_ACK: jobCards.filter(jc => jc.status === 'AWAITING_ACK'),
     IN_PROGRESS: jobCards.filter(jc => jc.status && ['ACKNOWLEDGED', 'ASSIGNED', 'SCHEDULED', 'IN_PROGRESS'].includes(jc.status)),
-    PENDING_APPROVAL: jobCards.filter(jc => jc.status && ['COMPLETED', 'PENDING_APPROVAL'].includes(jc.status)),
-    COMPLETED: jobCards.filter(jc => jc.status && ['APPROVED', 'CLOSED'].includes(jc.status))
+    PENDING_APPROVAL: jobCards.filter(jc => jc.status === 'PENDING_APPROVAL'),
+    COMPLETED: jobCards.filter(jc => jc.status && ['COMPLETED', 'APPROVED', 'CLOSED'].includes(jc.status))
   };
 
   const handleViewJobCard = (jobCard: EnrichedJobCard) => {
