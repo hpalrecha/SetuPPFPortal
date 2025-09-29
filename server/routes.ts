@@ -1077,6 +1077,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         offset: parseInt(offset as string)
       };
 
+      // Add dealership-level filtering for DEALERSHIP_ADMIN users
+      if (req.user!.role === 'DEALERSHIP_ADMIN' && req.user!.dealershipId) {
+        filters.dealershipId = req.user!.dealershipId;
+      }
+
       if (req.user!.showroomId) {
         filters.showroomId = req.user!.showroomId;
       }
