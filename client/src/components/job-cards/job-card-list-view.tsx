@@ -214,7 +214,7 @@ export default function JobCardListView({
         </div>
       </div>
 
-      {/* Job Cards List */}
+      {/* Job Cards Table */}
       {sortedJobCards.length === 0 ? (
         <Card className="p-8 text-center">
           <div className="flex flex-col items-center gap-3">
@@ -228,130 +228,154 @@ export default function JobCardListView({
           </div>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {sortedJobCards.map((job) => {
-            const StatusIcon = statusIcons[job.status! as keyof typeof statusIcons] || Clock;
-            const priority = getPriorityLevel(job.status!, job.createdAt!);
-            const progressValue = getProgressValue(job.status!);
-            const isCompleted = ['APPROVED', 'CLOSED'].includes(job.status!);
-            
-            return (
-              <Card 
-                key={job.id} 
-                className={`group transition-all duration-200 hover:shadow-lg hover:scale-[1.02] border-0 shadow-sm ${
-                  priority === 'high' ? 'border-l-4 border-l-red-500 bg-gradient-to-r from-red-50/30 to-white' : 
-                  priority === 'medium' ? 'border-l-4 border-l-orange-500 bg-gradient-to-r from-orange-50/30 to-white' : 
-                  'border-l-4 border-l-slate-200 bg-gradient-to-r from-slate-50/30 to-white'
-                } ${isCompleted ? 'opacity-80 hover:opacity-100' : ''}`}
-                data-testid={`card-job-${job.id}`}
-              >
-                <CardContent className="p-6">
-                  {/* Header Row */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-4">
-                      {/* Status Icon with enhanced styling */}
-                      <div className={`p-3 rounded-xl ${statusColorClasses[job.status! as keyof typeof statusColorClasses]} shadow-sm`}>
-                        <StatusIcon className="h-5 w-5" />
-                      </div>
-                      
-                      {/* Job ID and Status */}
-                      <div>
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="font-mono text-lg font-bold text-foreground">JC-{job.id.slice(-6)}</span>
-                          <Badge 
-                            className={`px-3 py-1 font-medium ${statusColors[job.status! as keyof typeof statusColors]}`}
-                          >
-                            {job.status?.replace(/_/g, " ")}
-                          </Badge>
+        <div className="rounded-lg border border-border overflow-hidden">
+          {/* Table Header */}
+          <div className="bg-muted/50 border-b border-border px-4 py-3">
+            <div className="grid grid-cols-12 gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <div className="col-span-1">ID</div>
+              <div className="col-span-1">Status</div>
+              <div className="col-span-1">Customer</div>
+              <div className="col-span-1">Phone</div>
+              <div className="col-span-2">Vehicle</div>
+              <div className="col-span-2">Service</div>
+              <div className="col-span-1">Partner</div>
+              <div className="col-span-1">Created</div>
+              <div className="col-span-1">Scheduled</div>
+              <div className="col-span-1">Actions</div>
+            </div>
+          </div>
+
+          {/* Table Body */}
+          <div className="divide-y divide-border">
+            {sortedJobCards.map((job) => {
+              const StatusIcon = statusIcons[job.status! as keyof typeof statusIcons] || Clock;
+              const priority = getPriorityLevel(job.status!, job.createdAt!);
+              const progressValue = getProgressValue(job.status!);
+              const isCompleted = ['APPROVED', 'CLOSED'].includes(job.status!);
+              
+              return (
+                <div 
+                  key={job.id}
+                  className={`px-4 py-4 hover:bg-muted/30 transition-colors ${
+                    priority === 'high' ? 'border-l-4 border-l-red-500 bg-red-50/20' : 
+                    priority === 'medium' ? 'border-l-4 border-l-orange-500 bg-orange-50/20' : 
+                    ''
+                  } ${isCompleted ? 'opacity-75' : ''}`}
+                  data-testid={`card-job-${job.id}`}
+                >
+                  <div className="grid grid-cols-12 gap-3 items-center">
+                    {/* ID Column */}
+                    <div className="col-span-1">
+                      <div className="flex items-center gap-2">
+                        <div className={`p-1.5 rounded-lg ${statusColorClasses[job.status! as keyof typeof statusColorClasses]}`}>
+                          <StatusIcon className="h-3 w-3" />
+                        </div>
+                        <div>
+                          <span className="font-mono text-sm font-semibold">JC-{job.id.slice(-6)}</span>
                           {priority !== 'normal' && (
-                            <Badge 
-                              variant={priority === 'high' ? 'destructive' : 'default'} 
-                              className="text-xs font-bold px-2 py-1 animate-pulse"
-                            >
-                              {priority === 'high' ? '🚨 URGENT' : '⚡ PRIORITY'}
-                            </Badge>
+                            <div className="text-xs">
+                              <Badge 
+                                variant={priority === 'high' ? 'destructive' : 'default'} 
+                                className="text-xs px-1 py-0"
+                              >
+                                {priority === 'high' ? 'URGENT' : 'PRIORITY'}
+                              </Badge>
+                            </div>
                           )}
                         </div>
-                        
-                        {/* Progress bar for active jobs - moved to header */}
-                        {['ACKNOWLEDGED', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'PENDING_APPROVAL'].includes(job.status!) && (
-                          <div className="flex items-center gap-3 mb-2">
-                            <Progress value={progressValue} className="h-3 w-32" />
-                            <span className="text-sm font-medium text-muted-foreground">{progressValue}% complete</span>
-                          </div>
-                        )}
                       </div>
                     </div>
-                    
-                    {/* Time info */}
-                    <div className="text-right">
-                      <div className="flex items-center gap-1 text-muted-foreground mb-1">
-                        <Clock className="h-3 w-3" />
-                        <span className="text-sm">{getTimeAgo(job.createdAt!)}</span>
-                      </div>
-                      {job.scheduledAt && (
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          <span className="text-xs">Scheduled {new Date(job.scheduledAt).toLocaleDateString()}</span>
+
+                    {/* Status Column */}
+                    <div className="col-span-1">
+                      <Badge 
+                        className={`text-xs px-2 py-1 ${statusColors[job.status! as keyof typeof statusColors]}`}
+                      >
+                        {job.status?.replace(/_/g, " ")}
+                      </Badge>
+                      {/* Progress bar for active jobs */}
+                      {['ACKNOWLEDGED', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'PENDING_APPROVAL'].includes(job.status!) && (
+                        <div className="mt-1">
+                          <Progress value={progressValue} className="h-1 w-full" />
+                          <span className="text-xs text-muted-foreground">{progressValue}%</span>
                         </div>
                       )}
                     </div>
-                  </div>
 
-                  {/* Details Grid */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-                    {/* Vehicle Info */}
-                    <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
-                      <Car className="h-4 w-4 text-slate-600 mt-0.5" />
-                      <div>
-                        <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Vehicle & Service</div>
-                        <div className="font-semibold text-sm text-foreground">
-                          {job.workOrder?.vehicleModel?.oem?.name} {job.workOrder?.vehicleModel?.modelName}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {job.workOrder?.service?.name}
-                        </div>
+                    {/* Customer Column */}
+                    <div className="col-span-1">
+                      <div className="text-sm font-medium">Customer</div>
+                    </div>
+
+                    {/* Phone Column */}
+                    <div className="col-span-1">
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Phone className="h-3 w-3" />
+                        <span className="text-xs">Available</span>
                       </div>
                     </div>
 
-                    {/* Partner Info */}
-                    <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-                      <MapPin className="h-4 w-4 text-blue-600 mt-0.5" />
-                      <div>
-                        <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Installation Partner</div>
-                        <div className="font-semibold text-sm text-foreground">
-                          {job.partner?.displayName || 'Unassigned Partner'}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Pending assignment
-                        </div>
+                    {/* Vehicle Column */}
+                    <div className="col-span-2">
+                      <div className="text-sm font-medium">
+                        {job.workOrder?.vehicleModel?.oem?.name} {job.workOrder?.vehicleModel?.modelName}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {job.workOrder?.vehicleModel?.oem?.name || 'Vehicle Brand'}
                       </div>
                     </div>
 
-                    {/* Customer Info */}
-                    <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
-                      <User className="h-4 w-4 text-green-600 mt-0.5" />
-                      <div>
-                        <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Customer</div>
-                        <div className="font-semibold text-sm text-foreground">
-                          Customer Info
+                    {/* Service Column */}
+                    <div className="col-span-2">
+                      <div className="text-sm font-medium">
+                        {job.workOrder?.service?.name || 'PPF Service'}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Installation service
+                      </div>
+                    </div>
+
+                    {/* Partner Column */}
+                    <div className="col-span-1">
+                      <div className="text-sm font-medium">
+                        {job.partner?.displayName || 'Unassigned'}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Partner
+                      </div>
+                    </div>
+
+                    {/* Created Column */}
+                    <div className="col-span-1">
+                      <div className="text-sm">{getTimeAgo(job.createdAt!)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(job.createdAt!).toLocaleDateString()}
+                      </div>
+                    </div>
+
+                    {/* Scheduled Column */}
+                    <div className="col-span-1">
+                      {job.scheduledAt ? (
+                        <div>
+                          <div className="text-sm">{new Date(job.scheduledAt).toLocaleDateString()}</div>
+                          <div className="text-xs text-muted-foreground">Scheduled</div>
                         </div>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Phone className="h-3 w-3" />
-                          Contact available
-                        </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">Not scheduled</div>
+                      )}
+                    </div>
+
+                    {/* Actions Column */}
+                    <div className="col-span-1">
+                      <div className="flex flex-col gap-1">
+                        {renderActionButtons(job)}
                       </div>
                     </div>
                   </div>
-                  
-                  {/* Action Buttons */}
-                  <div className="flex justify-end">
-                    {renderActionButtons(job)}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
