@@ -478,17 +478,17 @@ export default function JobCardsNew() {
           <div className="hidden lg:block rounded-lg border border-border overflow-hidden">
             {/* Table Header */}
             <div className="bg-muted/50 border-b border-border px-4 py-3">
-              <div className="grid grid-cols-12 gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <div className="col-span-1">ID</div>
-                <div className="col-span-1">Status</div>
-                <div className="col-span-1">Customer</div>
-                <div className="col-span-1">Phone</div>
-                <div className="col-span-2">Vehicle</div>
-                <div className="col-span-2">Service</div>
-                <div className="col-span-1">Partner</div>
-                <div className="col-span-1">Created</div>
-                <div className="col-span-1">Scheduled</div>
-                <div className="col-span-1">Actions</div>
+              <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '80px 120px 100px 110px 1fr 1fr 100px 90px 90px 80px'}}>
+                <div className="truncate">ID</div>
+                <div className="truncate">Status</div>
+                <div className="truncate">Customer</div>
+                <div className="truncate">Phone</div>
+                <div className="truncate">Vehicle</div>
+                <div className="truncate">Service</div>
+                <div className="truncate">Partner</div>
+                <div className="truncate">Created</div>
+                <div className="truncate">Scheduled</div>
+                <div className="truncate">Actions</div>
               </div>
             </div>
 
@@ -500,82 +500,84 @@ export default function JobCardsNew() {
                   className="px-4 py-4 hover:bg-muted/30 transition-colors"
                   data-testid={`row-job-card-${jobCard.id}`}
                 >
-                  <div className="grid grid-cols-12 gap-3 items-center">
+                  <div className="grid gap-3 items-center min-h-[60px]" style={{gridTemplateColumns: '80px 120px 100px 110px 1fr 1fr 100px 90px 90px 80px'}}>
                     {/* ID Column */}
-                    <div className="col-span-1">
-                      <span className="font-mono text-sm font-semibold" data-testid={`text-id-${jobCard.id}`}>
+                    <div className="min-w-0">
+                      <span className="font-mono text-sm font-semibold block truncate" data-testid={`text-id-${jobCard.id}`}>
                         JC-{jobCard.id.slice(-6)}
                       </span>
                     </div>
 
                     {/* Status Column */}
-                    <div className="col-span-1" data-testid={`status-${jobCard.id}`}>
-                      {getStatusBadge(jobCard.status)}
-                      <div className="mt-1">
+                    <div className="min-w-0" data-testid={`status-${jobCard.id}`}>
+                      <div className="mb-1">
+                        {getStatusBadge(jobCard.status)}
+                      </div>
+                      <div>
                         <Progress value={getProgressValue(jobCard.status)} className="h-1 w-full" />
                       </div>
                     </div>
 
                     {/* Customer Column */}
-                    <div className="col-span-1">
-                      <div className="text-sm font-medium truncate" data-testid={`text-customer-${jobCard.id}`}>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate" data-testid={`text-customer-${jobCard.id}`} title={jobCard.customerName}>
                         {jobCard.customerName}
                       </div>
                     </div>
 
                     {/* Phone Column */}
-                    <div className="col-span-1">
-                      <div className="text-sm text-muted-foreground truncate" data-testid={`text-phone-${jobCard.id}`}>
+                    <div className="min-w-0">
+                      <div className="text-sm text-muted-foreground truncate" data-testid={`text-phone-${jobCard.id}`} title={jobCard.workOrder?.customerPhone || 'N/A'}>
                         {jobCard.workOrder?.customerPhone || 'N/A'}
                       </div>
                     </div>
 
                     {/* Vehicle Column */}
-                    <div className="col-span-2">
-                      <div className="text-sm font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`}>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`} title={jobCard.vehicleDisplay}>
                         {jobCard.vehicleDisplay}
                       </div>
                     </div>
 
                     {/* Service Column */}
-                    <div className="col-span-2">
-                      <div className="text-sm font-medium truncate" data-testid={`text-service-${jobCard.id}`}>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate" data-testid={`text-service-${jobCard.id}`} title={jobCard.serviceDisplay}>
                         {jobCard.serviceDisplay}
                       </div>
                     </div>
 
                     {/* Partner Column */}
-                    <div className="col-span-1">
-                      <div className="text-sm font-medium truncate" data-testid={`text-partner-${jobCard.id}`}>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate" data-testid={`text-partner-${jobCard.id}`} title={jobCard.partnerDisplay}>
                         {jobCard.partnerDisplay}
                       </div>
                     </div>
 
                     {/* Created Column */}
-                    <div className="col-span-1">
-                      <div className="text-sm" data-testid={`text-created-${jobCard.id}`}>
+                    <div className="min-w-0">
+                      <div className="text-sm truncate" data-testid={`text-created-${jobCard.id}`} title={formatDate(jobCard.createdAt)}>
                         {formatDate(jobCard.createdAt)}
                       </div>
                     </div>
 
                     {/* Scheduled Column */}
-                    <div className="col-span-1">
-                      <div className="text-sm" data-testid={`text-scheduled-${jobCard.id}`}>
+                    <div className="min-w-0">
+                      <div className="text-sm truncate" data-testid={`text-scheduled-${jobCard.id}`} title={formatDate(jobCard.scheduledAt)}>
                         {formatDate(jobCard.scheduledAt)}
                       </div>
                     </div>
 
                     {/* Actions Column */}
-                    <div className="col-span-1">
+                    <div className="min-w-0">
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => handleViewJobCard(jobCard)}
                         data-testid={`button-view-${jobCard.id}`}
-                        className="w-full"
+                        className="w-full text-xs px-2"
                       >
                         <Eye className="h-3 w-3 mr-1" />
-                        View
+                        <span className="hidden xl:inline">View</span>
                       </Button>
                     </div>
                   </div>
