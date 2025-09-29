@@ -1055,7 +1055,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const showroomId = req.user!.showroomId;
-      const metrics = await storage.getDashboardMetrics(req.user!.oemId, showroomId);
+      const dealershipId = req.user!.role === 'DEALERSHIP_ADMIN' ? req.user!.dealershipId : undefined;
+      const metrics = await storage.getDashboardMetrics(req.user!.oemId, showroomId, dealershipId);
       res.json(metrics);
     } catch (error) {
       console.error("Dashboard metrics error:", error);

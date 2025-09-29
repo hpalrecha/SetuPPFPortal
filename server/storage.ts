@@ -266,7 +266,7 @@ export interface IStorage {
     pendingJobs: number;
     thisMonthEarnings: number;
   }>;
-  getDashboardMetrics(oemId: string, showroomId?: string): Promise<{
+  getDashboardMetrics(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
     activeWorkOrders: number;
     pendingApprovals: number;
     thisMonthRevenue: number;
@@ -2803,7 +2803,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getDashboardMetrics(oemId: string, showroomId?: string): Promise<{
+  async getDashboardMetrics(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
     activeWorkOrders: number;
     pendingApprovals: number;
     thisMonthRevenue: number;
@@ -2816,6 +2816,9 @@ export class DatabaseStorage implements IStorage {
     const conditions = [eq(workOrders.oemId, oemId)];
     if (showroomId) {
       conditions.push(eq(workOrders.showroomId, showroomId));
+    }
+    if (dealershipId) {
+      conditions.push(eq(workOrders.dealershipId, dealershipId));
     }
 
     // Active work orders
