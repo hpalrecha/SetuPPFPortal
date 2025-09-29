@@ -478,7 +478,7 @@ export default function JobCardsNew() {
           <div className="hidden lg:block rounded-lg border border-border overflow-hidden">
             {/* Table Header */}
             <div className="bg-muted/50 border-b border-border px-4 py-3">
-              <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '80px 120px 100px 110px 1fr 1fr 100px 90px 90px 80px'}}>
+              <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '80px 140px 100px 110px 200px 180px 120px 90px 90px 80px'}}>
                 <div className="truncate">ID</div>
                 <div className="truncate">Status</div>
                 <div className="truncate">Customer</div>
@@ -500,16 +500,16 @@ export default function JobCardsNew() {
                   className="px-4 py-4 hover:bg-muted/30 transition-colors"
                   data-testid={`row-job-card-${jobCard.id}`}
                 >
-                  <div className="grid gap-3 items-center min-h-[60px]" style={{gridTemplateColumns: '80px 120px 100px 110px 1fr 1fr 100px 90px 90px 80px'}}>
+                  <div className="grid gap-3 items-center min-h-[70px]" style={{gridTemplateColumns: '80px 140px 100px 110px 200px 180px 120px 90px 90px 80px'}}>
                     {/* ID Column */}
-                    <div className="min-w-0">
+                    <div className="min-w-0 overflow-hidden">
                       <span className="font-mono text-sm font-semibold block truncate" data-testid={`text-id-${jobCard.id}`}>
                         JC-{jobCard.id.slice(-6)}
                       </span>
                     </div>
 
                     {/* Status Column */}
-                    <div className="min-w-0" data-testid={`status-${jobCard.id}`}>
+                    <div className="min-w-0 overflow-hidden" data-testid={`status-${jobCard.id}`}>
                       <div className="mb-1">
                         {getStatusBadge(jobCard.status)}
                       </div>
@@ -519,56 +519,56 @@ export default function JobCardsNew() {
                     </div>
 
                     {/* Customer Column */}
-                    <div className="min-w-0">
+                    <div className="min-w-0 overflow-hidden">
                       <div className="text-sm font-medium truncate" data-testid={`text-customer-${jobCard.id}`} title={jobCard.customerName}>
                         {jobCard.customerName}
                       </div>
                     </div>
 
                     {/* Phone Column */}
-                    <div className="min-w-0">
+                    <div className="min-w-0 overflow-hidden">
                       <div className="text-sm text-muted-foreground truncate" data-testid={`text-phone-${jobCard.id}`} title={jobCard.workOrder?.customerPhone || 'N/A'}>
                         {jobCard.workOrder?.customerPhone || 'N/A'}
                       </div>
                     </div>
 
                     {/* Vehicle Column */}
-                    <div className="min-w-0">
+                    <div className="min-w-0 overflow-hidden">
                       <div className="text-sm font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`} title={jobCard.vehicleDisplay}>
                         {jobCard.vehicleDisplay}
                       </div>
                     </div>
 
                     {/* Service Column */}
-                    <div className="min-w-0">
+                    <div className="min-w-0 overflow-hidden">
                       <div className="text-sm font-medium truncate" data-testid={`text-service-${jobCard.id}`} title={jobCard.serviceDisplay}>
                         {jobCard.serviceDisplay}
                       </div>
                     </div>
 
                     {/* Partner Column */}
-                    <div className="min-w-0">
+                    <div className="min-w-0 overflow-hidden">
                       <div className="text-sm font-medium truncate" data-testid={`text-partner-${jobCard.id}`} title={jobCard.partnerDisplay}>
                         {jobCard.partnerDisplay}
                       </div>
                     </div>
 
                     {/* Created Column */}
-                    <div className="min-w-0">
+                    <div className="min-w-0 overflow-hidden">
                       <div className="text-sm truncate" data-testid={`text-created-${jobCard.id}`} title={formatDate(jobCard.createdAt)}>
                         {formatDate(jobCard.createdAt)}
                       </div>
                     </div>
 
                     {/* Scheduled Column */}
-                    <div className="min-w-0">
+                    <div className="min-w-0 overflow-hidden">
                       <div className="text-sm truncate" data-testid={`text-scheduled-${jobCard.id}`} title={formatDate(jobCard.scheduledAt)}>
                         {formatDate(jobCard.scheduledAt)}
                       </div>
                     </div>
 
                     {/* Actions Column */}
-                    <div className="min-w-0">
+                    <div className="min-w-0 overflow-hidden">
                       <Button
                         size="sm"
                         variant="outline"
