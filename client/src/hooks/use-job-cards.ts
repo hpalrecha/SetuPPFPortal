@@ -61,57 +61,23 @@ export function useJobCards() {
         credentials: 'include',
       });
       
+      
       if (!response.ok) {
         throw new Error(`Failed to fetch job cards: ${response.status} ${response.statusText}`);
       }
       
       const contentType = response.headers.get('content-type');
       if (!contentType?.includes('application/json')) {
-        const responseText = await response.text();
-        console.error('❌ Non-JSON response from /api/job-cards:', responseText.substring(0, 200));
         throw new Error(`Expected JSON response but got ${contentType} from /api/job-cards`);
       }
       
-      let jobCards: JobCard[];
-      try {
-        jobCards = await response.json();
-      } catch (parseError) {
-        const responseText = await response.text();
-        console.error('❌ JSON parse error from /api/job-cards:', responseText.substring(0, 200));
-        throw new Error(`Failed to parse JSON response from /api/job-cards: ${parseError}`);
-      }
+      const jobCards: JobCard[] = await response.json();
       
       console.log('✅ BULK LOADING: Job cards fetched:', jobCards.length);
       
-      // SIMPLE APPROACH: Return basic job cards with minimal processing
-      console.log('✅ SIMPLE: Returning job cards with basic information');
-      
-      return jobCards.map(jobCard => ({
-        ...jobCard,
-        workOrder: {
-          id: jobCard.workOrderId || '',
-          vehicleModelId: '',
-          serviceId: '',
-          vehicleModel: {
-            id: '',
-            modelName: `Job ${jobCard.id.slice(-6)}`,
-            oem: {
-              id: '',
-              name: 'Vehicle'
-            }
-          },
-          service: {
-            id: '',
-            name: 'PPF Installation'
-          }
-        },
-        partner: {
-          id: jobCard.partnerId || '',
-          displayName: 'Installation Partner'
-        }
-      } as JobCardView));
-      
-      // Complex enrichment logic below (currently skipped)
+      // Extract unique IDs for batch fetching
+
+      // Extract unique IDs for batch fetching with defensive field mapping
       const workOrderIds = Array.from(new Set(
         jobCards.map(jc => jc.workOrderId || jc.id || (jc as any).jobCard?.workOrderId).filter(Boolean)
       ));
@@ -131,8 +97,7 @@ export function useJobCards() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         };
-        // Only add OEM filter for non-partner users
-        if (shouldIncludeOemFilter && selectedOemId) {
+        if (selectedOemId) {
           workOrderHeaders['x-oem-id'] = selectedOemId;
         }
         
@@ -149,7 +114,7 @@ export function useJobCards() {
           // Fallback to individual calls if bulk fails
           return Promise.all(workOrderIds.map(async (id) => {
             const fallbackHeaders: HeadersInit = { 'Authorization': `Bearer ${token}` };
-            if (shouldIncludeOemFilter && selectedOemId) fallbackHeaders['x-oem-id'] = selectedOemId;
+            if (selectedOemId) fallbackHeaders['x-oem-id'] = selectedOemId;
             const fallbackRes = await fetch(`/api/work-orders/${id}`, {
               headers: fallbackHeaders,
               credentials: 'include',
@@ -176,7 +141,7 @@ export function useJobCards() {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           };
-          if (shouldIncludeOemFilter && selectedOemId) {
+          if (selectedOemId) {
             serviceHeaders['x-oem-id'] = selectedOemId;
           }
           const res = await fetch('/api/services/bulk', {
@@ -194,7 +159,7 @@ export function useJobCards() {
         
         vehicleModelIds.size > 0 ? Promise.all(Array.from(vehicleModelIds).map(async (id) => {
           const vehicleHeaders: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` };
-          if (shouldIncludeOemFilter && selectedOemId) {
+          if (selectedOemId) {
             vehicleHeaders['x-oem-id'] = selectedOemId;
           }
           const res = await fetch(`/api/vehicle-models/${id}`, {
@@ -210,7 +175,7 @@ export function useJobCards() {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           };
-          if (shouldIncludeOemFilter && selectedOemId) {
+          if (selectedOemId) {
             partnerHeaders['x-oem-id'] = selectedOemId;
           }
           const res = await fetch('/api/partners/bulk', {
@@ -235,7 +200,7 @@ export function useJobCards() {
       const oems: Oem[] = oemIds.length > 0 ? await Promise.all(
         oemIds.map(async (id) => {
           const oemHeaders: HeadersInit = { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` };
-          if (shouldIncludeOemFilter && selectedOemId) {
+          if (selectedOemId) {
             oemHeaders['x-oem-id'] = selectedOemId;
           }
           const res = await fetch(`/api/oems/${id}`, {

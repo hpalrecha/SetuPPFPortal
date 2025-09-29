@@ -8,7 +8,7 @@ import { OemProvider } from "./hooks/use-oem-context";
 import LoginPage from "./pages/login";
 import DashboardPage from "./pages/dashboard";
 import WorkOrdersPage from "./pages/work-orders";
-import JobCardsPage from "./pages/job-cards";
+import JobCardsNew from "./pages/JobCardsNew";
 import PartnersPage from "./pages/partners";
 import AllocationsPage from "./pages/allocations";
 import PricingPage from "./pages/pricing";
@@ -79,7 +79,7 @@ function Router() {
       />
       <Route
         path="/job-cards"
-        component={() => <ProtectedRoute component={JobCardsPage} />}
+        component={() => <ProtectedRoute component={JobCardsNew} />}
       />
       <Route
         path="/partners"
