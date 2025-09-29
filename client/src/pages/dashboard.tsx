@@ -384,8 +384,8 @@ export default function DashboardPage() {
           </Card>
         )}
 
-        {/* Earnings Card - Specific for Detailer roles */}
-        {canViewSection(['PARTNER_ADMIN', 'PARTNER_STAFF']) && (
+        {/* Earnings Card - Only for Partner Admin */}
+        {canViewSection(['PARTNER_ADMIN']) && (
           <Card>
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">

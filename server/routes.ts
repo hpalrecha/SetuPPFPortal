@@ -879,8 +879,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!req.user!.partnerId) {
           return res.status(400).json({ error: "Partner ID required" });
         }
-        const metrics = await storage.getPartnerDashboardMetrics(req.user!.partnerId);
-        return res.json(metrics);
+        
+        // Partner staff get metrics only for their assigned job cards
+        if (req.user!.role === 'PARTNER_STAFF') {
+          const metrics = await storage.getPartnerStaffDashboardMetrics(req.user!.partnerId, req.user!.id);
+          return res.json(metrics);
+        } else {
+          // Partner admin gets all partner metrics
+          const metrics = await storage.getPartnerDashboardMetrics(req.user!.partnerId);
+          return res.json(metrics);
+        }
       }
       
       // For SUPER_ADMIN, use the first available OEM or create aggregate metrics
@@ -1329,7 +1337,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         filters.partnerId = req.user!.partnerId;
         
-        console.log(`🔍 Partner ${req.user!.partnerId} requesting job cards with OEM filter: ${selectedOemId || 'NONE'}`);
+        // PARTNER_STAFF can only see job cards assigned to them personally
+        if (req.user!.role === 'PARTNER_STAFF') {
+          filters.assignedInstallerId = req.user!.id;
+          console.log(`🔍 Partner Staff ${req.user!.id} requesting only their assigned job cards`);
+        } else {
+          console.log(`🔍 Partner Admin ${req.user!.partnerId} requesting all partner job cards with OEM filter: ${selectedOemId || 'NONE'}`);
+        }
+        
         console.log(`🔍 Current filters:`, filters);
         
         // Validate OEM access for partners using partner-OEM mappings
@@ -1342,7 +1357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           filters.oemId = selectedOemId;
         } else {
           // NEW: If no OEM selected, show ALL partner job cards without OEM filtering
-          console.log(`✅ No OEM filter - showing ALL job cards for partner ${req.user!.partnerId}`);
+          console.log(`✅ No OEM filter - showing ${req.user!.role === 'PARTNER_STAFF' ? 'assigned' : 'ALL'} job cards for partner ${req.user!.partnerId}`);
           // Don't add any oemId filter - let partner see all their allocated job cards
         }
       } else if (req.user!.role === 'SHOWROOM_MANAGER' || req.user!.role === 'SALES_PERSON') {
