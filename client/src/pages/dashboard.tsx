@@ -61,6 +61,11 @@ export default function DashboardPage() {
   const [viewAsRole, setViewAsRole] = useState<string | null>(null);
   const effectiveRole = viewAsRole || user?.role;
 
+  // Role-based visibility helper
+  const canViewSection = (allowedRoles: string[]) => {
+    return allowedRoles.includes(effectiveRole || '');
+  };
+
   const { data: metrics, isLoading } = useQuery<DashboardMetrics>({
     queryKey: ["/api/dashboard/metrics"],
     refetchInterval: 30000 // Refresh every 30 seconds
@@ -131,11 +136,6 @@ export default function DashboardPage() {
     refetchInterval: 60000,
     enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER'])
   });
-
-  // Role-based visibility helper
-  const canViewSection = (allowedRoles: string[]) => {
-    return allowedRoles.includes(effectiveRole || '');
-  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
