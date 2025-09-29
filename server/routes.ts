@@ -1093,7 +1093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/work-orders", 
     authenticate, 
-    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'OEM_ADMIN', 'SUPER_ADMIN']),
+    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'SUPER_ADMIN', 'PARTNER_ADMIN']),
     auditLog('work_order', 'create'),
     async (req, res) => {
       try {
@@ -1244,6 +1244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/work-orders/:id", 
     authenticate, 
+    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'SUPER_ADMIN', 'PARTNER_ADMIN']),
     requireOEMAccess,
     auditLog('work_order', 'update'),
     async (req, res) => {
@@ -1695,6 +1696,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/job-cards/:id", 
     authenticate,
+    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'SUPER_ADMIN']),
     auditLog('job_card', 'update'),
     async (req, res) => {
       try {
