@@ -5,6 +5,8 @@ import { useOemContext } from '@/hooks/use-oem-context';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
@@ -37,7 +39,8 @@ import {
   CheckCircle,
   XCircle,
   Image,
-  CalendarDays
+  CalendarDays,
+  Search
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
@@ -182,6 +185,16 @@ export default function JobCardsNew() {
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   
+  // Search filters state
+  const [searchFilters, setSearchFilters] = useState({
+    jobCardNumber: '',
+    customerName: '',
+    status: '',
+    showroomLocation: '',
+    partnerName: '',
+    vehicleModel: ''
+  });
+  
   // Get current user for admin check
   const { user } = useAuth();
   const isPartnerUser = user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF';
@@ -189,7 +202,7 @@ export default function JobCardsNew() {
   const { selectedOemId } = useOemContext();
 
   // Fetch and enrich job cards with related data
-  const { data: jobCards = [], isLoading, error } = useQuery({
+  const { data: allJobCards = [], isLoading, error } = useQuery({
     queryKey: ['jobCards'],
     queryFn: async (): Promise<EnrichedJobCard[]> => {
       // Fetch job cards using the proper apiRequest function
@@ -261,6 +274,25 @@ export default function JobCardsNew() {
       
       return enrichedJobCards;
     }
+  });
+
+  // Apply search filters to job cards
+  const jobCards = allJobCards.filter((jobCard) => {
+    const jobCardNumber = `JC-${jobCard.id.slice(-6)}`.toLowerCase();
+    const customerName = (jobCard.customerName || '').toLowerCase();
+    const status = (jobCard.status || '').toLowerCase();
+    const showroomLocation = (jobCard.workOrder?.showroomName || '').toLowerCase();
+    const partnerName = (jobCard.partnerDisplay || '').toLowerCase();
+    const vehicleModel = (jobCard.vehicleDisplay || '').toLowerCase();
+
+    return (
+      (!searchFilters.jobCardNumber || jobCardNumber.includes(searchFilters.jobCardNumber.toLowerCase())) &&
+      (!searchFilters.customerName || customerName.includes(searchFilters.customerName.toLowerCase())) &&
+      (!searchFilters.status || status === searchFilters.status.toLowerCase()) &&
+      (!searchFilters.showroomLocation || showroomLocation.includes(searchFilters.showroomLocation.toLowerCase())) &&
+      (!searchFilters.partnerName || partnerName.includes(searchFilters.partnerName.toLowerCase())) &&
+      (!searchFilters.vehicleModel || vehicleModel.includes(searchFilters.vehicleModel.toLowerCase()))
+    );
   });
 
   // Fetch detailed job card data including media when one is selected
@@ -458,8 +490,119 @@ export default function JobCardsNew() {
         </div>
       </div>
 
+      {/* Search Filters */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            <Input
+              placeholder="Job Card Number (e.g., JC-123456)"
+              value={searchFilters.jobCardNumber}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, jobCardNumber: e.target.value }))}
+              data-testid="input-job-card-search"
+            />
+            
+            <Input
+              placeholder="Customer Name"
+              value={searchFilters.customerName}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, customerName: e.target.value }))}
+              data-testid="input-customer-search"
+            />
+
+            <Select 
+              value={searchFilters.status} 
+              onValueChange={(value) => setSearchFilters(prev => ({ ...prev, status: value }))}
+            >
+              <SelectTrigger data-testid="select-status-filter">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All Status</SelectItem>
+                <SelectItem value="PENDING">Pending</SelectItem>
+                <SelectItem value="ASSIGNED">Assigned</SelectItem>
+                <SelectItem value="ACKNOWLEDGED">Acknowledged</SelectItem>
+                <SelectItem value="SCHEDULED">Scheduled</SelectItem>
+                <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                <SelectItem value="COMPLETED_PENDING_APPROVAL">Pending Approval</SelectItem>
+                <SelectItem value="APPROVED">Approved</SelectItem>
+                <SelectItem value="REWORK_REQUESTED">Rework Requested</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Input
+              placeholder="Showroom Location"
+              value={searchFilters.showroomLocation}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, showroomLocation: e.target.value }))}
+              data-testid="input-showroom-search"
+            />
+
+            <Input
+              placeholder="Partner Name"
+              value={searchFilters.partnerName}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, partnerName: e.target.value }))}
+              data-testid="input-partner-search"
+            />
+
+            <Input
+              placeholder="Vehicle Model"
+              value={searchFilters.vehicleModel}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, vehicleModel: e.target.value }))}
+              data-testid="input-vehicle-search"
+            />
+          </div>
+
+          <div className="flex items-center justify-between mt-4">
+            <div className="text-sm text-muted-foreground">
+              Showing {jobCards.length} of {allJobCards.length} job cards
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSearchFilters({
+                jobCardNumber: '',
+                customerName: '',
+                status: '',
+                showroomLocation: '',
+                partnerName: '',
+                vehicleModel: ''
+              })}
+              data-testid="button-clear-filters"
+            >
+              <Search className="h-4 w-4 mr-2" />
+              Clear Filters
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* No Data State */}
-      {!isLoading && jobCards.length === 0 && (
+      {!isLoading && jobCards.length === 0 && allJobCards.length > 0 && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-12">
+              <p className="text-muted-foreground" data-testid="text-no-filtered-results">
+                No job cards match your search criteria
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-4"
+                onClick={() => setSearchFilters({
+                  jobCardNumber: '',
+                  customerName: '',
+                  status: '',
+                  showroomLocation: '',
+                  partnerName: '',
+                  vehicleModel: ''
+                })}
+              >
+                Clear Filters
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!isLoading && allJobCards.length === 0 && (
         <Card>
           <CardContent className="pt-6">
             <div className="text-center py-12">
