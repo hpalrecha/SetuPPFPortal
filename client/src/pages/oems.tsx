@@ -3,10 +3,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Building2 } from "lucide-react";
+import { Plus, Edit, Trash2, Building2, Percent } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { CreateOEMModal } from "@/components/modals/CreateOEMModal";
+import { CreateRoyaltyRuleModal } from "@/components/modals/CreateRoyaltyRuleModal";
 
 export default function OEMsPage() {
   const { user } = useAuth();
@@ -15,6 +16,8 @@ export default function OEMsPage() {
   
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingOEM, setEditingOEM] = useState<any>(null);
+  const [showRoyaltyModal, setShowRoyaltyModal] = useState(false);
+  const [editingRoyaltyRule, setEditingRoyaltyRule] = useState<any>(null);
   
   // Only Super Admin can access OEM management
   const canAccessOEMs = user?.role === 'SUPER_ADMIN';
@@ -36,6 +39,26 @@ export default function OEMsPage() {
       return response.json();
     },
     refetchInterval: 30000,
+    enabled: canAccessOEMs
+  });
+
+  // Fetch royalty rules for all OEMs
+  const { data: royaltyRules = [] } = useQuery<any[]>({
+    queryKey: ["/api/oem-royalty-rules"],
+    queryFn: async () => {
+      const response = await fetch('/api/oem-royalty-rules', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch royalty rules');
+      }
+      
+      return response.json();
+    },
     enabled: canAccessOEMs
   });
 
@@ -87,6 +110,27 @@ export default function OEMsPage() {
     setShowCreateModal(false);
     setEditingOEM(null);
     queryClient.invalidateQueries({ queryKey: ["/api/oems"] });
+  };
+
+  const handleAddRoyaltyRule = (oemId: string) => {
+    setEditingRoyaltyRule({ oemId });
+    setShowRoyaltyModal(true);
+  };
+
+  const handleEditRoyaltyRule = (rule: any) => {
+    setEditingRoyaltyRule(rule);
+    setShowRoyaltyModal(true);
+  };
+
+  const handleRoyaltyModalSuccess = () => {
+    setShowRoyaltyModal(false);
+    setEditingRoyaltyRule(null);
+    queryClient.invalidateQueries({ queryKey: ["/api/oem-royalty-rules"] });
+  };
+
+  // Helper function to get royalty rule for an OEM
+  const getRoyaltyRuleForOEM = (oemId: string) => {
+    return royaltyRules.find(rule => rule.oemId === oemId && rule.isActive);
   };
 
   // Show access denied for non-admin users
@@ -177,7 +221,7 @@ export default function OEMsPage() {
                 )}
 
                 {/* Stats */}
-                <div className="grid grid-cols-2 gap-2 text-center text-sm mb-4">
+                <div className="grid grid-cols-3 gap-2 text-center text-sm mb-4">
                   <div>
                     <p className="font-semibold text-foreground">{oem.dealershipsCount || 0}</p>
                     <p className="text-muted-foreground">Dealerships</p>
@@ -186,27 +230,81 @@ export default function OEMsPage() {
                     <p className="font-semibold text-foreground">{oem.showroomsCount || 0}</p>
                     <p className="text-muted-foreground">Showrooms</p>
                   </div>
+                  <div>
+                    {(() => {
+                      const royaltyRule = getRoyaltyRuleForOEM(oem.id);
+                      return (
+                        <>
+                          <p className="font-semibold text-foreground">
+                            {royaltyRule ? `${royaltyRule.royaltyPercentage}%` : '0%'}
+                          </p>
+                          <p className="text-muted-foreground">Royalty</p>
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
 
-                <div className="flex space-x-2">
-                  <Button 
-                    variant="secondary" 
-                    className="flex-1 text-sm"
-                    onClick={() => handleEditOEM(oem)}
-                    data-testid={`button-edit-${oem.id}`}
-                  >
-                    <Edit className="mr-1 h-3 w-3" />
-                    Edit
-                  </Button>
-                  <Button 
-                    variant="destructive" 
-                    className="flex-1 text-sm"
-                    onClick={() => handleDeleteOEM(oem.id)}
-                    data-testid={`button-delete-${oem.id}`}
-                  >
-                    <Trash2 className="mr-1 h-3 w-3" />
-                    Delete
-                  </Button>
+                {/* Royalty Rule Status */}
+                {(() => {
+                  const royaltyRule = getRoyaltyRuleForOEM(oem.id);
+                  return (
+                    <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <Percent className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm font-medium">Royalty Rule</span>
+                        </div>
+                        <Badge variant={royaltyRule ? "default" : "secondary"}>
+                          {royaltyRule ? "Active" : "Not Set"}
+                        </Badge>
+                      </div>
+                      {royaltyRule && (
+                        <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                          Effective from: {new Date(royaltyRule.effectiveFrom).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                <div className="space-y-2">
+                  <div className="flex space-x-2">
+                    <Button 
+                      variant="secondary" 
+                      className="flex-1 text-sm"
+                      onClick={() => handleEditOEM(oem)}
+                      data-testid={`button-edit-${oem.id}`}
+                    >
+                      <Edit className="mr-1 h-3 w-3" />
+                      Edit
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      className="flex-1 text-sm"
+                      onClick={() => handleDeleteOEM(oem.id)}
+                      data-testid={`button-delete-${oem.id}`}
+                    >
+                      <Trash2 className="mr-1 h-3 w-3" />
+                      Delete
+                    </Button>
+                  </div>
+                  
+                  {/* Royalty Management Button */}
+                  {(() => {
+                    const royaltyRule = getRoyaltyRuleForOEM(oem.id);
+                    return (
+                      <Button 
+                        variant={royaltyRule ? "outline" : "default"}
+                        className="w-full text-sm"
+                        onClick={() => royaltyRule ? handleEditRoyaltyRule(royaltyRule) : handleAddRoyaltyRule(oem.id)}
+                        data-testid={`button-royalty-${oem.id}`}
+                      >
+                        <Percent className="mr-1 h-3 w-3" />
+                        {royaltyRule ? 'Edit Royalty Rule' : 'Set Royalty Rule'}
+                      </Button>
+                    );
+                  })()}
                 </div>
               </CardContent>
             </Card>
@@ -220,6 +318,13 @@ export default function OEMsPage() {
         onOpenChange={setShowCreateModal}
         onSuccess={handleModalSuccess}
         oem={editingOEM}
+      />
+      
+      <CreateRoyaltyRuleModal 
+        open={showRoyaltyModal}
+        onOpenChange={setShowRoyaltyModal}
+        onSuccess={handleRoyaltyModalSuccess}
+        editingRule={editingRoyaltyRule}
       />
     </div>
   );
