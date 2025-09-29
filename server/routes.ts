@@ -559,13 +559,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const { id } = req.params;
-        const { resetPasswordData, ...showroomData } = req.body;
+        const { resetPasswordData, adminUserData, createUser, ...showroomData } = req.body;
         
         // Update showroom data
         const showroom = await storage.updateShowroom(id, showroomData);
         
         if (!showroom) {
           return res.status(404).json({ error: "Showroom not found" });
+        }
+        
+        // Create admin user if requested (for editing existing showrooms without manager)
+        if (createUser && adminUserData) {
+          try {
+            const bcrypt = await import('bcryptjs');
+            const hashedPassword = await bcrypt.hash(adminUserData.password, 10);
+            
+            const managerData = {
+              name: adminUserData.name,
+              email: adminUserData.email,
+              phone: adminUserData.phone || '',
+              passwordHash: hashedPassword,
+              role: 'SHOWROOM_MANAGER' as const,
+              oemId: showroom.oemId, // Link to the same OEM
+              dealershipId: showroom.dealershipId,
+              showroomId: showroom.id,
+              isActive: true
+            };
+            
+            const createdUser = await storage.createUser(managerData);
+            console.log(`Created showroom manager user: ${createdUser.email} for ${showroom.name}`);
+          } catch (userError) {
+            console.error("Failed to create showroom manager user:", userError);
+            // Don't fail the showroom update if user creation fails
+            return res.status(200).json({ 
+              ...showroom, 
+              warning: "Showroom updated but manager user creation failed" 
+            });
+          }
         }
         
         // Handle password reset if requested
