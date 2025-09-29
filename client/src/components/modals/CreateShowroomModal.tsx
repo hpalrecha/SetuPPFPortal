@@ -541,68 +541,178 @@ export function CreateShowroomModal({
               </div>
             )}
 
-            {/* Password Reset Section - Only show when editing showroom */}
+            {/* User Management Section - Only show when editing showroom */}
             {isEditing && (
               <div className="space-y-4 border-t pt-4">
-                {/* Display current admin user details */}
-                {showroomUsers && showroomUsers.length > 0 && (
-                  <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
-                    <h4 className="font-medium text-sm mb-2">Current Showroom Manager:</h4>
-                    <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                      <p><span className="font-medium">Name:</span> {showroomUsers[0].name}</p>
-                      <p><span className="font-medium">Email:</span> {showroomUsers[0].email}</p>
-                      {showroomUsers[0].phone && (
-                        <p><span className="font-medium">Phone:</span> {showroomUsers[0].phone}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <FormField
-                  control={form.control}
-                  name="resetPassword"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                      <FormControl>
-                        <Checkbox
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          data-testid="checkbox-reset-password"
-                        />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>
-                          Reset Showroom Manager Password
-                        </FormLabel>
-                        <p className="text-sm text-muted-foreground">
-                          Reset the password for the showroom manager user
-                        </p>
+                {showroomUsers && showroomUsers.length > 0 ? (
+                  // Show password reset option if admin user exists
+                  <>
+                    {/* Display current admin user details */}
+                    <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
+                      <h4 className="font-medium text-sm mb-2">Current Showroom Manager:</h4>
+                      <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                        <p><span className="font-medium">Name:</span> {showroomUsers[0].name}</p>
+                        <p><span className="font-medium">Email:</span> {showroomUsers[0].email}</p>
+                        {showroomUsers[0].phone && (
+                          <p><span className="font-medium">Phone:</span> {showroomUsers[0].phone}</p>
+                        )}
                       </div>
-                    </FormItem>
-                  )}
-                />
+                    </div>
 
-                {form.watch("resetPassword") && (
-                  <div className="pl-7">
                     <FormField
                       control={form.control}
-                      name="newPassword"
+                      name="resetPassword"
                       render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>New Password</FormLabel>
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
                           <FormControl>
-                            <Input
-                              type="password"
-                              placeholder="Enter new password (min 6 chars)"
-                              {...field}
-                              data-testid="input-new-password"
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              data-testid="checkbox-reset-password"
                             />
                           </FormControl>
-                          <FormMessage />
+                          <div className="space-y-1 leading-none">
+                            <FormLabel>
+                              Reset Showroom Manager Password
+                            </FormLabel>
+                            <p className="text-sm text-muted-foreground">
+                              Reset the password for the showroom manager user
+                            </p>
+                          </div>
                         </FormItem>
                       )}
                     />
-                  </div>
+
+                    {form.watch("resetPassword") && (
+                      <div className="pl-7">
+                        <FormField
+                          control={form.control}
+                          name="newPassword"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>New Password</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="password"
+                                  placeholder="Enter new password (min 6 chars)"
+                                  {...field}
+                                  data-testid="input-new-password"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  // Show create admin user option if no admin user exists
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="createUser"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              data-testid="checkbox-create-user"
+                            />
+                          </FormControl>
+                          <div className="space-y-1 leading-none">
+                            <FormLabel>
+                              Create Showroom Manager User
+                            </FormLabel>
+                            <p className="text-sm text-muted-foreground">
+                              Create a new user account for this showroom's manager
+                            </p>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+
+                    {form.watch("createUser") && (
+                      <div className="pl-7 space-y-4">
+                        <FormField
+                          control={form.control}
+                          name="userName"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Manager Name *</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="Enter manager's full name"
+                                  {...field}
+                                  data-testid="input-user-name"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="userEmail"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Manager Email *</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="email"
+                                    placeholder="Enter email address"
+                                    {...field}
+                                    data-testid="input-user-email"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="userPhone"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Manager Phone</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder="Enter phone number"
+                                    {...field}
+                                    data-testid="input-user-phone"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        <FormField
+                          control={form.control}
+                          name="userPassword"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Manager Password *</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="password"
+                                  placeholder="Enter password (min 6 chars)"
+                                  {...field}
+                                  data-testid="input-user-password"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
