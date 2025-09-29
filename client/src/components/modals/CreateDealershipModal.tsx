@@ -599,6 +599,20 @@ export function CreateDealershipModal({
                 {hasAdminUser ? (
                   // Show password reset option if admin user exists
                   <>
+                    {/* Display current admin user details */}
+                    {dealershipUsers && dealershipUsers.length > 0 && (
+                      <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
+                        <h4 className="font-medium text-sm mb-2">Current Dealership Admin:</h4>
+                        <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                          <p><span className="font-medium">Name:</span> {dealershipUsers[0].name}</p>
+                          <p><span className="font-medium">Email:</span> {dealershipUsers[0].email}</p>
+                          {dealershipUsers[0].phone && (
+                            <p><span className="font-medium">Phone:</span> {dealershipUsers[0].phone}</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     <FormField
                       control={form.control}
                       name="resetPassword"
