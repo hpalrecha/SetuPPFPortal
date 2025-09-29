@@ -873,7 +873,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard Routes
   app.get("/api/dashboard/metrics", authenticate, async (req, res) => {
     try {
-      console.log("Dashboard request - User role:", req.user!.role, "Partner ID:", req.user!.partnerId, "OEM ID:", req.user!.oemId);
       
       // For partner users, use partner-specific dashboard
       if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
@@ -884,9 +883,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(metrics);
       }
       
-      // For non-partner users, use OEM-based dashboard
+      // For SUPER_ADMIN, use the first available OEM or create aggregate metrics
+      if (req.user!.role === 'SUPER_ADMIN') {
+        // Get first available OEM for super admin
+        const availableOems = await storage.getOems();
+        if (availableOems.length === 0) {
+          // No OEMs available, return zero metrics
+          return res.json({
+            activeWorkOrders: 0,
+            pendingApprovals: 0,
+            thisMonthRevenue: 0,
+            avgTAT: 0,
+            completedJobs: 0,
+            inProgressJobs: 0,
+            pendingJobs: 0,
+            thisMonthEarnings: 0
+          });
+        }
+        
+        // Use first OEM for super admin dashboard
+        const metrics = await storage.getDashboardMetrics(availableOems[0].id);
+        return res.json(metrics);
+      }
+      
+      // For other non-partner users, use their assigned OEM
       if (!req.user!.oemId) {
-        return res.status(400).json({ error: "OEM ID required" });
+        return res.status(400).json({ error: "OEM ID required for this user role" });
       }
       
       const showroomId = req.user!.showroomId;
