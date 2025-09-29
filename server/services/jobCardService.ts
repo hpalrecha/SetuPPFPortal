@@ -308,6 +308,25 @@ export class JobCardService {
       commissionAmount = commission.amount;
     }
 
+    // Calculate OEM royalty automatically
+    let royaltyCalculation = null;
+    try {
+      royaltyCalculation = await storage.calculateRoyaltyForWorkOrder(
+        workOrder.id,
+        Number(finalPrice),
+        workOrder.oemId
+      );
+      
+      if (royaltyCalculation) {
+        console.log(`✅ OEM Royalty calculated: ₹${royaltyCalculation.royaltyAmount} (${royaltyCalculation.royaltyPercentage}%)`);
+      } else {
+        console.log(`ℹ️ No royalty rule found for OEM ${workOrder.oemId}`);
+      }
+    } catch (royaltyError) {
+      console.error('Error calculating OEM royalty:', royaltyError);
+      // Don't fail approval if royalty calculation fails
+    }
+
     const updatedJobCard = await storage.updateJobCard(jobCardId, {
       status: 'APPROVED',
       approvedAt: new Date(),
