@@ -509,14 +509,13 @@ export default function JobCardsNew() {
             />
 
             <Select 
-              value={searchFilters.status} 
-              onValueChange={(value) => setSearchFilters(prev => ({ ...prev, status: value }))}
+              value={searchFilters.status || undefined} 
+              onValueChange={(value) => setSearchFilters(prev => ({ ...prev, status: value || '' }))}
             >
               <SelectTrigger data-testid="select-status-filter">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Status</SelectItem>
                 <SelectItem value="PENDING">Pending</SelectItem>
                 <SelectItem value="ASSIGNED">Assigned</SelectItem>
                 <SelectItem value="ACKNOWLEDGED">Acknowledged</SelectItem>
