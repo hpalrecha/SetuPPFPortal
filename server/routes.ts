@@ -361,10 +361,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const { id } = req.params;
-        const dealership = await storage.updateDealership(id, req.body);
+        const { resetPasswordData, ...dealershipData } = req.body;
+        
+        // Update dealership data
+        const dealership = await storage.updateDealership(id, dealershipData);
         
         if (!dealership) {
           return res.status(404).json({ error: "Dealership not found" });
+        }
+        
+        // Handle password reset if requested
+        if (resetPasswordData && resetPasswordData.newPassword) {
+          try {
+            const bcrypt = await import('bcryptjs');
+            const hashedPassword = await bcrypt.hash(resetPasswordData.newPassword, 10);
+            
+            // Find and update the dealership admin user's password
+            await storage.updateUserPasswordByDealership(id, hashedPassword);
+            console.log(`Password reset for dealership admin of ${dealership.name}`);
+          } catch (passwordError) {
+            console.error("Failed to reset dealership admin password:", passwordError);
+            // Don't fail the dealership update if password reset fails
+            return res.status(200).json({ 
+              ...dealership, 
+              warning: "Dealership updated but password reset failed" 
+            });
+          }
         }
         
         res.json(dealership);
