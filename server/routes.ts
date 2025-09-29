@@ -411,6 +411,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
+        // Handle creating admin user if requested
+        if (req.body.createAdminUserData) {
+          try {
+            const bcrypt = await import('bcryptjs');
+            const hashedPassword = await bcrypt.hash(req.body.createAdminUserData.password, 10);
+            
+            const adminData = {
+              name: req.body.createAdminUserData.name,
+              email: req.body.createAdminUserData.email,
+              phone: req.body.createAdminUserData.phone || '',
+              passwordHash: hashedPassword,
+              role: 'DEALERSHIP_ADMIN' as const,
+              oemId: dealership.oemId, // Link to the same OEM
+              dealershipId: dealership.id,
+              isActive: true
+            };
+            
+            const createdUser = await storage.createUser(adminData);
+            console.log(`Created dealership admin user: ${createdUser.email} for ${dealership.name}`);
+          } catch (userError) {
+            console.error("Failed to create dealership admin user:", userError);
+            // Don't fail the dealership update if user creation fails
+            return res.status(200).json({ 
+              ...dealership, 
+              warning: "Dealership updated but admin user creation failed" 
+            });
+          }
+        }
+        
         res.json(dealership);
       } catch (error) {
         console.error("Update dealership error:", error);
