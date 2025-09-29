@@ -28,6 +28,7 @@ const editStaffSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Valid email is required"),
   phone: z.string().optional(),
+  password: z.string().min(6, "Password must be at least 6 characters").optional().or(z.literal("")),
   isActive: z.boolean(),
 });
 
@@ -55,6 +56,7 @@ export function EditStaffModal({
       name: "",
       email: "",
       phone: "",
+      password: "",
       isActive: true,
     },
   });
@@ -66,6 +68,7 @@ export function EditStaffModal({
         name: staff.name || "",
         email: staff.email || "",
         phone: staff.phone || "",
+        password: "",
         isActive: staff.isActive ?? true,
       });
     }
@@ -86,6 +89,7 @@ export function EditStaffModal({
           name: data.name,
           email: data.email,
           phone: data.phone || undefined,
+          ...(data.password && data.password.trim().length > 0 && { password: data.password }),
           isActive: data.isActive,
         }),
       });
@@ -97,7 +101,9 @@ export function EditStaffModal({
 
       toast({
         title: "Success",
-        description: "Staff member updated successfully",
+        description: data.password && data.password.trim().length > 0 
+          ? "Staff member and password updated successfully" 
+          : "Staff member updated successfully",
       });
 
       onSuccess();
@@ -174,6 +180,28 @@ export function EditStaffModal({
                     />
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>New Password (Optional)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="password"
+                      placeholder="Leave blank to keep current password"
+                      data-testid="input-edit-staff-password"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                  <div className="text-sm text-muted-foreground">
+                    Leave blank to keep the current password. Enter a new password to update it.
+                  </div>
                 </FormItem>
               )}
             />

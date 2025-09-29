@@ -2294,12 +2294,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           name: z.string().min(1).optional(),
           email: z.string().email().optional(),
           phone: z.string().optional(),
+          password: z.string().min(6, "Password must be at least 6 characters").optional(),
           isActive: z.boolean().optional()
         });
 
         const validatedData = staffUpdateSchema.parse(req.body);
         
-        const updatedStaff = await storage.updatePartnerStaff(staffId, validatedData);
+        // If password is provided, hash it before storage
+        let dataForStorage = validatedData;
+        if (validatedData.password) {
+          const hashedPassword = await bcrypt.hash(validatedData.password, 12);
+          dataForStorage = {
+            ...validatedData,
+            passwordHash: hashedPassword
+          };
+          delete dataForStorage.password; // Remove plain text password
+        }
+        
+        const updatedStaff = await storage.updatePartnerStaff(staffId, dataForStorage);
         if (!updatedStaff) {
           return res.status(404).json({ error: "Staff member not found" });
         }
