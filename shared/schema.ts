@@ -409,6 +409,35 @@ export const payouts = pgTable("payouts", {
   createdAt: timestamp("created_at").defaultNow()
 });
 
+// OEM Royalty Management
+export const oemRoyaltyRules = pgTable("oem_royalty_rules", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  oemId: uuid("oem_id").references(() => oems.id).notNull().unique(),
+  royaltyPercentage: decimal("royalty_percentage", { precision: 5, scale: 2 }).notNull(), // e.g., 5.50% stored as 5.50
+  isActive: boolean("is_active").default(true),
+  effectiveFrom: timestamp("effective_from").defaultNow(),
+  effectiveTo: timestamp("effective_to"),
+  createdBy: uuid("created_by").references(() => users.id).notNull(),
+  updatedBy: uuid("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+export const oemRoyaltyCalculations = pgTable("oem_royalty_calculations", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  workOrderId: uuid("work_order_id").references(() => workOrders.id).notNull(),
+  oemId: uuid("oem_id").references(() => oems.id).notNull(),
+  royaltyRuleId: uuid("royalty_rule_id").references(() => oemRoyaltyRules.id).notNull(),
+  workOrderValue: decimal("work_order_value", { precision: 10, scale: 2 }).notNull(),
+  royaltyPercentage: decimal("royalty_percentage", { precision: 5, scale: 2 }).notNull(),
+  royaltyAmount: decimal("royalty_amount", { precision: 10, scale: 2 }).notNull(),
+  calculatedAt: timestamp("calculated_at").defaultNow(),
+  status: text("status").default("PENDING").notNull(), // PENDING, ACCRUED, PAID
+  settledAt: timestamp("settled_at"),
+  paymentReference: text("payment_reference"),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
 export const commissions = pgTable("commissions", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   jobCardId: uuid("job_card_id").references(() => jobCards.id), // Keep for backward compatibility  
@@ -458,7 +487,9 @@ export const oemsRelations = relations(oems, ({ many }) => ({
   dealerships: many(dealerships),
   vehicleModels: many(vehicleModels),
   users: many(users),
-  workOrders: many(workOrders)
+  workOrders: many(workOrders),
+  royaltyRules: many(oemRoyaltyRules),
+  royaltyCalculations: many(oemRoyaltyCalculations)
 }));
 
 export const dealershipsRelations = relations(dealerships, ({ one, many }) => ({
@@ -629,6 +660,27 @@ export const selectPayoutSchema = createSelectSchema(payouts);
 export type InsertPayout = z.infer<typeof insertPayoutSchema>;
 export type Payout = z.infer<typeof selectPayoutSchema>;
 
+// OEM Royalty schemas
+export const insertOemRoyaltyRuleSchema = createInsertSchema(oemRoyaltyRules).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true,
+  createdBy: true,
+  updatedBy: true
+});
+export const selectOemRoyaltyRuleSchema = createSelectSchema(oemRoyaltyRules);
+export type InsertOemRoyaltyRule = z.infer<typeof insertOemRoyaltyRuleSchema>;
+export type OemRoyaltyRule = z.infer<typeof selectOemRoyaltyRuleSchema>;
+
+export const insertOemRoyaltyCalculationSchema = createInsertSchema(oemRoyaltyCalculations).omit({ 
+  id: true, 
+  createdAt: true,
+  calculatedAt: true
+});
+export const selectOemRoyaltyCalculationSchema = createSelectSchema(oemRoyaltyCalculations);
+export type InsertOemRoyaltyCalculation = z.infer<typeof insertOemRoyaltyCalculationSchema>;
+export type OemRoyaltyCalculation = z.infer<typeof selectOemRoyaltyCalculationSchema>;
+
 // Commission schemas  
 export const insertCommissionSchema = createInsertSchema(commissions).omit({ id: true, createdAt: true });
 export const selectCommissionSchema = createSelectSchema(commissions);
@@ -685,3 +737,17 @@ export const insertServiceSchema = createInsertSchema(services).omit({ id: true,
 export const selectServiceSchema = createSelectSchema(services);
 export type InsertService = z.infer<typeof insertServiceSchema>;
 export type Service = z.infer<typeof selectServiceSchema>;
+
+// OEM Royalty Relations
+export const oemRoyaltyRulesRelations = relations(oemRoyaltyRules, ({ one, many }) => ({
+  oem: one(oems, { fields: [oemRoyaltyRules.oemId], references: [oems.id] }),
+  createdByUser: one(users, { fields: [oemRoyaltyRules.createdBy], references: [users.id] }),
+  updatedByUser: one(users, { fields: [oemRoyaltyRules.updatedBy], references: [users.id] }),
+  calculations: many(oemRoyaltyCalculations)
+}));
+
+export const oemRoyaltyCalculationsRelations = relations(oemRoyaltyCalculations, ({ one }) => ({
+  workOrder: one(workOrders, { fields: [oemRoyaltyCalculations.workOrderId], references: [workOrders.id] }),
+  oem: one(oems, { fields: [oemRoyaltyCalculations.oemId], references: [oems.id] }),
+  royaltyRule: one(oemRoyaltyRules, { fields: [oemRoyaltyCalculations.royaltyRuleId], references: [oemRoyaltyRules.id] })
+}));
