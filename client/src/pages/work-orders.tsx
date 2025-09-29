@@ -506,202 +506,347 @@ export default function WorkOrdersPage() {
         </CardContent>
       </Card>
 
-      {/* Work Orders Table - Desktop View */}
-      <Card className="hide-mobile">
-        <CardContent className="p-0">
-          <div className="table-wrapper">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="sticky left-0 bg-background z-10">WO ID</TableHead>
-                  <TableHead>Vehicle</TableHead>
-                  <TableHead className="hide-mobile">Service</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="hide-mobile">Partner</TableHead>
-                  <TableHead className="hide-mobile">Created</TableHead>
-                  <TableHead className="sticky right-0 bg-background z-10">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {workOrders.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                      No work orders found. Create your first work order to get started.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  workOrders.map((order) => (
-                    <TableRow key={order.id} data-testid={`row-work-order-${order.id}`}>
-                      <TableCell className="font-mono text-sm text-primary sticky left-0 bg-background z-10">
+      {/* Work Orders List - Responsive */}
+      {workOrders.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            No work orders found. Create your first work order to get started.
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Desktop & Large Table View */}
+          <div className="hidden lg:block rounded-lg border border-border overflow-hidden">
+            {/* Table Header */}
+            <div className="bg-muted/50 border-b border-border px-4 py-3">
+              <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '90px 180px 150px 160px 120px 140px 100px 140px'}}>
+                <div className="truncate">WO ID</div>
+                <div className="truncate">Vehicle</div>
+                <div className="truncate">Service</div>
+                <div className="truncate">Customer</div>
+                <div className="truncate">Status</div>
+                <div className="truncate">Partner</div>
+                <div className="truncate">Created</div>
+                <div className="truncate">Actions</div>
+              </div>
+            </div>
+
+            {/* Table Body */}
+            <div className="divide-y divide-border">
+              {workOrders.map((order) => (
+                <div 
+                  key={order.id}
+                  className="px-4 py-4 hover:bg-muted/30 transition-colors"
+                  data-testid={`row-work-order-${order.id}`}
+                >
+                  <div className="grid gap-3 items-center min-h-[60px]" style={{gridTemplateColumns: '90px 180px 150px 160px 120px 140px 100px 140px'}}>
+                    {/* WO ID Column */}
+                    <div className="min-w-0 overflow-hidden">
+                      <span className="font-mono text-sm font-semibold text-primary block truncate">
                         WO-{order.id.slice(-6)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="max-w-32">
-                          <p className="text-sm font-medium text-foreground truncate">{(order as any).vehicleModelName || "Vehicle Model"}</p>
-                          <p className="text-xs text-muted-foreground truncate">{order.regNo || "Not specified"}</p>
+                      </span>
+                    </div>
+
+                    {/* Vehicle Column */}
+                    <div className="min-w-0 overflow-hidden">
+                      <div className="text-sm font-medium truncate" title={(order as any).vehicleModelName || "Vehicle Model"}>
+                        {(order as any).vehicleModelName || "Vehicle Model"}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate" title={order.regNo || "Not specified"}>
+                        {order.regNo || "Not specified"}
+                      </div>
+                    </div>
+
+                    {/* Service Column */}
+                    <div className="min-w-0 overflow-hidden">
+                      <div className="text-sm font-medium truncate" title={(order as any).serviceName || "Service Name"}>
+                        {(order as any).serviceName || "Service Name"}
+                      </div>
+                    </div>
+
+                    {/* Customer Column */}
+                    <div className="min-w-0 overflow-hidden">
+                      <div className="text-sm font-medium truncate" title={order.customerName || "N/A"}>
+                        {order.customerName || "N/A"}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate" title={order.customerPhone || ""}>
+                        {order.customerPhone || "No phone"}
+                      </div>
+                    </div>
+
+                    {/* Status Column */}
+                    <div className="min-w-0 overflow-hidden">
+                      <Badge 
+                        className={statusColors[order.status as keyof typeof statusColors] || "bg-gray-100 text-gray-800"}
+                        data-testid={`status-${order.id}`}
+                      >
+                        {order.status?.replace(/_/g, " ")}
+                      </Badge>
+                    </div>
+
+                    {/* Partner Column */}
+                    <div className="min-w-0 overflow-hidden">
+                      <div className="text-sm font-medium truncate" title={order.assignedPartnerId ? ((order as any).assignedPartner?.displayName || "Partner Assigned") : "Not assigned"}>
+                        {order.assignedPartnerId ? ((order as any).assignedPartner?.displayName || "Partner Assigned") : "Not assigned"}
+                      </div>
+                    </div>
+
+                    {/* Created Column */}
+                    <div className="min-w-0 overflow-hidden">
+                      <div className="text-sm truncate" title={new Date(order.createdAt!).toLocaleDateString()}>
+                        {new Date(order.createdAt!).toLocaleDateString()}
+                      </div>
+                    </div>
+
+                    {/* Actions Column */}
+                    <div className="min-w-0 overflow-hidden">
+                      <div className="flex gap-1 flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewWorkOrder(order.id)}
+                          data-testid={`button-view-${order.id}`}
+                          className="text-xs px-2"
+                        >
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditWorkOrder(order.id)}
+                          data-testid={`button-edit-${order.id}`}
+                          className="text-xs px-2"
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                        {order.status === 'DRAFT' && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleSubmitWorkOrder(order.id)}
+                            data-testid={`button-submit-${order.id}`}
+                            className="text-xs px-2"
+                          >
+                            <Save className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Tablet Compact View */}
+          <div className="hidden md:block lg:hidden rounded-lg border border-border overflow-hidden">
+            {/* Table Header */}
+            <div className="bg-muted/50 border-b border-border px-3 py-2">
+              <div className="grid grid-cols-7 gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <div className="col-span-1">WO ID</div>
+                <div className="col-span-1">Status</div>
+                <div className="col-span-2">Customer</div>
+                <div className="col-span-2">Vehicle</div>
+                <div className="col-span-1">Actions</div>
+              </div>
+            </div>
+
+            {/* Table Body */}
+            <div className="divide-y divide-border">
+              {workOrders.map((order) => (
+                <div 
+                  key={order.id}
+                  className="px-3 py-3 hover:bg-muted/30 transition-colors"
+                  data-testid={`row-tablet-work-order-${order.id}`}
+                >
+                  <div className="grid grid-cols-7 gap-2 items-center">
+                    {/* WO ID Column */}
+                    <div className="col-span-1">
+                      <span className="font-mono text-xs font-semibold text-primary">
+                        WO-{order.id.slice(-6)}
+                      </span>
+                    </div>
+
+                    {/* Status Column */}
+                    <div className="col-span-1">
+                      <Badge 
+                        className={`text-xs ${statusColors[order.status as keyof typeof statusColors] || "bg-gray-100 text-gray-800"}`}
+                        data-testid={`status-${order.id}`}
+                      >
+                        {order.status?.replace(/_/g, " ")}
+                      </Badge>
+                    </div>
+
+                    {/* Customer Column */}
+                    <div className="col-span-2">
+                      <div className="text-xs font-medium truncate">
+                        {order.customerName || "N/A"}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {order.customerPhone || "No phone"}
+                      </div>
+                    </div>
+
+                    {/* Vehicle Column */}
+                    <div className="col-span-2">
+                      <div className="text-xs font-medium truncate">
+                        {(order as any).vehicleModelName || "Vehicle Model"}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {(order as any).serviceName || "Service Name"}
+                      </div>
+                    </div>
+
+                    {/* Actions Column */}
+                    <div className="col-span-1">
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewWorkOrder(order.id)}
+                          data-testid={`button-view-${order.id}`}
+                          className="text-xs px-1"
+                        >
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditWorkOrder(order.id)}
+                          data-testid={`button-edit-${order.id}`}
+                          className="text-xs px-1"
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Mobile Card View */}
+          <div className="block md:hidden space-y-4">
+            {workOrders.map((order) => (
+              <Card key={order.id} className="shadow-sm border-l-4 border-l-blue-500" data-testid={`card-mobile-work-order-${order.id}`}>
+                <CardContent className="p-4">
+                  {/* Header Row */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-bold text-primary">
+                        WO-{order.id.slice(-6)}
+                      </span>
+                    </div>
+                    <Badge 
+                      className={statusColors[order.status as keyof typeof statusColors] || "bg-gray-100 text-gray-800"}
+                      data-testid={`status-${order.id}`}
+                    >
+                      {order.status?.replace(/_/g, " ")}
+                    </Badge>
+                  </div>
+                  
+                  {/* Details Grid */}
+                  <div className="grid grid-cols-1 gap-2 text-sm mb-4">
+                    <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
+                      <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-muted-foreground">Customer</div>
+                        <div className="font-medium truncate">
+                          {order.customerName || "N/A"}
                         </div>
-                      </TableCell>
-                      <TableCell className="hide-mobile">
-                        <div className="max-w-24 truncate text-sm">
+                        {order.customerPhone && (
+                          <div className="text-xs text-muted-foreground">{order.customerPhone}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
+                      <Plus className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-muted-foreground">Vehicle</div>
+                        <div className="font-medium truncate">
+                          {(order as any).vehicleModelName || "Vehicle Model"}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {order.regNo || "Not specified"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
+                      <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-muted-foreground">Service</div>
+                        <div className="font-medium truncate">
                           {(order as any).serviceName || "Service Name"}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="max-w-32">
-                          <p className="text-sm font-medium text-foreground truncate">{order.customerName || "N/A"}</p>
-                          <p className="text-xs text-muted-foreground truncate">{order.customerPhone || ""}</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
+                        <Plus className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs text-muted-foreground">Partner</div>
+                          <div className="text-xs font-medium truncate">
+                            {order.assignedPartnerId ? ((order as any).assignedPartner?.displayName || "Assigned") : "Not assigned"}
+                          </div>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge 
-                          className={statusColors[order.status as keyof typeof statusColors] || "bg-gray-100 text-gray-800"}
-                          data-testid={`status-${order.id}`}
-                        >
-                          {order.status?.replace(/_/g, " ")}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="hide-mobile">
-                        <div className="max-w-24 truncate text-sm">
-                          {order.assignedPartnerId ? ((order as any).assignedPartner?.displayName || "Partner Assigned") : "Not assigned"}
+                      </div>
+
+                      <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
+                        <Plus className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs text-muted-foreground">Created</div>
+                          <div className="text-xs font-medium">
+                            {new Date(order.createdAt!).toLocaleDateString()}
+                          </div>
                         </div>
-                      </TableCell>
-                      <TableCell className="hide-mobile text-sm text-muted-foreground">
-                        {new Date(order.createdAt!).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="sticky right-0 bg-background z-10">
-                        <div className="flex space-x-1">
-                          {order.status === 'PENDING' && (
-                            <Button 
-                              variant="default" 
-                              size="sm"
-                              onClick={() => handleSubmitWorkOrder(order.id)}
-                              data-testid={`button-submit-${order.id}`}
-                            >
-                              Submit
-                            </Button>
-                          )}
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleViewWorkOrder(order.id)}
-                            data-testid={`button-view-${order.id}`}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleEditWorkOrder(order.id)}
-                            data-testid={`button-edit-${order.id}`}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-      
-      {/* Mobile Card View */}
-      <div className="mobile-only space-y-3">
-        {workOrders.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-muted-foreground">
-              No work orders found. Create your first work order to get started.
-            </CardContent>
-          </Card>
-        ) : (
-          workOrders.map((order) => (
-            <Card key={order.id} className="p-4" data-testid={`card-mobile-work-order-${order.id}`}>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-sm font-medium text-primary">
-                    WO-{order.id.slice(-6)}
-                  </span>
-                  <Badge 
-                    className={statusColors[order.status as keyof typeof statusColors] || "bg-gray-100 text-gray-800"}
-                    data-testid={`status-${order.id}`}
-                  >
-                    {order.status?.replace(/_/g, " ")}
-                  </Badge>
-                </div>
-                
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Vehicle:</span>
-                    <span className="font-medium truncate ml-2">
-                      {(order as any).vehicleModelName || "Vehicle Model"}
-                    </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Reg No:</span>
-                    <span className="truncate ml-2">
-                      {order.regNo || "Not specified"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Service:</span>
-                    <span className="truncate ml-2">
-                      {(order as any).serviceName || "Service Name"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Customer:</span>
-                    <span className="font-medium truncate ml-2">
-                      {order.customerName || "N/A"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Created:</span>
-                    <span className="text-xs">
-                      {new Date(order.createdAt!).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="flex space-x-2 pt-2">
-                  {order.status === 'PENDING' && (
-                    <Button 
-                      variant="default" 
+                  
+                  <div className="flex flex-col gap-2">
+                    <Button
                       size="sm"
-                      onClick={() => handleSubmitWorkOrder(order.id)}
-                      data-testid={`button-submit-${order.id}`}
-                      className="flex-1"
+                      variant="outline"
+                      onClick={() => handleViewWorkOrder(order.id)}
+                      data-testid={`button-view-${order.id}`}
+                      className="w-full"
                     >
-                      Submit
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Details
                     </Button>
-                  )}
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleViewWorkOrder(order.id)}
-                    data-testid={`button-view-${order.id}`}
-                    className="flex-1"
-                  >
-                    <Eye className="h-4 w-4 mr-1" />
-                    View
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => handleEditWorkOrder(order.id)}
-                    data-testid={`button-edit-${order.id}`}
-                    className="px-3"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))
-        )}
-      </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleEditWorkOrder(order.id)}
+                        data-testid={`button-edit-${order.id}`}
+                        className="flex-1"
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
+                      </Button>
+                      {order.status === 'DRAFT' && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleSubmitWorkOrder(order.id)}
+                          data-testid={`button-submit-${order.id}`}
+                          className="flex-1"
+                        >
+                          <Save className="h-4 w-4 mr-2" />
+                          Submit
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Create Work Order Modal */}
       <CreateWorkOrderModal 
