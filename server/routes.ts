@@ -884,6 +884,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/dashboard/charts/orders-trend", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const oemId = req.user!.oemId!;
+      const showroomId = req.user!.showroomId;
+      const data = await storage.getOrdersRevenueTrend(oemId, showroomId);
+      res.json(data);
+    } catch (error) {
+      console.error("Orders trend error:", error);
+      res.status(500).json({ error: "Failed to fetch orders trend data" });
+    }
+  });
+
+  app.get("/api/dashboard/charts/dealership-performance", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN']), async (req, res) => {
+    try {
+      const oemId = req.user!.oemId!;
+      const data = await storage.getDealershipPerformance(oemId);
+      res.json(data);
+    } catch (error) {
+      console.error("Dealership performance error:", error);
+      res.status(500).json({ error: "Failed to fetch dealership performance data" });
+    }
+  });
+
+  app.get("/api/dashboard/charts/vehicle-upsells", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN']), async (req, res) => {
+    try {
+      const oemId = req.user!.oemId!;
+      const data = await storage.getVehicleCategoryUpsells(oemId);
+      res.json(data);
+    } catch (error) {
+      console.error("Vehicle upsells error:", error);
+      res.status(500).json({ error: "Failed to fetch vehicle upsells data" });
+    }
+  });
+
+  app.get("/api/dashboard/charts/territory-performance", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']), async (req, res) => {
+    try {
+      const oemId = req.user!.oemId!;
+      const data = await storage.getTerritoryPerformance(oemId);
+      res.json(data);
+    } catch (error) {
+      console.error("Territory performance error:", error);
+      res.status(500).json({ error: "Failed to fetch territory performance data" });
+    }
+  });
+
+  app.get("/api/dashboard/charts/service-popularity", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const oemId = req.user!.oemId!;
+      const showroomId = req.user!.showroomId;
+      const data = await storage.getServicePopularity(oemId, showroomId);
+      res.json(data);
+    } catch (error) {
+      console.error("Service popularity error:", error);
+      res.status(500).json({ error: "Failed to fetch service popularity data" });
+    }
+  });
+
+  app.get("/api/dashboard/charts/monthly-trends", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const oemId = req.user!.oemId!;
+      const showroomId = req.user!.showroomId;
+      const data = await storage.getMonthlyTrends(oemId, showroomId);
+      res.json(data);
+    } catch (error) {
+      console.error("Monthly trends error:", error);
+      res.status(500).json({ error: "Failed to fetch monthly trends data" });
+    }
+  });
+
   // Work Order Routes
   app.get("/api/work-orders", authenticate, requireOEMAccess, async (req, res) => {
     try {
