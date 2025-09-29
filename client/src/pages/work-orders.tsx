@@ -519,7 +519,7 @@ export default function WorkOrdersPage() {
           <div className="hidden lg:block rounded-lg border border-border overflow-hidden">
             {/* Table Header */}
             <div className="bg-muted/50 border-b border-border px-4 py-3">
-              <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '90px 180px 150px 160px 120px 140px 100px 140px'}}>
+              <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '100px 1fr 1fr 200px 130px 180px 110px 120px'}}>
                 <div className="truncate">WO ID</div>
                 <div className="truncate">Vehicle</div>
                 <div className="truncate">Service</div>
@@ -539,7 +539,7 @@ export default function WorkOrdersPage() {
                   className="px-4 py-4 hover:bg-muted/30 transition-colors"
                   data-testid={`row-work-order-${order.id}`}
                 >
-                  <div className="grid gap-3 items-center min-h-[60px]" style={{gridTemplateColumns: '90px 180px 150px 160px 120px 140px 100px 140px'}}>
+                  <div className="grid gap-3 items-center min-h-[60px]" style={{gridTemplateColumns: '100px 1fr 1fr 200px 130px 180px 110px 120px'}}>
                     {/* WO ID Column */}
                     <div className="min-w-0 overflow-hidden">
                       <span className="font-mono text-sm font-semibold text-primary block truncate">
