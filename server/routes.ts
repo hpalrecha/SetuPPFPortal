@@ -15,6 +15,8 @@ import {
   insertOemSchema,
   insertServiceCategorySchema,
   payoutSettlementSchema,
+  insertOemRoyaltyRuleSchema,
+  insertOemRoyaltyCalculationSchema,
   commissionRules
 } from "@shared/schema";
 import { storage } from "./storage";
@@ -3626,6 +3628,224 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Commission resolution error:", error);
         res.status(500).json({ error: "Failed to resolve commission" });
+      }
+    }
+  );
+
+  // OEM Royalty Management API
+  
+  // Get royalty rules
+  app.get("/api/oem-royalty-rules", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { oemId, isActive } = req.query;
+      
+      const filters: any = {};
+      if (oemId) filters.oemId = oemId as string;
+      if (isActive !== undefined) filters.isActive = isActive === 'true';
+      
+      const rules = await storage.getOemRoyaltyRules(filters);
+      res.json(rules);
+    } catch (error) {
+      console.error("Get royalty rules error:", error);
+      res.status(500).json({ error: "Failed to fetch royalty rules" });
+    }
+  });
+
+  // Get specific royalty rule
+  app.get("/api/oem-royalty-rules/:id", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const rule = await storage.getOemRoyaltyRule(id);
+      
+      if (!rule) {
+        return res.status(404).json({ error: "Royalty rule not found" });
+      }
+      
+      res.json(rule);
+    } catch (error) {
+      console.error("Get royalty rule error:", error);
+      res.status(500).json({ error: "Failed to fetch royalty rule" });
+    }
+  });
+
+  // Get royalty rule by OEM
+  app.get("/api/oems/:oemId/royalty-rule", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { oemId } = req.params;
+      const rule = await storage.getOemRoyaltyRuleByOem(oemId);
+      
+      if (!rule) {
+        return res.status(404).json({ error: "No active royalty rule found for this OEM" });
+      }
+      
+      res.json(rule);
+    } catch (error) {
+      console.error("Get OEM royalty rule error:", error);
+      res.status(500).json({ error: "Failed to fetch OEM royalty rule" });
+    }
+  });
+
+  // Create royalty rule
+  app.post("/api/oem-royalty-rules", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    auditLog('oem_royalty_rule', 'create'),
+    async (req, res) => {
+      try {
+        const validatedData = insertOemRoyaltyRuleSchema.parse(req.body);
+        const createdBy = req.user!.id;
+        
+        const newRule = await storage.createOemRoyaltyRule(validatedData, createdBy);
+        res.status(201).json(newRule);
+      } catch (error) {
+        console.error("Create royalty rule error:", error);
+        if (error instanceof Error && error.message.includes("ZodError")) {
+          return res.status(400).json({ error: "Invalid royalty rule data" });
+        }
+        res.status(500).json({ error: "Failed to create royalty rule" });
+      }
+    }
+  );
+
+  // Update royalty rule
+  app.put("/api/oem-royalty-rules/:id", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    auditLog('oem_royalty_rule', 'update'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const updatedBy = req.user!.id;
+        
+        const updateSchema = insertOemRoyaltyRuleSchema.partial();
+        const validatedData = updateSchema.parse(req.body);
+        
+        const updatedRule = await storage.updateOemRoyaltyRule(id, validatedData, updatedBy);
+        
+        if (!updatedRule) {
+          return res.status(404).json({ error: "Royalty rule not found" });
+        }
+        
+        res.json(updatedRule);
+      } catch (error) {
+        console.error("Update royalty rule error:", error);
+        if (error instanceof Error && error.message.includes("ZodError")) {
+          return res.status(400).json({ error: "Invalid royalty rule data" });
+        }
+        res.status(500).json({ error: "Failed to update royalty rule" });
+      }
+    }
+  );
+
+  // Deactivate royalty rule
+  app.delete("/api/oem-royalty-rules/:id", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    auditLog('oem_royalty_rule', 'deactivate'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const updatedBy = req.user!.id;
+        
+        const deactivated = await storage.deactivateOemRoyaltyRule(id, updatedBy);
+        
+        if (!deactivated) {
+          return res.status(404).json({ error: "Royalty rule not found" });
+        }
+        
+        res.json({ success: true, message: "Royalty rule deactivated successfully" });
+      } catch (error) {
+        console.error("Deactivate royalty rule error:", error);
+        res.status(500).json({ error: "Failed to deactivate royalty rule" });
+      }
+    }
+  );
+
+  // Get royalty calculations
+  app.get("/api/oem-royalty-calculations", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { oemId, workOrderId, status } = req.query;
+      
+      const filters: any = {};
+      if (oemId) filters.oemId = oemId as string;
+      if (workOrderId) filters.workOrderId = workOrderId as string;
+      if (status) filters.status = status as string;
+      
+      const calculations = await storage.getOemRoyaltyCalculations(filters);
+      res.json(calculations);
+    } catch (error) {
+      console.error("Get royalty calculations error:", error);
+      res.status(500).json({ error: "Failed to fetch royalty calculations" });
+    }
+  });
+
+  // Calculate royalty for work order
+  app.post("/api/work-orders/:workOrderId/calculate-royalty", 
+    authenticate, 
+    requireOEMAccess,
+    async (req, res) => {
+      try {
+        const { workOrderId } = req.params;
+        const { workOrderValue } = req.body;
+        
+        if (!workOrderValue || isNaN(Number(workOrderValue))) {
+          return res.status(400).json({ error: "Valid work order value is required" });
+        }
+        
+        // Get work order to extract OEM ID
+        const workOrder = await storage.getWorkOrder(workOrderId);
+        if (!workOrder) {
+          return res.status(404).json({ error: "Work order not found" });
+        }
+        
+        const calculation = await storage.calculateRoyaltyForWorkOrder(
+          workOrderId, 
+          Number(workOrderValue), 
+          workOrder.oemId
+        );
+        
+        if (!calculation) {
+          return res.json({ 
+            message: "No royalty rule found for this OEM", 
+            royaltyAmount: 0 
+          });
+        }
+        
+        res.json(calculation);
+      } catch (error) {
+        console.error("Calculate royalty error:", error);
+        res.status(500).json({ error: "Failed to calculate royalty" });
+      }
+    }
+  );
+
+  // Update royalty calculation status
+  app.put("/api/oem-royalty-calculations/:id", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const updateSchema = insertOemRoyaltyCalculationSchema.partial();
+        const validatedData = updateSchema.parse(req.body);
+        
+        const updatedCalculation = await storage.updateOemRoyaltyCalculation(id, validatedData);
+        
+        if (!updatedCalculation) {
+          return res.status(404).json({ error: "Royalty calculation not found" });
+        }
+        
+        res.json(updatedCalculation);
+      } catch (error) {
+        console.error("Update royalty calculation error:", error);
+        if (error instanceof Error && error.message.includes("ZodError")) {
+          return res.status(400).json({ error: "Invalid calculation data" });
+        }
+        res.status(500).json({ error: "Failed to update royalty calculation" });
       }
     }
   );
