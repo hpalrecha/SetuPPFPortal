@@ -475,72 +475,114 @@ export default function JobCardsNew() {
       {!isLoading && jobCards.length > 0 && viewMode === 'list' && (
         <>
           {/* Desktop Table View */}
-          <Card className="hide-mobile">
-            <CardContent className="p-0">
-              <div className="table-wrapper">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="sticky left-0 bg-background z-10">ID</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Customer</TableHead>
-                      <TableHead className="hide-mobile">Phone</TableHead>
-                      <TableHead>Vehicle</TableHead>
-                      <TableHead className="hide-mobile">Service</TableHead>
-                      <TableHead className="hide-mobile">Partner</TableHead>
-                      <TableHead className="hide-mobile">Created</TableHead>
-                      <TableHead className="hide-mobile">Scheduled</TableHead>
-                      <TableHead className="sticky right-0 bg-background z-10">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {jobCards.map((jobCard) => (
-                      <TableRow key={jobCard.id} data-testid={`row-job-card-${jobCard.id}`}>
-                        <TableCell className="font-mono text-sm sticky left-0 bg-background z-10" data-testid={`text-id-${jobCard.id}`}>
-                          JC-{jobCard.id.slice(-6)}
-                        </TableCell>
-                        <TableCell data-testid={`status-${jobCard.id}`}>
-                          {getStatusBadge(jobCard.status)}
-                        </TableCell>
-                        <TableCell data-testid={`text-customer-${jobCard.id}`}>
-                          <div className="max-w-32 truncate">{jobCard.customerName}</div>
-                        </TableCell>
-                        <TableCell className="hide-mobile" data-testid={`text-phone-${jobCard.id}`}>
-                          {jobCard.workOrder?.customerPhone || 'N/A'}
-                        </TableCell>
-                        <TableCell data-testid={`text-vehicle-${jobCard.id}`}>
-                          <div className="max-w-32 truncate">{jobCard.vehicleDisplay}</div>
-                        </TableCell>
-                        <TableCell className="hide-mobile" data-testid={`text-service-${jobCard.id}`}>
-                          <div className="max-w-32 truncate">{jobCard.serviceDisplay}</div>
-                        </TableCell>
-                        <TableCell className="hide-mobile" data-testid={`text-partner-${jobCard.id}`}>
-                          <div className="max-w-32 truncate">{jobCard.partnerDisplay}</div>
-                        </TableCell>
-                        <TableCell className="hide-mobile" data-testid={`text-created-${jobCard.id}`}>
-                          {formatDate(jobCard.createdAt)}
-                        </TableCell>
-                        <TableCell className="hide-mobile" data-testid={`text-scheduled-${jobCard.id}`}>
-                          {formatDate(jobCard.scheduledAt)}
-                        </TableCell>
-                        <TableCell className="sticky right-0 bg-background z-10">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleViewJobCard(jobCard)}
-                            data-testid={`button-view-${jobCard.id}`}
-                          >
-                            <Eye className="h-3 w-3 mr-1" />
-                            View
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+          <div className="rounded-lg border border-border overflow-hidden">
+            {/* Table Header */}
+            <div className="bg-muted/50 border-b border-border px-4 py-3">
+              <div className="grid grid-cols-12 gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <div className="col-span-1">ID</div>
+                <div className="col-span-1">Status</div>
+                <div className="col-span-1">Customer</div>
+                <div className="col-span-1">Phone</div>
+                <div className="col-span-2">Vehicle</div>
+                <div className="col-span-2">Service</div>
+                <div className="col-span-1">Partner</div>
+                <div className="col-span-1">Created</div>
+                <div className="col-span-1">Scheduled</div>
+                <div className="col-span-1">Actions</div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+
+            {/* Table Body */}
+            <div className="divide-y divide-border">
+              {jobCards.map((jobCard) => (
+                <div 
+                  key={jobCard.id}
+                  className="px-4 py-4 hover:bg-muted/30 transition-colors"
+                  data-testid={`row-job-card-${jobCard.id}`}
+                >
+                  <div className="grid grid-cols-12 gap-3 items-center">
+                    {/* ID Column */}
+                    <div className="col-span-1">
+                      <span className="font-mono text-sm font-semibold" data-testid={`text-id-${jobCard.id}`}>
+                        JC-{jobCard.id.slice(-6)}
+                      </span>
+                    </div>
+
+                    {/* Status Column */}
+                    <div className="col-span-1" data-testid={`status-${jobCard.id}`}>
+                      {getStatusBadge(jobCard.status)}
+                      <div className="mt-1">
+                        <Progress value={getProgressValue(jobCard.status)} className="h-1 w-full" />
+                      </div>
+                    </div>
+
+                    {/* Customer Column */}
+                    <div className="col-span-1">
+                      <div className="text-sm font-medium truncate" data-testid={`text-customer-${jobCard.id}`}>
+                        {jobCard.customerName}
+                      </div>
+                    </div>
+
+                    {/* Phone Column */}
+                    <div className="col-span-1">
+                      <div className="text-sm text-muted-foreground truncate" data-testid={`text-phone-${jobCard.id}`}>
+                        {jobCard.workOrder?.customerPhone || 'N/A'}
+                      </div>
+                    </div>
+
+                    {/* Vehicle Column */}
+                    <div className="col-span-2">
+                      <div className="text-sm font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`}>
+                        {jobCard.vehicleDisplay}
+                      </div>
+                    </div>
+
+                    {/* Service Column */}
+                    <div className="col-span-2">
+                      <div className="text-sm font-medium truncate" data-testid={`text-service-${jobCard.id}`}>
+                        {jobCard.serviceDisplay}
+                      </div>
+                    </div>
+
+                    {/* Partner Column */}
+                    <div className="col-span-1">
+                      <div className="text-sm font-medium truncate" data-testid={`text-partner-${jobCard.id}`}>
+                        {jobCard.partnerDisplay}
+                      </div>
+                    </div>
+
+                    {/* Created Column */}
+                    <div className="col-span-1">
+                      <div className="text-sm" data-testid={`text-created-${jobCard.id}`}>
+                        {formatDate(jobCard.createdAt)}
+                      </div>
+                    </div>
+
+                    {/* Scheduled Column */}
+                    <div className="col-span-1">
+                      <div className="text-sm" data-testid={`text-scheduled-${jobCard.id}`}>
+                        {formatDate(jobCard.scheduledAt)}
+                      </div>
+                    </div>
+
+                    {/* Actions Column */}
+                    <div className="col-span-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleViewJobCard(jobCard)}
+                        data-testid={`button-view-${jobCard.id}`}
+                        className="w-full"
+                      >
+                        <Eye className="h-3 w-3 mr-1" />
+                        View
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
           
           {/* Mobile Card View */}
           <div className="mobile-only space-y-3">
