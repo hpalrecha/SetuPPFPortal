@@ -49,62 +49,7 @@ interface DashboardMetrics {
   avgTAT: number;
 }
 
-// Dummy data for analytics charts
-const ppfOrdersData = [
-  { month: 'Jan', orders: 45, revenue: 1250000 },
-  { month: 'Feb', orders: 52, revenue: 1420000 },
-  { month: 'Mar', orders: 48, revenue: 1380000 },
-  { month: 'Apr', orders: 61, revenue: 1650000 },
-  { month: 'May', orders: 55, revenue: 1520000 },
-  { month: 'Jun', orders: 67, revenue: 1850000 },
-  { month: 'Jul', orders: 72, revenue: 1980000 },
-  { month: 'Aug', orders: 58, revenue: 1600000 },
-  { month: 'Sep', orders: 69, revenue: 1920000 },
-];
-
-const dealershipPerformanceData = [
-  { name: 'AUTOHANGER', orders: 180, revenue: 4500000, growth: 15.2 },
-  { name: 'Trident Hyundai Basvangudi', orders: 142, revenue: 3200000, growth: 8.7 },
-  { name: 'Prime Motors', orders: 98, revenue: 2800000, growth: 12.1 },
-  { name: 'Elite Auto', orders: 87, revenue: 2100000, growth: -2.3 },
-  { name: 'Metro Cars', orders: 65, revenue: 1850000, growth: 6.8 },
-];
-
-const vehicleCategoryUpsellData = [
-  { category: 'Luxury SUV', upsells: 145, upsellRate: 78.5, avgValue: 185000 },
-  { category: 'Premium Sedan', upsells: 132, upsellRate: 71.2, avgValue: 165000 },
-  { category: 'Sports Car', upsells: 89, upsellRate: 85.1, avgValue: 225000 },
-  { category: 'Compact SUV', upsells: 76, upsellRate: 45.8, avgValue: 125000 },
-  { category: 'Hatchback', upsells: 42, upsellRate: 32.1, avgValue: 95000 },
-];
-
-const territoryPerformanceData = [
-  { territory: 'South Bangalore', orders: 198, upsells: 156, upsellRate: 78.8, revenue: 5200000 },
-  { territory: 'North Bangalore', orders: 165, upsells: 115, upsellRate: 69.7, revenue: 4100000 },
-  { territory: 'East Bangalore', orders: 142, upsells: 89, upsellRate: 62.7, revenue: 3500000 },
-  { territory: 'West Bangalore', orders: 135, upsells: 92, upsellRate: 68.1, revenue: 3800000 },
-  { territory: 'Central Bangalore', orders: 89, upsells: 67, upsellRate: 75.3, revenue: 2400000 },
-];
-
-const servicePopularityData = [
-  { name: 'Full Body PPF', value: 45, color: '#8884d8' },
-  { name: 'Front End PPF', value: 25, color: '#82ca9d' },
-  { name: 'Door Handle PPF', value: 15, color: '#ffc658' },
-  { name: 'Headlight PPF', value: 10, color: '#ff7300' },
-  { name: 'Mirror PPF', value: 5, color: '#00ff88' },
-];
-
-const monthlyTrendData = [
-  { month: 'Jan', completedOrders: 42, avgTAT: 3.8, customerSatisfaction: 4.2 },
-  { month: 'Feb', completedOrders: 48, avgTAT: 3.5, customerSatisfaction: 4.3 },
-  { month: 'Mar', completedOrders: 45, avgTAT: 3.6, customerSatisfaction: 4.1 },
-  { month: 'Apr', completedOrders: 58, avgTAT: 3.2, customerSatisfaction: 4.4 },
-  { month: 'May', completedOrders: 52, avgTAT: 3.4, customerSatisfaction: 4.3 },
-  { month: 'Jun', completedOrders: 64, avgTAT: 3.1, customerSatisfaction: 4.5 },
-  { month: 'Jul', completedOrders: 69, avgTAT: 2.9, customerSatisfaction: 4.6 },
-  { month: 'Aug', completedOrders: 55, avgTAT: 3.3, customerSatisfaction: 4.4 },
-  { month: 'Sep', completedOrders: 66, avgTAT: 3.0, customerSatisfaction: 4.5 },
-];
+// Real-time dashboard with database-driven insights
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff88'];
 
@@ -119,6 +64,72 @@ export default function DashboardPage() {
   const { data: metrics, isLoading } = useQuery<DashboardMetrics>({
     queryKey: ["/api/dashboard/metrics"],
     refetchInterval: 30000 // Refresh every 30 seconds
+  });
+
+  // Chart data queries
+  const { data: ordersRevenueTrend = [] } = useQuery<{
+    month: string;
+    orders: number;
+    revenue: number;
+  }[]>({
+    queryKey: ["/api/dashboard/charts/orders-trend"],
+    refetchInterval: 60000, // Refresh every 60 seconds
+    enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'])
+  });
+
+  const { data: dealershipPerformance = [] } = useQuery<{
+    name: string;
+    orders: number;
+    revenue: number;
+    growth: number;
+  }[]>({
+    queryKey: ["/api/dashboard/charts/dealership-performance"],
+    refetchInterval: 60000,
+    enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN'])
+  });
+
+  const { data: vehicleCategoryUpsells = [] } = useQuery<{
+    category: string;
+    upsells: number;
+    upsellRate: number;
+    avgValue: number;
+  }[]>({
+    queryKey: ["/api/dashboard/charts/vehicle-upsells"],
+    refetchInterval: 60000,
+    enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN'])
+  });
+
+  const { data: territoryPerformance = [] } = useQuery<{
+    territory: string;
+    orders: number;
+    upsells: number;
+    upsellRate: number;
+    revenue: number;
+  }[]>({
+    queryKey: ["/api/dashboard/charts/territory-performance"],
+    refetchInterval: 60000,
+    enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'])
+  });
+
+  const { data: servicePopularity = [] } = useQuery<{
+    name: string;
+    value: number;
+    color: string;
+  }[]>({
+    queryKey: ["/api/dashboard/charts/service-popularity"],
+    refetchInterval: 60000,
+    enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'])
+  });
+
+  const { data: monthlyTrends = [] } = useQuery<{
+    month: string;
+    completedOrders: number;
+    avgTAT: number;
+    customerSatisfaction: number;
+  }[]>({
+    queryKey: ["/api/dashboard/charts/monthly-trends"],
+    refetchInterval: 60000,
+    enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER'])
   });
 
   // Role-based visibility helper
@@ -309,7 +320,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-muted-foreground text-sm">Pending Job Cards</p>
                   <p className="text-2xl font-semibold text-foreground" data-testid="text-pending-jobs">
-                    {metrics?.pendingApprovals || 8}
+                    {metrics?.pendingJobs || 0}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
@@ -329,7 +340,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-muted-foreground text-sm">In Progress Jobs</p>
                   <p className="text-2xl font-semibold text-foreground" data-testid="text-in-progress-jobs">
-                    5
+                    {metrics?.inProgressJobs || 0}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
@@ -355,7 +366,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-muted-foreground text-sm">Jobs Completed</p>
                   <p className="text-2xl font-semibold text-foreground" data-testid="text-jobs-completed">
-                    {metrics?.activeWorkOrders || 28}
+                    {metrics?.completedJobs || 0}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
@@ -381,7 +392,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-muted-foreground text-sm">This Month Earnings</p>
                   <p className="text-2xl font-semibold text-foreground" data-testid="text-earnings">
-                    {formatCurrency(850000)}
+                    {formatCurrency(metrics?.thisMonthEarnings || 0)}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
@@ -413,7 +424,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250} className="sm:!h-[300px]">
-              <ComposedChart data={ppfOrdersData}>
+              <ComposedChart data={ordersRevenueTrend}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis yAxisId="left" />
@@ -443,7 +454,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250} className="sm:!h-[300px]">
-                <BarChart data={dealershipPerformanceData}>
+                <BarChart data={dealershipPerformance}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
                   <YAxis />
@@ -467,7 +478,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250} className="sm:!h-[300px]">
-                <ComposedChart data={vehicleCategoryUpsellData}>
+                <ComposedChart data={vehicleCategoryUpsells}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="category" angle={-45} textAnchor="end" height={80} />
                   <YAxis yAxisId="left" />
@@ -498,7 +509,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250} className="sm:!h-[300px]">
-                <AreaChart data={territoryPerformanceData}>
+                <AreaChart data={territoryPerformance}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="territory" angle={-45} textAnchor="end" height={80} />
                   <YAxis />
@@ -525,7 +536,7 @@ export default function DashboardPage() {
               <ResponsiveContainer width="100%" height={250} className="sm:!h-[300px]">
                 <PieChart>
                   <Pie
-                    data={servicePopularityData}
+                    data={servicePopularity}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
@@ -534,8 +545,8 @@ export default function DashboardPage() {
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {servicePopularityData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    {servicePopularity.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip />
@@ -557,7 +568,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250} className="sm:!h-[300px]">
-              <ComposedChart data={monthlyTrendData}>
+              <ComposedChart data={monthlyTrends}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis yAxisId="left" />
@@ -587,7 +598,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {dealershipPerformanceData.map((dealership, index) => (
+                {dealershipPerformance.map((dealership, index) => (
                   <div key={dealership.name} className="flex items-center justify-between p-3 border border-muted rounded-lg">
                     <div className="flex items-center space-x-3">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
@@ -608,6 +619,11 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ))}
+                {dealershipPerformance.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No dealership data available yet
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -619,7 +635,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {territoryPerformanceData.map((territory, index) => (
+                {territoryPerformance.map((territory, index) => (
                   <div key={territory.territory} className="flex items-center justify-between p-3 border border-muted rounded-lg">
                     <div className="flex items-center space-x-3">
                       <MapPin className="h-5 w-5 text-blue-600" />
@@ -634,6 +650,11 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ))}
+                {territoryPerformance.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No territory data available yet
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
