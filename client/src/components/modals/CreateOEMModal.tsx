@@ -38,15 +38,22 @@ const oemSchema = z.object({
   userEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
   userPhone: z.string().optional(),
   userPassword: z.string().optional(),
+  
+  // Password reset fields for editing
+  resetPassword: z.boolean().default(false),
+  newPassword: z.string().optional(),
 }).refine((data) => {
   if (data.createUser) {
     return data.userName && data.userName.length > 0 && 
            data.userEmail && data.userEmail.length > 0 &&
            data.userPassword && data.userPassword.length >= 6;
   }
+  if (data.resetPassword) {
+    return data.newPassword && data.newPassword.length >= 6;
+  }
   return true;
 }, {
-  message: "When creating a user, name, email, and password (min 6 chars) are required",
+  message: "When creating a user, name, email, and password (min 6 chars) are required. When resetting password, new password (min 6 chars) is required",
   path: ["createUser"]
 });
 
@@ -83,6 +90,8 @@ export function CreateOEMModal({
       userEmail: "",
       userPhone: "",
       userPassword: "",
+      resetPassword: false,
+      newPassword: "",
     },
   });
 
@@ -101,6 +110,8 @@ export function CreateOEMModal({
         userEmail: "",
         userPhone: "",
         userPassword: "",
+        resetPassword: false,
+        newPassword: "",
       });
     } else if (!oem && open) {
       // Reset to empty values for new OEM
@@ -116,6 +127,8 @@ export function CreateOEMModal({
         userEmail: "",
         userPhone: "",
         userPassword: "",
+        resetPassword: false,
+        newPassword: "",
       });
     }
   }, [oem, open, form]);
@@ -126,7 +139,7 @@ export function CreateOEMModal({
       const endpoint = isEditing ? `/api/oems/${oem.id}` : "/api/oems";
       const method = isEditing ? "PUT" : "POST";
       
-      // Prepare OEM data (exclude user creation fields)
+      // Prepare OEM data with password reset data if applicable
       const oemData = {
         name: data.name,
         brandCode: data.brandCode,
@@ -134,6 +147,11 @@ export function CreateOEMModal({
         contactEmail: data.contactEmail,
         contactPhone: data.contactPhone,
         address: data.address,
+        ...(data.resetPassword && isEditing ? {
+          resetPasswordData: {
+            newPassword: data.newPassword
+          }
+        } : {})
       };
       
       const response = await fetch(endpoint, {
@@ -430,6 +448,58 @@ export function CreateOEMModal({
                   </div>
                 )}
               </>
+            )}
+
+            {/* Password Reset Section - Only show when editing OEM */}
+            {isEditing && (
+              <div className="space-y-4 border-t pt-4">
+                <FormField
+                  control={form.control}
+                  name="resetPassword"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="checkbox-reset-password"
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>
+                          Reset OEM Admin Password
+                        </FormLabel>
+                        <p className="text-sm text-muted-foreground">
+                          Reset the password for the OEM admin user
+                        </p>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
+                {form.watch("resetPassword") && (
+                  <div className="pl-7">
+                    <FormField
+                      control={form.control}
+                      name="newPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>New Password</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              placeholder="Enter new password (min 6 chars)"
+                              {...field}
+                              data-testid="input-new-password"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+              </div>
             )}
 
             <DialogFooter>
