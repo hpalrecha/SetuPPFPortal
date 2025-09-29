@@ -2749,7 +2749,7 @@ export class DatabaseStorage implements IStorage {
 
     // Partner earnings (commission from completed jobs this month)
     const [earningsResult] = await db
-      .select({ total: sql<number>`COALESCE(SUM(payouts.commission_amount), 0)` })
+      .select({ total: sql<number>`COALESCE(SUM(payouts.net_amount), 0)` })
       .from(payouts)
       .innerJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
       .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))

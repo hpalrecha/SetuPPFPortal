@@ -920,10 +920,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/dashboard/charts/orders-trend", authenticate, requireOEMAccess, async (req, res) => {
+  app.get("/api/dashboard/charts/orders-trend", authenticate, async (req, res) => {
     try {
-      const oemId = req.user!.oemId!;
-      const showroomId = req.user!.showroomId;
+      let oemId: string;
+      let showroomId: string | undefined;
+      
+      // Handle different user roles
+      if (req.user!.role === 'SUPER_ADMIN') {
+        const availableOems = await storage.getOems();
+        if (availableOems.length === 0) return res.json([]);
+        oemId = availableOems[0].id;
+      } else {
+        if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
+        oemId = req.user!.oemId;
+        showroomId = req.user!.showroomId;
+      }
+      
       const data = await storage.getOrdersRevenueTrend(oemId, showroomId);
       res.json(data);
     } catch (error) {
@@ -932,9 +944,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/dashboard/charts/dealership-performance", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN']), async (req, res) => {
+  app.get("/api/dashboard/charts/dealership-performance", authenticate, async (req, res) => {
     try {
-      const oemId = req.user!.oemId!;
+      let oemId: string;
+      
+      if (req.user!.role === 'SUPER_ADMIN') {
+        const availableOems = await storage.getOems();
+        if (availableOems.length === 0) return res.json([]);
+        oemId = availableOems[0].id;
+      } else {
+        if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
+        oemId = req.user!.oemId;
+      }
+      
       const data = await storage.getDealershipPerformance(oemId);
       res.json(data);
     } catch (error) {
@@ -943,9 +965,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/dashboard/charts/vehicle-upsells", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN']), async (req, res) => {
+  app.get("/api/dashboard/charts/vehicle-upsells", authenticate, async (req, res) => {
     try {
-      const oemId = req.user!.oemId!;
+      let oemId: string;
+      
+      if (req.user!.role === 'SUPER_ADMIN') {
+        const availableOems = await storage.getOems();
+        if (availableOems.length === 0) return res.json([]);
+        oemId = availableOems[0].id;
+      } else {
+        if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
+        oemId = req.user!.oemId;
+      }
+      
       const data = await storage.getVehicleCategoryUpsells(oemId);
       res.json(data);
     } catch (error) {
@@ -954,9 +986,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/dashboard/charts/territory-performance", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']), async (req, res) => {
+  app.get("/api/dashboard/charts/territory-performance", authenticate, async (req, res) => {
     try {
-      const oemId = req.user!.oemId!;
+      let oemId: string;
+      
+      if (req.user!.role === 'SUPER_ADMIN') {
+        const availableOems = await storage.getOems();
+        if (availableOems.length === 0) return res.json([]);
+        oemId = availableOems[0].id;
+      } else {
+        if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
+        oemId = req.user!.oemId;
+      }
+      
       const data = await storage.getTerritoryPerformance(oemId);
       res.json(data);
     } catch (error) {
@@ -965,10 +1007,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/dashboard/charts/service-popularity", authenticate, requireOEMAccess, async (req, res) => {
+  app.get("/api/dashboard/charts/service-popularity", authenticate, async (req, res) => {
     try {
-      const oemId = req.user!.oemId!;
-      const showroomId = req.user!.showroomId;
+      let oemId: string;
+      let showroomId: string | undefined;
+      
+      if (req.user!.role === 'SUPER_ADMIN') {
+        const availableOems = await storage.getOems();
+        if (availableOems.length === 0) return res.json([]);
+        oemId = availableOems[0].id;
+      } else {
+        if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
+        oemId = req.user!.oemId;
+        showroomId = req.user!.showroomId;
+      }
+      
       const data = await storage.getServicePopularity(oemId, showroomId);
       res.json(data);
     } catch (error) {
@@ -977,10 +1030,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/dashboard/charts/monthly-trends", authenticate, requireOEMAccess, async (req, res) => {
+  app.get("/api/dashboard/charts/monthly-trends", authenticate, async (req, res) => {
     try {
-      const oemId = req.user!.oemId!;
-      const showroomId = req.user!.showroomId;
+      let oemId: string;
+      let showroomId: string | undefined;
+      
+      if (req.user!.role === 'SUPER_ADMIN') {
+        const availableOems = await storage.getOems();
+        if (availableOems.length === 0) return res.json([]);
+        oemId = availableOems[0].id;
+      } else {
+        if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
+        oemId = req.user!.oemId;
+        showroomId = req.user!.showroomId;
+      }
+      
       const data = await storage.getMonthlyTrends(oemId, showroomId);
       res.json(data);
     } catch (error) {
