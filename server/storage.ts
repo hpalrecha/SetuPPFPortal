@@ -61,6 +61,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined>;
   updateUserPasswordByDealership(dealershipId: string, hashedPassword: string): Promise<boolean>;
+  updateUserPasswordByOEM(oemId: string, hashedPassword: string): Promise<boolean>;
   deleteUser(id: string): Promise<boolean>;
 
   // Service Categories management
@@ -421,6 +422,23 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         eq(users.dealershipId, dealershipId),
         eq(users.role, 'DEALERSHIP_ADMIN')
+      ));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async updateUserPasswordByOEM(oemId: string, hashedPassword: string): Promise<boolean> {
+    const result = await db
+      .update(users)
+      .set({ 
+        passwordHash: hashedPassword, 
+        updatedAt: new Date(),
+        // Clear any existing reset tokens when password is manually reset
+        resetToken: null,
+        resetTokenExpiry: null
+      })
+      .where(and(
+        eq(users.oemId, oemId),
+        eq(users.role, 'OEM_ADMIN')
       ));
     return (result.rowCount ?? 0) > 0;
   }

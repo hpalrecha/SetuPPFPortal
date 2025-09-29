@@ -217,11 +217,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const { id } = req.params;
-        const oemData = insertOemSchema.partial().parse(req.body);
+        const { resetPasswordData, ...bodyData } = req.body;
+        const oemData = insertOemSchema.partial().parse(bodyData);
+        
+        // Update OEM data
         const oem = await storage.updateOem(id, oemData);
         
         if (!oem) {
           return res.status(404).json({ error: "OEM not found" });
+        }
+        
+        // Handle password reset if requested
+        if (resetPasswordData && resetPasswordData.newPassword) {
+          try {
+            const bcrypt = await import('bcryptjs');
+            const hashedPassword = await bcrypt.hash(resetPasswordData.newPassword, 10);
+            
+            // Find and update the OEM admin user's password
+            await storage.updateUserPasswordByOEM(id, hashedPassword);
+            console.log(`Password reset for OEM admin of ${oem.name}`);
+          } catch (passwordError) {
+            console.error("Failed to reset OEM admin password:", passwordError);
+            // Don't fail the OEM update if password reset fails
+            return res.status(200).json({ 
+              ...oem, 
+              warning: "OEM updated but password reset failed" 
+            });
+          }
         }
         
         res.json(oem);
