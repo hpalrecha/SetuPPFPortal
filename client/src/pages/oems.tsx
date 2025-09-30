@@ -112,12 +112,16 @@ export default function OEMsPage() {
     queryClient.invalidateQueries({ queryKey: ["/api/oems"] });
   };
 
+  const [selectedOemId, setSelectedOemId] = useState<string | null>(null);
+
   const handleAddRoyaltyRule = (oemId: string) => {
-    setEditingRoyaltyRule({ oemId });
+    setSelectedOemId(oemId);
+    setEditingRoyaltyRule(null);
     setShowRoyaltyModal(true);
   };
 
   const handleEditRoyaltyRule = (rule: any) => {
+    setSelectedOemId(null);
     setEditingRoyaltyRule(rule);
     setShowRoyaltyModal(true);
   };
@@ -125,6 +129,7 @@ export default function OEMsPage() {
   const handleRoyaltyModalSuccess = () => {
     setShowRoyaltyModal(false);
     setEditingRoyaltyRule(null);
+    setSelectedOemId(null);
     queryClient.invalidateQueries({ queryKey: ["/api/oem-royalty-rules"] });
   };
 
@@ -325,6 +330,7 @@ export default function OEMsPage() {
         onOpenChange={setShowRoyaltyModal}
         onSuccess={handleRoyaltyModalSuccess}
         editingRule={editingRoyaltyRule}
+        preselectedOemId={selectedOemId}
       />
     </div>
   );

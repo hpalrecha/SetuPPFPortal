@@ -51,6 +51,7 @@ interface CreateRoyaltyRuleModalProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   editingRule?: any;
+  preselectedOemId?: string | null;
 }
 
 export function CreateRoyaltyRuleModal({
@@ -58,6 +59,7 @@ export function CreateRoyaltyRuleModal({
   onOpenChange,
   onSuccess,
   editingRule,
+  preselectedOemId,
 }: CreateRoyaltyRuleModalProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -66,7 +68,7 @@ export function CreateRoyaltyRuleModal({
   const form = useForm<RoyaltyRuleFormData>({
     resolver: zodResolver(royaltyRuleSchema),
     defaultValues: {
-      oemId: editingRule?.oemId || "",
+      oemId: editingRule?.oemId || preselectedOemId || "",
       royaltyPercentage: editingRule?.royaltyPercentage || "",
       effectiveFrom: editingRule?.effectiveFrom 
         ? new Date(editingRule.effectiveFrom).toISOString().split('T')[0] 
@@ -106,14 +108,14 @@ export function CreateRoyaltyRuleModal({
       });
     } else if (!isEditing && open) {
       form.reset({
-        oemId: "",
+        oemId: preselectedOemId || "",
         royaltyPercentage: "",
         effectiveFrom: new Date().toISOString().split('T')[0],
         effectiveTo: "",
         isActive: true,
       });
     }
-  }, [editingRule, open, isEditing, form]);
+  }, [editingRule, open, isEditing, preselectedOemId, form]);
 
   const onSubmit = async (data: RoyaltyRuleFormData) => {
     setIsLoading(true);
@@ -126,22 +128,10 @@ export function CreateRoyaltyRuleModal({
         effectiveTo: data.effectiveTo ? new Date(data.effectiveTo).toISOString() : null,
       };
 
-      let response;
       if (isEditing) {
-        response = await apiRequest(`/api/oem-royalty-rules/${editingRule.id}`, {
-          method: "PUT",
-          body: JSON.stringify(submitData),
-        });
+        await apiRequest(`/api/oem-royalty-rules/${editingRule.id}`, "PUT", submitData);
       } else {
-        response = await apiRequest("/api/oem-royalty-rules", {
-          method: "POST",
-          body: JSON.stringify(submitData),
-        });
-      }
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(errorData || "Failed to save royalty rule");
+        await apiRequest("/api/oem-royalty-rules", "POST", submitData);
       }
 
       // Invalidate relevant queries
