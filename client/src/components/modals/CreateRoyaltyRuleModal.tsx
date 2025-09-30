@@ -129,9 +129,9 @@ export function CreateRoyaltyRuleModal({
       };
 
       if (isEditing) {
-        await apiRequest(`/api/oem-royalty-rules/${editingRule.id}`, "PUT", submitData);
+        await apiRequest("PUT", `/api/oem-royalty-rules/${editingRule.id}`, submitData);
       } else {
-        await apiRequest("/api/oem-royalty-rules", "POST", submitData);
+        await apiRequest("POST", "/api/oem-royalty-rules", submitData);
       }
 
       // Invalidate relevant queries

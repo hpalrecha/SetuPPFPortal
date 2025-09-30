@@ -417,7 +417,7 @@ export const oemRoyaltyRules = pgTable("oem_royalty_rules", {
   isActive: boolean("is_active").default(true),
   effectiveFrom: timestamp("effective_from").defaultNow(),
   effectiveTo: timestamp("effective_to"),
-  createdBy: uuid("created_by").references(() => users.id).notNull(),
+  createdBy: uuid("created_by").references(() => users.id),
   updatedBy: uuid("updated_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
