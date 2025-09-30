@@ -3770,7 +3770,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { oemId, workOrderId, status } = req.query;
       
       const filters: any = {};
-      if (oemId) filters.oemId = oemId as string;
+      
+      // For OEM Admins, automatically filter by their OEM
+      if (req.user?.role === 'OEM_ADMIN' && req.user?.oemId) {
+        filters.oemId = req.user.oemId;
+      } else if (oemId) {
+        // For Super Admins, allow filtering by any OEM
+        filters.oemId = oemId as string;
+      }
+      
       if (workOrderId) filters.workOrderId = workOrderId as string;
       if (status) filters.status = status as string;
       
