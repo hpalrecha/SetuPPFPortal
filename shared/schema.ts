@@ -667,6 +667,9 @@ export const insertOemRoyaltyRuleSchema = createInsertSchema(oemRoyaltyRules).om
   updatedAt: true,
   createdBy: true,
   updatedBy: true
+}).extend({
+  effectiveFrom: z.string().or(z.date()).transform((val) => typeof val === 'string' ? new Date(val) : val).optional(),
+  effectiveTo: z.string().or(z.date()).transform((val) => typeof val === 'string' ? new Date(val) : val).optional()
 });
 export const selectOemRoyaltyRuleSchema = createSelectSchema(oemRoyaltyRules);
 export type InsertOemRoyaltyRule = z.infer<typeof insertOemRoyaltyRuleSchema>;
