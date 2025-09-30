@@ -6,12 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DollarSign, Users, Calendar, CheckCircle, FileText, CreditCard, Wrench, UserCheck } from "lucide-react";
+import { DollarSign, Users, Calendar, CheckCircle, FileText, CreditCard, Wrench, UserCheck, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function PayoutSettlementPage() {
-  const [payoutType, setPayoutType] = useState<"detailers" | "sales_persons">("detailers");
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const [payoutType, setPayoutType] = useState<"detailers" | "sales_persons" | "oem_royalties">("detailers");
   const [settlementData, setSettlementData] = useState<{
     id: string;
     type: "payout" | "commission";
@@ -30,12 +33,18 @@ export default function PayoutSettlementPage() {
   });
 
   // Fetch commissions for sales persons
-  const { data: commissionsData = { commissions: [] }, isLoading: isLoadingCommissions } = useQuery({
+  const { data: commissionsData, isLoading: isLoadingCommissions } = useQuery({
     queryKey: ["/api/commissions-for-settlement"],
     enabled: payoutType === "sales_persons"
   });
 
-  const commissions = commissionsData.commissions || [];
+  const commissions = (commissionsData as any)?.commissions || [];
+
+  // Fetch OEM royalty calculations
+  const { data: oemRoyalties = [], isLoading: isLoadingRoyalties } = useQuery({
+    queryKey: ["/api/oem-royalty-calculations"],
+    enabled: payoutType === "oem_royalties" && isSuperAdmin
+  });
 
   // Settlement mutations
   const settleMutation = useMutation({
@@ -113,20 +122,26 @@ export default function PayoutSettlementPage() {
   };
 
   // Calculate totals
-  const currentData = payoutType === "detailers" ? payouts : commissions;
+  const currentData = payoutType === "detailers" ? payouts : (payoutType === "sales_persons" ? commissions : oemRoyalties);
   const pendingData = currentData.filter((item: any) => item.status === 'PENDING' || item.status === 'due');
   const totalPending = pendingData.reduce((sum: number, item: any) => {
-    const amount = payoutType === "detailers" ? item.netAmount : item.computedAmount;
+    let amount = 0;
+    if (payoutType === "detailers") amount = item.netAmount;
+    else if (payoutType === "sales_persons") amount = item.computedAmount;
+    else if (payoutType === "oem_royalties") amount = item.royaltyAmount;
     return sum + Number(amount);
   }, 0);
 
   const paidData = currentData.filter((item: any) => item.status === 'PAID');
   const totalPaid = paidData.reduce((sum: number, item: any) => {
-    const amount = payoutType === "detailers" ? item.netAmount : item.computedAmount;
+    let amount = 0;
+    if (payoutType === "detailers") amount = item.netAmount;
+    else if (payoutType === "sales_persons") amount = item.computedAmount;
+    else if (payoutType === "oem_royalties") amount = item.royaltyAmount;
     return sum + Number(amount);
   }, 0);
 
-  if (isLoadingPayouts || isLoadingCommissions) {
+  if (isLoadingPayouts || isLoadingCommissions || isLoadingRoyalties) {
     return (
       <div className="space-y-6">
         <div className="animate-pulse">
@@ -171,6 +186,17 @@ export default function PayoutSettlementPage() {
             <UserCheck className="h-4 w-4" />
             <span>Sales Commissions</span>
           </Button>
+          {isSuperAdmin && (
+            <Button
+              variant={payoutType === "oem_royalties" ? "default" : "outline"}
+              onClick={() => setPayoutType("oem_royalties")}
+              className="flex items-center space-x-2"
+              data-testid="button-oem-royalties"
+            >
+              <Building2 className="h-4 w-4" />
+              <span>OEM Royalties</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -181,7 +207,7 @@ export default function PayoutSettlementPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-muted-foreground text-sm">
-                  Pending {payoutType === "detailers" ? "Payouts" : "Commissions"}
+                  Pending {payoutType === "detailers" ? "Payouts" : (payoutType === "sales_persons" ? "Commissions" : "Royalties")}
                 </p>
                 <p className="text-2xl font-semibold text-foreground" data-testid="text-pending-amount">
                   {formatCurrency(totalPending.toString())}
@@ -231,7 +257,7 @@ export default function PayoutSettlementPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            {payoutType === "detailers" ? "Detailer/Installer Payouts" : "Sales Person Commissions"}
+            {payoutType === "detailers" ? "Detailer/Installer Payouts" : (payoutType === "sales_persons" ? "Sales Person Commissions" : "OEM Royalty Calculations")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -239,7 +265,7 @@ export default function PayoutSettlementPage() {
             <div className="text-center py-8">
               <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">
-                No {payoutType === "detailers" ? "payouts" : "commissions"} found
+                No {payoutType === "detailers" ? "payouts" : (payoutType === "sales_persons" ? "commissions" : "royalties")} found
               </p>
             </div>
           ) : (
@@ -254,7 +280,7 @@ export default function PayoutSettlementPage() {
                     <div className="flex-1">
                       <div className="flex items-center space-x-3">
                         <h3 className="font-medium">
-                          {payoutType === "detailers" ? item.partnerName : item.salesPersonName || "N/A"}
+                          {payoutType === "detailers" ? item.partnerName : (payoutType === "sales_persons" ? (item.salesPersonName || "N/A") : item.oemName)}
                         </h3>
                         <Badge className={getStatusColor(item.status)}>
                           {item.status}
@@ -268,10 +294,16 @@ export default function PayoutSettlementPage() {
                       <div className="flex items-center space-x-4 mt-2 text-sm text-muted-foreground">
                         <span>
                           Amount: <span className="font-medium text-foreground">
-                            {formatCurrency(payoutType === "detailers" ? item.netAmount : item.computedAmount)}
+                            {formatCurrency(payoutType === "detailers" ? item.netAmount : (payoutType === "sales_persons" ? item.computedAmount : item.royaltyAmount))}
                           </span>
                         </span>
-                        <span>Created: {formatDate(item.createdAt)}</span>
+                        {payoutType === "oem_royalties" && item.royaltyPercentage && (
+                          <span>Royalty: <span className="font-medium">{item.royaltyPercentage}%</span></span>
+                        )}
+                        {payoutType === "oem_royalties" && item.workOrderValue && (
+                          <span>Order Value: {formatCurrency(item.workOrderValue)}</span>
+                        )}
+                        <span>Created: {formatDate(item.createdAt || item.calculatedAt)}</span>
                         {item.status === 'PAID' && item.settledAt && (
                           <span>Settled: {formatDate(item.settledAt)}</span>
                         )}
@@ -293,9 +325,23 @@ export default function PayoutSettlementPage() {
                               </span>
                             )}
                           </>
-                        ) : (
+                        ) : payoutType === "sales_persons" ? (
                           // Sales persons are linked to Work Orders
                           <>
+                            {item.workOrderId && (
+                              <span className="font-mono bg-muted px-2 py-1 rounded">
+                                WO: {item.workOrderId.slice(-8)}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          // OEM Royalties are linked to Work Orders and Job Cards
+                          <>
+                            {item.jobCardId && (
+                              <span className="font-mono bg-muted px-2 py-1 rounded">
+                                JC: {item.jobCardId.slice(-8)}
+                              </span>
+                            )}
                             {item.workOrderId && (
                               <span className="font-mono bg-muted px-2 py-1 rounded">
                                 WO: {item.workOrderId.slice(-8)}
@@ -305,6 +351,9 @@ export default function PayoutSettlementPage() {
                         )}
                         {item.customerName && (
                           <span>Customer: {item.customerName}</span>
+                        )}
+                        {payoutType === "oem_royalties" && item.regNo && (
+                          <span>Vehicle: {item.regNo}</span>
                         )}
                       </div>
                       {payoutType === "detailers" && (
@@ -317,9 +366,14 @@ export default function PayoutSettlementPage() {
                           Showroom: {item.showroomName} | Basis: {item.basis} | Work Order Status: {item.workOrderStatus}
                         </div>
                       )}
+                      {payoutType === "oem_royalties" && (
+                        <div className="text-sm text-muted-foreground mt-1">
+                          Service: {item.serviceName} | Vehicle: {item.vehicleModelName}
+                        </div>
+                      )}
                     </div>
                     
-                    {(item.status === 'PENDING' || item.status === 'due') && (
+                    {(item.status === 'PENDING' || item.status === 'due') && payoutType !== "oem_royalties" && (
                       <div className="flex space-x-2">
                         <Button
                           onClick={() => handleSettle(item, payoutType === "detailers" ? "payout" : "commission")}
