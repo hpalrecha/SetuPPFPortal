@@ -231,17 +231,18 @@ export default function JobCardListView({
         <div className="rounded-lg border border-border overflow-hidden">
           {/* Table Header */}
           <div className="bg-muted/50 border-b border-border px-4 py-3">
-            <div className="grid grid-cols-12 gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              <div className="col-span-1">ID</div>
-              <div className="col-span-1">Status</div>
-              <div className="col-span-1">Customer</div>
-              <div className="col-span-1">Phone</div>
-              <div className="col-span-2">Vehicle</div>
-              <div className="col-span-2">Service</div>
-              <div className="col-span-1">Partner</div>
-              <div className="col-span-1">Created</div>
-              <div className="col-span-1">Scheduled</div>
-              <div className="col-span-1">Actions</div>
+            <div className="grid grid-cols-[0.8fr_1fr_1fr_1fr_1.5fr_1.5fr_1fr_1fr_1fr_1fr_1.2fr] gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <div>ID</div>
+              <div>Status</div>
+              <div>Customer</div>
+              <div>Phone</div>
+              <div>Vehicle</div>
+              <div>Service</div>
+              <div>Billing Value</div>
+              <div>Partner</div>
+              <div>Created</div>
+              <div>Scheduled</div>
+              <div>Actions</div>
             </div>
           </div>
 
@@ -263,9 +264,9 @@ export default function JobCardListView({
                   } ${isCompleted ? 'opacity-75' : ''}`}
                   data-testid={`card-job-${job.id}`}
                 >
-                  <div className="grid grid-cols-12 gap-3 items-center">
+                  <div className="grid grid-cols-[0.8fr_1fr_1fr_1fr_1.5fr_1.5fr_1fr_1fr_1fr_1fr_1.2fr] gap-3 items-center">
                     {/* ID Column */}
-                    <div className="col-span-1">
+                    <div>
                       <div className="flex items-center gap-2">
                         <div className={`p-1.5 rounded-lg ${statusColorClasses[job.status! as keyof typeof statusColorClasses]}`}>
                           <StatusIcon className="h-3 w-3" />
@@ -287,7 +288,7 @@ export default function JobCardListView({
                     </div>
 
                     {/* Status Column */}
-                    <div className="col-span-1">
+                    <div>
                       <Badge 
                         className={`text-xs px-2 py-1 ${statusColors[job.status! as keyof typeof statusColors]}`}
                       >
@@ -303,12 +304,12 @@ export default function JobCardListView({
                     </div>
 
                     {/* Customer Column */}
-                    <div className="col-span-1">
+                    <div>
                       <div className="text-sm font-medium">Customer</div>
                     </div>
 
                     {/* Phone Column */}
-                    <div className="col-span-1">
+                    <div>
                       <div className="flex items-center gap-1 text-sm text-muted-foreground">
                         <Phone className="h-3 w-3" />
                         <span className="text-xs">Available</span>
@@ -316,7 +317,7 @@ export default function JobCardListView({
                     </div>
 
                     {/* Vehicle Column */}
-                    <div className="col-span-2">
+                    <div>
                       <div className="text-sm font-medium">
                         {job.workOrder?.vehicleModel?.oem?.name} {job.workOrder?.vehicleModel?.modelName}
                       </div>
@@ -326,7 +327,7 @@ export default function JobCardListView({
                     </div>
 
                     {/* Service Column */}
-                    <div className="col-span-2">
+                    <div>
                       <div className="text-sm font-medium">
                         {job.workOrder?.service?.name || 'PPF Service'}
                       </div>
@@ -335,8 +336,18 @@ export default function JobCardListView({
                       </div>
                     </div>
 
+                    {/* Billing Value Column */}
+                    <div>
+                      <div className="text-sm font-semibold text-green-600">
+                        {job.billingValue ? `₹${Number(job.billingValue).toLocaleString('en-IN')}` : '—'}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {job.billingValue ? 'Billing' : 'Not set'}
+                      </div>
+                    </div>
+
                     {/* Partner Column */}
-                    <div className="col-span-1">
+                    <div>
                       <div className="text-sm font-medium">
                         {job.partner?.displayName || 'Unassigned'}
                       </div>
@@ -346,7 +357,7 @@ export default function JobCardListView({
                     </div>
 
                     {/* Created Column */}
-                    <div className="col-span-1">
+                    <div>
                       <div className="text-sm">{getTimeAgo(job.createdAt!)}</div>
                       <div className="text-xs text-muted-foreground">
                         {new Date(job.createdAt!).toLocaleDateString()}
@@ -354,7 +365,7 @@ export default function JobCardListView({
                     </div>
 
                     {/* Scheduled Column */}
-                    <div className="col-span-1">
+                    <div>
                       {job.scheduledAt ? (
                         <div>
                           <div className="text-sm">{new Date(job.scheduledAt).toLocaleDateString()}</div>
@@ -366,7 +377,7 @@ export default function JobCardListView({
                     </div>
 
                     {/* Actions Column */}
-                    <div className="col-span-1">
+                    <div>
                       <div className="flex flex-col gap-1">
                         {renderActionButtons(job)}
                       </div>
