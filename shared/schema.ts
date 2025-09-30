@@ -362,6 +362,7 @@ export const jobCards = pgTable("job_cards", {
   approvedByUserId: uuid("approved_by_user_id").references(() => users.id),
   pricingSnapshotJson: jsonb("pricing_snapshot_json"),
   commissionSnapshotJson: jsonb("commission_snapshot_json"),
+  billingValue: decimal("billing_value", { precision: 10, scale: 2 }), // Auto-populated from Work Order total
   // Rework tracking fields
   reworkReason: text("rework_reason"), // Reason for requesting rework
   reworkRequestedAt: timestamp("rework_requested_at"), // When rework was requested
