@@ -14,7 +14,10 @@ import { useAuth } from "@/hooks/use-auth";
 export default function PayoutSettlementPage() {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
-  const [payoutType, setPayoutType] = useState<"detailers" | "sales_persons" | "oem_royalties">("detailers");
+  const isOemAdmin = user?.role === 'OEM_ADMIN';
+  const [payoutType, setPayoutType] = useState<"detailers" | "sales_persons" | "oem_royalties">(
+    isOemAdmin ? "oem_royalties" : "detailers"
+  );
   const [settlementData, setSettlementData] = useState<{
     id: string;
     type: "payout" | "commission";
@@ -43,7 +46,7 @@ export default function PayoutSettlementPage() {
   // Fetch OEM royalty calculations
   const { data: oemRoyalties = [], isLoading: isLoadingRoyalties } = useQuery({
     queryKey: ["/api/oem-royalty-calculations"],
-    enabled: payoutType === "oem_royalties" && isSuperAdmin
+    enabled: payoutType === "oem_royalties" && (isSuperAdmin || isOemAdmin)
   });
 
   // Settlement mutations
@@ -163,41 +166,47 @@ export default function PayoutSettlementPage() {
       {/* Header with Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-foreground">Payout Settlement</h2>
-          <p className="text-muted-foreground mt-1">Manage payments for detailers and sales persons</p>
+          <h2 className="text-2xl font-semibold text-foreground">
+            {isOemAdmin ? "OEM Royalty Earnings" : "Payout Settlement"}
+          </h2>
+          <p className="text-muted-foreground mt-1">
+            {isOemAdmin ? "View your royalty earnings from completed work orders" : "Manage payments for detailers and sales persons"}
+          </p>
         </div>
         
-        <div className="flex items-center space-x-2 mt-4 sm:mt-0">
-          <Button
-            variant={payoutType === "detailers" ? "default" : "outline"}
-            onClick={() => setPayoutType("detailers")}
-            className="flex items-center space-x-2"
-            data-testid="button-detailer-payouts"
-          >
-            <Wrench className="h-4 w-4" />
-            <span>Detailer Payouts</span>
-          </Button>
-          <Button
-            variant={payoutType === "sales_persons" ? "default" : "outline"}
-            onClick={() => setPayoutType("sales_persons")}
-            className="flex items-center space-x-2"
-            data-testid="button-sales-commissions"
-          >
-            <UserCheck className="h-4 w-4" />
-            <span>Sales Commissions</span>
-          </Button>
-          {isSuperAdmin && (
+        {!isOemAdmin && (
+          <div className="flex items-center space-x-2 mt-4 sm:mt-0">
             <Button
-              variant={payoutType === "oem_royalties" ? "default" : "outline"}
-              onClick={() => setPayoutType("oem_royalties")}
+              variant={payoutType === "detailers" ? "default" : "outline"}
+              onClick={() => setPayoutType("detailers")}
               className="flex items-center space-x-2"
-              data-testid="button-oem-royalties"
+              data-testid="button-detailer-payouts"
             >
-              <Building2 className="h-4 w-4" />
-              <span>OEM Royalties</span>
+              <Wrench className="h-4 w-4" />
+              <span>Detailer Payouts</span>
             </Button>
-          )}
-        </div>
+            <Button
+              variant={payoutType === "sales_persons" ? "default" : "outline"}
+              onClick={() => setPayoutType("sales_persons")}
+              className="flex items-center space-x-2"
+              data-testid="button-sales-commissions"
+            >
+              <UserCheck className="h-4 w-4" />
+              <span>Sales Commissions</span>
+            </Button>
+            {isSuperAdmin && (
+              <Button
+                variant={payoutType === "oem_royalties" ? "default" : "outline"}
+                onClick={() => setPayoutType("oem_royalties")}
+                className="flex items-center space-x-2"
+                data-testid="button-oem-royalties"
+              >
+                <Building2 className="h-4 w-4" />
+                <span>OEM Royalties</span>
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Summary Cards */}
