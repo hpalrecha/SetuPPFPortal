@@ -1438,6 +1438,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Work order not found" });
         }
 
+        // If estimatedPrice was updated and there's an assigned job card, update its billing value
+        if (updates.estimatedPrice !== undefined && workOrder.assignedJobCardId) {
+          await storage.updateJobCard(workOrder.assignedJobCardId, {
+            billingValue: updates.estimatedPrice
+          });
+        }
+
         res.json(workOrder);
       } catch (error) {
         console.error("Update work order error:", error);
