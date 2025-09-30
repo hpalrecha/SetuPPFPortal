@@ -233,7 +233,8 @@ Please acknowledge receipt and provide estimated completion time.
       workOrderId,
       partnerId,
       status: 'AWAITING_ACK',
-      remarks: workOrderDetails
+      remarks: workOrderDetails,
+      billingValue: pricing?.priceAmount || null
     });
 
     // Update work order with job card reference

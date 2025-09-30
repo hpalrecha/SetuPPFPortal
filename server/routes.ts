@@ -1708,6 +1708,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           jobCardData.partnerId = req.user!.partnerId;
         }
 
+        // Fetch work order to get billing value
+        const workOrder = await storage.getWorkOrder(jobCardData.workOrderId);
+        if (workOrder?.estimatedPrice) {
+          jobCardData.billingValue = workOrder.estimatedPrice;
+        }
+
         const jobCard = await storage.createJobCard(jobCardData);
         res.status(201).json(jobCard);
       } catch (error) {
