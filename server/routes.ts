@@ -124,6 +124,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reset user password (Admin only)
+  app.post("/api/users/:id/reset-password", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    auditLog('user', 'reset_password'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        
+        // Get user to verify they exist
+        const user = await storage.getUser(id);
+        if (!user) {
+          return res.status(404).json({ error: "User not found" });
+        }
+
+        // Generate temporary password (8 characters: letters + numbers)
+        const tempPassword = Math.random().toString(36).slice(-8).toUpperCase();
+        
+        // Hash the password
+        const hashedPassword = await bcrypt.hash(tempPassword, 10);
+        
+        // Update user password
+        await storage.updateUser(id, { passwordHash: hashedPassword });
+        
+        res.json({ 
+          message: "Password reset successfully",
+          tempPassword,
+          userId: id,
+          userEmail: user.email
+        });
+      } catch (error) {
+        console.error("Reset password error:", error);
+        res.status(500).json({ error: "Failed to reset password" });
+      }
+    }
+  );
+
   // OEM Routes
   app.get("/api/oems", authenticate, requireRole(['SUPER_ADMIN', 'PARTNER_ADMIN', 'PARTNER_STAFF']), async (req, res) => {
     try {
