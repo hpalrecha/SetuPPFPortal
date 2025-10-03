@@ -3689,18 +3689,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAllocation(allocation: any): Promise<any> {
-    // Business rule: Check if there's already an active allocation for this dealership/showroom
+    // Business rule: Check if this specific partner is already allocated to this dealership/showroom
     const existingAllocation = await db
       .select()
       .from(allocations)
       .where(and(
         eq(allocations.levelId, allocation.levelId),
         eq(allocations.level, allocation.level),
+        eq(allocations.partnerId, allocation.partnerId),
         eq(allocations.active, true)
       ));
 
     if (existingAllocation.length > 0) {
-      throw new Error(`This ${allocation.level.toLowerCase()} already has an active allocation. Please remove the existing allocation first.`);
+      throw new Error(`This partner is already allocated to this ${allocation.level.toLowerCase()}. Please remove the existing allocation first.`);
     }
 
     const [newAllocation] = await db
