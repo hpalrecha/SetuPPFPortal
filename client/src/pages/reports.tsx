@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,6 +12,23 @@ export default function ReportsPage() {
     serviceType: "all"
   });
 
+  const { data: metricsData, isLoading, refetch } = useQuery<{
+    totalWorkOrders: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
+    avgTAT: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
+    firstPassRate: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
+    customerSatisfaction: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
+  }>({
+    queryKey: ['/api/reports/metrics'],
+    refetchInterval: 30000,
+  });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refetch();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [refetch]);
+
   const handleExportReport = () => {
     alert("Report export functionality would be implemented here");
   };
@@ -19,12 +37,36 @@ export default function ReportsPage() {
     alert("Report generation functionality would be implemented here");
   };
 
-  const performanceMetrics = [
-    { metric: "Total Work Orders", thisMonth: 59, lastMonth: 47, change: 25.5, isPositive: true },
-    { metric: "Avg TAT (days)", thisMonth: 3.2, lastMonth: 2.9, change: 10.3, isPositive: false },
-    { metric: "First Pass Rate", thisMonth: 92, lastMonth: 89, change: 3.4, isPositive: true },
-    { metric: "Customer Satisfaction", thisMonth: 4.6, lastMonth: 4.5, change: 2.2, isPositive: true }
-  ];
+  const performanceMetrics = metricsData ? [
+    { 
+      metric: "Total Work Orders", 
+      thisMonth: metricsData.totalWorkOrders.thisMonth, 
+      lastMonth: metricsData.totalWorkOrders.lastMonth, 
+      change: metricsData.totalWorkOrders.change, 
+      isPositive: metricsData.totalWorkOrders.isPositive 
+    },
+    { 
+      metric: "Avg TAT (days)", 
+      thisMonth: metricsData.avgTAT.thisMonth, 
+      lastMonth: metricsData.avgTAT.lastMonth, 
+      change: metricsData.avgTAT.change, 
+      isPositive: metricsData.avgTAT.isPositive 
+    },
+    { 
+      metric: "First Pass Rate", 
+      thisMonth: metricsData.firstPassRate.thisMonth, 
+      lastMonth: metricsData.firstPassRate.lastMonth, 
+      change: metricsData.firstPassRate.change, 
+      isPositive: metricsData.firstPassRate.isPositive 
+    },
+    { 
+      metric: "Customer Satisfaction", 
+      thisMonth: metricsData.customerSatisfaction.thisMonth, 
+      lastMonth: metricsData.customerSatisfaction.lastMonth, 
+      change: metricsData.customerSatisfaction.change, 
+      isPositive: metricsData.customerSatisfaction.isPositive 
+    }
+  ] : [];
 
   return (
     <div className="space-y-6">
@@ -157,19 +199,24 @@ export default function ReportsPage() {
           <CardTitle>Performance Metrics</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-muted">
-                <tr>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Metric</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">This Month</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Last Month</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Change</th>
-                  <th className="text-left py-3 px-4 font-medium text-foreground">Trend</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {performanceMetrics.map((metric, index) => (
+          {isLoading ? (
+            <div className="p-8 text-center">
+              <p className="text-muted-foreground">Loading performance metrics...</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="text-left py-3 px-4 font-medium text-foreground">Metric</th>
+                    <th className="text-left py-3 px-4 font-medium text-foreground">This Month</th>
+                    <th className="text-left py-3 px-4 font-medium text-foreground">Last Month</th>
+                    <th className="text-left py-3 px-4 font-medium text-foreground">Change</th>
+                    <th className="text-left py-3 px-4 font-medium text-foreground">Trend</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {performanceMetrics.map((metric, index) => (
                   <tr key={index} className="hover:bg-accent" data-testid={`row-metric-${index}`}>
                     <td className="py-3 px-4 text-sm font-medium text-foreground">{metric.metric}</td>
                     <td className="py-3 px-4 text-sm text-foreground">
@@ -190,9 +237,10 @@ export default function ReportsPage() {
                     </td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
