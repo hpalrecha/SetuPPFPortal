@@ -37,25 +37,25 @@ const pricingRuleSchema = z.object({
   }),
   dealershipId: z.string().optional(),
   detailerId: z.string().optional(),
-  vehicleModelId: z.string().min(1, "Vehicle model is required"),
+  vehicleModelId: z.string().optional(),
   serviceId: z.string().optional(), // For DEALERSHIP_PRICING
   serviceCategoryId: z.string().optional(), // For DETAILER_PRICING
   priceAmount: z.string().min(1, "Price amount is required"),
   effectiveFrom: z.string().min(1, "Effective date is required"),
 }).refine(
   (data) => {
-    // For DEALERSHIP_PRICING, require serviceId
+    // For DEALERSHIP_PRICING, require serviceId and vehicleModelId
     if (data.pricingType === "DEALERSHIP_PRICING") {
-      return data.serviceId && data.serviceId.length > 0;
+      return data.serviceId && data.serviceId.length > 0 && data.vehicleModelId && data.vehicleModelId.length > 0;
     }
-    // For DETAILER_PRICING, require serviceCategoryId
+    // For DETAILER_PRICING, require serviceCategoryId (vehicleModelId is optional)
     if (data.pricingType === "DETAILER_PRICING") {
       return data.serviceCategoryId && data.serviceCategoryId.length > 0;
     }
     return true;
   },
   {
-    message: "Service/Service category is required",
+    message: "Required fields are missing",
     path: ["serviceId"], // Show error on serviceId field for UI purposes
   }
 );
@@ -243,6 +243,8 @@ export function CreatePricingRuleModal({
           ...data,
           priceAmount: data.priceAmount.toString(),
           effectiveFrom: data.effectiveFrom,
+          // For DETAILER_PRICING, vehicleModelId is optional (can be undefined)
+          vehicleModelId: data.vehicleModelId || undefined,
           // Remove fields based on pricing type
           ...(pricingType === 'DEALERSHIP_PRICING' ? { 
             detailerId: undefined 
@@ -419,7 +421,11 @@ export function CreatePricingRuleModal({
                 name="vehicleModelId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Vehicle Model <span className="text-red-500">*</span></FormLabel>
+                    <FormLabel>
+                      Vehicle Model 
+                      {pricingType === 'DEALERSHIP_PRICING' && <span className="text-red-500">*</span>}
+                      {pricingType === 'DETAILER_PRICING' && <span className="text-muted-foreground text-sm"> (Optional)</span>}
+                    </FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
