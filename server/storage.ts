@@ -7,6 +7,7 @@ import {
   salesPersons,
   partners,
   partnerOems,
+  partnerShowroomMapping,
   allocations,
   vehicleModels,
   vehicleVariants,
@@ -1452,6 +1453,92 @@ export class DatabaseStorage implements IStorage {
       }));
       await db.insert(partnerServiceCategories).values(mappings);
     }
+  }
+
+  // Partner Showroom Mapping management
+  async getPartnerShowrooms(partnerId: string): Promise<string[]> {
+    const mappings = await db
+      .select({ showroomId: partnerShowroomMapping.showroomId })
+      .from(partnerShowroomMapping)
+      .where(and(
+        eq(partnerShowroomMapping.partnerId, partnerId),
+        eq(partnerShowroomMapping.status, 'active')
+      ));
+    return mappings.map(m => m.showroomId);
+  }
+
+  async setPartnerShowrooms(partnerId: string, showroomIds: string[]): Promise<void> {
+    // Set all existing mappings to inactive
+    await db
+      .update(partnerShowroomMapping)
+      .set({ status: 'inactive', updatedAt: new Date() })
+      .where(eq(partnerShowroomMapping.partnerId, partnerId));
+
+    // Add or reactivate mappings for selected showrooms
+    if (showroomIds.length > 0) {
+      for (const showroomId of showroomIds) {
+        // Check if mapping exists
+        const [existing] = await db
+          .select()
+          .from(partnerShowroomMapping)
+          .where(and(
+            eq(partnerShowroomMapping.partnerId, partnerId),
+            eq(partnerShowroomMapping.showroomId, showroomId)
+          ));
+
+        if (existing) {
+          // Reactivate existing mapping
+          await db
+            .update(partnerShowroomMapping)
+            .set({ status: 'active', updatedAt: new Date() })
+            .where(eq(partnerShowroomMapping.id, existing.id));
+        } else {
+          // Create new mapping
+          await db.insert(partnerShowroomMapping).values({
+            partnerId,
+            showroomId,
+            status: 'active'
+          });
+        }
+      }
+    }
+  }
+
+  async checkPartnerShowroomMapping(partnerId: string, showroomId: string): Promise<boolean> {
+    const [mapping] = await db
+      .select()
+      .from(partnerShowroomMapping)
+      .where(and(
+        eq(partnerShowroomMapping.partnerId, partnerId),
+        eq(partnerShowroomMapping.showroomId, showroomId),
+        eq(partnerShowroomMapping.status, 'active')
+      ));
+    
+    return !!mapping;
+  }
+
+  async getPartnersForShowroom(showroomId: string, type?: string): Promise<Partner[]> {
+    let query = db
+      .select({
+        partner: partners
+      })
+      .from(partnerShowroomMapping)
+      .innerJoin(partners, eq(partnerShowroomMapping.partnerId, partners.id))
+      .where(and(
+        eq(partnerShowroomMapping.showroomId, showroomId),
+        eq(partnerShowroomMapping.status, 'active'),
+        eq(partners.active, true)
+      ));
+    
+    const results = await query;
+    let partnersList = results.map(r => r.partner);
+    
+    // Filter by type if provided
+    if (type) {
+      partnersList = partnersList.filter(p => p.type === type);
+    }
+    
+    return partnersList;
   }
 
   // Partner Staff Management implementations
