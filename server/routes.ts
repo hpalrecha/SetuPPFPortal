@@ -146,7 +146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const hashedPassword = await bcrypt.hash(tempPassword, 10);
         
         // Update user password
-        await storage.updateUser(id, { passwordHash: hashedPassword });
+        await storage.updateUser(id, { password: hashedPassword });
         
         res.json({ 
           message: "Password reset successfully",
