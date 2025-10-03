@@ -29,14 +29,32 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const allocationSchema = z.object({
   level: z.enum(['DEALERSHIP', 'SHOWROOM'], { required_error: "Level is required" }),
-  levelId: z.string().min(1, "Please select a dealership or showroom"),
+  levelId: z.string().optional(), // Single ID for dealership
+  showroomIds: z.array(z.string()).optional(), // Multiple IDs for showrooms
   partnerId: z.string().min(1, "Please select a partner"),
   priority: z.number().min(1).max(10).default(1),
   active: z.boolean().default(true),
-});
+}).refine(
+  (data) => {
+    // For DEALERSHIP, require levelId
+    if (data.level === "DEALERSHIP") {
+      return data.levelId && data.levelId.length > 0;
+    }
+    // For SHOWROOM, require at least one showroom
+    if (data.level === "SHOWROOM") {
+      return data.showroomIds && data.showroomIds.length > 0;
+    }
+    return true;
+  },
+  {
+    message: "Please select at least one showroom or dealership",
+    path: ["levelId"],
+  }
+);
 
 type AllocationFormData = z.infer<typeof allocationSchema>;
 
@@ -62,6 +80,7 @@ export function CreateAllocationModal({
     defaultValues: {
       level: "DEALERSHIP",
       levelId: "",
+      showroomIds: [],
       partnerId: "",
       priority: 1,
       active: true,
@@ -76,6 +95,7 @@ export function CreateAllocationModal({
       form.reset({
         level: allocation.level || "DEALERSHIP",
         levelId: allocation.levelId || "",
+        showroomIds: allocation.level === "SHOWROOM" ? [allocation.levelId] : [],
         partnerId: allocation.partnerId || "",
         priority: allocation.priority || 1,
         active: allocation.active ?? true,
@@ -84,6 +104,7 @@ export function CreateAllocationModal({
       form.reset({
         level: "DEALERSHIP",
         levelId: "",
+        showroomIds: [],
         partnerId: "",
         priority: 1,
         active: true,
@@ -142,28 +163,95 @@ export function CreateAllocationModal({
   const onSubmit = async (data: AllocationFormData) => {
     setIsLoading(true);
     try {
-      const endpoint = isEditing ? `/api/allocations/${allocation.id}` : "/api/allocations";
-      const method = isEditing ? "PUT" : "POST";
-      
-      const response = await fetch(endpoint, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-        credentials: 'include',
-        body: JSON.stringify(data),
-      });
+      // For editing, use single allocation endpoint
+      if (isEditing) {
+        const response = await fetch(`/api/allocations/${allocation.id}`, {
+          method: "PUT",
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            level: data.level,
+            levelId: data.level === "DEALERSHIP" ? data.levelId : allocation.levelId,
+            partnerId: data.partnerId,
+            priority: data.priority,
+            active: data.active,
+          }),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to ${isEditing ? 'update' : 'create'} allocation`);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to update allocation');
+        }
+
+        toast({
+          title: "Success",
+          description: "Allocation updated successfully",
+        });
+      } else {
+        // For creating, handle multiple showrooms
+        if (data.level === "SHOWROOM" && data.showroomIds && data.showroomIds.length > 0) {
+          // Create multiple allocations - one for each showroom
+          const promises = data.showroomIds.map(showroomId => 
+            fetch("/api/allocations", {
+              method: "POST",
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+              },
+              credentials: 'include',
+              body: JSON.stringify({
+                level: "SHOWROOM",
+                levelId: showroomId,
+                partnerId: data.partnerId,
+                priority: data.priority,
+                active: data.active,
+              }),
+            })
+          );
+
+          const responses = await Promise.all(promises);
+          const failedResponses = responses.filter(r => !r.ok);
+          
+          if (failedResponses.length > 0) {
+            throw new Error(`Failed to create ${failedResponses.length} allocation(s)`);
+          }
+
+          toast({
+            title: "Success",
+            description: `Created ${data.showroomIds.length} allocation(s) successfully`,
+          });
+        } else {
+          // Single dealership allocation
+          const response = await fetch("/api/allocations", {
+            method: "POST",
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              level: data.level,
+              levelId: data.levelId,
+              partnerId: data.partnerId,
+              priority: data.priority,
+              active: data.active,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to create allocation');
+          }
+
+          toast({
+            title: "Success",
+            description: "Allocation created successfully",
+          });
+        }
       }
-
-      toast({
-        title: "Success",
-        description: `Allocation ${isEditing ? 'updated' : 'created'} successfully`,
-      });
 
       onSuccess();
     } catch (error: any) {
@@ -234,32 +322,70 @@ export function CreateAllocationModal({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="levelId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      {selectedLevel === "DEALERSHIP" ? "Dealership" : "Showroom"}
-                    </FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-level-id">
-                          <SelectValue placeholder={`Select ${selectedLevel.toLowerCase()}`} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {getLevelOptions().map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {selectedLevel === "DEALERSHIP" ? (
+                <FormField
+                  control={form.control}
+                  name="levelId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Dealership</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-level-id">
+                            <SelectValue placeholder="Select dealership" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {getLevelOptions().map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <div className="col-span-2">
+                  <FormField
+                    control={form.control}
+                    name="showroomIds"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Showrooms (Select Multiple)</FormLabel>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          {showrooms.map((showroom: any) => (
+                            <div key={showroom.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`showroom-${showroom.id}`}
+                                checked={field.value?.includes(showroom.id) || false}
+                                onCheckedChange={(checked) => {
+                                  const currentValues = field.value || [];
+                                  if (checked) {
+                                    field.onChange([...currentValues, showroom.id]);
+                                  } else {
+                                    field.onChange(currentValues.filter((id: string) => id !== showroom.id));
+                                  }
+                                }}
+                                data-testid={`checkbox-showroom-${showroom.id}`}
+                              />
+                              <label
+                                htmlFor={`showroom-${showroom.id}`}
+                                className="text-sm cursor-pointer"
+                              >
+                                {showroom.name}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
             </div>
 
             <FormField

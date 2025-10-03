@@ -179,13 +179,7 @@ export default function Allocations() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-foreground">Partner Allocations</h2>
-          <p className="text-muted-foreground mt-1">Manage partner assignments to dealerships and showrooms</p>
-          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              <strong>Note:</strong> To assign partners to multiple showrooms, please use the <a href="/partners" className="underline font-medium">Partners page</a>. 
-              You can select multiple showrooms when creating or editing a partner.
-            </p>
-          </div>
+          <p className="text-muted-foreground mt-1">Manage partner assignments to dealerships and showrooms (you can now select multiple showrooms at once)</p>
         </div>
         <Button onClick={handleAddAllocation} data-testid="button-add-allocation">
           <Plus className="mr-2 h-4 w-4" />
