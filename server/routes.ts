@@ -22,6 +22,7 @@ import {
 import { storage } from "./storage";
 import { authService } from "./auth";
 import { emailService } from "./services/email-service";
+import { whatsappService } from "./services/whatsapp-service";
 import { authenticate, requireRole, requireOEMAccess, auditLog } from "./middleware";
 import { ObjectStorageService } from "./objectStorage";
 import multer from "multer";
@@ -1759,6 +1760,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const jobCard = await storage.createJobCard(jobCardData);
+
+        // 📱 WhatsApp Notification: Job Card Created
+        if (workOrder && jobCard) {
+          try {
+            const partner = await storage.getPartner(jobCard.partnerId);
+            const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
+            
+            const vehicleDetails = `${vehicleModel?.name || 'Vehicle'} - ${workOrder.color || 'N/A'}`;
+            const partnerName = partner?.displayName || 'Partner';
+            
+            // Send to customer if phone available
+            if (workOrder.customerPhone) {
+              await whatsappService.sendJobCardCreated(
+                workOrder.customerPhone,
+                jobCard.jobCardNumber,
+                vehicleDetails,
+                partnerName
+              );
+            }
+            
+            // Send to partner if phone available
+            if (partner?.contactPhone) {
+              await whatsappService.sendJobCardCreated(
+                partner.contactPhone,
+                jobCard.jobCardNumber,
+                vehicleDetails,
+                partnerName
+              );
+            }
+          } catch (whatsappError) {
+            console.error('WhatsApp notification failed:', whatsappError);
+          }
+        }
+
         res.status(201).json(jobCard);
       } catch (error) {
         console.error("Create job card error:", error);
@@ -1914,6 +1949,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Don't fail the approval if email fails
         }
 
+        // 📱 WhatsApp Notification: Job Card Approved
+        try {
+          const partner = await storage.getPartner(jobCard.partnerId);
+          if (partner?.contactPhone) {
+            await whatsappService.sendJobCardApproved(
+              partner.contactPhone,
+              updatedJobCard.jobCardNumber
+            );
+          }
+        } catch (whatsappError) {
+          console.error('WhatsApp notification failed:', whatsappError);
+        }
+
         res.json({ message: "Job card approved successfully", jobCard: updatedJobCard });
       } catch (error) {
         console.error("Job card approval error:", error);
@@ -1983,6 +2031,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Job card not found" });
       }
 
+      // 📱 WhatsApp Notification: Job Card Scheduled
+      try {
+        const partner = await storage.getPartner(jobCard.partnerId);
+        if (partner?.contactPhone) {
+          await whatsappService.sendJobCardScheduled(
+            partner.contactPhone,
+            jobCard.jobCardNumber,
+            scheduledAt.toLocaleDateString('en-IN'),
+            partner.displayName
+          );
+        }
+      } catch (whatsappError) {
+        console.error('WhatsApp notification failed:', whatsappError);
+      }
+
       res.json(jobCard);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -2002,6 +2065,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!jobCard) {
         return res.status(404).json({ error: "Job card not found" });
+      }
+
+      // 📱 WhatsApp Notification: Job Card Started
+      try {
+        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+        const partner = await storage.getPartner(jobCard.partnerId);
+        
+        if (workOrder) {
+          // Send to showroom POC
+          const showroom = await storage.getShowroom(workOrder.showroomId || '');
+          if (showroom?.contactPersonPhone) {
+            await whatsappService.sendJobCardStarted(
+              showroom.contactPersonPhone,
+              jobCard.jobCardNumber,
+              partner?.displayName || 'Partner'
+            );
+          }
+        }
+      } catch (whatsappError) {
+        console.error('WhatsApp notification failed:', whatsappError);
       }
 
       res.json(jobCard);
@@ -2081,6 +2164,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (payoutError) {
         console.error(`❌ Failed to auto-create detailer payout for job card ${req.params.id}:`, payoutError);
         // Don't fail the completion if payout creation fails
+      }
+
+      // 📱 WhatsApp Notification: Job Card Completed
+      try {
+        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+        if (workOrder) {
+          const showroom = await storage.getShowroom(workOrder.showroomId || '');
+          if (showroom?.contactPersonPhone) {
+            await whatsappService.sendJobCardCompleted(
+              showroom.contactPersonPhone,
+              jobCard.jobCardNumber
+            );
+          }
+        }
+      } catch (whatsappError) {
+        console.error('WhatsApp notification failed:', whatsappError);
       }
 
       res.json(jobCard);
@@ -4218,6 +4317,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Test password reset email error:", error);
       res.status(500).json({ error: "Failed to send test password reset email" });
+    }
+  });
+
+  // Test WhatsApp notification endpoint
+  app.post("/api/test-whatsapp", async (req, res) => {
+    try {
+      const { phoneNumber } = req.body;
+      
+      if (!phoneNumber) {
+        return res.status(400).json({ error: "Phone number is required" });
+      }
+
+      const success = await whatsappService.sendJobCardCreated(
+        phoneNumber,
+        "TEST-JC-001",
+        "Audi A4 - Silver",
+        "Test Partner Studio"
+      );
+
+      if (success) {
+        res.json({ 
+          message: "Test WhatsApp notification sent successfully",
+          phoneNumber: phoneNumber,
+          template: "job_card_created",
+          note: "This is a test notification. Ensure template 'job_card_created' is approved by Meta before production use."
+        });
+      } else {
+        res.status(500).json({ error: "Failed to send WhatsApp notification" });
+      }
+    } catch (error) {
+      console.error("Test WhatsApp error:", error);
+      res.status(500).json({ error: "Failed to send test WhatsApp notification" });
     }
   });
 
