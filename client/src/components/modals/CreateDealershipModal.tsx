@@ -33,7 +33,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 const dealershipSchema = z.object({
   name: z.string().min(1, "Dealership name is required"),
-  oemId: z.string().min(1, "OEM is required"),
+  oemIds: z.array(z.string()).min(1, "At least one OEM must be selected"),
+  adminOemId: z.string().optional(), // OEM for admin user
   contactPersonName: z.string().min(1, "Contact person name is required"),
   contactEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
   contactPhone: z.string().min(1, "Contact phone is required"),
@@ -103,7 +104,8 @@ export function CreateDealershipModal({
     resolver: zodResolver(dealershipSchema),
     defaultValues: {
       name: dealership?.name || "",
-      oemId: dealership?.oemId || "",
+      oemIds: dealership?.oemIds || [],
+      adminOemId: "",
       contactPersonName: dealership?.contactPersonName || "",
       contactEmail: dealership?.contactEmail || "",
       contactPhone: dealership?.contactPhone || "",
@@ -131,7 +133,8 @@ export function CreateDealershipModal({
     if (dealership && open) {
       form.reset({
         name: dealership.name || "",
-        oemId: dealership.oemId || "",
+        oemIds: dealership.oemIds || [],
+        adminOemId: "",
         contactPersonName: dealership.contactPersonName || "",
         contactEmail: dealership.contactEmail || "",
         contactPhone: dealership.contactPhone || "",
@@ -156,7 +159,8 @@ export function CreateDealershipModal({
       // Reset to empty values for new dealership
       form.reset({
         name: "",
-        oemId: "",
+        oemIds: [],
+        adminOemId: "",
         contactPersonName: "",
         contactEmail: "",
         contactPhone: "",
@@ -321,24 +325,39 @@ export function CreateDealershipModal({
 
                 <FormField
                   control={form.control}
-                  name="oemId"
+                  name="oemIds"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>OEM</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select OEM" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {oems?.map((oem: any) => (
-                            <SelectItem key={oem.id} value={oem.id}>
+                      <FormLabel>OEMs (Select multiple)</FormLabel>
+                      <div className="space-y-2 border rounded-md p-3 max-h-40 overflow-y-auto">
+                        {oems?.map((oem: any) => (
+                          <div key={oem.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              checked={field.value?.includes(oem.id)}
+                              onCheckedChange={(checked) => {
+                                const currentValue = field.value || [];
+                                if (checked) {
+                                  field.onChange([...currentValue, oem.id]);
+                                } else {
+                                  field.onChange(currentValue.filter((id: string) => id !== oem.id));
+                                }
+                              }}
+                              data-testid={`checkbox-oem-${oem.id}`}
+                            />
+                            <label className="text-sm cursor-pointer" onClick={() => {
+                              const currentValue = field.value || [];
+                              const isChecked = currentValue.includes(oem.id);
+                              if (isChecked) {
+                                field.onChange(currentValue.filter((id: string) => id !== oem.id));
+                              } else {
+                                field.onChange([...currentValue, oem.id]);
+                              }
+                            }}>
                               {oem.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                            </label>
+                          </div>
+                        ))}
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -343,7 +343,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { oemId } = req.query;
       const dealerships = await storage.getDealerships(oemId as string);
       
-      // Add counts for each dealership
+      // Add counts and OEM IDs for each dealership
       const dealershipsWithCounts = await Promise.all(
         dealerships.map(async (dealership) => {
           const showrooms = await storage.getShowrooms(dealership.id);
@@ -353,8 +353,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const salesStaff = await storage.getUsers({ dealershipId: dealership.id, role: 'SALES_PERSON' });
           const salesStaffCount = salesStaff ? salesStaff.length : 0;
           
+          // Fetch OEM IDs for this dealership
+          const oemIds = await storage.getDealershipOems(dealership.id);
+          
           return {
             ...dealership,
+            oemIds,
             showroomsCount,
             salesStaffCount
           };
