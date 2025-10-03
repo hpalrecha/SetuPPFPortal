@@ -1,0 +1,52 @@
+title: "Admin-controlled Job Card Price Visibility"
+
+task: |
+  Implement role-based conditions for Job Card price visibility with admin control.
+
+  1. If partner type = "Installer", then Job Card price must never be shown (in their dashboard, in any assigned Job Card, or detail view).
+  2. If partner type = "Detailer", price visibility must be controlled from Admin Panel only. Admin can set permission per Detailer (default = hidden).  
+
+steps: |
+  1. **Partner Type Condition**
+     - For `Installer` partners:
+       - Job Card price must always be hidden (UI & API).  
+     - For `Detailer` partners:
+       - Visibility depends on an Admin-controlled permission.  
+
+  2. **Admin Panel Permission**
+     - Add a field in Partner record: `can_view_job_card_price` (boolean, default = false).  
+     - This field is editable only in Admin Panel → Partner Management.  
+     - UI: Add toggle "Allow this Detailer to view Job Card prices".  
+
+  3. **Database Changes**
+     - Add field `can_view_job_card_price` in Partner table.  
+     - Default value = false.  
+
+  4. **API/Backend Logic**
+     - On Job Card API response:  
+       ```ts
+       if (partner.type === 'Installer') {
+         delete jobCard.price;
+       } else if (partner.type === 'Detailer' && !partner.can_view_job_card_price) {
+         delete jobCard.price;
+       }
+       ```
+     - Ensure no override from client side.  
+
+  5. **Frontend Logic**
+     - Job Card list & detail view:  
+       - Installer → no price field visible.  
+       - Detailer → show price field only if API response includes it.  
+
+  6. **Testing**
+     - Create Installer partner → confirm no price shown anywhere.  
+     - Create Detailer partner with default (permission off) → confirm no price shown.  
+     - Enable permission in Admin Panel → confirm price visible in Job Cards for that Detailer.  
+
+expected_output: |
+  - Installer partners never see job card prices.  
+  - Detailer partners see prices only if Admin enables permission in Admin Panel.  
+  - New DB field `can_view_job_card_price` created.  
+  - Admin Panel updated with toggle to grant/revoke permission.  
+  - Backend filters API response accordingly.  
+  - Verified through test cases for Installer & Detailer roles.

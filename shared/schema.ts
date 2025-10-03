@@ -185,6 +185,7 @@ export const partners = pgTable("partners", {
   pincode: text("pincode"),
   phone: text("phone"),
   active: boolean("active").default(true),
+  canViewJobCardPrice: boolean("can_view_job_card_price").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });
