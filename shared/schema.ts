@@ -109,7 +109,6 @@ export const oems = pgTable("oems", {
 
 export const dealerships = pgTable("dealerships", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  oemId: uuid("oem_id").references(() => oems.id).notNull(),
   name: text("name").notNull(),
   code: text("code").notNull(),
   contactPersonName: text("contact_person_name"),
@@ -124,9 +123,19 @@ export const dealerships = pgTable("dealerships", {
   updatedAt: timestamp("updated_at").defaultNow()
 });
 
+export const dealershipOemMapping = pgTable("dealership_oem_mapping", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  dealershipId: uuid("dealership_id").references(() => dealerships.id, { onDelete: 'cascade' }).notNull(),
+  oemId: uuid("oem_id").references(() => oems.id, { onDelete: 'cascade' }).notNull(),
+  status: text("status").default("active").notNull(), // active/inactive
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
 export const showrooms = pgTable("showrooms", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   dealershipId: uuid("dealership_id").references(() => dealerships.id).notNull(),
+  oemId: uuid("oem_id").references(() => oems.id).notNull(),
   name: text("name").notNull(),
   code: text("code").notNull(),
   managerName: text("manager_name"),
@@ -486,23 +495,30 @@ export const idempotencyKeys = pgTable("idempotency_keys", {
 
 // Relations
 export const oemsRelations = relations(oems, ({ many }) => ({
-  dealerships: many(dealerships),
+  dealershipMappings: many(dealershipOemMapping),
   vehicleModels: many(vehicleModels),
   users: many(users),
   workOrders: many(workOrders),
+  showrooms: many(showrooms),
   royaltyRules: many(oemRoyaltyRules),
   royaltyCalculations: many(oemRoyaltyCalculations)
 }));
 
-export const dealershipsRelations = relations(dealerships, ({ one, many }) => ({
-  oem: one(oems, { fields: [dealerships.oemId], references: [oems.id] }),
+export const dealershipsRelations = relations(dealerships, ({ many }) => ({
+  oemMappings: many(dealershipOemMapping),
   showrooms: many(showrooms),
   users: many(users),
   workOrders: many(workOrders)
 }));
 
+export const dealershipOemMappingRelations = relations(dealershipOemMapping, ({ one }) => ({
+  dealership: one(dealerships, { fields: [dealershipOemMapping.dealershipId], references: [dealerships.id] }),
+  oem: one(oems, { fields: [dealershipOemMapping.oemId], references: [oems.id] })
+}));
+
 export const showroomsRelations = relations(showrooms, ({ one, many }) => ({
   dealership: one(dealerships, { fields: [showrooms.dealershipId], references: [dealerships.id] }),
+  oem: one(oems, { fields: [showrooms.oemId], references: [oems.id] }),
   salesPersons: many(salesPersons),
   users: many(users),
   workOrders: many(workOrders),
@@ -570,6 +586,21 @@ export const insertOemSchema = createInsertSchema(oems).omit({ id: true, created
 export const selectOemSchema = createSelectSchema(oems);
 export type InsertOem = z.infer<typeof insertOemSchema>;
 export type Oem = z.infer<typeof selectOemSchema>;
+
+export const insertDealershipSchema = createInsertSchema(dealerships).omit({ id: true, createdAt: true, updatedAt: true });
+export const selectDealershipSchema = createSelectSchema(dealerships);
+export type InsertDealership = z.infer<typeof insertDealershipSchema>;
+export type Dealership = z.infer<typeof selectDealershipSchema>;
+
+export const insertDealershipOemMappingSchema = createInsertSchema(dealershipOemMapping).omit({ id: true, createdAt: true, updatedAt: true });
+export const selectDealershipOemMappingSchema = createSelectSchema(dealershipOemMapping);
+export type InsertDealershipOemMapping = z.infer<typeof insertDealershipOemMappingSchema>;
+export type DealershipOemMapping = z.infer<typeof selectDealershipOemMappingSchema>;
+
+export const insertShowroomSchema = createInsertSchema(showrooms).omit({ id: true, createdAt: true, updatedAt: true });
+export const selectShowroomSchema = createSelectSchema(showrooms);
+export type InsertShowroom = z.infer<typeof insertShowroomSchema>;
+export type Showroom = z.infer<typeof selectShowroomSchema>;
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const selectUserSchema = createSelectSchema(users);

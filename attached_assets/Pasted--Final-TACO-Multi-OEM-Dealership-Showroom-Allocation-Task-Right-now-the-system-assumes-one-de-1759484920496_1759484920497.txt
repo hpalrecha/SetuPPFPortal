@@ -1,0 +1,110 @@
+🟦 Final TACO: Multi-OEM Dealership & Showroom Allocation
+Task
+
+Right now, the system assumes one dealership = one OEM.
+But in reality, some dealerships (e.g., Autohanger, Trident, Landmark) operate across multiple OEMs (Hyundai, Mercedes, Tata, etc.), and each OEM has its own showrooms, rules, payouts, and reporting.
+
+The system must:
+
+Allow a dealership to be linked to multiple OEMs.
+
+Ensure showrooms are created under both dealership + specific OEM.
+
+Maintain clean data segregation so OEM admins only see their brand’s showrooms, job cards, payouts, and reports.
+
+Action
+1. Database & Schema Updates
+
+Dealership Table: Remove single OEM foreign key.
+
+New Mapping Table → dealership_oem_mapping:
+
+dealership_id
+
+oem_id
+
+status (active/inactive)
+
+created_at, updated_at
+
+Showroom Table Update:
+
+dealership_id (FK)
+
+oem_id (FK → must exist in dealership_oem_mapping)
+
+showroom_name, address, city, state, pincode
+
+2. UI/UX Updates
+
+Dealership Creation:
+
+OEM field → multi-select instead of single dropdown.
+
+Validation: at least one OEM required.
+
+Showroom Creation:
+
+If dealership has 1 OEM → auto-select that OEM.
+
+If dealership has multiple OEMs → prompt user → “Select OEM for this showroom”.
+
+Then enter Showroom Name + address.
+
+3. Workflow Impact
+
+Job Cards / Work Orders
+
+Must always carry oem_id (inherited from showroom).
+
+Prevents cross-brand data confusion.
+
+OEM Admins
+
+See only their OEM’s dealerships and showrooms.
+
+No leakage between Hyundai, Tata, Mercedes, etc.
+
+Dealer Admins
+
+Can see consolidated reports across all OEMs, with ability to filter by brand.
+
+Pricing / Royalty / Payout Rules
+
+Always applied at oem_id level.
+
+Correct royalty calculations per OEM even if same dealer handles multiple brands.
+
+Reporting / Dashboards
+
+OEM view → brand-specific.
+
+Dealer view → multi-brand, consolidated with OEM filters.
+
+Check
+
+Example: Autohanger dealership is mapped to Hyundai + Mercedes.
+
+Creates showroom → must pick:
+
+Hyundai → Showroom: “Autohanger – Andheri Hyundai”
+
+Mercedes → Showroom: “Autohanger – Worli Mercedes”
+
+Job cards from Hyundai showroom carry Hyundai OEM ID; Mercedes job cards carry Mercedes OEM ID.
+
+Hyundai OEM admin sees only Hyundai data. Mercedes OEM admin sees only Mercedes data.
+
+Autohanger dealer admin sees both but can filter by brand.
+
+Outcome
+
+System supports real-world dealership structures where one dealer handles multiple OEM brands.
+
+Ensures OEM data isolation while still allowing dealers consolidated access.
+
+Payouts, royalties, and commissions remain accurate at brand level.
+
+Clear hierarchy:
+
+👉 OEM → Dealership → Showroom → Job Card / Work Order
