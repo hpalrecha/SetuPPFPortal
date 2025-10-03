@@ -583,19 +583,21 @@ export default function VehiclesPage() {
                   <thead>
                     <tr className="bg-blue-100 dark:bg-blue-900/50">
                       <th className="border border-blue-200 dark:border-blue-700 px-4 py-2 text-left">model_name</th>
+                      <th className="border border-blue-200 dark:border-blue-700 px-4 py-2 text-left">vehicle_type</th>
                       <th className="border border-blue-200 dark:border-blue-700 px-4 py-2 text-left">variant_name</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
                       <td className="border border-blue-200 dark:border-blue-700 px-4 py-2">Swift</td>
+                      <td className="border border-blue-200 dark:border-blue-700 px-4 py-2">HATCHBACK</td>
                       <td className="border border-blue-200 dark:border-blue-700 px-4 py-2">VXI</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
               <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
-                * model_name is required. variant_name is optional.
+                * model_name is required. vehicle_type and variant_name are optional.
               </p>
             </div>
 
