@@ -2628,10 +2628,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('partner', 'create'),
     async (req, res) => {
       try {
-        const { serviceCategoryIds, ...partnerData } = req.body;
+        const { serviceCategoryIds, showroomIds, ...partnerData } = req.body;
         const validatedData = insertPartnerSchema.parse(partnerData);
         
+        // Validate that at least one showroom is selected
+        if (!showroomIds || !Array.isArray(showroomIds) || showroomIds.length === 0) {
+          return res.status(400).json({ error: "At least one showroom must be selected" });
+        }
+        
         const partner = await storage.createPartner(validatedData);
+        
+        // Handle showroom mappings (required)
+        await storage.setPartnerShowrooms(partner.id, showroomIds);
         
         // Handle service category mappings if provided
         if (serviceCategoryIds && Array.isArray(serviceCategoryIds) && serviceCategoryIds.length > 0) {
@@ -2690,7 +2698,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Access denied to this partner" });
         }
         
-        res.json(partner);
+        // Get partner showrooms
+        const showroomIds = await storage.getPartnerShowrooms(id);
+        
+        res.json({
+          ...partner,
+          showroomIds
+        });
       } catch (error) {
         console.error("Get partner error:", error);
         res.status(500).json({ error: "Failed to fetch partner" });
@@ -2705,12 +2719,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const { id } = req.params;
-        const { serviceCategoryIds, ...partnerData } = req.body;
+        const { serviceCategoryIds, showroomIds, ...partnerData } = req.body;
         const validatedData = insertPartnerSchema.partial().parse(partnerData);
+        
+        // Validate that at least one showroom is selected if showroomIds is provided
+        if (showroomIds !== undefined) {
+          if (!Array.isArray(showroomIds) || showroomIds.length === 0) {
+            return res.status(400).json({ error: "At least one showroom must be selected" });
+          }
+        }
         
         const partner = await storage.updatePartner(id, validatedData);
         if (!partner) {
           return res.status(404).json({ error: "Partner not found" });
+        }
+        
+        // Handle showroom mappings if provided
+        if (showroomIds !== undefined && Array.isArray(showroomIds)) {
+          await storage.setPartnerShowrooms(partner.id, showroomIds);
         }
         
         // Handle service category mappings if provided
