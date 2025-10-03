@@ -339,6 +339,21 @@ export interface IStorage {
     customerSatisfaction: number;
   }[]>;
 
+  // Reports metrics
+  getReportsMetrics(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
+    totalWorkOrders: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
+    avgTAT: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
+    firstPassRate: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
+    customerSatisfaction: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
+  }>;
+
+  // Commissions summary
+  getCommissionsSummary(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
+    totalCommissionThisMonth: number;
+    activeSalesPersons: number;
+    avgCommissionRate: number;
+  }>;
+
   // Partner OEM access control
   checkPartnerOemAccess(partnerId: string, oemId: string): Promise<boolean>;
   getPartnerOems(partnerId: string): Promise<string[]>;
@@ -3185,6 +3200,212 @@ export class DatabaseStorage implements IStorage {
       avgTAT: Math.round((row.avgTATDays || 0) * 10) / 10,
       customerSatisfaction: Math.round((Math.random() * 0.5 + 4.0) * 10) / 10 // Placeholder satisfaction score
     }));
+  }
+
+  async getReportsMetrics(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
+    totalWorkOrders: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
+    avgTAT: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
+    firstPassRate: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
+    customerSatisfaction: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
+  }> {
+    const conditions = [eq(workOrders.oemId, oemId)];
+    if (showroomId) conditions.push(eq(workOrders.showroomId, showroomId));
+    if (dealershipId) conditions.push(eq(workOrders.dealershipId, dealershipId));
+
+    // This month work orders
+    const thisMonthWOResult = await db
+      .select({ count: count() })
+      .from(workOrders)
+      .where(and(
+        ...conditions,
+        sql`work_orders.created_at >= DATE_TRUNC('month', CURRENT_DATE)`
+      ));
+    const thisMonthWO = thisMonthWOResult[0]?.count || 0;
+
+    // Last month work orders
+    const lastMonthWOResult = await db
+      .select({ count: count() })
+      .from(workOrders)
+      .where(and(
+        ...conditions,
+        sql`work_orders.created_at >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')`,
+        sql`work_orders.created_at < DATE_TRUNC('month', CURRENT_DATE)`
+      ));
+    const lastMonthWO = lastMonthWOResult[0]?.count || 0;
+
+    // Calculate TAT (Turnaround Time) for this month
+    const thisMonthJCConditions = [...conditions];
+    const thisMonthTATResult = await db
+      .select({
+        avgTAT: sql<number>`AVG(EXTRACT(EPOCH FROM (job_cards.completed_at - job_cards.started_at)) / 86400)`
+      })
+      .from(jobCards)
+      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
+      .where(and(
+        ...thisMonthJCConditions,
+        eq(jobCards.status, 'APPROVED'),
+        isNotNull(jobCards.startedAt),
+        isNotNull(jobCards.completedAt),
+        sql`job_cards.completed_at >= DATE_TRUNC('month', CURRENT_DATE)`
+      ));
+    const thisMonthTAT = thisMonthTATResult[0]?.avgTAT || 0;
+
+    // Calculate TAT for last month
+    const lastMonthTATResult = await db
+      .select({
+        avgTAT: sql<number>`AVG(EXTRACT(EPOCH FROM (job_cards.completed_at - job_cards.started_at)) / 86400)`
+      })
+      .from(jobCards)
+      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
+      .where(and(
+        ...conditions,
+        eq(jobCards.status, 'APPROVED'),
+        isNotNull(jobCards.startedAt),
+        isNotNull(jobCards.completedAt),
+        sql`job_cards.completed_at >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')`,
+        sql`job_cards.completed_at < DATE_TRUNC('month', CURRENT_DATE)`
+      ));
+    const lastMonthTAT = lastMonthTATResult[0]?.avgTAT || 0;
+
+    // First Pass Rate (jobs completed without rework)
+    const thisMonthTotalResult = await db
+      .select({ count: count() })
+      .from(jobCards)
+      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
+      .where(and(
+        ...conditions,
+        eq(jobCards.status, 'APPROVED'),
+        sql`job_cards.completed_at >= DATE_TRUNC('month', CURRENT_DATE)`
+      ));
+    const thisMonthTotal = thisMonthTotalResult[0]?.count || 0;
+
+    const thisMonthReworkResult = await db
+      .select({ count: count() })
+      .from(jobCards)
+      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
+      .where(and(
+        ...conditions,
+        eq(jobCards.status, 'APPROVED'),
+        sql`job_cards.rework_requested_at IS NOT NULL`,
+        sql`job_cards.completed_at >= DATE_TRUNC('month', CURRENT_DATE)`
+      ));
+    const thisMonthRework = thisMonthReworkResult[0]?.count || 0;
+    const thisMonthFPR = thisMonthTotal > 0 ? ((thisMonthTotal - thisMonthRework) / thisMonthTotal) * 100 : 0;
+
+    const lastMonthTotalResult = await db
+      .select({ count: count() })
+      .from(jobCards)
+      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
+      .where(and(
+        ...conditions,
+        eq(jobCards.status, 'APPROVED'),
+        sql`job_cards.completed_at >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')`,
+        sql`job_cards.completed_at < DATE_TRUNC('month', CURRENT_DATE)`
+      ));
+    const lastMonthTotal = lastMonthTotalResult[0]?.count || 0;
+
+    const lastMonthReworkResult = await db
+      .select({ count: count() })
+      .from(jobCards)
+      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
+      .where(and(
+        ...conditions,
+        eq(jobCards.status, 'APPROVED'),
+        sql`job_cards.rework_requested_at IS NOT NULL`,
+        sql`job_cards.completed_at >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')`,
+        sql`job_cards.completed_at < DATE_TRUNC('month', CURRENT_DATE)`
+      ));
+    const lastMonthRework = lastMonthReworkResult[0]?.count || 0;
+    const lastMonthFPR = lastMonthTotal > 0 ? ((lastMonthTotal - lastMonthRework) / lastMonthTotal) * 100 : 0;
+
+    // Calculate changes
+    const woChange = lastMonthWO > 0 ? ((thisMonthWO - lastMonthWO) / lastMonthWO) * 100 : 0;
+    const tatChange = lastMonthTAT > 0 ? ((thisMonthTAT - lastMonthTAT) / lastMonthTAT) * 100 : 0;
+    const fprChange = lastMonthFPR > 0 ? ((thisMonthFPR - lastMonthFPR) / lastMonthFPR) * 100 : 0;
+
+    // Placeholder for customer satisfaction (can be implemented with rating system)
+    const thisMonthCS = 4.6;
+    const lastMonthCS = 4.5;
+    const csChange = ((thisMonthCS - lastMonthCS) / lastMonthCS) * 100;
+
+    return {
+      totalWorkOrders: {
+        thisMonth: thisMonthWO,
+        lastMonth: lastMonthWO,
+        change: Math.round(woChange * 10) / 10,
+        isPositive: woChange >= 0
+      },
+      avgTAT: {
+        thisMonth: Math.round(thisMonthTAT * 10) / 10,
+        lastMonth: Math.round(lastMonthTAT * 10) / 10,
+        change: Math.round(Math.abs(tatChange) * 10) / 10,
+        isPositive: tatChange <= 0 // Lower TAT is better
+      },
+      firstPassRate: {
+        thisMonth: Math.round(thisMonthFPR),
+        lastMonth: Math.round(lastMonthFPR),
+        change: Math.round(fprChange * 10) / 10,
+        isPositive: fprChange >= 0
+      },
+      customerSatisfaction: {
+        thisMonth: thisMonthCS,
+        lastMonth: lastMonthCS,
+        change: Math.round(csChange * 10) / 10,
+        isPositive: csChange >= 0
+      }
+    };
+  }
+
+  async getCommissionsSummary(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
+    totalCommissionThisMonth: number;
+    activeSalesPersons: number;
+    avgCommissionRate: number;
+  }> {
+    const conditions = [eq(workOrders.oemId, oemId)];
+    if (showroomId) conditions.push(eq(workOrders.showroomId, showroomId));
+    if (dealershipId) conditions.push(eq(workOrders.dealershipId, dealershipId));
+
+    // Total commission this month
+    const thisMonthCommissionResult = await db
+      .select({
+        total: sql<number>`SUM(CAST(commissions.commission_amount AS DECIMAL))`
+      })
+      .from(commissions)
+      .innerJoin(workOrders, eq(commissions.workOrderId, workOrders.id))
+      .where(and(
+        ...conditions,
+        sql`commissions.created_at >= DATE_TRUNC('month', CURRENT_DATE)`
+      ));
+    const totalCommissionThisMonth = thisMonthCommissionResult[0]?.total || 0;
+
+    // Active sales persons (those who generated commissions this month)
+    const activeSalesPersonsResult = await db
+      .selectDistinct({ salesPersonId: commissions.salesPersonId })
+      .from(commissions)
+      .innerJoin(workOrders, eq(commissions.workOrderId, workOrders.id))
+      .where(and(
+        ...conditions,
+        sql`commissions.created_at >= DATE_TRUNC('month', CURRENT_DATE)`
+      ));
+    const activeSalesPersons = activeSalesPersonsResult.length;
+
+    // Average commission rate
+    const avgCommissionRateResult = await db
+      .select({
+        avgRate: sql<number>`AVG(commission_rules.percentage_rate)`
+      })
+      .from(commissionRules)
+      .where(and(
+        eq(commissionRules.oemId, oemId),
+        eq(commissionRules.active, true)
+      ));
+    const avgCommissionRate = avgCommissionRateResult[0]?.avgRate || 0;
+
+    return {
+      totalCommissionThisMonth: Math.round(totalCommissionThisMonth),
+      activeSalesPersons,
+      avgCommissionRate: Math.round(avgCommissionRate * 10) / 10
+    };
   }
 
   // Allocation management implementation

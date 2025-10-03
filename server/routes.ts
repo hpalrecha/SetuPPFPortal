@@ -1274,6 +1274,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reports Metrics API
+  app.get("/api/reports/metrics", authenticate, async (req, res) => {
+    try {
+      let oemId: string;
+      let showroomId: string | undefined;
+      let dealershipId: string | undefined;
+      
+      if (req.user!.role === 'SUPER_ADMIN') {
+        const availableOems = await storage.getOems();
+        if (availableOems.length === 0) {
+          return res.json({
+            totalWorkOrders: { thisMonth: 0, lastMonth: 0, change: 0, isPositive: true },
+            avgTAT: { thisMonth: 0, lastMonth: 0, change: 0, isPositive: true },
+            firstPassRate: { thisMonth: 0, lastMonth: 0, change: 0, isPositive: true },
+            customerSatisfaction: { thisMonth: 0, lastMonth: 0, change: 0, isPositive: true }
+          });
+        }
+        oemId = availableOems[0].id;
+      } else {
+        if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
+        oemId = req.user!.oemId;
+        showroomId = req.user!.showroomId;
+        dealershipId = req.user!.role === 'DEALERSHIP_ADMIN' ? req.user!.dealershipId : undefined;
+      }
+      
+      const metrics = await storage.getReportsMetrics(oemId, showroomId, dealershipId);
+      res.json(metrics);
+    } catch (error) {
+      console.error("Reports metrics error:", error);
+      res.status(500).json({ error: "Failed to fetch reports metrics" });
+    }
+  });
+
+  // Commission Summary Metrics API
+  app.get("/api/commissions/summary", authenticate, async (req, res) => {
+    try {
+      let oemId: string;
+      let showroomId: string | undefined;
+      let dealershipId: string | undefined;
+      
+      if (req.user!.role === 'SUPER_ADMIN') {
+        const availableOems = await storage.getOems();
+        if (availableOems.length === 0) {
+          return res.json({
+            totalCommissionThisMonth: 0,
+            activeSalesPersons: 0,
+            avgCommissionRate: 0
+          });
+        }
+        oemId = availableOems[0].id;
+      } else {
+        if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
+        oemId = req.user!.oemId;
+        showroomId = req.user!.showroomId;
+        dealershipId = req.user!.role === 'DEALERSHIP_ADMIN' ? req.user!.dealershipId : undefined;
+      }
+      
+      const summary = await storage.getCommissionsSummary(oemId, showroomId, dealershipId);
+      res.json(summary);
+    } catch (error) {
+      console.error("Commissions summary error:", error);
+      res.status(500).json({ error: "Failed to fetch commissions summary" });
+    }
+  });
+
   // Work Order Routes
   app.get("/api/work-orders", authenticate, requireOEMAccess, async (req, res) => {
     try {
