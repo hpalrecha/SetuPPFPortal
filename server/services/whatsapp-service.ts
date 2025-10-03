@@ -5,7 +5,7 @@ export interface WhatsAppMessage {
   type: 'template' | 'text' | 'image' | 'document';
   template?: {
     name: string;
-    language: string;
+    language: { code: string };
     components?: any[];
   };
   text?: {
@@ -160,7 +160,7 @@ export class WhatsAppService {
       type: 'template',
       template: {
         name: 'job_card_created',
-        language: 'en',
+        language: { code: 'en' },
         components: [
           {
             type: 'body',
@@ -188,7 +188,7 @@ export class WhatsAppService {
       type: 'template',
       template: {
         name: 'job_card_scheduled',
-        language: 'en',
+        language: { code: 'en' },
         components: [
           {
             type: 'body',
@@ -215,7 +215,7 @@ export class WhatsAppService {
       type: 'template',
       template: {
         name: 'job_card_started',
-        language: 'en',
+        language: { code: 'en' },
         components: [
           {
             type: 'body',
@@ -240,7 +240,7 @@ export class WhatsAppService {
       type: 'template',
       template: {
         name: 'job_card_completed',
-        language: 'en',
+        language: { code: 'en' },
         components: [
           {
             type: 'body',
@@ -264,7 +264,7 @@ export class WhatsAppService {
       type: 'template',
       template: {
         name: 'job_card_approved',
-        language: 'en',
+        language: { code: 'en' },
         components: [
           {
             type: 'body',
