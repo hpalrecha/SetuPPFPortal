@@ -56,7 +56,9 @@ Preferred communication style: Simple, everyday language.
 ## Background Jobs
 - **Queue System**: BullMQ with Redis for reliable job processing
 - **SLA Monitoring**: Automated breach detection with configurable thresholds
-- **Notifications**: Multi-channel notification system (Email, SMS, Push, WhatsApp)
+- **Notifications**: Multi-channel notification system (Email, WhatsApp)
+  - **Email**: Hybrid AWS SES SDK (primary) + SMTP fallback for reliable delivery
+  - **WhatsApp**: Meta WABA integration for Job Card lifecycle notifications
 - **Webhook Delivery**: Outbound webhook system with retry logic and failure handling
 - **Report Generation**: Automated report generation and distribution
 
@@ -98,6 +100,16 @@ Preferred communication style: Simple, everyday language.
 - **Webhook System**: Outbound webhooks for external system integration
 - **File Upload**: Direct-to-storage upload with presigned URLs
 - **Real-time Updates**: Polling-based updates for dashboard metrics
+- **WhatsApp Business API (WABA)**: Meta Graph API v19.0 for automated notifications
+  - **Job Card Created**: Notifies customer and assigned partner
+  - **Job Card Scheduled**: Notifies partner with schedule details
+  - **Job Card Started**: Notifies showroom POC for monitoring
+  - **Job Card Completed**: Notifies showroom POC for approval
+  - **Job Card Approved**: Notifies partner with approval confirmation
+- **Email Service**: Hybrid delivery system (AWS SES SDK + SMTP fallback)
+  - Work Order notifications (created, updated, completed)
+  - Job Card notifications (completion, approval)
+  - Password reset and OTP verification emails
 
 ## Monitoring & Observability
 - **Console Logging**: Structured logging for debugging and monitoring
