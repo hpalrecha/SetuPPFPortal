@@ -16,6 +16,15 @@ export default function CommissionsPage() {
     refetchInterval: 30000
   });
 
+  const { data: summaryData, isLoading: summaryLoading } = useQuery<{
+    totalCommissionThisMonth: number;
+    activeSalesPersons: number;
+    avgCommissionRate: number;
+  }>({
+    queryKey: ['/api/commissions/summary'],
+    refetchInterval: 30000,
+  });
+
   const handleAddCommissionRule = () => {
     // Modal is handled by the CreateCommissionRuleModal component
   };
@@ -83,49 +92,61 @@ export default function CommissionsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-muted-foreground text-sm">Total Commission This Month</p>
-                <p className="text-2xl font-semibold text-foreground" data-testid="text-total-commission">
-                  ₹24,500
-                </p>
+            {summaryLoading ? (
+              <div className="animate-pulse h-16" />
+            ) : (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-sm">Total Commission This Month</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-total-commission">
+                    ₹{summaryData?.totalCommissionThisMonth.toLocaleString('en-IN') || '0'}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                  <DollarSign className="h-6 w-6 text-green-600" />
+                </div>
               </div>
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-muted-foreground text-sm">Active Sales Persons</p>
-                <p className="text-2xl font-semibold text-foreground" data-testid="text-active-sales-persons">
-                  8
-                </p>
+            {summaryLoading ? (
+              <div className="animate-pulse h-16" />
+            ) : (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-sm">Active Sales Persons</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-active-sales-persons">
+                    {summaryData?.activeSalesPersons || 0}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <Users className="h-6 w-6 text-blue-600" />
+                </div>
               </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <Users className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-muted-foreground text-sm">Avg Commission Rate</p>
-                <p className="text-2xl font-semibold text-foreground" data-testid="text-avg-commission-rate">
-                  7.5%
-                </p>
+            {summaryLoading ? (
+              <div className="animate-pulse h-16" />
+            ) : (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-sm">Avg Commission Rate</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-avg-commission-rate">
+                    {summaryData?.avgCommissionRate || 0}%
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                  <TrendingUp className="h-6 w-6 text-purple-600" />
+                </div>
               </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-purple-600" />
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>

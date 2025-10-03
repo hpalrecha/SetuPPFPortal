@@ -217,26 +217,26 @@ export default function ReportsPage() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {performanceMetrics.map((metric, index) => (
-                  <tr key={index} className="hover:bg-accent" data-testid={`row-metric-${index}`}>
-                    <td className="py-3 px-4 text-sm font-medium text-foreground">{metric.metric}</td>
-                    <td className="py-3 px-4 text-sm text-foreground">
-                      {metric.metric.includes("Satisfaction") ? metric.thisMonth + "/5" : metric.thisMonth}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-muted-foreground">
-                      {metric.metric.includes("Satisfaction") ? metric.lastMonth + "/5" : metric.lastMonth}
-                    </td>
-                    <td className={`py-3 px-4 text-sm ${metric.isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                      {metric.isPositive ? '+' : ''}{metric.change}%
-                    </td>
-                    <td className="py-3 px-4">
-                      {metric.isPositive ? (
-                        <TrendingUp className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <TrendingDown className="h-4 w-4 text-red-600" />
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                    <tr key={index} className="hover:bg-accent" data-testid={`row-metric-${index}`}>
+                      <td className="py-3 px-4 text-sm font-medium text-foreground">{metric.metric}</td>
+                      <td className="py-3 px-4 text-sm text-foreground">
+                        {metric.metric.includes("Satisfaction") ? metric.thisMonth + "/5" : metric.thisMonth}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-muted-foreground">
+                        {metric.metric.includes("Satisfaction") ? metric.lastMonth + "/5" : metric.lastMonth}
+                      </td>
+                      <td className={`py-3 px-4 text-sm ${metric.isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                        {metric.isPositive ? '+' : ''}{metric.change}%
+                      </td>
+                      <td className="py-3 px-4">
+                        {metric.isPositive ? (
+                          <TrendingUp className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <TrendingDown className="h-4 w-4 text-red-600" />
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
