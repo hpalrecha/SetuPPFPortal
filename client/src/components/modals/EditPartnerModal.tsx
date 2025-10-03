@@ -70,13 +70,13 @@ export function EditPartnerModal({
   const isEditing = !!partner;
 
   // Fetch service categories
-  const { data: serviceCategories = [] } = useQuery({
+  const { data: serviceCategories = [] } = useQuery<any[]>({
     queryKey: ['/api/service-categories'],
     enabled: open,
   });
 
   // Fetch partner service categories when editing
-  const { data: partnerCategories } = useQuery({
+  const { data: partnerCategories } = useQuery<{ serviceCategoryIds: string[] }>({
     queryKey: ['/api/partners', partner?.id, 'service-categories'],
     enabled: open && isEditing && !!partner?.id,
   });

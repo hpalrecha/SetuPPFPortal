@@ -1,0 +1,58 @@
+title: "Fix Dashboard Metrics to Fetch Real-Time Data"
+
+task: |
+  Currently, the dashboard metrics cards (Total Work Orders, Pending Approvals, Monthly Revenue, Avg. TAT, Performance Metrics, Commission Summary, etc.) are showing dummy or hardcoded data.  
+  Update the implementation so that these cards fetch **live, real-time data** from the backend instead of static placeholder values.
+
+steps: |
+  1. **Identify Current Issue**
+     - Dashboard metrics are populated with dummy data (static JSON / placeholder variables).  
+     - Example: "₹2.56 Cr revenue" or "3.2 days Avg. TAT" is not pulling from the Work Orders / Job Cards / Invoices DB.  
+     - Root cause: frontend cards not connected to backend APIs or backend APIs returning mocked data.
+
+  2. **Define Data Sources for Each Metric**
+     - **Total Work Orders** → count of records in `work_orders` table (filtered by active month/date).  
+     - **Pending Approvals** → count of `job_cards` or `work_orders` with status = "Pending Approval".  
+     - **Monthly Revenue** → sum of `job_card.billing_value` or `invoice.amount` for current month.  
+     - **Avg. TAT (Turnaround Time)** → average of (`completed_at - started_at`) across completed job cards.  
+     - **Commission Summary** → derived from commission rules table × job card values.  
+     - **Partner Performance** → aggregated work orders/job cards grouped by partner_id.  
+
+  3. **Backend Changes**
+     - Create API endpoints (if not already present):
+       - `GET /api/dashboard/summary` → returns object with all metrics:
+         ```json
+         {
+           "totalWorkOrders": 59,
+           "pendingApprovals": 12,
+           "monthlyRevenue": 25600000,
+           "avgTAT": 3.2,
+           "commission": {
+             "totalCommission": 24500,
+             "activeSalesPersons": 8,
+             "avgCommissionRate": 7.5
+           },
+           "partnerPerformance": [...]
+         }
+         ```
+     - Implement SQL/ORM queries to pull real data dynamically.  
+     - Ensure query filters (date range = current month, partner-specific if needed).  
+
+  4. **Frontend Changes**
+     - Replace hardcoded dummy values in React/Vue components with API calls to `/api/dashboard/summary`.  
+     - Add loading states (skeleton UI / spinners).  
+     - Format values (₹, %, decimals) before rendering.  
+
+  5. **Testing**
+     - Check dashboard after creating new Work Orders, Job Cards, and Invoices:
+       - Metrics should update instantly.  
+       - Monthly revenue should match invoices for that month.  
+       - Avg. TAT should change based on newly completed jobs.  
+     - Test with Admin vs Partner views (respect role-based filters).  
+
+expected_output: |
+  - Dashboard cards no longer display dummy values.  
+  - All metrics update in real-time by fetching data from backend.  
+  - Backend API `/api/dashboard/summary` returns structured JSON with live values.  
+  - Frontend reflects actual business data (Work Orders, Job Cards, Revenue, TAT, Partner Performance).  
+  - Verified correctness with test data entry (new orders, approvals, completed jobs).
