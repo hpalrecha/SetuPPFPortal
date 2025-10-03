@@ -217,6 +217,19 @@ export const partnerOems = pgTable("partner_oems", {
   updatedAt: timestamp("updated_at").defaultNow()
 });
 
+// Partner-Showroom mapping for one-to-many relationship
+export const partnerShowroomMapping = pgTable("partner_showroom_mapping", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerId: uuid("partner_id").references(() => partners.id).notNull(),
+  showroomId: uuid("showroom_id").references(() => showrooms.id).notNull(),
+  status: text("status").default("active"), // active or inactive
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+}, (table) => ({
+  // Ensure unique partner-showroom combination
+  uniquePartnerShowroom: unique("unique_partner_showroom").on(table.partnerId, table.showroomId)
+}));
+
 export const allocations = pgTable("allocations", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   level: allocationLevelEnum("level").notNull(),
@@ -283,12 +296,12 @@ export const pricingRules = pgTable("pricing_rules", {
   // For DEALERSHIP_PRICING (Service + Vehicle Model + Dealership)
   dealershipId: uuid("dealership_id").references(() => dealerships.id),
   
-  // For DETAILER_PRICING (Detailer + Service + Vehicle Model)
+  // For DETAILER_PRICING (Detailer + Service Category - no vehicle model needed)
   detailerId: uuid("detailer_id").references(() => partners.id), // References partner with INSTALLER type
   
   // Common fields for all pricing types
-  vehicleModelId: uuid("vehicle_model_id").references(() => vehicleModels.id),
-  vehicleVariantId: uuid("vehicle_variant_id").references(() => vehicleVariants.id),
+  vehicleModelId: uuid("vehicle_model_id").references(() => vehicleModels.id), // Optional: Not needed for DETAILER_PRICING
+  vehicleVariantId: uuid("vehicle_variant_id").references(() => vehicleVariants.id), // Optional
   
   // Service reference - use serviceId for partner/dealership pricing, serviceCategoryId for detailer pricing
   serviceId: uuid("service_id").references(() => services.id), // For PARTNER_PRICING and DEALERSHIP_PRICING - OPTIONAL
@@ -643,6 +656,12 @@ export const selectPartnerSchema = createSelectSchema(partners);
 export type InsertPartner = z.infer<typeof insertPartnerSchema>;
 export type Partner = z.infer<typeof selectPartnerSchema>;
 
+// Partner Showroom Mapping schemas
+export const insertPartnerShowroomMappingSchema = createInsertSchema(partnerShowroomMapping).omit({ id: true, createdAt: true, updatedAt: true });
+export const selectPartnerShowroomMappingSchema = createSelectSchema(partnerShowroomMapping);
+export type InsertPartnerShowroomMapping = z.infer<typeof insertPartnerShowroomMappingSchema>;
+export type PartnerShowroomMapping = z.infer<typeof selectPartnerShowroomMappingSchema>;
+
 // Partner Service Category schemas
 export const insertPartnerServiceCategorySchema = createInsertSchema(partnerServiceCategories).omit({ id: true, createdAt: true });
 export const selectPartnerServiceCategorySchema = createSelectSchema(partnerServiceCategories);
@@ -661,16 +680,16 @@ export const insertPricingRuleSchema = createInsertSchema(pricingRules).omit({ i
   partnerId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
   scopeId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
   vehicleVariantId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
-  vehicleModelId: z.string().uuid(), // Always required
+  vehicleModelId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()), // Optional for DETAILER_PRICING
 }).refine(
   (data) => {
     // DEALERSHIP_PRICING requires dealershipId, serviceId, vehicleModelId
     if (data.pricingType === "DEALERSHIP_PRICING") {
       return data.dealershipId && data.serviceId && data.vehicleModelId;
     }
-    // DETAILER_PRICING requires detailerId, serviceCategoryId, vehicleModelId
+    // DETAILER_PRICING requires detailerId, serviceCategoryId (NO vehicle model needed)
     if (data.pricingType === "DETAILER_PRICING") {
-      return data.detailerId && data.serviceCategoryId && data.vehicleModelId;
+      return data.detailerId && data.serviceCategoryId;
     }
     // PARTNER_PRICING requires partnerId, scope, scopeId, serviceId, vehicleModelId
     if (data.pricingType === "PARTNER_PRICING") {
