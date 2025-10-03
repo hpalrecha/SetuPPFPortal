@@ -377,7 +377,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Dealership not found" });
       }
       
-      res.json(dealership);
+      // Fetch associated OEM IDs
+      const oemIds = await storage.getDealershipOems(id);
+      
+      res.json({ ...dealership, oemIds });
     } catch (error) {
       console.error("Get dealership error:", error);
       res.status(500).json({ error: "Failed to fetch dealership" });
@@ -390,8 +393,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('dealership', 'create'),
     async (req, res) => {
       try {
-        // Extract createUser flag and admin user data
-        const { createUser, adminUserData, ...dealershipFields } = req.body;
+        // Extract createUser flag, admin user data, and oemIds
+        const { createUser, adminUserData, oemIds, adminOemId, ...dealershipFields } = req.body;
+        
+        // Validate oemIds array is provided
+        if (!oemIds || !Array.isArray(oemIds) || oemIds.length === 0) {
+          return res.status(400).json({ error: "At least one OEM must be selected" });
+        }
         
         // Add code field derived from dealership name
         const dealershipData = {
@@ -399,14 +407,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           code: dealershipFields.name.substring(0, 3).toUpperCase() + Math.floor(Math.random() * 1000)
         };
         
-        // Create the dealership first
+        // Create the dealership first (without oemId)
         const dealership = await storage.createDealership(dealershipData);
+        
+        // Create OEM mappings
+        await storage.setDealershipOems(dealership.id, oemIds);
         
         // Create admin user if requested
         if (createUser && adminUserData) {
           try {
-    
             const hashedPassword = await bcrypt.hash(adminUserData.password, 10);
+            
+            // Use adminOemId if provided, otherwise use the first OEM from the list
+            const userOemId = adminOemId || oemIds[0];
             
             const adminData = {
               name: adminUserData.name,
@@ -414,7 +427,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               phone: adminUserData.phone || '',
               passwordHash: hashedPassword,
               role: 'DEALERSHIP_ADMIN' as const,
-              oemId: dealership.oemId, // Link to the same OEM
+              oemId: userOemId, // Link to specified or first OEM
               dealershipId: dealership.id,
               isActive: true
             };
@@ -427,7 +440,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
-        res.status(201).json(dealership);
+        // Return dealership with oemIds
+        res.status(201).json({ ...dealership, oemIds });
       } catch (error) {
         console.error("Create dealership error:", error);
         res.status(500).json({ error: "Failed to create dealership" });
@@ -442,7 +456,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const { id } = req.params;
-        const { resetPasswordData, ...dealershipData } = req.body;
+        const { resetPasswordData, oemIds, adminOemId, ...dealershipData } = req.body;
         
         // Update dealership data
         const dealership = await storage.updateDealership(id, dealershipData);
@@ -450,6 +464,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!dealership) {
           return res.status(404).json({ error: "Dealership not found" });
         }
+        
+        // Update OEM mappings if oemIds provided
+        if (oemIds && Array.isArray(oemIds)) {
+          if (oemIds.length === 0) {
+            return res.status(400).json({ error: "At least one OEM must be selected" });
+          }
+          await storage.setDealershipOems(id, oemIds);
+        }
+        
+        // Get current OEM mappings
+        const currentOemIds = await storage.getDealershipOems(id);
         
         // Handle password reset if requested
         if (resetPasswordData && resetPasswordData.newPassword) {
@@ -464,7 +489,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.error("Failed to reset dealership admin password:", passwordError);
             // Don't fail the dealership update if password reset fails
             return res.status(200).json({ 
-              ...dealership, 
+              ...dealership,
+              oemIds: currentOemIds,
               warning: "Dealership updated but password reset failed" 
             });
           }
@@ -476,13 +502,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const bcrypt = await import('bcryptjs');
             const hashedPassword = await bcrypt.hash(req.body.createAdminUserData.password, 10);
             
+            // Use adminOemId if provided, otherwise use the first OEM from current mappings
+            const userOemId = adminOemId || currentOemIds[0];
+            
+            if (!userOemId) {
+              return res.status(400).json({ error: "Cannot create admin user: No OEM mappings found" });
+            }
+            
             const adminData = {
               name: req.body.createAdminUserData.name,
               email: req.body.createAdminUserData.email,
               phone: req.body.createAdminUserData.phone || '',
               passwordHash: hashedPassword,
               role: 'DEALERSHIP_ADMIN' as const,
-              oemId: dealership.oemId, // Link to the same OEM
+              oemId: userOemId,
               dealershipId: dealership.id,
               isActive: true
             };
@@ -493,13 +526,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.error("Failed to create dealership admin user:", userError);
             // Don't fail the dealership update if user creation fails
             return res.status(200).json({ 
-              ...dealership, 
+              ...dealership,
+              oemIds: currentOemIds,
               warning: "Dealership updated but admin user creation failed" 
             });
           }
         }
         
-        res.json(dealership);
+        res.json({ ...dealership, oemIds: currentOemIds });
       } catch (error) {
         console.error("Update dealership error:", error);
         res.status(500).json({ error: "Failed to update dealership" });
@@ -548,6 +582,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         // Extract createUser flag and admin user data
         const { createUser, adminUserData, ...showroomFields } = req.body;
+        
+        // Validate that the selected OEM exists in the dealership's OEM mappings
+        if (showroomFields.dealershipId && showroomFields.oemId) {
+          const isValid = await storage.checkDealershipOemMapping(
+            showroomFields.dealershipId,
+            showroomFields.oemId
+          );
+          
+          if (!isValid) {
+            return res.status(400).json({ 
+              error: "Selected OEM is not associated with this dealership" 
+            });
+          }
+        }
         
         // Add code field derived from showroom name
         const showroomData = {
@@ -600,6 +648,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const { id } = req.params;
         const { resetPasswordData, adminUserData, createUser, ...showroomData } = req.body;
+        
+        // If updating dealershipId or oemId, validate the mapping
+        if ((showroomData.dealershipId || showroomData.oemId)) {
+          // Get current showroom to have both values
+          const currentShowroom = await storage.getShowroom(id);
+          if (!currentShowroom) {
+            return res.status(404).json({ error: "Showroom not found" });
+          }
+          
+          const dealershipId = showroomData.dealershipId || currentShowroom.dealershipId;
+          const oemId = showroomData.oemId || currentShowroom.oemId;
+          
+          const isValid = await storage.checkDealershipOemMapping(dealershipId, oemId);
+          
+          if (!isValid) {
+            return res.status(400).json({ 
+              error: "Selected OEM is not associated with this dealership" 
+            });
+          }
+        }
         
         // Update showroom data
         const showroom = await storage.updateShowroom(id, showroomData);
