@@ -149,6 +149,7 @@ export interface IStorage {
   getPartner(id: string): Promise<Partner | undefined>;
   createPartner(partner: InsertPartner): Promise<Partner>;
   updatePartner(id: string, updates: Partial<InsertPartner>): Promise<Partner | undefined>;
+  deletePartner(id: string): Promise<boolean>;
 
   // Partner Service Categories
   getPartnerServiceCategories(partnerId: string): Promise<string[]>;
@@ -1307,6 +1308,17 @@ export class DatabaseStorage implements IStorage {
       .where(eq(partners.id, id))
       .returning();
     return partner || undefined;
+  }
+
+  async deletePartner(id: string): Promise<boolean> {
+    // Soft delete by setting active to false to preserve data integrity
+    const [deletedPartner] = await db
+      .update(partners)
+      .set({ active: false, updatedAt: new Date() })
+      .where(eq(partners.id, id))
+      .returning();
+    
+    return !!deletedPartner;
   }
 
   // Partner Service Categories management

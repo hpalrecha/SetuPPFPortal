@@ -2657,6 +2657,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  app.delete("/api/partners/:id",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    auditLog('partner', 'delete'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        
+        const deleted = await storage.deletePartner(id);
+        if (!deleted) {
+          return res.status(404).json({ error: "Partner not found" });
+        }
+        
+        res.json({ message: "Partner deleted successfully" });
+      } catch (error) {
+        console.error("Delete partner error:", error);
+        res.status(500).json({ error: "Failed to delete partner" });
+      }
+    }
+  );
+
   // Partner service categories routes
   app.get("/api/partners/:id/service-categories", 
     authenticate, 
