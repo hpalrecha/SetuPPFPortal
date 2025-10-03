@@ -3368,7 +3368,7 @@ export class DatabaseStorage implements IStorage {
     // Total commission this month
     const thisMonthCommissionResult = await db
       .select({
-        total: sql<number>`SUM(CAST(commissions.commission_amount AS DECIMAL))`
+        total: sql<number>`SUM(CAST(commissions.computed_amount AS DECIMAL))`
       })
       .from(commissions)
       .innerJoin(workOrders, eq(commissions.workOrderId, workOrders.id))
