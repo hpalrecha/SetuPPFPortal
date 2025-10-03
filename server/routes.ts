@@ -1535,6 +1535,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Helper function to filter job card price based on partner permissions
+  const filterJobCardPrice = (jobCard: any, partner: any) => {
+    // Rule 1: Installer partners never see price
+    if (partner?.type === 'INSTALLER') {
+      const filtered = { ...jobCard };
+      delete filtered.billingValue;
+      delete filtered.estimatedPrice;
+      delete filtered.actualPrice;
+      return filtered;
+    }
+    
+    // Rule 2: Detailer partners see price only if admin grants permission
+    if (partner?.type === 'DETAILER' && !partner.canViewJobCardPrice) {
+      const filtered = { ...jobCard };
+      delete filtered.billingValue;
+      delete filtered.estimatedPrice;
+      delete filtered.actualPrice;
+      return filtered;
+    }
+    
+    // All other cases: show price
+    return jobCard;
+  };
+
   // Job Card Routes
   app.get("/api/job-cards", 
     authenticate, 
@@ -1630,7 +1654,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`🎯 Final filters for job cards query:`, filters);
       const jobCards = await storage.getJobCards(filters);
       console.log(`📋 Returned ${jobCards.length} job cards for partner`);
-      res.json(jobCards);
+      
+      // 🔒 Filter price based on partner permissions (for partner users only)
+      let filteredJobCards = jobCards;
+      if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+        const partner = await storage.getPartner(req.user!.partnerId!);
+        if (partner) {
+          filteredJobCards = jobCards.map(jc => filterJobCardPrice(jc, partner));
+        }
+      }
+      
+      res.json(filteredJobCards);
     } catch (error) {
       console.error("Get job cards error:", error);
       res.status(500).json({ error: "Failed to fetch job cards" });
@@ -1703,7 +1737,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const media = await storage.getJobCardMedia({ jobCardId: jobCard.id });
 
         // Build the response with the expected structure
-        const result = {
+        let result: any = {
           ...jobCard,
           workOrder: {
             ...workOrder,
@@ -1731,6 +1765,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           media: media || []
         };
+
+        // 🔒 Filter price based on partner permissions (for partner users only)
+        if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+          result = filterJobCardPrice(result, partner);
+        }
 
         res.json(result);
       } catch (error) {
