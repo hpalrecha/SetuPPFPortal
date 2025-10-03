@@ -145,28 +145,29 @@ export class WhatsAppService {
     return 'Unknown message format';
   }
 
-  // Predefined WhatsApp templates for SetuPPF
-  async sendJobCardAssigned(
+  // Job Card Lifecycle Templates (5 templates as per requirement)
+  
+  // 1. Job Card Created - Send to: Customer + Assigned Detailer/Partner
+  // Template: "A new Job Card *{{1}}* has been created for vehicle *{{2}}*. Assigned to *{{3}}*."
+  async sendJobCardCreated(
     phoneNumber: string,
     jobCardId: string,
-    customerName: string,
-    vehicleModel: string,
-    serviceName: string
+    vehicleDetails: string,
+    partnerName: string
   ): Promise<boolean> {
     return this.sendMessage({
       to: phoneNumber,
       type: 'template',
       template: {
-        name: 'job_card_assigned',
+        name: 'job_card_created',
         language: 'en',
         components: [
           {
             type: 'body',
             parameters: [
               { type: 'text', text: jobCardId },
-              { type: 'text', text: customerName },
-              { type: 'text', text: vehicleModel },
-              { type: 'text', text: serviceName }
+              { type: 'text', text: vehicleDetails },
+              { type: 'text', text: partnerName }
             ]
           }
         ]
@@ -174,11 +175,65 @@ export class WhatsAppService {
     });
   }
 
-  async sendJobCardCompleted(
+  // 2. Job Card Scheduled - Send to: Detailer/Partner
+  // Template: "Job Card *{{1}}* is scheduled on *{{2}}*. Assigned detailer: *{{3}}*."
+  async sendJobCardScheduled(
     phoneNumber: string,
     jobCardId: string,
-    detailerName: string,
-    status: string
+    scheduledDate: string,
+    detailerName: string
+  ): Promise<boolean> {
+    return this.sendMessage({
+      to: phoneNumber,
+      type: 'template',
+      template: {
+        name: 'job_card_scheduled',
+        language: 'en',
+        components: [
+          {
+            type: 'body',
+            parameters: [
+              { type: 'text', text: jobCardId },
+              { type: 'text', text: scheduledDate },
+              { type: 'text', text: detailerName }
+            ]
+          }
+        ]
+      }
+    });
+  }
+
+  // 3. Job Card Started - Send to: Showroom POC + Admin
+  // Template: "Job Card *{{1}}* has been started by *{{2}}*. Please monitor progress."
+  async sendJobCardStarted(
+    phoneNumber: string,
+    jobCardId: string,
+    partnerName: string
+  ): Promise<boolean> {
+    return this.sendMessage({
+      to: phoneNumber,
+      type: 'template',
+      template: {
+        name: 'job_card_started',
+        language: 'en',
+        components: [
+          {
+            type: 'body',
+            parameters: [
+              { type: 'text', text: jobCardId },
+              { type: 'text', text: partnerName }
+            ]
+          }
+        ]
+      }
+    });
+  }
+
+  // 4. Job Card Completed - Send to: Showroom POC (request approval)
+  // Template: "Job Card *{{1}}* has been completed. Please review and approve."
+  async sendJobCardCompleted(
+    phoneNumber: string,
+    jobCardId: string
   ): Promise<boolean> {
     return this.sendMessage({
       to: phoneNumber,
@@ -190,9 +245,31 @@ export class WhatsAppService {
           {
             type: 'body',
             parameters: [
-              { type: 'text', text: jobCardId },
-              { type: 'text', text: detailerName },
-              { type: 'text', text: status }
+              { type: 'text', text: jobCardId }
+            ]
+          }
+        ]
+      }
+    });
+  }
+
+  // 5. Job Card Approved - Send to: Detailer/Partner (approval confirmation)
+  // Template: "Job Card *{{1}}* has been approved by showroom/admin. Work successfully closed."
+  async sendJobCardApproved(
+    phoneNumber: string,
+    jobCardId: string
+  ): Promise<boolean> {
+    return this.sendMessage({
+      to: phoneNumber,
+      type: 'template',
+      template: {
+        name: 'job_card_approved',
+        language: 'en',
+        components: [
+          {
+            type: 'body',
+            parameters: [
+              { type: 'text', text: jobCardId }
             ]
           }
         ]

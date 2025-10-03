@@ -1,0 +1,90 @@
+title: "WhatsApp Notifications for Job Card Lifecycle via WABA"
+
+task: |
+  Implement automated WhatsApp notifications for Job Card lifecycle events using the official WhatsApp Business API (WABA).  
+  The system should send notifications at key stages to the correct recipients (detailers/partners, showroom POC/admin, customer if needed).  
+
+steps: |
+  1. **Define WhatsApp Notification Triggers**
+     - Job Card Created → Send to: Customer + Assigned Detailer/Partner  
+     - Job Card Scheduled → Send to: Detailer/Partner  
+     - Job Card Started → Send to: Showroom POC + Admin  
+     - Job Card Completed → Send to: Showroom POC (request approval)  
+     - Job Card Approved (by Admin/Showroom) → Send to: Detailer/Partner (approval confirmation)
+
+  2. **Set up WhatsApp Business API (WABA)**
+     - Confirm you have official WABA account with Meta.  
+     - Get credentials:  
+       - `WABA_PHONE_NUMBER_ID`  
+       - `WABA_BUSINESS_ACCOUNT_ID`  
+       - `WABA_ACCESS_TOKEN`  
+     - Store them in Replit Secrets for secure access.  
+
+  3. **Implement Message Sending Service**
+     - Create `server/whatsapp.ts` to handle WABA messages using Meta Graph API:
+       ```
+       POST https://graph.facebook.com/v19.0/${WABA_PHONE_NUMBER_ID}/messages
+       Headers: { Authorization: Bearer ${WABA_ACCESS_TOKEN}, Content-Type: application/json }
+       ```
+     - Payload example:
+       ```json
+       {
+         "messaging_product": "whatsapp",
+         "to": "91XXXXXXXXXX",
+         "type": "template",
+         "template": {
+           "name": "job_card_created",
+           "language": { "code": "en" },
+           "components": [
+             {
+               "type": "body",
+               "parameters": [
+                 { "type": "text", "text": "JC12345" },
+                 { "type": "text", "text": "Audi A4 - Silver" },
+                 { "type": "text", "text": "Detailer Pro Studio" }
+               ]
+             }
+           ]
+         }
+       }
+       ```
+
+  4. **Draft Message Templates (to be pre-approved by Meta)**
+     - **job_card_created**  
+       Body: "A new Job Card *{{1}}* has been created for vehicle *{{2}}*. Assigned to *{{3}}*."  
+       Variables: JobCardID, Vehicle, Detailer/Partner  
+
+     - **job_card_scheduled**  
+       Body: "Job Card *{{1}}* is scheduled on *{{2}}*. Assigned detailer: *{{3}}*."  
+       Variables: JobCardID, Date, Detailer  
+
+     - **job_card_started**  
+       Body: "Job Card *{{1}}* has been started by *{{2}}*. Please monitor progress."  
+       Variables: JobCardID, Detailer/Partner  
+
+     - **job_card_completed**  
+       Body: "Job Card *{{1}}* has been completed. Please review and approve."  
+       Variables: JobCardID  
+
+     - **job_card_approved**  
+       Body: "Job Card *{{1}}* has been approved by showroom/admin. Work successfully closed."  
+       Variables: JobCardID  
+
+  5. **ERP Integration**
+     - On each Job Card event (created, scheduled, started, completed, approved), call `sendWhatsAppTemplate(to, templateName, params)` function.  
+     - Map recipients:  
+       - Customer → job card contact phone  
+       - Detailer/Partner → partner contact phone  
+       - Showroom POC → showroom assigned phone  
+       - Admin → admin group or individual phone  
+
+  6. **Testing**
+     - Create `/api/test-whatsapp` endpoint to send a sample test message using template `job_card_created`.  
+     - Ensure Meta approval for each template before sending to production users.  
+
+expected_output: |
+  - WABA credentials set up in Replit secrets.  
+  - WhatsApp message sending service implemented via Graph API.  
+  - 5 message templates drafted and ready for Meta approval.  
+  - Notifications sent to correct recipients automatically on each Job Card lifecycle event.  
+  - Test endpoint `/api/test-whatsapp` returns success message.
