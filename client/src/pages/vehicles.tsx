@@ -46,7 +46,7 @@ const brandFormSchema = z.object({
 
 const modelFormSchema = z.object({
   modelName: z.string().min(1, 'Model name is required'),
-  brandId: z.string().min(1, 'Brand is required'),
+  oemId: z.string().min(1, 'OEM is required'),
   vehicleType: z.string().optional() // Vehicle type selection
 });
 
@@ -93,7 +93,7 @@ export default function VehiclesPage() {
 
   const modelForm = useForm<z.infer<typeof modelFormSchema>>({
     resolver: zodResolver(modelFormSchema),
-    defaultValues: { modelName: '', brandId: '', vehicleType: '' }
+    defaultValues: { modelName: '', oemId: selectedOemId, vehicleType: '' }
   });
 
   const variantForm = useForm<z.infer<typeof variantFormSchema>>({
@@ -428,7 +428,7 @@ export default function VehiclesPage() {
                           size="sm"
                           variant="outline"
                           onClick={() => {
-                            modelForm.setValue('brandId', brand.id);
+                            modelForm.setValue('oemId', brand.id);
                             setSelectedBrandId(brand.id);
                             setShowModelDialog(true);
                           }}
