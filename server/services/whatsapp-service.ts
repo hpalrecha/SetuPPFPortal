@@ -145,15 +145,17 @@ export class WhatsAppService {
     return 'Unknown message format';
   }
 
-  // Job Card Lifecycle Templates (5 templates as per requirement)
+  // Job Card Lifecycle Templates - Enhanced with Complete Context
   
   // 1. Job Card Created - Send to: Customer + Assigned Detailer/Partner
-  // Template: "A new Job Card *{{1}}* has been created for vehicle *{{2}}*. Assigned to *{{3}}*."
+  // Template: "Job Card *{{1}}* created! Vehicle: *{{2}}* | Service: *{{3}}* | Partner: *{{4}}* | Customer: *{{5}}*"
   async sendJobCardCreated(
     phoneNumber: string,
-    jobCardId: string,
+    jobCardNumber: string,
     vehicleDetails: string,
-    partnerName: string
+    serviceName: string,
+    partnerName: string,
+    customerName: string
   ): Promise<boolean> {
     return this.sendMessage({
       to: phoneNumber,
@@ -165,9 +167,11 @@ export class WhatsAppService {
           {
             type: 'body',
             parameters: [
-              { type: 'text', text: jobCardId },
+              { type: 'text', text: jobCardNumber },
               { type: 'text', text: vehicleDetails },
-              { type: 'text', text: partnerName }
+              { type: 'text', text: serviceName },
+              { type: 'text', text: partnerName },
+              { type: 'text', text: customerName }
             ]
           }
         ]
@@ -176,12 +180,14 @@ export class WhatsAppService {
   }
 
   // 2. Job Card Scheduled - Send to: Detailer/Partner
-  // Template: "Job Card *{{1}}* is scheduled on *{{2}}*. Assigned detailer: *{{3}}*."
+  // Template: "Job Card *{{1}}* scheduled on *{{2}}*! Vehicle: *{{3}}* | Service: *{{4}}* | Partner: *{{5}}*"
   async sendJobCardScheduled(
     phoneNumber: string,
-    jobCardId: string,
+    jobCardNumber: string,
     scheduledDate: string,
-    detailerName: string
+    vehicleDetails: string,
+    serviceName: string,
+    partnerName: string
   ): Promise<boolean> {
     return this.sendMessage({
       to: phoneNumber,
@@ -193,9 +199,11 @@ export class WhatsAppService {
           {
             type: 'body',
             parameters: [
-              { type: 'text', text: jobCardId },
+              { type: 'text', text: jobCardNumber },
               { type: 'text', text: scheduledDate },
-              { type: 'text', text: detailerName }
+              { type: 'text', text: vehicleDetails },
+              { type: 'text', text: serviceName },
+              { type: 'text', text: partnerName }
             ]
           }
         ]
@@ -204,11 +212,14 @@ export class WhatsAppService {
   }
 
   // 3. Job Card Started - Send to: Showroom POC + Admin
-  // Template: "Job Card *{{1}}* has been started by *{{2}}*. Please monitor progress."
+  // Template: "Work started on Job Card *{{1}}*! Vehicle: *{{2}}* | Service: *{{3}}* | Partner: *{{4}}* | Showroom: *{{5}}*"
   async sendJobCardStarted(
     phoneNumber: string,
-    jobCardId: string,
-    partnerName: string
+    jobCardNumber: string,
+    vehicleDetails: string,
+    serviceName: string,
+    partnerName: string,
+    showroomName: string
   ): Promise<boolean> {
     return this.sendMessage({
       to: phoneNumber,
@@ -220,8 +231,11 @@ export class WhatsAppService {
           {
             type: 'body',
             parameters: [
-              { type: 'text', text: jobCardId },
-              { type: 'text', text: partnerName }
+              { type: 'text', text: jobCardNumber },
+              { type: 'text', text: vehicleDetails },
+              { type: 'text', text: serviceName },
+              { type: 'text', text: partnerName },
+              { type: 'text', text: showroomName }
             ]
           }
         ]
@@ -230,10 +244,13 @@ export class WhatsAppService {
   }
 
   // 4. Job Card Completed - Send to: Showroom POC (request approval)
-  // Template: "Job Card *{{1}}* has been completed. Please review and approve."
+  // Template: "Job Card *{{1}}* completed! Vehicle: *{{2}}* | Service: *{{3}}* | Partner: *{{4}}* | Please review and approve."
   async sendJobCardCompleted(
     phoneNumber: string,
-    jobCardId: string
+    jobCardNumber: string,
+    vehicleDetails: string,
+    serviceName: string,
+    partnerName: string
   ): Promise<boolean> {
     return this.sendMessage({
       to: phoneNumber,
@@ -245,7 +262,10 @@ export class WhatsAppService {
           {
             type: 'body',
             parameters: [
-              { type: 'text', text: jobCardId }
+              { type: 'text', text: jobCardNumber },
+              { type: 'text', text: vehicleDetails },
+              { type: 'text', text: serviceName },
+              { type: 'text', text: partnerName }
             ]
           }
         ]
@@ -254,10 +274,13 @@ export class WhatsAppService {
   }
 
   // 5. Job Card Approved - Send to: Detailer/Partner (approval confirmation)
-  // Template: "Job Card *{{1}}* has been approved by showroom/admin. Work successfully closed."
+  // Template: "Job Card *{{1}}* approved! Vehicle: *{{2}}* | Service: *{{3}}* | Approved by: *{{4}}* | Work successfully closed."
   async sendJobCardApproved(
     phoneNumber: string,
-    jobCardId: string
+    jobCardNumber: string,
+    vehicleDetails: string,
+    serviceName: string,
+    approvedBy: string
   ): Promise<boolean> {
     return this.sendMessage({
       to: phoneNumber,
@@ -269,7 +292,10 @@ export class WhatsAppService {
           {
             type: 'body',
             parameters: [
-              { type: 'text', text: jobCardId }
+              { type: 'text', text: jobCardNumber },
+              { type: 'text', text: vehicleDetails },
+              { type: 'text', text: serviceName },
+              { type: 'text', text: approvedBy }
             ]
           }
         ]

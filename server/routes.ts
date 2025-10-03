@@ -1766,17 +1766,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           try {
             const partner = await storage.getPartner(jobCard.partnerId);
             const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
+            const service = await storage.getService(workOrder.serviceId);
             
-            const vehicleDetails = `${vehicleModel?.name || 'Vehicle'} - ${workOrder.color || 'N/A'}`;
+            const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} - ${workOrder.color || 'N/A'}`;
             const partnerName = partner?.displayName || 'Partner';
+            const serviceName = service?.name || 'Service';
+            const customerName = workOrder.customerName || 'Customer';
             
             // Send to customer if phone available
             if (workOrder.customerPhone) {
               await whatsappService.sendJobCardCreated(
                 workOrder.customerPhone,
-                jobCard.jobCardNumber,
+                jobCard.jobCardNumber || jobCard.id.slice(0, 8),
                 vehicleDetails,
-                partnerName
+                serviceName,
+                partnerName,
+                customerName
               );
             }
             
@@ -1784,9 +1789,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (partner?.contactPhone) {
               await whatsappService.sendJobCardCreated(
                 partner.contactPhone,
-                jobCard.jobCardNumber,
+                jobCard.jobCardNumber || jobCard.id.slice(0, 8),
                 vehicleDetails,
-                partnerName
+                serviceName,
+                partnerName,
+                customerName
               );
             }
           } catch (whatsappError) {
@@ -1952,10 +1959,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // 📱 WhatsApp Notification: Job Card Approved
         try {
           const partner = await storage.getPartner(jobCard.partnerId);
+          const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
+          const service = await storage.getService(workOrder.serviceId);
+          
+          const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} - ${workOrder.color || 'N/A'}`;
+          const serviceName = service?.name || 'Service';
+          const approvedBy = req.user!.name || req.user!.email;
+          
           if (partner?.contactPhone) {
             await whatsappService.sendJobCardApproved(
               partner.contactPhone,
-              updatedJobCard.jobCardNumber
+              updatedJobCard.jobCardNumber || updatedJobCard.id.slice(0, 8),
+              vehicleDetails,
+              serviceName,
+              approvedBy
             );
           }
         } catch (whatsappError) {
@@ -2033,12 +2050,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // 📱 WhatsApp Notification: Job Card Scheduled
       try {
+        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
         const partner = await storage.getPartner(jobCard.partnerId);
+        const vehicleModel = workOrder ? await storage.getVehicleModel(workOrder.vehicleModelId) : null;
+        const service = workOrder ? await storage.getService(workOrder.serviceId) : null;
+        
+        const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} - ${workOrder?.color || 'N/A'}`;
+        const serviceName = service?.name || 'Service';
+        
         if (partner?.contactPhone) {
           await whatsappService.sendJobCardScheduled(
             partner.contactPhone,
-            jobCard.jobCardNumber,
+            jobCard.jobCardNumber || jobCard.id.slice(0, 8),
             scheduledAt.toLocaleDateString('en-IN'),
+            vehicleDetails,
+            serviceName,
             partner.displayName
           );
         }
@@ -2073,13 +2099,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const partner = await storage.getPartner(jobCard.partnerId);
         
         if (workOrder) {
-          // Send to showroom POC
+          const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
+          const service = await storage.getService(workOrder.serviceId);
           const showroom = await storage.getShowroom(workOrder.showroomId || '');
+          
+          const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} - ${workOrder.color || 'N/A'}`;
+          const serviceName = service?.name || 'Service';
+          
           if (showroom?.contactPersonPhone) {
             await whatsappService.sendJobCardStarted(
               showroom.contactPersonPhone,
-              jobCard.jobCardNumber,
-              partner?.displayName || 'Partner'
+              jobCard.jobCardNumber || jobCard.id.slice(0, 8),
+              vehicleDetails,
+              serviceName,
+              partner?.displayName || 'Partner',
+              showroom.name
             );
           }
         }
@@ -2170,11 +2204,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
         if (workOrder) {
+          const partner = await storage.getPartner(jobCard.partnerId);
+          const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
+          const service = await storage.getService(workOrder.serviceId);
           const showroom = await storage.getShowroom(workOrder.showroomId || '');
+          
+          const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} - ${workOrder.color || 'N/A'}`;
+          const serviceName = service?.name || 'Service';
+          
           if (showroom?.contactPersonPhone) {
             await whatsappService.sendJobCardCompleted(
               showroom.contactPersonPhone,
-              jobCard.jobCardNumber
+              jobCard.jobCardNumber || jobCard.id.slice(0, 8),
+              vehicleDetails,
+              serviceName,
+              partner?.displayName || 'Partner'
             );
           }
         }
@@ -4333,7 +4377,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         phoneNumber,
         "TEST-JC-001",
         "Audi A4 - Silver",
-        "Test Partner Studio"
+        "PPF Full Body Protection",
+        "Premium Detailing Studio",
+        "Rajesh Kumar"
       );
 
       if (success) {
@@ -4341,6 +4387,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "Test WhatsApp notification sent successfully",
           phoneNumber: phoneNumber,
           template: "job_card_created",
+          sampleMessage: "Job Card TEST-JC-001 created! Vehicle: Audi A4 - Silver | Service: PPF Full Body Protection | Partner: Premium Detailing Studio | Customer: Rajesh Kumar",
           note: "This is a test notification. Ensure template 'job_card_created' is approved by Meta before production use."
         });
       } else {
