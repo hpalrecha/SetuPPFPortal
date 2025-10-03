@@ -34,6 +34,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 const showroomSchema = z.object({
   name: z.string().min(1, "Showroom name is required"),
   dealershipId: z.string().min(1, "Dealership is required"),
+  oemId: z.string().min(1, "OEM is required"),
   managerName: z.string().min(1, "Manager name is required"),
   contactEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
   contactPhone: z.string().min(1, "Contact phone is required"),
@@ -91,6 +92,7 @@ export function CreateShowroomModal({
     defaultValues: {
       name: showroom?.name || "",
       dealershipId: showroom?.dealershipId || "",
+      oemId: showroom?.oemId || "",
       managerName: showroom?.managerName || "",
       contactEmail: showroom?.contactEmail || "",
       contactPhone: showroom?.contactPhone || "",
@@ -107,6 +109,9 @@ export function CreateShowroomModal({
       newPassword: "",
     },
   });
+  
+  // Watch dealershipId to fetch available OEMs for that dealership
+  const selectedDealershipId = form.watch("dealershipId");
 
   // Query for existing showroom manager (for edit mode)
   const { data: showroomUsers } = useQuery({
@@ -121,6 +126,7 @@ export function CreateShowroomModal({
       form.reset({
         name: showroom.name || "",
         dealershipId: showroom.dealershipId || "",
+        oemId: showroom.oemId || "",
         managerName: showroom.managerName || "",
         contactEmail: showroom.contactEmail || "",
         contactPhone: showroom.contactPhone || "",
@@ -141,6 +147,7 @@ export function CreateShowroomModal({
       form.reset({
         name: "",
         dealershipId: "",
+        oemId: "",
         managerName: "",
         contactEmail: "",
         contactPhone: "",
@@ -174,6 +181,27 @@ export function CreateShowroomModal({
     },
     enabled: open,
   });
+  
+  // Fetch all OEMs to display names
+  const { data: allOems = [] } = useQuery({
+    queryKey: ["/api/oems"],
+    queryFn: async () => {
+      const response = await fetch('/api/oems', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch OEMs');
+      return response.json();
+    },
+    enabled: open,
+  });
+  
+  // Get available OEMs for the selected dealership
+  const selectedDealership = dealerships.find((d: any) => d.id === selectedDealershipId);
+  const availableOemIds = selectedDealership?.oemIds || [];
+  const availableOems = allOems.filter((oem: any) => availableOemIds.includes(oem.id));
 
   const onSubmit = async (data: ShowroomFormData) => {
     setIsLoading(true);
@@ -273,7 +301,11 @@ export function CreateShowroomModal({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Dealership</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={(value) => {
+                        field.onChange(value);
+                        // Reset OEM selection when dealership changes
+                        form.setValue("oemId", "");
+                      }} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select Dealership" />
@@ -292,6 +324,42 @@ export function CreateShowroomModal({
                   )}
                 />
               </div>
+              
+              {/* OEM Selection - Only show OEMs from selected dealership */}
+              {selectedDealershipId && (
+                <div className="mt-4">
+                  <FormField
+                    control={form.control}
+                    name="oemId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>OEM</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select OEM" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {availableOems.length > 0 ? (
+                              availableOems.map((oem: any) => (
+                                <SelectItem key={oem.id} value={oem.id}>
+                                  {oem.name}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <div className="p-2 text-sm text-muted-foreground">
+                                No OEMs available for this dealership
+                              </div>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Management Information */}
