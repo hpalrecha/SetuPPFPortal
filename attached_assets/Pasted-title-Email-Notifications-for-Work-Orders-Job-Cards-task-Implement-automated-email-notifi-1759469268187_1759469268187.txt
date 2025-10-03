@@ -1,0 +1,71 @@
+title: "Email Notifications for Work Orders & Job Cards"
+
+task: |
+  Implement automated email notifications in the ERP system for all major lifecycle events of Work Orders and Job Cards.  
+
+steps: |
+  1. **Define Trigger Events & Recipients**
+     - Job Card Created → Notify: Customer, Assigned Technician, Admin
+     - Job Card Updated (status, parts added, remarks) → Notify: Customer, Admin
+     - Job Card Completed → Notify: Customer, Admin
+     - Work Order Created → Notify: Admin, OEM Partner (if applicable)
+     - Work Order Updated (status, billing, remarks) → Notify: Admin
+     - Work Order Completed → Notify: Admin, OEM Partner (if applicable)
+     - Work Order Cancelled → Notify: Admin, Customer (if linked)
+     - Job Card → Work Order Linkage Created → Notify: Admin, Dealer
+     - Invoice/Payment Posted against Work Order → Notify: Customer, Admin
+
+  2. **Check AWS SES Setup**
+     - If AWS SES already configured in environment:
+       - Ensure `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `SES_SMTP_USERNAME`, `SES_SMTP_PASSWORD`, and `FROM_EMAIL=noreply@p91india.com` are present in Replit Secrets.
+     - If not configured:
+       - Create AWS SES account in region `ap-south-1`.
+       - Verify sender email `noreply@p91india.com`.
+       - Request Production Access to send to any email.
+       - Create IAM User with `AmazonSESFullAccess`.
+       - Generate Access Keys + SMTP credentials.
+       - Add the following to Replit Secrets:
+         ```
+         AWS_ACCESS_KEY_ID=xxxxx
+         AWS_SECRET_ACCESS_KEY=xxxxx
+         AWS_REGION=ap-south-1
+         SES_SMTP_USERNAME=xxxxx
+         SES_SMTP_PASSWORD=xxxxx
+         FROM_EMAIL=noreply@p91india.com
+         ```
+
+  3. **Implement Hybrid Email Service**
+     - Create `server/emailSES.ts` using AWS SDK (`@aws-sdk/client-ses`).
+     - Create `server/emailSMTP.ts` using Nodemailer.
+     - Create `server/email.ts` with hybrid approach:
+       - Try AWS SES first.
+       - If SES fails, fallback to SMTP.
+       - Log failures to console.
+
+  4. **Integrate with ERP**
+     - On each Work Order / Job Card event, call `sendEmailHybrid(to, subject, htmlBody, textBody)`.
+     - Example subject lines:
+       - `Job Card Created - #JC123`
+       - `Work Order Completed - #WO456`
+     - HTML + text templates to include:
+       - Job/Work Order ID
+       - Customer details
+       - Status update
+       - Link to ERP portal for details
+
+  5. **Testing**
+     - Create test endpoint `/api/test-email` that sends a sample email to confirm configuration.
+     - Test with different events (Job Card creation, Work Order completion, etc.).
+
+  6. **Error Handling**
+     - If "Email not verified" → Verify in AWS SES Console.
+     - If "Sandbox Mode" → Request production access.
+     - If "Access Denied" → Ensure IAM policy `AmazonSESFullAccess`.
+     - If SMTP fails → Regenerate SMTP credentials.
+
+expected_output: |
+  - AWS SES set up with noreply@p91india.com as sender.
+  - Replit secrets configured for SES & SMTP.
+  - Hybrid email system implemented with SES (primary) and SMTP (fallback).
+  - Notifications automatically sent to correct recipients on every major Work Order and Job Card update.
+  - Test endpoint `/api/test-email` returns success.
