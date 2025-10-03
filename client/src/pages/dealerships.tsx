@@ -15,6 +15,7 @@ export default function DealershipsPage() {
   
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingDealership, setEditingDealership] = useState<any>(null);
+  const [isLoadingDealership, setIsLoadingDealership] = useState(false);
   
   // Only Super Admin can access dealership management
   const canAccessDealerships = user?.role === 'SUPER_ADMIN';
@@ -71,9 +72,35 @@ export default function DealershipsPage() {
     setShowCreateModal(true);
   };
 
-  const handleEditDealership = (dealership: any) => {
-    setEditingDealership(dealership);
-    setShowCreateModal(true);
+  const handleEditDealership = async (dealership: any) => {
+    setIsLoadingDealership(true);
+    try {
+      // Fetch full dealership details including oemIds
+      const response = await fetch(`/api/dealerships/${dealership.id}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch dealership details');
+      }
+      
+      const fullDealership = await response.json();
+      console.log('Fetched full dealership:', fullDealership);
+      setEditingDealership(fullDealership);
+      setShowCreateModal(true);
+    } catch (error) {
+      console.error('Error fetching dealership:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load dealership details",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingDealership(false);
+    }
   };
 
   const handleDeleteDealership = async (id: string) => {
