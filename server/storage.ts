@@ -2,6 +2,7 @@ import {
   users, 
   oems,
   dealerships,
+  dealershipOemMapping,
   showrooms,
   salesPersons,
   partners,
@@ -27,6 +28,12 @@ import {
   type InsertUser,
   type Oem,
   type InsertOem,
+  type Dealership,
+  type InsertDealership,
+  type DealershipOemMapping,
+  type InsertDealershipOemMapping,
+  type Showroom,
+  type InsertShowroom,
   type WorkOrder,
   type InsertWorkOrder,
   type JobCard,
@@ -98,6 +105,13 @@ export interface IStorage {
   createDealership(dealership: any): Promise<any>;
   updateDealership(id: string, updates: any): Promise<any | undefined>;
   deleteDealership(id: string): Promise<boolean>;
+
+  // Dealership-OEM Mapping
+  getDealershipOems(dealershipId: string): Promise<string[]>; // Returns array of OEM IDs
+  addDealershipOemMapping(dealershipId: string, oemId: string): Promise<any>;
+  removeDealershipOemMapping(dealershipId: string, oemId: string): Promise<boolean>;
+  setDealershipOems(dealershipId: string, oemIds: string[]): Promise<void>; // Replace all mappings
+  checkDealershipOemMapping(dealershipId: string, oemId: string): Promise<boolean>; // Check if mapping exists
 
   // Showroom management
   getShowrooms(dealershipId?: string, oemId?: string): Promise<any[]>;
@@ -659,30 +673,25 @@ export class DatabaseStorage implements IStorage {
     // 1. Delete work orders for this OEM
     await db.delete(workOrders).where(eq(workOrders.oemId, id));
     
-    // 2. Update users to remove OEM association (preserve user accounts)
+    // 2. Delete showrooms for this OEM
+    await db.delete(showrooms).where(eq(showrooms.oemId, id));
+    
+    // 3. Update users to remove OEM association (preserve user accounts)
     await db.update(users)
       .set({ oemId: null, dealershipId: null, showroomId: null })
       .where(eq(users.oemId, id));
     
-    // 3. Get all dealerships for this OEM
-    const oemDealerships = await db.select({ id: dealerships.id }).from(dealerships).where(eq(dealerships.oemId, id));
+    // 4. Delete dealership-OEM mappings for this OEM (will cascade automatically)
+    await db.delete(dealershipOemMapping).where(eq(dealershipOemMapping.oemId, id));
     
-    // 4. Delete showrooms for each dealership
-    for (const dealership of oemDealerships) {
-      await db.delete(showrooms).where(eq(showrooms.dealershipId, dealership.id));
-    }
-    
-    // 5. Delete all dealerships for this OEM
-    await db.delete(dealerships).where(eq(dealerships.oemId, id));
-    
-    // 6. Delete all vehicle models and their variants for this OEM
+    // 5. Delete all vehicle models and their variants for this OEM
     const oemModels = await db.select({ id: vehicleModels.id }).from(vehicleModels).where(eq(vehicleModels.oemId, id));
     for (const model of oemModels) {
       await db.delete(vehicleVariants).where(eq(vehicleVariants.modelId, model.id));
     }
     await db.delete(vehicleModels).where(eq(vehicleModels.oemId, id));
     
-    // 7. Finally delete the OEM itself
+    // 6. Finally delete the OEM itself
     const result = await db
       .delete(oems)
       .where(eq(oems.id, id));
@@ -691,11 +700,27 @@ export class DatabaseStorage implements IStorage {
 
   // Dealership Management
   async getDealerships(oemId?: string): Promise<any[]> {
-    const query = db.select().from(dealerships);
     if (oemId) {
-      return await query.where(eq(dealerships.oemId, oemId));
+      // Get dealerships mapped to this OEM
+      const mappings = await db
+        .select({ dealershipId: dealershipOemMapping.dealershipId })
+        .from(dealershipOemMapping)
+        .where(and(
+          eq(dealershipOemMapping.oemId, oemId),
+          eq(dealershipOemMapping.status, 'active')
+        ));
+      
+      if (mappings.length === 0) {
+        return [];
+      }
+      
+      const dealershipIds = mappings.map(m => m.dealershipId);
+      return await db
+        .select()
+        .from(dealerships)
+        .where(inArray(dealerships.id, dealershipIds));
     }
-    return await query;
+    return await db.select().from(dealerships);
   }
 
   async getDealership(id: string): Promise<any | undefined> {
@@ -727,6 +752,9 @@ export class DatabaseStorage implements IStorage {
     // Delete associated showrooms first
     await db.delete(showrooms).where(eq(showrooms.dealershipId, id));
     
+    // Delete OEM mappings (will cascade automatically due to onDelete: cascade)
+    await db.delete(dealershipOemMapping).where(eq(dealershipOemMapping.dealershipId, id));
+    
     // Delete the dealership
     const result = await db
       .delete(dealerships)
@@ -734,25 +762,76 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount ?? 0) > 0;
   }
 
+  // Dealership-OEM Mapping Methods
+  async getDealershipOems(dealershipId: string): Promise<string[]> {
+    const mappings = await db
+      .select({ oemId: dealershipOemMapping.oemId })
+      .from(dealershipOemMapping)
+      .where(and(
+        eq(dealershipOemMapping.dealershipId, dealershipId),
+        eq(dealershipOemMapping.status, 'active')
+      ));
+    return mappings.map(m => m.oemId);
+  }
+
+  async addDealershipOemMapping(dealershipId: string, oemId: string): Promise<any> {
+    const [mapping] = await db
+      .insert(dealershipOemMapping)
+      .values({ dealershipId, oemId, status: 'active' })
+      .returning();
+    return mapping;
+  }
+
+  async removeDealershipOemMapping(dealershipId: string, oemId: string): Promise<boolean> {
+    const result = await db
+      .delete(dealershipOemMapping)
+      .where(and(
+        eq(dealershipOemMapping.dealershipId, dealershipId),
+        eq(dealershipOemMapping.oemId, oemId)
+      ));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async setDealershipOems(dealershipId: string, oemIds: string[]): Promise<void> {
+    // Remove all existing mappings
+    await db.delete(dealershipOemMapping).where(eq(dealershipOemMapping.dealershipId, dealershipId));
+    
+    // Add new mappings
+    if (oemIds.length > 0) {
+      await db.insert(dealershipOemMapping).values(
+        oemIds.map(oemId => ({ dealershipId, oemId, status: 'active' as const }))
+      );
+    }
+  }
+
+  async checkDealershipOemMapping(dealershipId: string, oemId: string): Promise<boolean> {
+    const [mapping] = await db
+      .select()
+      .from(dealershipOemMapping)
+      .where(and(
+        eq(dealershipOemMapping.dealershipId, dealershipId),
+        eq(dealershipOemMapping.oemId, oemId),
+        eq(dealershipOemMapping.status, 'active')
+      ))
+      .limit(1);
+    return !!mapping;
+  }
+
   // Showroom Management
   async getShowrooms(dealershipId?: string, oemId?: string): Promise<any[]> {
     let showroomsList;
     
-    if (dealershipId) {
+    if (dealershipId && oemId) {
+      // Filter by both dealership and OEM
+      showroomsList = await db.select().from(showrooms).where(and(
+        eq(showrooms.dealershipId, dealershipId),
+        eq(showrooms.oemId, oemId)
+      ));
+    } else if (dealershipId) {
       showroomsList = await db.select().from(showrooms).where(eq(showrooms.dealershipId, dealershipId));
     } else if (oemId) {
-      // Get showrooms for all dealerships under this OEM
-      const oemDealerships = await db.select({ id: dealerships.id }).from(dealerships).where(eq(dealerships.oemId, oemId));
-      
-      if (oemDealerships.length === 0) return [];
-      
-      // Get all showrooms for these dealerships using individual queries (simpler and safer)
-      const allShowrooms = [];
-      for (const dealership of oemDealerships) {
-        const dealershipShowrooms = await db.select().from(showrooms).where(eq(showrooms.dealershipId, dealership.id));
-        allShowrooms.push(...dealershipShowrooms);
-      }
-      showroomsList = allShowrooms;
+      // Get showrooms directly by OEM ID
+      showroomsList = await db.select().from(showrooms).where(eq(showrooms.oemId, oemId));
     } else {
       showroomsList = await db.select().from(showrooms);
     }
