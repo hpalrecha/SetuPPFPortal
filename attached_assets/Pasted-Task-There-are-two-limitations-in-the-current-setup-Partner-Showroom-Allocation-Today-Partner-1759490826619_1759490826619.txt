@@ -1,0 +1,102 @@
+Task
+
+There are two limitations in the current setup:
+
+Partner → Showroom Allocation
+
+Today: Partner (Installer/Detailer) can be linked to only one showroom (one-to-one).
+
+Real-world: A single partner may serve multiple showrooms within or across dealerships.
+
+Pricing Rules
+
+Today: Payout rules for detailers/installers require partner type + service category + vehicle model + amount + effective date.
+
+Real-world: Vehicle model dependency is unnecessary. Rules should apply per service category across all vehicles.
+
+We need to redesign allocation and simplify pricing to match actual business needs.
+
+Action
+1. Partner → Showroom (One-to-Many Mapping)
+
+DB Update:
+
+Remove partner.showroom_id.
+
+Create new partner_showroom_mapping table:
+
+partner_id
+
+showroom_id
+
+status (active/inactive)
+
+created_at, updated_at
+
+UI/UX:
+
+In Partner creation/update → Showroom field becomes multi-select.
+
+Validation: At least one showroom must be selected.
+
+Workflow:
+
+Job Card creation → only partners mapped to that showroom appear.
+
+Reporting, payouts, commissions → filter by partner_id + showroom_id.
+
+2. Simplified Pricing Rule (Remove Vehicle Model)
+
+DB Update:
+
+Remove vehicle_model field from pricing_rule.
+
+New schema:
+
+partner_type (Detailer/Installer)
+
+service_category_id
+
+payout_amount
+
+effective_date
+
+UI/UX:
+
+In Pricing Rule form → remove Vehicle Model field.
+
+Service Category + Partner Type + Amount → mandatory.
+
+Workflow:
+
+During payout → match rule on partner_type + service_category.
+
+Apply payout regardless of vehicle model.
+
+Legacy rules → migrate by consolidating multiple vehicle-model entries into one service-category-level rule.
+
+Check
+
+Partner Allocation Example:
+
+Rajesh Detailers linked to Showroom A (Hyundai) + Showroom B (Kia).
+
+When a job card is raised in Showroom A → Rajesh available only if mapped.
+
+Pricing Rule Example:
+
+Old: Detailer + “Ceramic Coating” + “Hyundai Creta” → ₹2000.
+
+New: Detailer + “Ceramic Coating” → ₹2000 (applies to all vehicles).
+
+Outcome
+
+Partners can flexibly serve multiple showrooms without duplicate accounts.
+
+Pricing rules are much simpler, easier to manage, and universal per service category.
+
+OEM/Dealer data integrity remains intact:
+
+Partner visibility limited to mapped showrooms.
+
+Payouts/commissions apply consistently and fairly across vehicles.
