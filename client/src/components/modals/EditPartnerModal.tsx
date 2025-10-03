@@ -46,6 +46,7 @@ const partnerSchema = z.object({
   state: z.string().min(1, "State is required"),
   pincode: z.string().min(1, "Pincode is required"),
   active: z.boolean(),
+  canViewJobCardPrice: z.boolean().optional(),
   serviceCategoryIds: z.array(z.string()).optional(),
 });
 
@@ -93,6 +94,7 @@ export function EditPartnerModal({
       state: "",
       pincode: "",
       active: true,
+      canViewJobCardPrice: false,
       serviceCategoryIds: [],
     },
   });
@@ -111,6 +113,7 @@ export function EditPartnerModal({
         state: partner.state || "",
         pincode: partner.pincode || "",
         active: partner.active ?? true,
+        canViewJobCardPrice: partner.canViewJobCardPrice ?? false,
         serviceCategoryIds: partnerCategories?.serviceCategoryIds || [],
       });
     } else if (!partner && open) {
@@ -125,6 +128,7 @@ export function EditPartnerModal({
         state: "",
         pincode: "",
         active: true,
+        canViewJobCardPrice: false,
         serviceCategoryIds: [],
       });
     }
@@ -419,7 +423,7 @@ export function EditPartnerModal({
               />
             </div>
 
-            {/* Status */}
+            {/* Status and Permissions */}
             <div className="space-y-4">
               <FormField
                 control={form.control}
@@ -442,6 +446,31 @@ export function EditPartnerModal({
                   </FormItem>
                 )}
               />
+
+              {/* Price Visibility Control - Only for STUDIO (Detailer) type */}
+              {form.watch("type") === "STUDIO" && (
+                <FormField
+                  control={form.control}
+                  name="canViewJobCardPrice"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 bg-blue-50 dark:bg-blue-950">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">Allow Job Card Price Visibility</FormLabel>
+                        <div className="text-sm text-muted-foreground">
+                          When enabled, this Detailer can view Job Card prices. Installers never see prices.
+                        </div>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value ?? false}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-can-view-price"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
 
             <DialogFooter>

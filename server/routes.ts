@@ -1546,8 +1546,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return filtered;
     }
     
-    // Rule 2: Detailer partners see price only if admin grants permission
-    if (partner?.type === 'DETAILER' && !partner.canViewJobCardPrice) {
+    // Rule 2: Studio (Detailer) partners see price only if admin grants permission
+    if (partner?.type === 'STUDIO' && !partner.canViewJobCardPrice) {
       const filtered = { ...jobCard };
       delete filtered.billingValue;
       delete filtered.estimatedPrice;
