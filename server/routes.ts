@@ -1767,33 +1767,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const partner = await storage.getPartner(jobCard.partnerId);
             const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
             const service = await storage.getService(workOrder.serviceId);
+            const showroom = await storage.getShowroom(workOrder.showroomId || '');
             
             const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} - ${workOrder.color || 'N/A'}`;
             const partnerName = partner?.displayName || 'Partner';
             const serviceName = service?.name || 'Service';
-            const customerName = workOrder.customerName || 'Customer';
-            
-            // Send to customer if phone available
-            if (workOrder.customerPhone) {
-              await whatsappService.sendJobCardCreated(
-                workOrder.customerPhone,
-                jobCard.jobCardNumber || jobCard.id.slice(0, 8),
-                vehicleDetails,
-                serviceName,
-                partnerName,
-                customerName
-              );
-            }
+            const showroomName = showroom?.name || 'Showroom';
             
             // Send to partner if phone available
             if (partner?.contactPhone) {
               await whatsappService.sendJobCardCreated(
                 partner.contactPhone,
-                jobCard.jobCardNumber || jobCard.id.slice(0, 8),
-                vehicleDetails,
-                serviceName,
                 partnerName,
-                customerName
+                vehicleDetails,
+                showroomName,
+                serviceName,
+                jobCard.id
               );
             }
           } catch (whatsappError) {
@@ -1960,19 +1949,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const partner = await storage.getPartner(jobCard.partnerId);
           const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
-          const service = await storage.getService(workOrder.serviceId);
           
           const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} - ${workOrder.color || 'N/A'}`;
-          const serviceName = service?.name || 'Service';
           const approvedBy = req.user!.name || req.user!.email;
           
           if (partner?.contactPhone) {
             await whatsappService.sendJobCardApproved(
               partner.contactPhone,
-              updatedJobCard.jobCardNumber || updatedJobCard.id.slice(0, 8),
+              partner.displayName,
               vehicleDetails,
-              serviceName,
-              approvedBy
+              approvedBy,
+              updatedJobCard.id
             );
           }
         } catch (whatsappError) {
@@ -2053,19 +2040,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
         const partner = await storage.getPartner(jobCard.partnerId);
         const vehicleModel = workOrder ? await storage.getVehicleModel(workOrder.vehicleModelId) : null;
-        const service = workOrder ? await storage.getService(workOrder.serviceId) : null;
+        const showroom = workOrder ? await storage.getShowroom(workOrder.showroomId || '') : null;
         
         const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} - ${workOrder?.color || 'N/A'}`;
-        const serviceName = service?.name || 'Service';
+        const showroomName = showroom?.name || 'Showroom';
         
         if (partner?.contactPhone) {
           await whatsappService.sendJobCardScheduled(
             partner.contactPhone,
-            jobCard.jobCardNumber || jobCard.id.slice(0, 8),
+            partner.displayName,
             scheduledAt.toLocaleDateString('en-IN'),
             vehicleDetails,
-            serviceName,
-            partner.displayName
+            showroomName,
+            jobCard.id
           );
         }
       } catch (whatsappError) {
@@ -2109,11 +2096,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (showroom?.contactPersonPhone) {
             await whatsappService.sendJobCardStarted(
               showroom.contactPersonPhone,
-              jobCard.jobCardNumber || jobCard.id.slice(0, 8),
+              partner?.displayName || 'Partner',
               vehicleDetails,
               serviceName,
-              partner?.displayName || 'Partner',
-              showroom.name
+              jobCard.id
             );
           }
         }
@@ -2215,10 +2201,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (showroom?.contactPersonPhone) {
             await whatsappService.sendJobCardCompleted(
               showroom.contactPersonPhone,
-              jobCard.jobCardNumber || jobCard.id.slice(0, 8),
+              partner?.displayName || 'Partner',
               vehicleDetails,
               serviceName,
-              partner?.displayName || 'Partner'
+              jobCard.id
             );
           }
         }
@@ -4375,11 +4361,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const success = await whatsappService.sendJobCardCreated(
         phoneNumber,
-        "TEST-JC-001",
-        "Audi A4 - Silver",
-        "PPF Full Body Protection",
         "Premium Detailing Studio",
-        "Rajesh Kumar"
+        "Audi A4 - Silver",
+        "City Auto Showroom",
+        "PPF Full Body Protection",
+        "test-job-card-123"
       );
 
       if (success) {
@@ -4387,7 +4373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "Test WhatsApp notification sent successfully",
           phoneNumber: phoneNumber,
           template: "job_card_created",
-          sampleMessage: "Job Card TEST-JC-001 created! Vehicle: Audi A4 - Silver | Service: PPF Full Body Protection | Partner: Premium Detailing Studio | Customer: Rajesh Kumar",
+          sampleMessage: "Hey Premium Detailing Studio! A new job card has been assigned to you for Audi A4 - Silver at City Auto Showroom. Service: PPF Full Body Protection. Please acknowledge and start the work.",
           note: "This is a test notification. Ensure template 'job_card_created' is approved by Meta before production use."
         });
       } else {

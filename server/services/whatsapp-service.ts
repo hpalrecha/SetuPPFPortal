@@ -145,18 +145,20 @@ export class WhatsAppService {
     return 'Unknown message format';
   }
 
-  // Job Card Lifecycle Templates - Enhanced with Complete Context
+  // Job Card Lifecycle Templates - Conversational with Action Buttons
   
   // 1. Job Card Created - Send to: Customer + Assigned Detailer/Partner
-  // Template: "Job Card *{{1}}* created! Vehicle: *{{2}}* | Service: *{{3}}* | Partner: *{{4}}* | Customer: *{{5}}*"
+  // Template: "Hey *{{1}}*! A new job card has been assigned to you for *{{2}}* at *{{3}}*. Service: *{{4}}*. Please acknowledge and start the work."
   async sendJobCardCreated(
     phoneNumber: string,
-    jobCardNumber: string,
-    vehicleDetails: string,
-    serviceName: string,
     partnerName: string,
-    customerName: string
+    vehicleDetails: string,
+    showroomName: string,
+    serviceName: string,
+    jobCardId: string
   ): Promise<boolean> {
+    const jobCardUrl = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCardId}`;
+    
     return this.sendMessage({
       to: phoneNumber,
       type: 'template',
@@ -167,11 +169,18 @@ export class WhatsAppService {
           {
             type: 'body',
             parameters: [
-              { type: 'text', text: jobCardNumber },
-              { type: 'text', text: vehicleDetails },
-              { type: 'text', text: serviceName },
               { type: 'text', text: partnerName },
-              { type: 'text', text: customerName }
+              { type: 'text', text: vehicleDetails },
+              { type: 'text', text: showroomName },
+              { type: 'text', text: serviceName }
+            ]
+          },
+          {
+            type: 'button',
+            sub_type: 'url',
+            index: '0',
+            parameters: [
+              { type: 'text', text: jobCardId }
             ]
           }
         ]
@@ -180,15 +189,17 @@ export class WhatsAppService {
   }
 
   // 2. Job Card Scheduled - Send to: Detailer/Partner
-  // Template: "Job Card *{{1}}* scheduled on *{{2}}*! Vehicle: *{{3}}* | Service: *{{4}}* | Partner: *{{5}}*"
+  // Template: "Hi *{{1}}*! Your job is scheduled for *{{2}}* - *{{3}}* at *{{4}}*. Please be ready and confirm your availability."
   async sendJobCardScheduled(
     phoneNumber: string,
-    jobCardNumber: string,
+    partnerName: string,
     scheduledDate: string,
     vehicleDetails: string,
-    serviceName: string,
-    partnerName: string
+    showroomName: string,
+    jobCardId: string
   ): Promise<boolean> {
+    const jobCardUrl = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCardId}`;
+    
     return this.sendMessage({
       to: phoneNumber,
       type: 'template',
@@ -199,11 +210,18 @@ export class WhatsAppService {
           {
             type: 'body',
             parameters: [
-              { type: 'text', text: jobCardNumber },
+              { type: 'text', text: partnerName },
               { type: 'text', text: scheduledDate },
               { type: 'text', text: vehicleDetails },
-              { type: 'text', text: serviceName },
-              { type: 'text', text: partnerName }
+              { type: 'text', text: showroomName }
+            ]
+          },
+          {
+            type: 'button',
+            sub_type: 'url',
+            index: '0',
+            parameters: [
+              { type: 'text', text: jobCardId }
             ]
           }
         ]
@@ -212,15 +230,16 @@ export class WhatsAppService {
   }
 
   // 3. Job Card Started - Send to: Showroom POC + Admin
-  // Template: "Work started on Job Card *{{1}}*! Vehicle: *{{2}}* | Service: *{{3}}* | Partner: *{{4}}* | Showroom: *{{5}}*"
+  // Template: "Hello! *{{1}}* has started working on *{{2}}* at your showroom. Service: *{{3}}*. You can monitor the progress."
   async sendJobCardStarted(
     phoneNumber: string,
-    jobCardNumber: string,
+    partnerName: string,
     vehicleDetails: string,
     serviceName: string,
-    partnerName: string,
-    showroomName: string
+    jobCardId: string
   ): Promise<boolean> {
+    const jobCardUrl = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCardId}`;
+    
     return this.sendMessage({
       to: phoneNumber,
       type: 'template',
@@ -231,11 +250,17 @@ export class WhatsAppService {
           {
             type: 'body',
             parameters: [
-              { type: 'text', text: jobCardNumber },
-              { type: 'text', text: vehicleDetails },
-              { type: 'text', text: serviceName },
               { type: 'text', text: partnerName },
-              { type: 'text', text: showroomName }
+              { type: 'text', text: vehicleDetails },
+              { type: 'text', text: serviceName }
+            ]
+          },
+          {
+            type: 'button',
+            sub_type: 'url',
+            index: '0',
+            parameters: [
+              { type: 'text', text: jobCardId }
             ]
           }
         ]
@@ -244,14 +269,16 @@ export class WhatsAppService {
   }
 
   // 4. Job Card Completed - Send to: Showroom POC (request approval)
-  // Template: "Job Card *{{1}}* completed! Vehicle: *{{2}}* | Service: *{{3}}* | Partner: *{{4}}* | Please review and approve."
+  // Template: "Great news! *{{1}}* has completed the work on *{{2}}*. Service: *{{3}}*. Please review and approve to close the job."
   async sendJobCardCompleted(
     phoneNumber: string,
-    jobCardNumber: string,
+    partnerName: string,
     vehicleDetails: string,
     serviceName: string,
-    partnerName: string
+    jobCardId: string
   ): Promise<boolean> {
+    const jobCardUrl = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCardId}`;
+    
     return this.sendMessage({
       to: phoneNumber,
       type: 'template',
@@ -262,10 +289,17 @@ export class WhatsAppService {
           {
             type: 'body',
             parameters: [
-              { type: 'text', text: jobCardNumber },
+              { type: 'text', text: partnerName },
               { type: 'text', text: vehicleDetails },
-              { type: 'text', text: serviceName },
-              { type: 'text', text: partnerName }
+              { type: 'text', text: serviceName }
+            ]
+          },
+          {
+            type: 'button',
+            sub_type: 'url',
+            index: '0',
+            parameters: [
+              { type: 'text', text: jobCardId }
             ]
           }
         ]
@@ -274,14 +308,16 @@ export class WhatsAppService {
   }
 
   // 5. Job Card Approved - Send to: Detailer/Partner (approval confirmation)
-  // Template: "Job Card *{{1}}* approved! Vehicle: *{{2}}* | Service: *{{3}}* | Approved by: *{{4}}* | Work successfully closed."
+  // Template: "Congratulations *{{1}}*! Your work on *{{2}}* has been approved by *{{3}}*. Payment will be processed soon. Thank you!"
   async sendJobCardApproved(
     phoneNumber: string,
-    jobCardNumber: string,
+    partnerName: string,
     vehicleDetails: string,
-    serviceName: string,
-    approvedBy: string
+    approvedBy: string,
+    jobCardId: string
   ): Promise<boolean> {
+    const jobCardUrl = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCardId}`;
+    
     return this.sendMessage({
       to: phoneNumber,
       type: 'template',
@@ -292,10 +328,17 @@ export class WhatsAppService {
           {
             type: 'body',
             parameters: [
-              { type: 'text', text: jobCardNumber },
+              { type: 'text', text: partnerName },
               { type: 'text', text: vehicleDetails },
-              { type: 'text', text: serviceName },
               { type: 'text', text: approvedBy }
+            ]
+          },
+          {
+            type: 'button',
+            sub_type: 'url',
+            index: '0',
+            parameters: [
+              { type: 'text', text: jobCardId }
             ]
           }
         ]
