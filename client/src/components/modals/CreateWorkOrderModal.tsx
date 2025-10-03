@@ -130,9 +130,9 @@ export function CreateWorkOrderModal({
   // Watch dealership selection to fetch showrooms  
   const selectedDealershipId = form.watch("dealershipId");
   const { data: showrooms = [] } = useQuery({
-    queryKey: ["/api/showrooms", selectedDealershipId],
+    queryKey: ["/api/showrooms", selectedDealershipId, selectedOemId],
     queryFn: async () => {
-      const response = await fetch(`/api/showrooms?dealershipId=${selectedDealershipId}`, {
+      const response = await fetch(`/api/showrooms?dealershipId=${selectedDealershipId}&oemId=${selectedOemId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -141,7 +141,7 @@ export function CreateWorkOrderModal({
       if (!response.ok) throw new Error('Failed to fetch showrooms');
       return response.json();
     },
-    enabled: isSuperAdmin && !!selectedDealershipId,
+    enabled: isSuperAdmin && !!selectedDealershipId && !!selectedOemId,
   });
 
   // Get the OEM ID for vehicle data fetching
