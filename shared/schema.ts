@@ -102,6 +102,8 @@ export const oems = pgTable("oems", {
   contactEmail: text("contact_email"),
   contactPhone: text("contact_phone"),
   address: text("address"),
+  billToAddress: jsonb("bill_to_address"),
+  billJobsDirectlyToOem: boolean("bill_jobs_directly_to_oem").default(false),
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
@@ -118,6 +120,7 @@ export const dealerships = pgTable("dealerships", {
   city: text("city"),
   state: text("state"),
   pincode: text("pincode"),
+  billToAddress: jsonb("bill_to_address"),
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
@@ -145,6 +148,8 @@ export const showrooms = pgTable("showrooms", {
   city: text("city"),
   state: text("state"),
   pincode: text("pincode"),
+  billToAddress: jsonb("bill_to_address"),
+  shipToAddress: jsonb("ship_to_address"),
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()

@@ -1,0 +1,92 @@
+Task Title:
+Add “Bill To” and “Ship To” address logic with OEM-level toggle for billing control.
+
+🧩 Context / Problem
+
+When onboarding OEM, Dealership, and Showroom entities into the system, there is no structured way to capture or control their “Bill To” and “Ship To” addresses.
+However, in real-world flow:
+
+OEMs and Dealerships do not require shipping addresses (since work is executed at Showroom level).
+
+Showrooms are where the actual services or deliveries happen, hence “Ship To” applies mainly to them.
+
+⚙️ Objective / What to Build
+
+Create a unified address management module inside the onboarding flow of each entity type (OEM, Dealership, Showroom) with the following logic and controls:
+
+1️⃣ Address Capture Rules
+Entity Type	Bill To Address	Ship To Address
+OEM	✅ Required	❌ Not applicable
+Dealership	✅ Required	❌ Not applicable
+Showroom	✅ Required	✅ Required
+2️⃣ OEM Billing Control Toggle
+
+Inside OEM master record, add a toggle switch:
+
+Toggle Name: “Bill jobs from linked Dealerships/Showrooms directly to OEM”
+
+If ON:
+Any Work Order or Job Card originating from this OEM’s dealerships or showrooms will have the Bill To auto-set as OEM.
+(i.e., all network jobs get billed directly to OEM).
+
+If OFF (default):
+Bill To will follow the normal hierarchy (Dealer → Showroom).
+
+3️⃣ Default “Ship To” Auto-fetch
+
+Whenever a new Job Card / Work Order / Order Form is created:
+
+The Ship To address will auto-fetch from the originating Showroom (the location placing the order).
+
+This ensures seamless address flow without manual selection each time.
+
+🔁 Data Flow Summary
+flowchart TD
+A[OEM] -->|Has Toggle| B[Dealership]
+B --> C[Showroom]
+C --> D[Work Order / Job Card Creation]
+D -->|Fetch Bill To / Ship To based on logic| E[Billing Engine]
+
+subgraph Address Logic
+OEM["OEM: Bill To only"]
+Dealership["Dealership: Bill To only"]
+Showroom["Showroom: Bill To + Ship To"]
+end
+
+📦 Expected Output / Schema Changes
+
+For each entity onboarding:
+
+{
+  "entity_type": "OEM / Dealership / Showroom",
+  "bill_to_address": {
+    "address_line1": "",
+    "city": "",
+    "state": "",
+    "pincode": ""
+  },
+  "ship_to_address": {
+    "address_line1": "",
+    "city": "",
+    "state": "",
+    "pincode": "",
+    "is_required": false
+  },
+  "oem_billing_toggle": {
+    "field_type": "Boolean",
+    "label": "Bill jobs from linked dealers/showrooms directly to OEM",
+    "default": false
+  }
+}
+
+✅ Acceptance Criteria
+
+ “Bill To” and “Ship To” fields appear contextually based on entity type.
+
+ OEM billing toggle exists and works hierarchically.
+
+ Default “Ship To” auto-fetches from Showroom on order creation.
+
+ No redundant address duplication across entities.
+
+ Works with Job Card, Work Order, and Invoice generation modules.
