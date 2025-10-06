@@ -150,6 +150,7 @@ export const showrooms = pgTable("showrooms", {
   pincode: text("pincode"),
   billToAddress: jsonb("bill_to_address"),
   shipToAddress: jsonb("ship_to_address"),
+  billDirectlyToShowroom: boolean("bill_directly_to_showroom").default(false),
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()

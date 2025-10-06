@@ -30,6 +30,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 
 const showroomSchema = z.object({
   name: z.string().min(1, "Showroom name is required"),
@@ -56,6 +57,9 @@ const showroomSchema = z.object({
   shipToState: z.string().optional(),
   shipToPincode: z.string().optional(),
   shipToGstin: z.string().optional(),
+  
+  // Billing configuration
+  billDirectlyToShowroom: z.boolean().default(false),
   
   // Admin user creation fields
   createUser: z.boolean().default(false),
@@ -126,6 +130,7 @@ export function CreateShowroomModal({
       shipToState: showroom?.shipToAddress?.state || "",
       shipToPincode: showroom?.shipToAddress?.pincode || "",
       shipToGstin: showroom?.shipToAddress?.gstin || "",
+      billDirectlyToShowroom: showroom?.billDirectlyToShowroom || false,
       createUser: false,
       userName: "",
       userEmail: "",
@@ -405,6 +410,33 @@ export function CreateShowroomModal({
                   />
                 </div>
               )}
+
+              {/* Billing Configuration Toggle */}
+              <div className="mt-4">
+                <FormField
+                  control={form.control}
+                  name="billDirectlyToShowroom"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">
+                          Bill Jobs Directly to Showroom
+                        </FormLabel>
+                        <div className="text-sm text-muted-foreground">
+                          When enabled, all Job Cards from this showroom will be billed directly to the showroom instead of following the dealership/OEM hierarchy.
+                        </div>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-bill-to-showroom"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
             {/* Management Information */}
