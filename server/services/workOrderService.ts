@@ -10,6 +10,98 @@ import type {
 } from '@shared/schema';
 
 export class WorkOrderService {
+  // Helper function to determine billing details based on hierarchy rules
+  private async calculateBillingDetails(
+    oemId: string,
+    dealershipId: string,
+    showroomId: string,
+    partnerId?: string
+  ): Promise<{
+    billFrom: any;
+    billTo: any;
+    shipTo: any;
+    partnerBilledDirectly: boolean;
+  }> {
+    // Default billing entity - Plus Nine One Inc
+    const plusNineOneInc = {
+      name: "Plus Nine One Inc",
+      addressLine1: "123 Business Park",
+      city: "Mumbai",
+      state: "Maharashtra",
+      pincode: "400001",
+      gstin: "27AABCP9999A1Z5"
+    };
+
+    let billFrom = plusNineOneInc;
+    let partnerBilledDirectly = false;
+
+    // Check if partner bills directly (if partner is assigned)
+    if (partnerId) {
+      // Get the allocation for this partner and showroom/dealership
+      const showroomAllocations = await storage.getAllocations({
+        level: 'SHOWROOM',
+        levelId: showroomId,
+        partnerId,
+        active: true
+      });
+
+      if (showroomAllocations.length > 0 && showroomAllocations[0].partnerBillsDirectly) {
+        // Partner bills directly - use partner's billing address
+        const partner = await storage.getPartner(partnerId);
+        if (partner && partner.billToAddress) {
+          billFrom = partner.billToAddress;
+          partnerBilledDirectly = true;
+        }
+      } else {
+        // Check dealership level allocation
+        const dealershipAllocations = await storage.getAllocations({
+          level: 'DEALERSHIP',
+          levelId: dealershipId,
+          partnerId,
+          active: true
+        });
+
+        if (dealershipAllocations.length > 0 && dealershipAllocations[0].partnerBillsDirectly) {
+          const partner = await storage.getPartner(partnerId);
+          if (partner && partner.billToAddress) {
+            billFrom = partner.billToAddress;
+            partnerBilledDirectly = true;
+          }
+        }
+      }
+    }
+
+    // Determine Bill To based on hierarchy
+    let billTo: any = null;
+
+    // Get entities
+    const oem = await storage.getOEM(oemId);
+    const showroom = await storage.getShowroom(showroomId);
+    const dealership = await storage.getDealership(dealershipId);
+
+    // Check hierarchy: OEM > Showroom > Dealership
+    if (oem && oem.billDirectlyToOem && oem.billToAddress) {
+      billTo = { ...oem.billToAddress, entityName: oem.name, entityType: 'OEM' };
+    } else if (showroom && showroom.billDirectlyToShowroom && showroom.billToAddress) {
+      billTo = { ...showroom.billToAddress, entityName: showroom.name, entityType: 'Showroom' };
+    } else if (dealership && dealership.billToAddress) {
+      billTo = { ...dealership.billToAddress, entityName: dealership.name, entityType: 'Dealership' };
+    }
+
+    // Ship To - always showroom's ship to address
+    let shipTo: any = null;
+    if (showroom && showroom.shipToAddress) {
+      shipTo = { ...showroom.shipToAddress, entityName: showroom.name };
+    }
+
+    return {
+      billFrom,
+      billTo,
+      shipTo,
+      partnerBilledDirectly
+    };
+  }
+
   async createWorkOrder(data: InsertWorkOrder, userId: string): Promise<WorkOrder> {
     // 💰 Calculate estimated price from pricing rules
     let estimatedPrice = 0;
@@ -32,11 +124,28 @@ export class WorkOrderService {
       // Continue with zero price if calculation fails
     }
 
+    // 💵 Calculate billing details (without partner at this stage)
+    let billingDetails;
+    try {
+      billingDetails = await this.calculateBillingDetails(
+        data.oemId,
+        data.dealershipId,
+        data.showroomId
+      );
+      console.log(`💵 Billing details calculated - Bill To: ${billingDetails.billTo?.entityType || 'Unknown'}`);
+    } catch (error) {
+      console.error('Error calculating billing details:', error);
+      // Continue without billing details if calculation fails
+    }
+
     const workOrder = await storage.createWorkOrder({
       ...data,
       estimatedPrice,
       createdByUserId: userId,
-      status: 'PENDING'
+      status: 'PENDING',
+      billFrom: billingDetails?.billFrom || null,
+      billTo: billingDetails?.billTo || null,
+      shipTo: billingDetails?.shipTo || null
     });
 
     // 🚀 AUTO-CREATE SALES COMMISSION immediately if salesperson is mapped
@@ -185,11 +294,28 @@ export class WorkOrderService {
       workOrder.serviceId
     );
 
+    // 💵 Recalculate billing details with partner information
+    let billingDetails;
+    try {
+      billingDetails = await this.calculateBillingDetails(
+        workOrder.oemId,
+        workOrder.dealershipId,
+        workOrder.showroomId,
+        partnerId
+      );
+      console.log(`💵 Billing details recalculated with partner - Bill From: ${billingDetails.billFrom?.name}, Partner Bills Directly: ${billingDetails.partnerBilledDirectly}`);
+    } catch (error) {
+      console.error('Error calculating billing details:', error);
+    }
+
     const updatedWorkOrder = await storage.updateWorkOrder(workOrderId, {
       status: 'ASSIGNED',
       assignedPartnerId: partnerId,
       assignedAt: new Date(),
-      estimatedPrice: pricing ? pricing.priceAmount : null
+      estimatedPrice: pricing ? pricing.priceAmount : null,
+      billFrom: billingDetails?.billFrom || workOrder.billFrom,
+      billTo: billingDetails?.billTo || workOrder.billTo,
+      shipTo: billingDetails?.shipTo || workOrder.shipTo
     });
 
     // Create job card with comprehensive work order details
@@ -234,7 +360,11 @@ Please acknowledge receipt and provide estimated completion time.
       partnerId,
       status: 'AWAITING_ACK',
       remarks: workOrderDetails,
-      billingValue: pricing?.priceAmount || null
+      billingValue: pricing?.priceAmount || null,
+      billFrom: billingDetails?.billFrom || null,
+      billTo: billingDetails?.billTo || null,
+      shipTo: billingDetails?.shipTo || null,
+      partnerBilledDirectly: billingDetails?.partnerBilledDirectly || false
     });
 
     // Update work order with job card reference
