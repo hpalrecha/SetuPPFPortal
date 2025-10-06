@@ -92,11 +92,11 @@ export class WorkOrderService {
     const dealership = await storage.getDealership(dealershipId);
 
     // Check hierarchy: OEM > Dealership > Showroom > Dealership address (fallback)
-    if (oem && oem.billDirectlyToOem && oem.billToAddress) {
+    if (oem && oem.billJobsDirectlyToOem && oem.billToAddress) {
       billTo = { ...oem.billToAddress, entityName: oem.name, entityType: 'OEM' };
     } else if (dealership && dealership.billDirectlyToDealership && dealership.billToAddress) {
       billTo = { ...dealership.billToAddress, entityName: dealership.name, entityType: 'Dealership' };
-    } else if (showroom && showroom.billJobsDirectlyToShowroom && showroom.billToAddress) {
+    } else if (showroom && showroom.billDirectlyToShowroom && showroom.billToAddress) {
       billTo = { ...showroom.billToAddress, entityName: showroom.name, entityType: 'Showroom' };
     } else if (dealership && dealership.billToAddress) {
       billTo = { ...dealership.billToAddress, entityName: dealership.name, entityType: 'Dealership' };

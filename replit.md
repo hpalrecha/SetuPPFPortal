@@ -40,7 +40,7 @@ Preferred communication style: Simple, everyday language.
 - **Commission System**: Automated commission calculation with percentage/fixed amount rules and caps/floors
 - **Billing System**: Automated billing detail population with hierarchical rules and partner billing control
   - **Bill From**: Defaults to "Plus Nine One Inc"; uses Partner address if "Partner Bills Customer Directly" toggle is enabled
-  - **Bill To Hierarchy**: OEM (if billDirectlyToOem) > Showroom (if billDirectlyToShowroom) > Dealership
+  - **Bill To Hierarchy**: OEM (if billJobsDirectlyToOem) > Dealership (if billDirectlyToDealership) > Showroom (if billDirectlyToShowroom) > Dealership address (fallback)
   - **Ship To**: Always uses Showroom's ship to address
   - **Partner Direct Billing**: Partners can bill customers directly, bypassing system billing (configurable per allocation)
 - **Audit System**: Comprehensive activity logging with timeline views and export capabilities
