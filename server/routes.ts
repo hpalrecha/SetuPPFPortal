@@ -2742,24 +2742,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const { id } = req.params;
-        const { serviceCategoryIds, showroomIds, ...partnerData } = req.body;
+        const { serviceCategoryIds, ...partnerData } = req.body;
         const validatedData = insertPartnerSchema.partial().parse(partnerData);
-        
-        // Validate that at least one showroom is selected if showroomIds is provided
-        if (showroomIds !== undefined) {
-          if (!Array.isArray(showroomIds) || showroomIds.length === 0) {
-            return res.status(400).json({ error: "At least one showroom must be selected" });
-          }
-        }
         
         const partner = await storage.updatePartner(id, validatedData);
         if (!partner) {
           return res.status(404).json({ error: "Partner not found" });
-        }
-        
-        // Handle showroom mappings if provided
-        if (showroomIds !== undefined && Array.isArray(showroomIds)) {
-          await storage.setPartnerShowrooms(partner.id, showroomIds);
         }
         
         // Handle service category mappings if provided
