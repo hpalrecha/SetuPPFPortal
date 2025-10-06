@@ -99,6 +99,7 @@ export function CreateShowroomModal({
 }: CreateShowroomModalProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [billToSameAsShowroom, setBillToSameAsShowroom] = useState(false);
   const [shipToSameAsBillTo, setShipToSameAsBillTo] = useState(false);
   const isEditing = !!showroom;
 
@@ -549,7 +550,25 @@ export function CreateShowroomModal({
 
             {/* Bill To Address Section */}
             <div className="space-y-4 border-t pt-4">
-              <h3 className="text-lg font-medium">Bill To Address</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium">Bill To Address</h3>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    checked={billToSameAsShowroom}
+                    onCheckedChange={(checked) => {
+                      setBillToSameAsShowroom(checked as boolean);
+                      if (checked) {
+                        form.setValue('billToAddressLine1', form.getValues('address'));
+                        form.setValue('billToCity', form.getValues('city'));
+                        form.setValue('billToState', form.getValues('state'));
+                        form.setValue('billToPincode', form.getValues('pincode'));
+                      }
+                    }}
+                    data-testid="checkbox-bill-to-same"
+                  />
+                  <label className="text-sm font-medium">Same as Showroom Address</label>
+                </div>
+              </div>
               
               <FormField
                 control={form.control}
@@ -561,6 +580,7 @@ export function CreateShowroomModal({
                       <Input
                         placeholder="Enter billing address"
                         {...field}
+                        disabled={billToSameAsShowroom}
                         data-testid="input-bill-to-address"
                       />
                     </FormControl>
@@ -580,6 +600,7 @@ export function CreateShowroomModal({
                         <Input
                           placeholder="City"
                           {...field}
+                          disabled={billToSameAsShowroom}
                           data-testid="input-bill-to-city"
                         />
                       </FormControl>
@@ -598,6 +619,7 @@ export function CreateShowroomModal({
                         <Input
                           placeholder="State"
                           {...field}
+                          disabled={billToSameAsShowroom}
                           data-testid="input-bill-to-state"
                         />
                       </FormControl>
@@ -616,6 +638,7 @@ export function CreateShowroomModal({
                         <Input
                           placeholder="Pincode"
                           {...field}
+                          disabled={billToSameAsShowroom}
                           data-testid="input-bill-to-pincode"
                         />
                       </FormControl>
