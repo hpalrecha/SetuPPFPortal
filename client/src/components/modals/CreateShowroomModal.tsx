@@ -43,6 +43,20 @@ const showroomSchema = z.object({
   state: z.string().min(1, "State is required"),
   pincode: z.string().min(1, "Pincode is required"),
   
+  // Bill To Address fields
+  billToAddressLine1: z.string().optional(),
+  billToCity: z.string().optional(),
+  billToState: z.string().optional(),
+  billToPincode: z.string().optional(),
+  billToGstin: z.string().optional(),
+  
+  // Ship To Address fields
+  shipToAddressLine1: z.string().optional(),
+  shipToCity: z.string().optional(),
+  shipToState: z.string().optional(),
+  shipToPincode: z.string().optional(),
+  shipToGstin: z.string().optional(),
+  
   // Admin user creation fields
   createUser: z.boolean().default(false),
   userName: z.string().optional(),
@@ -100,6 +114,16 @@ export function CreateShowroomModal({
       city: showroom?.city || "",
       state: showroom?.state || "",
       pincode: showroom?.pincode || "",
+      billToAddressLine1: showroom?.billToAddress?.addressLine1 || "",
+      billToCity: showroom?.billToAddress?.city || "",
+      billToState: showroom?.billToAddress?.state || "",
+      billToPincode: showroom?.billToAddress?.pincode || "",
+      billToGstin: showroom?.billToAddress?.gstin || "",
+      shipToAddressLine1: showroom?.shipToAddress?.addressLine1 || "",
+      shipToCity: showroom?.shipToAddress?.city || "",
+      shipToState: showroom?.shipToAddress?.state || "",
+      shipToPincode: showroom?.shipToAddress?.pincode || "",
+      shipToGstin: showroom?.shipToAddress?.gstin || "",
       createUser: false,
       userName: "",
       userEmail: "",
@@ -209,9 +233,28 @@ export function CreateShowroomModal({
       const endpoint = isEditing ? `/api/showrooms/${showroom.id}` : "/api/showrooms";
       const method = isEditing ? "PUT" : "POST";
       
+      // Prepare billToAddress and shipToAddress objects
+      const billToAddress = (data.billToAddressLine1 || data.billToCity || data.billToState || data.billToPincode || data.billToGstin) ? {
+        addressLine1: data.billToAddressLine1 || "",
+        city: data.billToCity || "",
+        state: data.billToState || "",
+        pincode: data.billToPincode || "",
+        gstin: data.billToGstin || ""
+      } : null;
+
+      const shipToAddress = (data.shipToAddressLine1 || data.shipToCity || data.shipToState || data.shipToPincode || data.shipToGstin) ? {
+        addressLine1: data.shipToAddressLine1 || "",
+        city: data.shipToCity || "",
+        state: data.shipToState || "",
+        pincode: data.shipToPincode || "",
+        gstin: data.shipToGstin || ""
+      } : null;
+
       // Prepare request body with admin user data if creating user or password reset data
       const requestBody = {
         ...data,
+        billToAddress,
+        shipToAddress,
         ...(data.createUser && !isEditing ? {
           adminUserData: {
             name: data.userName,
@@ -228,7 +271,7 @@ export function CreateShowroomModal({
       };
 
       // Remove user fields from the main request body
-      const { userName, userEmail, userPhone, userPassword, resetPassword, newPassword, ...showroomData } = requestBody;
+      const { userName, userEmail, userPhone, userPassword, resetPassword, newPassword, billToAddressLine1, billToCity, billToState, billToPincode, billToGstin, shipToAddressLine1, shipToCity, shipToState, shipToPincode, shipToGstin, ...showroomData } = requestBody;
       
       const response = await fetch(endpoint, {
         method,

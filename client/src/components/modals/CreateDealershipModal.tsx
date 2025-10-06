@@ -43,6 +43,13 @@ const dealershipSchema = z.object({
   state: z.string().min(1, "State is required"),
   pincode: z.string().min(1, "Pincode is required"),
   
+  // Bill To Address fields
+  billToAddressLine1: z.string().optional(),
+  billToCity: z.string().optional(),
+  billToState: z.string().optional(),
+  billToPincode: z.string().optional(),
+  billToGstin: z.string().optional(),
+  
   // Admin user creation fields
   createUser: z.boolean().default(false),
   userName: z.string().optional(),
@@ -113,6 +120,11 @@ export function CreateDealershipModal({
       city: dealership?.city || "",
       state: dealership?.state || "",
       pincode: dealership?.pincode || "",
+      billToAddressLine1: dealership?.billToAddress?.addressLine1 || "",
+      billToCity: dealership?.billToAddress?.city || "",
+      billToState: dealership?.billToAddress?.state || "",
+      billToPincode: dealership?.billToAddress?.pincode || "",
+      billToGstin: dealership?.billToAddress?.gstin || "",
       createUser: false,
       userName: "",
       userEmail: "",
@@ -231,9 +243,19 @@ export function CreateDealershipModal({
       const endpoint = isEditing ? `/api/dealerships/${dealership.id}` : "/api/dealerships";
       const method = isEditing ? "PUT" : "POST";
       
+      // Prepare billToAddress object
+      const billToAddress = (data.billToAddressLine1 || data.billToCity || data.billToState || data.billToPincode || data.billToGstin) ? {
+        addressLine1: data.billToAddressLine1 || "",
+        city: data.billToCity || "",
+        state: data.billToState || "",
+        pincode: data.billToPincode || "",
+        gstin: data.billToGstin || ""
+      } : null;
+
       // Prepare request body with admin user data if creating user or password reset data
       const requestBody = {
         ...data,
+        billToAddress,
         ...(data.createUser && !isEditing ? {
           adminUserData: {
             name: data.userName,
@@ -258,7 +280,7 @@ export function CreateDealershipModal({
       };
 
       // Remove user fields from the main request body but keep createAdminUserData and resetPasswordData
-      const { userName, userEmail, userPhone, userPassword, resetPassword, newPassword, createAdminUser, adminName, adminEmail, adminPhone, adminPassword, ...dealershipData } = requestBody;
+      const { userName, userEmail, userPhone, userPassword, resetPassword, newPassword, createAdminUser, adminName, adminEmail, adminPhone, adminPassword, billToAddressLine1, billToCity, billToState, billToPincode, billToGstin, ...dealershipData } = requestBody;
       
       const response = await fetch(endpoint, {
         method,
