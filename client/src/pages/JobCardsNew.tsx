@@ -623,7 +623,7 @@ export default function JobCardsNew() {
           <div className="hidden lg:block rounded-lg border border-border overflow-hidden">
             {/* Table Header */}
             <div className="bg-muted/50 border-b border-border px-4 py-3">
-              <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '90px 150px 120px 130px 1fr 1fr 150px 100px 110px 90px'}}>
+              <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '90px 150px 120px 130px 1fr 1fr 150px 120px 100px 110px 90px'}}>
                 <div className="truncate">ID</div>
                 <div className="truncate">Status</div>
                 <div className="truncate">Customer</div>
@@ -631,6 +631,7 @@ export default function JobCardsNew() {
                 <div className="truncate">Vehicle</div>
                 <div className="truncate">Service</div>
                 <div className="truncate">Partner</div>
+                <div className="truncate">Billing</div>
                 <div className="truncate">Created</div>
                 <div className="truncate">Scheduled</div>
                 <div className="truncate">Actions</div>
@@ -645,7 +646,7 @@ export default function JobCardsNew() {
                   className="px-4 py-4 hover:bg-muted/30 transition-colors"
                   data-testid={`row-job-card-${jobCard.id}`}
                 >
-                  <div className="grid gap-3 items-center min-h-[70px]" style={{gridTemplateColumns: '90px 150px 120px 130px 1fr 1fr 150px 100px 110px 90px'}}>
+                  <div className="grid gap-3 items-center min-h-[70px]" style={{gridTemplateColumns: '90px 150px 120px 130px 1fr 1fr 150px 120px 100px 110px 90px'}}>
                     {/* ID Column */}
                     <div className="min-w-0 overflow-hidden">
                       <span className="font-mono text-sm font-semibold block truncate" data-testid={`text-id-${jobCard.id}`}>
@@ -696,6 +697,22 @@ export default function JobCardsNew() {
                       <div className="text-sm font-medium truncate" data-testid={`text-partner-${jobCard.id}`} title={jobCard.partnerDisplay}>
                         {jobCard.partnerDisplay}
                       </div>
+                    </div>
+
+                    {/* Billing Column */}
+                    <div className="min-w-0 overflow-hidden">
+                      {jobCard.partnerBilledDirectly ? (
+                        <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-300">
+                          <Receipt className="h-3 w-3 mr-1" />
+                          Partner Direct
+                        </Badge>
+                      ) : jobCard.billTo?.entityType ? (
+                        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-300">
+                          {jobCard.billTo.entityType}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">N/A</span>
+                      )}
                     </div>
 
                     {/* Created Column */}
