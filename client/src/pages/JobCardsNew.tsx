@@ -40,7 +40,10 @@ import {
   XCircle,
   Image,
   CalendarDays,
-  Search
+  Search,
+  Receipt,
+  MapPinned,
+  Package
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
@@ -1449,6 +1452,111 @@ export default function JobCardsNew() {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Billing Information Card */}
+                {(detailedJobCard.billFrom || detailedJobCard.billTo || detailedJobCard.shipTo) && (
+                  <Card className="col-span-1 lg:col-span-2">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center gap-2">
+                        <Receipt className="h-5 w-5 text-indigo-600" />
+                        <CardTitle className="text-base">Billing Information</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Bill From */}
+                      {detailedJobCard.billFrom && (
+                        <div className="border-l-4 border-blue-500 pl-3">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Building2 className="h-4 w-4 text-blue-600" />
+                            <span className="text-sm font-semibold text-blue-900 dark:text-blue-300">Bill From</span>
+                          </div>
+                          <p className="font-medium">{detailedJobCard.billFrom.name || 'N/A'}</p>
+                          {detailedJobCard.billFrom.addressLine1 && (
+                            <p className="text-sm text-muted-foreground">
+                              {detailedJobCard.billFrom.addressLine1}
+                              {detailedJobCard.billFrom.city && `, ${detailedJobCard.billFrom.city}`}
+                              {detailedJobCard.billFrom.state && `, ${detailedJobCard.billFrom.state}`}
+                              {detailedJobCard.billFrom.pincode && ` - ${detailedJobCard.billFrom.pincode}`}
+                            </p>
+                          )}
+                          {detailedJobCard.billFrom.gstin && (
+                            <p className="text-xs text-muted-foreground font-mono mt-1">
+                              GSTIN: {detailedJobCard.billFrom.gstin}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Bill To */}
+                      {detailedJobCard.billTo && (
+                        <div className="border-l-4 border-green-500 pl-3">
+                          <div className="flex items-center gap-2 mb-1">
+                            <FileText className="h-4 w-4 text-green-600" />
+                            <span className="text-sm font-semibold text-green-900 dark:text-green-300">Bill To</span>
+                            {detailedJobCard.billTo.entityType && (
+                              <Badge variant="outline" className="text-xs">
+                                {detailedJobCard.billTo.entityType}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="font-medium">{detailedJobCard.billTo.entityName || 'N/A'}</p>
+                          {detailedJobCard.billTo.addressLine1 && (
+                            <p className="text-sm text-muted-foreground">
+                              {detailedJobCard.billTo.addressLine1}
+                              {detailedJobCard.billTo.city && `, ${detailedJobCard.billTo.city}`}
+                              {detailedJobCard.billTo.state && `, ${detailedJobCard.billTo.state}`}
+                              {detailedJobCard.billTo.pincode && ` - ${detailedJobCard.billTo.pincode}`}
+                            </p>
+                          )}
+                          {detailedJobCard.billTo.gstin && (
+                            <p className="text-xs text-muted-foreground font-mono mt-1">
+                              GSTIN: {detailedJobCard.billTo.gstin}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Ship To */}
+                      {detailedJobCard.shipTo && (
+                        <div className="border-l-4 border-orange-500 pl-3">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Package className="h-4 w-4 text-orange-600" />
+                            <span className="text-sm font-semibold text-orange-900 dark:text-orange-300">Ship To</span>
+                          </div>
+                          <p className="font-medium">{detailedJobCard.shipTo.entityName || 'N/A'}</p>
+                          {detailedJobCard.shipTo.addressLine1 && (
+                            <p className="text-sm text-muted-foreground">
+                              {detailedJobCard.shipTo.addressLine1}
+                              {detailedJobCard.shipTo.city && `, ${detailedJobCard.shipTo.city}`}
+                              {detailedJobCard.shipTo.state && `, ${detailedJobCard.shipTo.state}`}
+                              {detailedJobCard.shipTo.pincode && ` - ${detailedJobCard.shipTo.pincode}`}
+                            </p>
+                          )}
+                          {detailedJobCard.shipTo.gstin && (
+                            <p className="text-xs text-muted-foreground font-mono mt-1">
+                              GSTIN: {detailedJobCard.shipTo.gstin}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Partner Billing Direct indicator */}
+                      {detailedJobCard.partnerBilledDirectly && (
+                        <div className="bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-purple-600" />
+                            <span className="text-sm font-medium text-purple-900 dark:text-purple-300">
+                              Partner Bills Customer Directly
+                            </span>
+                          </div>
+                          <p className="text-xs text-purple-700 dark:text-purple-400 mt-1">
+                            This partner handles billing directly with the customer
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Images Section */}
                 <Card className="col-span-1 lg:col-span-2 xl:col-span-3">
