@@ -3618,6 +3618,7 @@ export class DatabaseStorage implements IStorage {
         levelId: allocations.levelId,
         partnerId: allocations.partnerId,
         priority: allocations.priority,
+        partnerBillsDirectly: allocations.partnerBillsDirectly,
         active: allocations.active,
         createdAt: allocations.createdAt,
         partner: {
@@ -3694,6 +3695,7 @@ export class DatabaseStorage implements IStorage {
         levelId: allocations.levelId,
         partnerId: allocations.partnerId,
         priority: allocations.priority,
+        partnerBillsDirectly: allocations.partnerBillsDirectly,
         active: allocations.active,
         createdAt: allocations.createdAt,
         partner: {
@@ -3734,6 +3736,7 @@ export class DatabaseStorage implements IStorage {
         levelId: allocation.levelId,
         partnerId: allocation.partnerId,
         priority: allocation.priority || 1,
+        partnerBillsDirectly: allocation.partnerBillsDirectly ?? false,
         active: allocation.active ?? true
       })
       .returning();
