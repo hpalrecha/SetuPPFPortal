@@ -48,7 +48,6 @@ const partnerSchema = z.object({
   active: z.boolean(),
   canViewJobCardPrice: z.boolean().optional(),
   serviceCategoryIds: z.array(z.string()).optional(),
-  showroomIds: z.array(z.string()).min(1, "At least one showroom must be selected"),
 });
 
 type PartnerFormData = z.infer<typeof partnerSchema>;
@@ -76,21 +75,9 @@ export function EditPartnerModal({
     enabled: open,
   });
 
-  // Fetch showrooms
-  const { data: showrooms = [] } = useQuery<any[]>({
-    queryKey: ['/api/showrooms'],
-    enabled: open,
-  });
-
   // Fetch partner service categories when editing
   const { data: partnerCategories } = useQuery<{ serviceCategoryIds: string[] }>({
     queryKey: ['/api/partners', partner?.id, 'service-categories'],
-    enabled: open && isEditing && !!partner?.id,
-  });
-
-  // Fetch partner showrooms when editing
-  const { data: partnerShowrooms } = useQuery<{ showroomIds: string[] }>({
-    queryKey: ['/api/partners', partner?.id, 'showrooms'],
     enabled: open && isEditing && !!partner?.id,
   });
 
@@ -109,7 +96,6 @@ export function EditPartnerModal({
       active: true,
       canViewJobCardPrice: false,
       serviceCategoryIds: [],
-      showroomIds: [],
     },
   });
 
@@ -129,7 +115,6 @@ export function EditPartnerModal({
         active: partner.active ?? true,
         canViewJobCardPrice: partner.canViewJobCardPrice ?? false,
         serviceCategoryIds: partnerCategories?.serviceCategoryIds || [],
-        showroomIds: partnerShowrooms?.showroomIds || [],
       });
     } else if (!partner && open) {
       form.reset({
@@ -145,10 +130,9 @@ export function EditPartnerModal({
         active: true,
         canViewJobCardPrice: false,
         serviceCategoryIds: [],
-        showroomIds: [],
       });
     }
-  }, [partner, open, form, partnerCategories, partnerShowrooms]);
+  }, [partner, open, form, partnerCategories]);
 
   const onSubmit = async (data: PartnerFormData) => {
     setIsLoading(true);
@@ -432,53 +416,6 @@ export function EditPartnerModal({
                           </label>
                         </div>
                       ))}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Showrooms */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Showrooms *</h3>
-              <p className="text-sm text-muted-foreground">
-                Select at least one showroom that this partner can serve
-              </p>
-              
-              <FormField
-                control={form.control}
-                name="showroomIds"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-md p-3">
-                      {showrooms.length === 0 ? (
-                        <p className="text-sm text-muted-foreground col-span-2">No showrooms available</p>
-                      ) : (
-                        showrooms.map((showroom: any) => (
-                          <div key={showroom.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`showroom-${showroom.id}`}
-                              checked={field.value?.includes(showroom.id) || false}
-                              onCheckedChange={(checked) => {
-                                const currentValues = field.value || [];
-                                if (checked) {
-                                  field.onChange([...currentValues, showroom.id]);
-                                } else {
-                                  field.onChange(currentValues.filter((id: string) => id !== showroom.id));
-                                }
-                              }}
-                              data-testid={`checkbox-showroom-${showroom.id}`}
-                            />
-                            <label
-                              htmlFor={`showroom-${showroom.id}`}
-                              className="text-sm cursor-pointer"
-                            >
-                              {showroom.name}
-                            </label>
-                          </div>
-                        ))
-                      )}
                     </div>
                     <FormMessage />
                   </FormItem>

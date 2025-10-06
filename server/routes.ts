@@ -2628,18 +2628,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('partner', 'create'),
     async (req, res) => {
       try {
-        const { serviceCategoryIds, showroomIds, ...partnerData } = req.body;
+        const { serviceCategoryIds, ...partnerData } = req.body;
         const validatedData = insertPartnerSchema.parse(partnerData);
         
-        // Validate that at least one showroom is selected
-        if (!showroomIds || !Array.isArray(showroomIds) || showroomIds.length === 0) {
-          return res.status(400).json({ error: "At least one showroom must be selected" });
-        }
-        
         const partner = await storage.createPartner(validatedData);
-        
-        // Handle showroom mappings (required)
-        await storage.setPartnerShowrooms(partner.id, showroomIds);
         
         // Handle service category mappings if provided
         if (serviceCategoryIds && Array.isArray(serviceCategoryIds) && serviceCategoryIds.length > 0) {
