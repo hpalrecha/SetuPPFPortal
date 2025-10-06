@@ -121,6 +121,7 @@ export const dealerships = pgTable("dealerships", {
   state: text("state"),
   pincode: text("pincode"),
   billToAddress: jsonb("bill_to_address"),
+  billDirectlyToDealership: boolean("bill_directly_to_dealership").default(false),
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
