@@ -30,6 +30,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 
 const dealershipSchema = z.object({
   name: z.string().min(1, "Dealership name is required"),
@@ -49,6 +50,7 @@ const dealershipSchema = z.object({
   billToState: z.string().optional(),
   billToPincode: z.string().optional(),
   billToGstin: z.string().optional(),
+  billDirectlyToDealership: z.boolean().default(false),
   
   // Admin user creation fields
   createUser: z.boolean().default(false),
@@ -125,6 +127,7 @@ export function CreateDealershipModal({
       billToState: dealership?.billToAddress?.state || "",
       billToPincode: dealership?.billToAddress?.pincode || "",
       billToGstin: dealership?.billToAddress?.gstin || "",
+      billDirectlyToDealership: dealership?.billDirectlyToDealership || false,
       createUser: false,
       userName: "",
       userEmail: "",
@@ -156,6 +159,12 @@ export function CreateDealershipModal({
         city: dealership.city || "",
         state: dealership.state || "",
         pincode: dealership.pincode || "",
+        billToAddressLine1: dealership.billToAddress?.addressLine1 || "",
+        billToCity: dealership.billToAddress?.city || "",
+        billToState: dealership.billToAddress?.state || "",
+        billToPincode: dealership.billToAddress?.pincode || "",
+        billToGstin: dealership.billToAddress?.gstin || "",
+        billDirectlyToDealership: dealership.billDirectlyToDealership || false,
         createUser: false,
         userName: "",
         userEmail: "",
@@ -182,6 +191,12 @@ export function CreateDealershipModal({
         city: "",
         state: "",
         pincode: "",
+        billToAddressLine1: "",
+        billToCity: "",
+        billToState: "",
+        billToPincode: "",
+        billToGstin: "",
+        billDirectlyToDealership: false,
         createUser: false,
         userName: "",
         userEmail: "",
@@ -622,6 +637,31 @@ export function CreateDealershipModal({
                       />
                     </FormControl>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Bill Directly to Dealership Toggle */}
+              <FormField
+                control={form.control}
+                name="billDirectlyToDealership"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 mt-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">
+                        Bill Jobs Directly to Dealership
+                      </FormLabel>
+                      <div className="text-sm text-muted-foreground">
+                        When enabled, job cards will be billed directly to this dealership instead of following the OEM or showroom billing hierarchy.
+                      </div>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-bill-directly-to-dealership"
+                      />
+                    </FormControl>
                   </FormItem>
                 )}
               />
