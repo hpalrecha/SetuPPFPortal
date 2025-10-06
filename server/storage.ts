@@ -2454,61 +2454,84 @@ export class DatabaseStorage implements IStorage {
     return rules[0] || null;
   }
 
-  // NEW SIMPLIFIED PAYOUT PRICING: Vehicle Model + Service Category + Installer
+  // NEW SIMPLIFIED PAYOUT PRICING: Service Category based (vehicle optional)
   async resolvePayoutPricing(
     partnerId: string,
     serviceCategoryId: string,
     vehicleModelId: string
   ): Promise<{ amount: string; ruleId: string } | null> {
     try {
-      console.log("🎯 NEW SIMPLIFIED PRICING:", { partnerId, serviceCategoryId, vehicleModelId });
+      console.log("🎯 DETAILER PAYOUT PRICING:", { partnerId, serviceCategoryId, vehicleModelId });
       
-      // 🔧 FIXED: Use global 'db' instead of 'this.db' and correct column name 'partnerId'
-      // Simple rule: Find pricing for specific installer + category + vehicle
-      const exactMatch = await db.select()
+      // Priority 1: Partner + Service Category + Vehicle Model (most specific)
+      if (vehicleModelId) {
+        const exactMatch = await db.select()
+          .from(pricingRules)
+          .where(
+            and(
+              eq(pricingRules.pricingType, "DETAILER_PRICING"),
+              eq(pricingRules.partnerId, partnerId),
+              eq(pricingRules.serviceCategoryId, serviceCategoryId),
+              eq(pricingRules.vehicleModelId, vehicleModelId),
+              eq(pricingRules.status, "ACTIVE")
+            )
+          )
+          .limit(1);
+        
+        if (exactMatch.length > 0) {
+          console.log("✅ Found exact match (Partner + Category + Vehicle):", exactMatch[0]);
+          return {
+            amount: exactMatch[0].priceAmount,
+            ruleId: exactMatch[0].id
+          };
+        }
+      }
+
+      // Priority 2: Partner + Service Category (NO vehicle requirement - KEY for detailer payout)
+      const partnerCategoryMatch = await db.select()
         .from(pricingRules)
         .where(
           and(
             eq(pricingRules.pricingType, "DETAILER_PRICING"),
-            eq(pricingRules.partnerId, partnerId),  // FIXED: use partnerId not detailerId
+            eq(pricingRules.partnerId, partnerId),
             eq(pricingRules.serviceCategoryId, serviceCategoryId),
-            eq(pricingRules.vehicleModelId, vehicleModelId),
+            isNull(pricingRules.vehicleModelId), // Rule without vehicle restriction
             eq(pricingRules.status, "ACTIVE")
           )
         )
         .limit(1);
       
-      if (exactMatch.length > 0) {
-        console.log("✅ Found exact pricing match:", exactMatch[0]);
+      if (partnerCategoryMatch.length > 0) {
+        console.log("✅ Found partner + category match (any vehicle):", partnerCategoryMatch[0]);
         return {
-          amount: exactMatch[0].priceAmount,
-          ruleId: exactMatch[0].id
+          amount: partnerCategoryMatch[0].priceAmount,
+          ruleId: partnerCategoryMatch[0].id
         };
       }
 
-      // Fallback: Global category rule for vehicle (any installer)
-      const globalMatch = await db.select()
+      // Priority 3: Service Category only (global rule for any partner, any vehicle)
+      const globalCategoryMatch = await db.select()
         .from(pricingRules)
         .where(
           and(
             eq(pricingRules.pricingType, "DETAILER_PRICING"),
             eq(pricingRules.serviceCategoryId, serviceCategoryId),
-            eq(pricingRules.vehicleModelId, vehicleModelId),
-            eq(pricingRules.status, "ACTIVE"),
-            isNull(pricingRules.partnerId)  // FIXED: use partnerId not detailerId
+            isNull(pricingRules.vehicleModelId),
+            isNull(pricingRules.partnerId),
+            eq(pricingRules.status, "ACTIVE")
           )
         )
         .limit(1);
       
-      if (globalMatch.length > 0) {
-        console.log("✅ Found global pricing match:", globalMatch[0]);
+      if (globalCategoryMatch.length > 0) {
+        console.log("✅ Found global category match:", globalCategoryMatch[0]);
         return {
-          amount: globalMatch[0].priceAmount,
-          ruleId: globalMatch[0].id
+          amount: globalCategoryMatch[0].priceAmount,
+          ruleId: globalCategoryMatch[0].id
         };
       }
 
-      console.log("❌ No pricing rule found for simplified pricing");
+      console.log("❌ No pricing rule found for detailer payout");
       return null;
     } catch (error) {
       console.error("Error resolving payout pricing:", error);
