@@ -3228,17 +3228,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('sales_person', 'create'),
     async (req, res) => {
       try {
+        // Generate default password using phone number or "sales@123"
+        const phone = req.body.phone || '';
+        const defaultPassword = phone ? phone.slice(-6) : "sales@123";
+        const passwordHash = await bcrypt.hash(defaultPassword, 10);
+        
         const salesPersonData = {
           name: req.body.name,
           email: req.body.email,
-          phone: req.body.phone || '',
-          passwordHash: '',
+          phone: phone,
+          passwordHash,
           role: 'SALES_PERSON' as const,
           showroomId: req.body.showroomId || null,
           isActive: req.body.active ?? true
         };
         
         const salesPerson = await storage.createUser(salesPersonData);
+        console.log(`✅ Created sales person user account: ${salesPerson.email} (password: ${defaultPassword})`);
         res.status(201).json(salesPerson);
       } catch (error) {
         console.error("Create sales person error:", error);
