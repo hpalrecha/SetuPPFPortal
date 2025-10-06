@@ -39,6 +39,7 @@ const oemSchema = z.object({
   billToCity: z.string().optional(),
   billToState: z.string().optional(),
   billToPincode: z.string().optional(),
+  billToGstin: z.string().optional(),
   billJobsDirectlyToOem: z.boolean().default(false),
   
   // User creation fields
@@ -98,6 +99,7 @@ export function CreateOEMModal({
       billToCity: oem?.billToAddress?.city || "",
       billToState: oem?.billToAddress?.state || "",
       billToPincode: oem?.billToAddress?.pincode || "",
+      billToGstin: oem?.billToAddress?.gstin || "",
       billJobsDirectlyToOem: oem?.billJobsDirectlyToOem || false,
       createUser: false,
       userName: "",
@@ -130,6 +132,7 @@ export function CreateOEMModal({
         billToCity: oem.billToAddress?.city || "",
         billToState: oem.billToAddress?.state || "",
         billToPincode: oem.billToAddress?.pincode || "",
+        billToGstin: oem.billToAddress?.gstin || "",
         billJobsDirectlyToOem: oem.billJobsDirectlyToOem || false,
         createUser: false,
         userName: "",
@@ -152,6 +155,7 @@ export function CreateOEMModal({
         billToCity: "",
         billToState: "",
         billToPincode: "",
+        billToGstin: "",
         billJobsDirectlyToOem: false,
         createUser: false,
         userName: "",
@@ -171,11 +175,12 @@ export function CreateOEMModal({
       const method = isEditing ? "PUT" : "POST";
       
       // Prepare OEM data with password reset data if applicable
-      const billToAddress = (data.billToAddressLine1 || data.billToCity || data.billToState || data.billToPincode) ? {
+      const billToAddress = (data.billToAddressLine1 || data.billToCity || data.billToState || data.billToPincode || data.billToGstin) ? {
         addressLine1: data.billToAddressLine1 || "",
         city: data.billToCity || "",
         state: data.billToState || "",
-        pincode: data.billToPincode || ""
+        pincode: data.billToPincode || "",
+        gstin: data.billToGstin || ""
       } : null;
       
       const oemData = {
@@ -453,6 +458,24 @@ export function CreateOEMModal({
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="billToGstin"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>GSTIN (GST Number)</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Enter GST number"
+                      {...field}
+                      data-testid="input-bill-to-gstin"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}
