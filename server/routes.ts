@@ -2631,6 +2631,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { serviceCategoryIds, ...partnerData } = req.body;
         const validatedData = insertPartnerSchema.parse(partnerData);
         
+        // Check if email or phone number already exists
+        if (validatedData.email) {
+          const existingUser = await storage.getUserByEmail(validatedData.email);
+          if (existingUser) {
+            return res.status(400).json({ error: `Email ${validatedData.email} is already in use` });
+          }
+        }
+        
+        if (validatedData.phone) {
+          // Check if phone number already exists in users table
+          const users = await storage.getUsers();
+          const existingUserByPhone = users.find(u => u.phone === validatedData.phone);
+          
+          if (existingUserByPhone) {
+            return res.status(400).json({ error: `Phone number ${validatedData.phone} is already in use` });
+          }
+        }
+        
         const partner = await storage.createPartner(validatedData);
         
         // Handle service category mappings if provided
@@ -2641,28 +2659,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Automatically create user account for the partner
         if (partner.email) {
           try {
-            // Check if user with this email already exists
-            const existingUser = await storage.getUserByEmail(partner.email);
+            // Generate default password using phone number or "partner@123"
+            const defaultPassword = partner.phone ? partner.phone.slice(-6) : "partner@123";
+            const passwordHash = await bcrypt.hash(defaultPassword, 10);
             
-            if (!existingUser) {
-              // Generate default password using phone number or "partner@123"
-              const defaultPassword = partner.phone ? partner.phone.slice(-6) : "partner@123";
-              const passwordHash = await bcrypt.hash(defaultPassword, 10);
-              
-              await storage.createUser({
-                email: partner.email,
-                phone: partner.phone || undefined,
-                passwordHash,
-                name: partner.displayName || partner.contactPersonName || 'Partner User',
-                role: 'PARTNER_STAFF',
-                partnerId: partner.id,
-                isActive: true
-              });
-              
-              console.log(`✅ Auto-created user account for partner: ${partner.email} (password: ${defaultPassword})`);
-            } else {
-              console.log(`ℹ️ User account already exists for email: ${partner.email}`);
-            }
+            await storage.createUser({
+              email: partner.email,
+              phone: partner.phone || undefined,
+              passwordHash,
+              name: partner.displayName || partner.contactPersonName || 'Partner User',
+              role: 'PARTNER_STAFF',
+              partnerId: partner.id,
+              isActive: true
+            });
+            
+            console.log(`✅ Auto-created user account for partner: ${partner.email} (password: ${defaultPassword})`);
           } catch (userError) {
             console.error("Failed to auto-create partner user account:", userError);
             // Don't fail the partner creation if user creation fails
