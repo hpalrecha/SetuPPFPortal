@@ -35,9 +35,14 @@ Preferred communication style: Simple, everyday language.
 ## Core Business Logic
 - **Work Order Management**: Complete lifecycle from draft to completion with approval workflows
 - **Job Card System**: Real-time status tracking with SLA monitoring and automated notifications
-- **Partner Allocation**: Priority-based auto-assignment system with manual override capabilities
+- **Partner Allocation**: Priority-based auto-assignment system with manual override capabilities and partner billing controls
 - **Pricing Engine**: Hierarchical pricing rules with flexible resolution (Partner > Showroom > Dealership)
 - **Commission System**: Automated commission calculation with percentage/fixed amount rules and caps/floors
+- **Billing System**: Automated billing detail population with hierarchical rules and partner billing control
+  - **Bill From**: Defaults to "Plus Nine One Inc"; uses Partner address if "Partner Bills Customer Directly" toggle is enabled
+  - **Bill To Hierarchy**: OEM (if billDirectlyToOem) > Showroom (if billDirectlyToShowroom) > Dealership
+  - **Ship To**: Always uses Showroom's ship to address
+  - **Partner Direct Billing**: Partners can bill customers directly, bypassing system billing (configurable per allocation)
 - **Audit System**: Comprehensive activity logging with timeline views and export capabilities
 
 ## Database Design
@@ -46,6 +51,8 @@ Preferred communication style: Simple, everyday language.
 - **Enums**: PostgreSQL enums for status fields and user roles
 - **Indexing**: Strategic indexes for query performance optimization
 - **Data Types**: Proper use of UUID, timestamps, decimals, and JSONB for flexible data storage
+- **Billing Data**: JSONB fields (billFrom, billTo, shipTo) store complete billing/shipping addresses with GSTIN
+- **Allocation Controls**: Partner-level billing flags (partnerBillsDirectly) at allocation level for granular control
 
 ## File Management
 - **Object Storage**: Google Cloud Storage integration through Replit Object Storage
