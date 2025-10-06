@@ -125,6 +125,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create user (Super Admin only)
+  app.post("/api/users",
+    authenticate,
+    requireRole(['SUPER_ADMIN']),
+    auditLog('user', 'create'),
+    async (req, res) => {
+      try {
+        const { password, ...userData } = req.body;
+
+        // Check if email or phone number already exists
+        if (userData.email) {
+          const existingUser = await storage.getUserByEmail(userData.email);
+          if (existingUser) {
+            return res.status(400).json({ error: `Email ${userData.email} is already in use` });
+          }
+        }
+
+        if (userData.phone) {
+          const users = await storage.getUsers();
+          const existingUserByPhone = users.find(u => u.phone === userData.phone);
+          if (existingUserByPhone) {
+            return res.status(400).json({ error: `Phone number ${userData.phone} is already in use` });
+          }
+        }
+
+        // Hash the password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create the user
+        const newUser = await storage.createUser({
+          ...userData,
+          passwordHash: hashedPassword,
+        });
+
+        console.log(`Created user: ${newUser.email} with role ${newUser.role}`);
+
+        res.status(201).json(newUser);
+      } catch (error) {
+        console.error("Create user error:", error);
+        res.status(500).json({ error: "Failed to create user" });
+      }
+    }
+  );
+
   // Reset user password (Admin only)
   app.post("/api/users/:id/reset-password", 
     authenticate, 

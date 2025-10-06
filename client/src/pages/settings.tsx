@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiClient } from "@/lib/api";
+import { CreateUserModal } from "@/components/modals/CreateUserModal";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -91,6 +92,21 @@ export default function SettingsPage() {
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to fetch showrooms');
+      return response.json();
+    },
+    enabled: user?.role === 'SUPER_ADMIN',
+  });
+
+  const { data: users = [] } = useQuery({
+    queryKey: ["/api/users"],
+    queryFn: async () => {
+      const response = await fetch('/api/users', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch users');
       return response.json();
     },
     enabled: user?.role === 'SUPER_ADMIN',
@@ -325,8 +341,34 @@ export default function SettingsPage() {
                     Add User
                   </Button>
                 </div>
-                <div className="text-center py-8 text-muted-foreground">
-                  User management functionality coming soon...
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {users.map((usr: any) => (
+                    <Card key={usr.id} className="border">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-foreground">{usr.name}</h4>
+                          <Badge variant={usr.isActive ? "default" : "secondary"}>
+                            {usr.isActive ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-1">{usr.email}</p>
+                        <p className="text-xs text-muted-foreground mb-3">{usr.role.replace(/_/g, ' ')}</p>
+                        <div className="flex space-x-2">
+                          <Button size="sm" variant="outline" data-testid={`button-edit-user-${usr.id}`}>
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button size="sm" variant="outline" data-testid={`button-delete-user-${usr.id}`}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {users.length === 0 && (
+                    <div className="col-span-full text-center py-8 text-muted-foreground">
+                      No users found. Add your first user to get started.
+                    </div>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
@@ -551,6 +593,15 @@ export default function SettingsPage() {
           </Card>
         </div>
       </div>
+
+      {/* Create User Modal */}
+      <CreateUserModal
+        open={showCreateUserModal}
+        onOpenChange={setShowCreateUserModal}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+        }}
+      />
     </div>
   );
 }
