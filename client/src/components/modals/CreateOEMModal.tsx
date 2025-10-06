@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import {
   Form,
@@ -32,6 +33,13 @@ const oemSchema = z.object({
   contactEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
   contactPhone: z.string().optional(),
   address: z.string().optional(),
+  
+  // Bill To Address fields
+  billToAddressLine1: z.string().optional(),
+  billToCity: z.string().optional(),
+  billToState: z.string().optional(),
+  billToPincode: z.string().optional(),
+  billJobsDirectlyToOem: z.boolean().default(false),
   
   // User creation fields
   createUser: z.boolean().default(false),
@@ -86,6 +94,11 @@ export function CreateOEMModal({
       contactEmail: oem?.contactEmail || "",
       contactPhone: oem?.contactPhone || "",
       address: oem?.address || "",
+      billToAddressLine1: oem?.billToAddress?.addressLine1 || "",
+      billToCity: oem?.billToAddress?.city || "",
+      billToState: oem?.billToAddress?.state || "",
+      billToPincode: oem?.billToAddress?.pincode || "",
+      billJobsDirectlyToOem: oem?.billJobsDirectlyToOem || false,
       createUser: false,
       userName: "",
       userEmail: "",
@@ -113,6 +126,11 @@ export function CreateOEMModal({
         contactEmail: oem.contactEmail || "",
         contactPhone: oem.contactPhone || "",
         address: oem.address || "",
+        billToAddressLine1: oem.billToAddress?.addressLine1 || "",
+        billToCity: oem.billToAddress?.city || "",
+        billToState: oem.billToAddress?.state || "",
+        billToPincode: oem.billToAddress?.pincode || "",
+        billJobsDirectlyToOem: oem.billJobsDirectlyToOem || false,
         createUser: false,
         userName: "",
         userEmail: "",
@@ -130,6 +148,11 @@ export function CreateOEMModal({
         contactEmail: "",
         contactPhone: "",
         address: "",
+        billToAddressLine1: "",
+        billToCity: "",
+        billToState: "",
+        billToPincode: "",
+        billJobsDirectlyToOem: false,
         createUser: false,
         userName: "",
         userEmail: "",
@@ -148,6 +171,13 @@ export function CreateOEMModal({
       const method = isEditing ? "PUT" : "POST";
       
       // Prepare OEM data with password reset data if applicable
+      const billToAddress = (data.billToAddressLine1 || data.billToCity || data.billToState || data.billToPincode) ? {
+        addressLine1: data.billToAddressLine1 || "",
+        city: data.billToCity || "",
+        state: data.billToState || "",
+        pincode: data.billToPincode || ""
+      } : null;
+      
       const oemData = {
         name: data.name,
         brandCode: data.brandCode,
@@ -155,6 +185,8 @@ export function CreateOEMModal({
         contactEmail: data.contactEmail,
         contactPhone: data.contactPhone,
         address: data.address,
+        billToAddress,
+        billJobsDirectlyToOem: data.billJobsDirectlyToOem,
         ...(data.resetPassword && isEditing ? {
           resetPasswordData: {
             newPassword: data.newPassword
@@ -341,6 +373,107 @@ export function CreateOEMModal({
                     />
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Separator className="my-4" />
+            
+            <h3 className="text-sm font-medium">Bill To Address</h3>
+            <FormField
+              control={form.control}
+              name="billToAddressLine1"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Address Line 1</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Enter billing address"
+                      {...field}
+                      data-testid="input-bill-to-address"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <FormField
+                control={form.control}
+                name="billToCity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>City</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="City"
+                        {...field}
+                        data-testid="input-bill-to-city"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="billToState"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>State</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="State"
+                        {...field}
+                        data-testid="input-bill-to-state"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="billToPincode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pincode</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Pincode"
+                        {...field}
+                        data-testid="input-bill-to-pincode"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="billJobsDirectlyToOem"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">
+                      Bill jobs directly to OEM
+                    </FormLabel>
+                    <p className="text-sm text-muted-foreground">
+                      Auto-bill all Work Orders and Job Cards from linked dealerships/showrooms to this OEM
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      data-testid="switch-bill-jobs-directly"
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />
