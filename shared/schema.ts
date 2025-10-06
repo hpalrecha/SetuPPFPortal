@@ -242,6 +242,7 @@ export const allocations = pgTable("allocations", {
   levelId: uuid("level_id").notNull(), // dealership_id or showroom_id
   partnerId: uuid("partner_id").references(() => partners.id).notNull(),
   priority: integer("priority").notNull(),
+  partnerBillsDirectly: boolean("partner_bills_directly").default(false),
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()

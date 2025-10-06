@@ -37,6 +37,7 @@ const allocationSchema = z.object({
   showroomIds: z.array(z.string()).optional(), // Multiple IDs for showrooms
   partnerId: z.string().min(1, "Please select a partner"),
   priority: z.number().min(1).max(10).default(1),
+  partnerBillsDirectly: z.boolean().default(false),
   active: z.boolean().default(true),
 }).refine(
   (data) => {
@@ -83,6 +84,7 @@ export function CreateAllocationModal({
       showroomIds: [],
       partnerId: "",
       priority: 1,
+      partnerBillsDirectly: false,
       active: true,
     },
   });
@@ -98,6 +100,7 @@ export function CreateAllocationModal({
         showroomIds: allocation.level === "SHOWROOM" ? [allocation.levelId] : [],
         partnerId: allocation.partnerId || "",
         priority: allocation.priority || 1,
+        partnerBillsDirectly: allocation.partnerBillsDirectly ?? false,
         active: allocation.active ?? true,
       });
     } else if (!allocation && open) {
@@ -107,6 +110,7 @@ export function CreateAllocationModal({
         showroomIds: [],
         partnerId: "",
         priority: 1,
+        partnerBillsDirectly: false,
         active: true,
       });
     }
@@ -177,6 +181,7 @@ export function CreateAllocationModal({
             levelId: data.level === "DEALERSHIP" ? data.levelId : allocation.levelId,
             partnerId: data.partnerId,
             priority: data.priority,
+            partnerBillsDirectly: data.partnerBillsDirectly,
             active: data.active,
           }),
         });
@@ -207,6 +212,7 @@ export function CreateAllocationModal({
                 levelId: showroomId,
                 partnerId: data.partnerId,
                 priority: data.priority,
+                partnerBillsDirectly: data.partnerBillsDirectly,
                 active: data.active,
               }),
             })
@@ -237,6 +243,7 @@ export function CreateAllocationModal({
               levelId: data.levelId,
               partnerId: data.partnerId,
               priority: data.priority,
+              partnerBillsDirectly: data.partnerBillsDirectly,
               active: data.active,
             }),
           });
@@ -466,6 +473,31 @@ export function CreateAllocationModal({
                 )}
               />
             </div>
+
+            {/* Partner Bills Directly Toggle */}
+            <FormField
+              control={form.control}
+              name="partnerBillsDirectly"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">
+                      Partner Bills Customer Directly
+                    </FormLabel>
+                    <div className="text-sm text-muted-foreground">
+                      When enabled, this partner bills the customer directly and the system will not handle billing for their job cards.
+                    </div>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      data-testid="switch-partner-bills-directly"
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
 
             <DialogFooter>
               <Button
