@@ -368,6 +368,9 @@ export const workOrders = pgTable("work_orders", {
   customerPhone: text("customer_phone"),
   customerEmail: text("customer_email"),
   customerAddress: text("customer_address"),
+  billFrom: jsonb("bill_from"), // Billing entity (Plus Nine One Inc or Partner)
+  billTo: jsonb("bill_to"), // Customer entity (OEM/Dealership/Showroom)
+  shipTo: jsonb("ship_to"), // Shipping address (Showroom)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });
@@ -393,6 +396,10 @@ export const jobCards = pgTable("job_cards", {
   pricingSnapshotJson: jsonb("pricing_snapshot_json"),
   commissionSnapshotJson: jsonb("commission_snapshot_json"),
   billingValue: decimal("billing_value", { precision: 10, scale: 2 }), // Auto-populated from Work Order total
+  billFrom: jsonb("bill_from"), // Billing entity (Plus Nine One Inc or Partner)
+  billTo: jsonb("bill_to"), // Customer entity (OEM/Dealership/Showroom)
+  shipTo: jsonb("ship_to"), // Shipping address (Showroom)
+  partnerBilledDirectly: boolean("partner_billed_directly").default(false), // Flag if partner billed customer
   // Rework tracking fields
   reworkReason: text("rework_reason"), // Reason for requesting rework
   reworkRequestedAt: timestamp("rework_requested_at"), // When rework was requested
