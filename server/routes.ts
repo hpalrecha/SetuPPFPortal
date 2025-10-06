@@ -237,6 +237,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Create admin user if requested
         if (createUser && adminUserData) {
           try {
+            // Check if email or phone number already exists
+            if (adminUserData.email) {
+              const existingUser = await storage.getUserByEmail(adminUserData.email);
+              if (existingUser) {
+                return res.status(400).json({ error: `Email ${adminUserData.email} is already in use` });
+              }
+            }
+            
+            if (adminUserData.phone) {
+              const users = await storage.getUsers();
+              const existingUserByPhone = users.find(u => u.phone === adminUserData.phone);
+              if (existingUserByPhone) {
+                return res.status(400).json({ error: `Phone number ${adminUserData.phone} is already in use` });
+              }
+            }
     
             const hashedPassword = await bcrypt.hash(adminUserData.password, 10);
             
@@ -420,6 +435,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Create admin user if requested
         if (createUser && adminUserData) {
           try {
+            // Check if email or phone number already exists
+            if (adminUserData.email) {
+              const existingUser = await storage.getUserByEmail(adminUserData.email);
+              if (existingUser) {
+                return res.status(400).json({ error: `Email ${adminUserData.email} is already in use` });
+              }
+            }
+            
+            if (adminUserData.phone) {
+              const users = await storage.getUsers();
+              const existingUserByPhone = users.find(u => u.phone === adminUserData.phone);
+              if (existingUserByPhone) {
+                return res.status(400).json({ error: `Phone number ${adminUserData.phone} is already in use` });
+              }
+            }
+            
             const hashedPassword = await bcrypt.hash(adminUserData.password, 10);
             
             // Use adminOemId if provided, otherwise use the first OEM from the list
@@ -613,6 +644,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Create manager user if requested
         if (createUser && adminUserData) {
           try {
+            // Check if email or phone number already exists
+            if (adminUserData.email) {
+              const existingUser = await storage.getUserByEmail(adminUserData.email);
+              if (existingUser) {
+                return res.status(400).json({ error: `Email ${adminUserData.email} is already in use` });
+              }
+            }
+            
+            if (adminUserData.phone) {
+              const users = await storage.getUsers();
+              const existingUserByPhone = users.find(u => u.phone === adminUserData.phone);
+              if (existingUserByPhone) {
+                return res.status(400).json({ error: `Phone number ${adminUserData.phone} is already in use` });
+              }
+            }
+            
             const bcrypt = await import('bcryptjs');
             const hashedPassword = await bcrypt.hash(adminUserData.password, 10);
             
@@ -683,6 +730,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Create admin user if requested (for editing existing showrooms without manager)
         if (createUser && adminUserData) {
           try {
+            // Check if email or phone number already exists
+            if (adminUserData.email) {
+              const existingUser = await storage.getUserByEmail(adminUserData.email);
+              if (existingUser) {
+                return res.status(400).json({ error: `Email ${adminUserData.email} is already in use` });
+              }
+            }
+            
+            if (adminUserData.phone) {
+              const users = await storage.getUsers();
+              const existingUserByPhone = users.find(u => u.phone === adminUserData.phone);
+              if (existingUserByPhone) {
+                return res.status(400).json({ error: `Phone number ${adminUserData.phone} is already in use` });
+              }
+            }
+            
             const bcrypt = await import('bcryptjs');
             const hashedPassword = await bcrypt.hash(adminUserData.password, 10);
             
@@ -3219,6 +3282,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('sales_person', 'create'),
     async (req, res) => {
       try {
+        // Check if email or phone number already exists
+        if (req.body.email) {
+          const existingUser = await storage.getUserByEmail(req.body.email);
+          if (existingUser) {
+            return res.status(400).json({ error: `Email ${req.body.email} is already in use` });
+          }
+        }
+        
+        if (req.body.phone) {
+          const users = await storage.getUsers();
+          const existingUserByPhone = users.find(u => u.phone === req.body.phone);
+          if (existingUserByPhone) {
+            return res.status(400).json({ error: `Phone number ${req.body.phone} is already in use` });
+          }
+        }
+        
         // Generate default password using phone number or "sales@123"
         const phone = req.body.phone || '';
         const defaultPassword = phone ? phone.slice(-6) : "sales@123";
