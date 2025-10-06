@@ -554,6 +554,7 @@ export function CreateShowroomModal({
                 <h3 className="text-lg font-medium">Bill To Address</h3>
                 <div className="flex items-center space-x-2">
                   <Checkbox
+                    id="bill-to-same"
                     checked={billToSameAsShowroom}
                     onCheckedChange={(checked) => {
                       setBillToSameAsShowroom(checked as boolean);
@@ -566,7 +567,9 @@ export function CreateShowroomModal({
                     }}
                     data-testid="checkbox-bill-to-same"
                   />
-                  <label className="text-sm font-medium">Same as Showroom Address</label>
+                  <label htmlFor="bill-to-same" className="text-sm font-medium cursor-pointer select-none">
+                    Same as Showroom Address
+                  </label>
                 </div>
               </div>
               
@@ -673,6 +676,7 @@ export function CreateShowroomModal({
                 <h3 className="text-lg font-medium">Ship To Address</h3>
                 <div className="flex items-center space-x-2">
                   <Checkbox
+                    id="ship-to-same"
                     checked={shipToSameAsBillTo}
                     onCheckedChange={(checked) => {
                       setShipToSameAsBillTo(checked as boolean);
@@ -686,7 +690,9 @@ export function CreateShowroomModal({
                     }}
                     data-testid="checkbox-ship-to-same"
                   />
-                  <label className="text-sm font-medium">Same as Bill To</label>
+                  <label htmlFor="ship-to-same" className="text-sm font-medium cursor-pointer select-none">
+                    Same as Bill To
+                  </label>
                 </div>
               </div>
               
