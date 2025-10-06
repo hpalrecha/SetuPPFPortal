@@ -427,60 +427,69 @@ Please acknowledge receipt and provide estimated completion time.
 
   // Enhanced partner finding with service category matching
   private async findSuitablePartner(showroomId: string, dealershipId: string, serviceCategoryId: string): Promise<any | null> {
-    // Get partners mapped to this showroom with their service categories
-    const showroomPartners = await storage.getPartnersForShowroom(showroomId);
-    
     // Get all partners with their service categories
     const partnersWithCategories = await storage.getPartnersWithCategories();
     
-    // Filter showroom partners who can handle this service category
+    // Priority 1: Partners with SHOWROOM allocations who can handle the service category
+    const showroomAllocations = await storage.getAllocations({
+      level: 'SHOWROOM',
+      levelId: showroomId
+    });
+
+    console.log(`🔍 Checking ${showroomAllocations.length} showroom allocations for service category ${serviceCategoryId}`);
+
+    // Sort allocations by priority (lowest number = highest priority)
+    const sortedShowroomAllocations = showroomAllocations
+      .filter(a => a.active)
+      .sort((a, b) => (a.priority || 999) - (b.priority || 999));
+
+    for (const allocation of sortedShowroomAllocations) {
+      const partner = partnersWithCategories.find(p => p.id === allocation.partnerId);
+      if (partner) {
+        const canHandle = partner.serviceCategories?.some(category => category.id === serviceCategoryId);
+        console.log(`  Partner ${partner.displayName}: Can handle? ${canHandle}`);
+        if (canHandle) {
+          console.log(`✅ Found suitable partner via showroom allocation: ${partner.displayName}`);
+          return partner;
+        }
+      }
+    }
+
+    // Priority 2: Partners with DEALERSHIP allocations who can handle the service category  
+    const dealershipAllocations = await storage.getAllocations({
+      level: 'DEALERSHIP', 
+      levelId: dealershipId
+    });
+
+    console.log(`🔍 Checking ${dealershipAllocations.length} dealership allocations for service category ${serviceCategoryId}`);
+
+    const sortedDealershipAllocations = dealershipAllocations
+      .filter(a => a.active)
+      .sort((a, b) => (a.priority || 999) - (b.priority || 999));
+
+    for (const allocation of sortedDealershipAllocations) {
+      const partner = partnersWithCategories.find(p => p.id === allocation.partnerId);
+      if (partner && partner.serviceCategories?.some(category => category.id === serviceCategoryId)) {
+        console.log(`✅ Found suitable partner via dealership allocation: ${partner.displayName}`);
+        return partner;
+      }
+    }
+
+    // Priority 3 (Fallback): Partners in old mapping system who can handle the service
+    const showroomPartners = await storage.getPartnersForShowroom(showroomId);
+    
     const capablePartners = showroomPartners
       .map(sp => partnersWithCategories.find(p => p.id === sp.id))
       .filter(partner => 
         partner && partner.serviceCategories?.some(category => category.id === serviceCategoryId)
       );
 
-    if (capablePartners.length === 0) {
-      return null;
-    }
-
-    // Get showroom allocations for priority ordering
-    const showroomAllocations = await storage.getAllocations({
-      level: 'SHOWROOM',
-      levelId: showroomId,
-      active: true
-    });
-
-    // Priority 1: Partners mapped to showroom WITH allocations AND can handle the service
-    for (const allocation of showroomAllocations) {
-      const matchingPartner = capablePartners.find(p => p && p.id === allocation.partnerId);
-      if (matchingPartner) {
-        return matchingPartner;
-      }
-    }
-
-    // Priority 2: Partners mapped to showroom (without specific allocation) who can handle the service
     if (capablePartners.length > 0 && capablePartners[0]) {
+      console.log(`✅ Found suitable partner via old mapping system: ${capablePartners[0].displayName}`);
       return capablePartners[0];
     }
 
-    // Priority 3: Partners allocated to dealership AND can handle the service  
-    const dealershipAllocations = await storage.getAllocations({
-      level: 'DEALERSHIP', 
-      levelId: dealershipId,
-      active: true
-    });
-
-    for (const allocation of dealershipAllocations) {
-      const matchingPartner = partnersWithCategories.find(p => 
-        p.id === allocation.partnerId && 
-        p.serviceCategories?.some(category => category.id === serviceCategoryId)
-      );
-      if (matchingPartner) {
-        return matchingPartner;
-      }
-    }
-
+    console.warn(`❌ No suitable partner found for service category ${serviceCategoryId}`);
     return null;
   }
 
@@ -491,45 +500,53 @@ Please acknowledge receipt and provide estimated completion time.
       throw new Error('Work order not found');
     }
 
-    // Priority 1: Get partners mapped to this showroom
+    console.log(`🔍 Basic auto-assignment for work order ${workOrderId}`);
+
+    // Priority 1: Partners with SHOWROOM allocations (sorted by priority)
+    const showroomAllocations = await storage.getAllocations({
+      level: 'SHOWROOM',
+      levelId: workOrder.showroomId
+    });
+
+    const activeShowroomAllocations = showroomAllocations
+      .filter(a => a.active)
+      .sort((a, b) => (a.priority || 999) - (b.priority || 999));
+
+    if (activeShowroomAllocations.length > 0) {
+      const firstAllocation = activeShowroomAllocations[0];
+      console.log(`✅ Assigning to partner ${firstAllocation.partnerId} via showroom allocation (priority ${firstAllocation.priority})`);
+      await this.assignWorkOrder(workOrderId, firstAllocation.partnerId, 'SYSTEM');
+      return;
+    }
+
+    // Priority 2: Partners with DEALERSHIP allocations (sorted by priority)
+    const dealershipAllocations = await storage.getAllocations({
+      level: 'DEALERSHIP',
+      levelId: workOrder.dealershipId
+    });
+
+    const activeDealershipAllocations = dealershipAllocations
+      .filter(a => a.active)
+      .sort((a, b) => (a.priority || 999) - (b.priority || 999));
+
+    if (activeDealershipAllocations.length > 0) {
+      const firstAllocation = activeDealershipAllocations[0];
+      console.log(`✅ Assigning to partner ${firstAllocation.partnerId} via dealership allocation (priority ${firstAllocation.priority})`);
+      await this.assignWorkOrder(workOrderId, firstAllocation.partnerId, 'SYSTEM');
+      return;
+    }
+
+    // Priority 3 (Fallback): Partners in old mapping system
     const showroomPartners = await storage.getPartnersForShowroom(workOrder.showroomId);
     
     if (showroomPartners.length > 0) {
-      // Check if any of these partners have allocations for priority ordering
-      const allocations = await storage.getAllocations({
-        level: 'SHOWROOM',
-        levelId: workOrder.showroomId,
-        active: true
-      });
-      
-      // Prefer partners with allocations first
-      for (const allocation of allocations) {
-        const allocatedPartner = showroomPartners.find(p => p.id === allocation.partnerId);
-        if (allocatedPartner) {
-          await this.assignWorkOrder(workOrderId, allocatedPartner.id, 'SYSTEM');
-          return;
-        }
-      }
-      
-      // Otherwise use the first mapped partner
+      console.log(`✅ Assigning to partner ${showroomPartners[0].id} via old mapping system`);
       await this.assignWorkOrder(workOrderId, showroomPartners[0].id, 'SYSTEM');
       return;
     }
 
-    // Priority 2: Try dealership level allocations
-    const dealershipAllocations = await storage.getAllocations({
-      level: 'DEALERSHIP',
-      levelId: workOrder.dealershipId,
-      active: true
-    });
-
-    if (dealershipAllocations.length > 0) {
-      await this.assignWorkOrder(workOrderId, dealershipAllocations[0].partnerId, 'SYSTEM');
-      return;
-    }
-
     // SAFETY NET: No allocations found at any level
-    console.error(`CRITICAL: Work order ${workOrderId} has NO partner mappings at showroom or dealership level. Marking as UNASSIGNED for admin intervention.`);
+    console.error(`❌ CRITICAL: Work order ${workOrderId} has NO partner mappings at showroom or dealership level. Marking as UNASSIGNED for admin intervention.`);
     
     // Mark work order as needing manual assignment
     await storage.updateWorkOrder(workOrderId, {
@@ -538,9 +555,6 @@ Please acknowledge receipt and provide estimated completion time.
         ? `${workOrder.notes}\n\n[SYSTEM] No partner allocations available - requires manual assignment.`
         : '[SYSTEM] No partner allocations available - requires manual assignment.'
     });
-
-    // TODO: Send high-priority alert to admin about unassigned work order
-    // TODO: Add metrics tracking for unassigned work orders
   }
 
   // 🔧 BACKFILL SCRIPT: Generate missing commissions for existing Work Orders
