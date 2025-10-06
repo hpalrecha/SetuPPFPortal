@@ -41,15 +41,21 @@ export class WorkOrderService {
       const showroomAllocations = await storage.getAllocations({
         level: 'SHOWROOM',
         levelId: showroomId,
-        partnerId,
-        active: true
+        partnerId
       });
 
       if (showroomAllocations.length > 0 && showroomAllocations[0].partnerBillsDirectly) {
         // Partner bills directly - use partner's billing address
         const partner = await storage.getPartner(partnerId);
-        if (partner && partner.billToAddress) {
-          billFrom = partner.billToAddress;
+        if (partner && partner.address) {
+          billFrom = {
+            name: partner.displayName,
+            addressLine1: partner.address,
+            city: partner.city || '',
+            state: partner.state || '',
+            pincode: partner.pincode || '',
+            gstin: partner.gstin || ''
+          };
           partnerBilledDirectly = true;
         }
       } else {
@@ -57,14 +63,20 @@ export class WorkOrderService {
         const dealershipAllocations = await storage.getAllocations({
           level: 'DEALERSHIP',
           levelId: dealershipId,
-          partnerId,
-          active: true
+          partnerId
         });
 
         if (dealershipAllocations.length > 0 && dealershipAllocations[0].partnerBillsDirectly) {
           const partner = await storage.getPartner(partnerId);
-          if (partner && partner.billToAddress) {
-            billFrom = partner.billToAddress;
+          if (partner && partner.address) {
+            billFrom = {
+              name: partner.displayName,
+              addressLine1: partner.address,
+              city: partner.city || '',
+              state: partner.state || '',
+              pincode: partner.pincode || '',
+              gstin: partner.gstin || ''
+            };
             partnerBilledDirectly = true;
           }
         }
@@ -75,7 +87,7 @@ export class WorkOrderService {
     let billTo: any = null;
 
     // Get entities
-    const oem = await storage.getOEM(oemId);
+    const oem = await storage.getOem(oemId);
     const showroom = await storage.getShowroom(showroomId);
     const dealership = await storage.getDealership(dealershipId);
 
@@ -260,8 +272,7 @@ export class WorkOrderService {
     }
 
     const updatedWorkOrder = await storage.updateWorkOrder(workOrderId, {
-      status: 'SUBMITTED',
-      submittedAt: new Date()
+      status: 'SUBMITTED'
     });
 
     // Auto-assign to partner if no manual assignment
@@ -311,7 +322,6 @@ export class WorkOrderService {
     const updatedWorkOrder = await storage.updateWorkOrder(workOrderId, {
       status: 'ASSIGNED',
       assignedPartnerId: partnerId,
-      assignedAt: new Date(),
       estimatedPrice: pricing ? pricing.priceAmount : null,
       billFrom: billingDetails?.billFrom || workOrder.billFrom,
       billTo: billingDetails?.billTo || workOrder.billTo,
