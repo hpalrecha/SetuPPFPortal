@@ -2646,6 +2646,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.setPartnerServiceCategories(partner.id, serviceCategoryIds);
         }
         
+        // Automatically create user account for the partner
+        if (partner.email) {
+          try {
+            // Check if user with this email already exists
+            const existingUser = await storage.getUserByEmail(partner.email);
+            
+            if (!existingUser) {
+              // Generate default password using phone number or "partner@123"
+              const defaultPassword = partner.phone ? partner.phone.slice(-6) : "partner@123";
+              const passwordHash = await bcrypt.hash(defaultPassword, 10);
+              
+              await storage.createUser({
+                email: partner.email,
+                phone: partner.phone || undefined,
+                passwordHash,
+                name: partner.displayName || partner.contactPersonName || 'Partner User',
+                role: 'PARTNER_STAFF',
+                partnerId: partner.id,
+                isActive: true
+              });
+              
+              console.log(`✅ Auto-created user account for partner: ${partner.email} (password: ${defaultPassword})`);
+            } else {
+              console.log(`ℹ️ User account already exists for email: ${partner.email}`);
+            }
+          } catch (userError) {
+            console.error("Failed to auto-create partner user account:", userError);
+            // Don't fail the partner creation if user creation fails
+          }
+        }
+        
         res.status(201).json(partner);
       } catch (error) {
         console.error("Create partner error:", error);
