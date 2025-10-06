@@ -530,6 +530,103 @@ export function CreateDealershipModal({
               </div>
             </div>
 
+            {/* Bill To Address Section */}
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="text-lg font-medium">Bill To Address</h3>
+              
+              <FormField
+                control={form.control}
+                name="billToAddressLine1"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Address Line 1</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter billing address"
+                        {...field}
+                        data-testid="input-bill-to-address"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="billToCity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>City</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="City"
+                          {...field}
+                          data-testid="input-bill-to-city"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="billToState"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="State"
+                          {...field}
+                          data-testid="input-bill-to-state"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="billToPincode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Pincode</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Pincode"
+                          {...field}
+                          data-testid="input-bill-to-pincode"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="billToGstin"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>GSTIN (GST Number)</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter GST number"
+                        {...field}
+                        data-testid="input-bill-to-gstin"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             {/* Admin User Creation Section - Only show when creating new dealership */}
             {!isEditing && (
               <div className="space-y-4 border-t pt-4">

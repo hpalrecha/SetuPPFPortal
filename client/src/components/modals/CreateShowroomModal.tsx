@@ -99,6 +99,7 @@ export function CreateShowroomModal({
 }: CreateShowroomModalProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [shipToSameAsBillTo, setShipToSameAsBillTo] = useState(false);
   const isEditing = !!showroom;
 
   const form = useForm<ShowroomFormData>({
@@ -544,6 +545,224 @@ export function CreateShowroomModal({
                   )}
                 />
               </div>
+            </div>
+
+            {/* Bill To Address Section */}
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="text-lg font-medium">Bill To Address</h3>
+              
+              <FormField
+                control={form.control}
+                name="billToAddressLine1"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Address Line 1</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter billing address"
+                        {...field}
+                        data-testid="input-bill-to-address"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="billToCity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>City</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="City"
+                          {...field}
+                          data-testid="input-bill-to-city"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="billToState"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="State"
+                          {...field}
+                          data-testid="input-bill-to-state"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="billToPincode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Pincode</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Pincode"
+                          {...field}
+                          data-testid="input-bill-to-pincode"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="billToGstin"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>GSTIN (GST Number)</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter GST number"
+                        {...field}
+                        data-testid="input-bill-to-gstin"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Ship To Address Section */}
+            <div className="space-y-4 border-t pt-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium">Ship To Address</h3>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    checked={shipToSameAsBillTo}
+                    onCheckedChange={(checked) => {
+                      setShipToSameAsBillTo(checked as boolean);
+                      if (checked) {
+                        form.setValue('shipToAddressLine1', form.getValues('billToAddressLine1'));
+                        form.setValue('shipToCity', form.getValues('billToCity'));
+                        form.setValue('shipToState', form.getValues('billToState'));
+                        form.setValue('shipToPincode', form.getValues('billToPincode'));
+                        form.setValue('shipToGstin', form.getValues('billToGstin'));
+                      }
+                    }}
+                    data-testid="checkbox-ship-to-same"
+                  />
+                  <label className="text-sm font-medium">Same as Bill To</label>
+                </div>
+              </div>
+              
+              <FormField
+                control={form.control}
+                name="shipToAddressLine1"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Address Line 1</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter shipping address"
+                        {...field}
+                        disabled={shipToSameAsBillTo}
+                        data-testid="input-ship-to-address"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="shipToCity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>City</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="City"
+                          {...field}
+                          disabled={shipToSameAsBillTo}
+                          data-testid="input-ship-to-city"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="shipToState"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="State"
+                          {...field}
+                          disabled={shipToSameAsBillTo}
+                          data-testid="input-ship-to-state"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="shipToPincode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Pincode</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Pincode"
+                          {...field}
+                          disabled={shipToSameAsBillTo}
+                          data-testid="input-ship-to-pincode"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="shipToGstin"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>GSTIN (GST Number)</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter GST number"
+                        {...field}
+                        disabled={shipToSameAsBillTo}
+                        data-testid="input-ship-to-gstin"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             {/* Admin User Creation Section - Only show when creating new showroom */}
