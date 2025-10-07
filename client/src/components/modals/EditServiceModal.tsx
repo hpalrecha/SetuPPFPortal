@@ -467,15 +467,17 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
                               <Badge 
                                 key={materialId} 
                                 variant="secondary" 
-                                className="gap-1"
+                                className="gap-1 flex items-center"
                                 data-testid={`badge-edit-material-${materialId}`}
                               >
-                                <span>
-                                  {material.name}
-                                  {material.brand && ` (${material.brand})`}
-                                </span>
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{material.name}</span>
+                                  {material.brand && (
+                                    <span className="text-xs opacity-80">{material.brand}</span>
+                                  )}
+                                </div>
                                 <X
-                                  className="h-3 w-3 cursor-pointer"
+                                  className="h-3 w-3 cursor-pointer ml-1"
                                   onClick={() => {
                                     field.onChange(field.value?.filter((id: string) => id !== materialId));
                                   }}
