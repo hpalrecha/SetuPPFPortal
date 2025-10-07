@@ -2231,7 +2231,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           // Also notify stakeholders (Sales Person, Showroom Manager)
-          const stakeholders = await storage.getUsersByRole(
+          const { notificationService } = await import('./services/notificationService');
+          const stakeholders = await notificationService['getUsersByRole'](
             ['SALES_PERSON', 'SHOWROOM_MANAGER'],
             {
               oemId: workOrder.oemId,
@@ -2242,7 +2243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Add sales person if assigned
           if (workOrder.salesPersonId) {
             const salesPerson = await storage.getUser(workOrder.salesPersonId);
-            if (salesPerson && salesPerson.email && !stakeholders.find(s => s.id === salesPerson.id)) {
+            if (salesPerson && salesPerson.email && !stakeholders.find((s: any) => s.id === salesPerson.id)) {
               stakeholders.push(salesPerson);
             }
           }
@@ -2696,7 +2697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const { notificationService } = await import('./services/notificationService');
           
           // Get stakeholders (Showroom Manager, OEM Admin, Dealership Admin)
-          const stakeholders = await storage.getUsersByRole(
+          const stakeholders = await notificationService['getUsersByRole'](
             ['SHOWROOM_MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'],
             {
               oemId: workOrder.oemId,
