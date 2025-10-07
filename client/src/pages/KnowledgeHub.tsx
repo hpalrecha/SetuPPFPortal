@@ -111,7 +111,7 @@ export default function KnowledgeHub() {
 
   const createMutation = useMutation({
     mutationFn: async (data: KnowledgeHubFormData) => {
-      return apiRequest('/api/knowledge-hub', 'POST', data);
+      return apiRequest('POST', '/api/knowledge-hub', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/knowledge-hub'] });
@@ -130,7 +130,7 @@ export default function KnowledgeHub() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<KnowledgeHubFormData> }) => {
-      return apiRequest(`/api/knowledge-hub/${id}`, 'PATCH', data);
+      return apiRequest('PATCH', `/api/knowledge-hub/${id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/knowledge-hub'] });
@@ -149,7 +149,7 @@ export default function KnowledgeHub() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest(`/api/knowledge-hub/${id}`, 'DELETE');
+      return apiRequest('DELETE', `/api/knowledge-hub/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/knowledge-hub'] });
@@ -166,7 +166,7 @@ export default function KnowledgeHub() {
 
   const viewMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest(`/api/knowledge-hub/${id}/view`, 'POST');
+      return apiRequest('POST', `/api/knowledge-hub/${id}/view`);
     }
   });
 
