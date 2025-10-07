@@ -43,10 +43,13 @@ import {
   Search,
   Receipt,
   MapPinned,
-  Package
+  Package,
+  DollarSign,
+  Shield
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 import DetailerJobDetailModal from "@/components/job-cards/detailer-job-detail-modal";
 import ApprovalModal from "@/components/job-cards/approval-modal";
 import { ImageModal } from "@/components/ui/image-modal";
@@ -187,6 +190,10 @@ export default function JobCardsNew() {
   const [selectedApprovalJobCard, setSelectedApprovalJobCard] = useState<string | null>(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
+  const [showSettlePaymentModal, setShowSettlePaymentModal] = useState(false);
+  const [showApplyWarrantyModal, setShowApplyWarrantyModal] = useState(false);
+  const [salesInvoiceNumber, setSalesInvoiceNumber] = useState('');
+  const [warrantyReferenceNumber, setWarrantyReferenceNumber] = useState('');
   
   // Search filters state
   const [searchFilters, setSearchFilters] = useState({
@@ -200,6 +207,7 @@ export default function JobCardsNew() {
   
   // Get current user for admin check
   const { user } = useAuth();
+  const { toast } = useToast();
   const isPartnerUser = user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF';
   const isShowroomUser = user?.role === 'SHOWROOM_MANAGER' || user?.role === 'DEALERSHIP_ADMIN';
   const { selectedOemId } = useOemContext();
@@ -351,6 +359,57 @@ export default function JobCardsNew() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
       setSelectedJobCard(null);
+    }
+  });
+
+  // Settlement mutations
+  const settlePaymentMutation = useMutation({
+    mutationFn: async ({ jobCardId, salesInvoiceNumber }: { jobCardId: string; salesInvoiceNumber: string }) => {
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/settle-payment`, {
+        salesInvoiceNumber
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      setShowSettlePaymentModal(false);
+      setSalesInvoiceNumber('');
+      toast({
+        title: "Payment Settled",
+        description: "Sales invoice number has been recorded successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to settle payment",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const applyWarrantyMutation = useMutation({
+    mutationFn: async ({ jobCardId, warrantyReferenceNumber }: { jobCardId: string; warrantyReferenceNumber: string }) => {
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/apply-warranty`, {
+        warrantyReferenceNumber
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      setShowApplyWarrantyModal(false);
+      setWarrantyReferenceNumber('');
+      toast({
+        title: "Warranty Applied",
+        description: "E-warranty reference number has been recorded successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to apply warranty",
+        variant: "destructive"
+      });
     }
   });
 
@@ -1672,6 +1731,117 @@ export default function JobCardsNew() {
                     </CardContent>
                   </Card>
                 )}
+
+                {/* Settlement Section - Post Approval */}
+                {(detailedJobCard.status === 'APPROVED' || detailedJobCard.status === 'PAYMENT_PENDING') && (
+                  (
+                    (detailedJobCard.partnerBilledDirectly && (user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF')) ||
+                    (!detailedJobCard.partnerBilledDirectly && isAdmin)
+                  ) && (
+                  <Card className="col-span-1 lg:col-span-2 xl:col-span-3 border-2 border-dashed border-green-200 bg-green-50/50">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center gap-2">
+                        <Receipt className="h-5 w-5 text-green-600" />
+                        <CardTitle className="text-base text-green-900">Settlement Actions</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        {/* Payment Settlement Status */}
+                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border">
+                          <DollarSign className={`h-5 w-5 mt-0.5 ${detailedJobCard.paymentSettledAt ? 'text-green-600' : 'text-gray-400'}`} />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">Payment Settlement</span>
+                              {detailedJobCard.paymentSettledAt && (
+                                <CheckCircle className="h-4 w-4 text-green-600" />
+                              )}
+                            </div>
+                            {detailedJobCard.paymentSettledAt ? (
+                              <>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Settled on {formatDateTime(detailedJobCard.paymentSettledAt)}
+                                </p>
+                                <p className="text-xs font-mono mt-1 text-green-700">
+                                  Invoice: {detailedJobCard.salesInvoiceNumber}
+                                </p>
+                              </>
+                            ) : (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Invoice number not recorded yet
+                              </p>
+                            )}
+                          </div>
+                          {!detailedJobCard.paymentSettledAt && (
+                            <Button
+                              size="sm"
+                              onClick={() => setShowSettlePaymentModal(true)}
+                              className="bg-green-600 hover:bg-green-700"
+                              data-testid="button-settle-payment"
+                            >
+                              Settle
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Warranty Application Status */}
+                        <div className="flex items-start gap-3 p-3 bg-white rounded-lg border">
+                          <Shield className={`h-5 w-5 mt-0.5 ${detailedJobCard.warrantyAppliedAt ? 'text-blue-600' : 'text-gray-400'}`} />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">E-Warranty</span>
+                              {detailedJobCard.warrantyAppliedAt && (
+                                <CheckCircle className="h-4 w-4 text-blue-600" />
+                              )}
+                            </div>
+                            {detailedJobCard.warrantyAppliedAt ? (
+                              <>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Applied on {formatDateTime(detailedJobCard.warrantyAppliedAt)}
+                                </p>
+                                <p className="text-xs font-mono mt-1 text-blue-700">
+                                  Ref: {detailedJobCard.warrantyReferenceNumber}
+                                </p>
+                              </>
+                            ) : (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Warranty reference not recorded yet
+                              </p>
+                            )}
+                          </div>
+                          {!detailedJobCard.warrantyAppliedAt && (
+                            <Button
+                              size="sm"
+                              onClick={() => setShowApplyWarrantyModal(true)}
+                              className="bg-blue-600 hover:bg-blue-700"
+                              data-testid="button-apply-warranty"
+                            >
+                              Apply
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-muted-foreground">
+                        {detailedJobCard.partnerBilledDirectly 
+                          ? "As a partner, you must record the sales invoice number and apply e-warranty before closing this job card."
+                          : "As an admin, you must record the sales invoice number and apply e-warranty before closing this job card."
+                        }
+                      </p>
+
+                      {detailedJobCard.paymentSettledAt && detailedJobCard.warrantyAppliedAt && (
+                        <div className="mt-3 p-3 bg-green-100 border border-green-300 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-green-700" />
+                            <span className="text-sm font-medium text-green-900">
+                              Settlement Complete - Job card will be closed automatically
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
 
               </div>
             </div>
