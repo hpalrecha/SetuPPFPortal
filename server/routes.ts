@@ -2123,10 +2123,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Access denied - insufficient permissions" });
         }
 
-        // Update job card status to COMPLETED
+        // Update job card status to APPROVED
         const updatedJobCard = await storage.updateJobCard(jobCardId, {
-          status: 'COMPLETED',
-          completedAt: new Date()
+          status: 'APPROVED',
+          approvedAt: new Date(),
+          approvedByUserId: req.user!.id
+        });
+
+        // Sync work order status
+        await storage.updateWorkOrder(jobCard.workOrderId, {
+          status: 'APPROVED'
         });
 
 
