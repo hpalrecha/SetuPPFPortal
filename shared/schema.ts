@@ -50,6 +50,7 @@ export const jobCardStatusEnum = pgEnum('job_card_status', [
   'COMPLETED',
   'PENDING_APPROVAL',
   'APPROVED',
+  'PAYMENT_PENDING',
   'REWORK_REQUESTED',
   'CLOSED',
   'NO_SHOW',
@@ -394,6 +395,11 @@ export const jobCards = pgTable("job_cards", {
   approvalRequestedAt: timestamp("approval_requested_at"),
   approvedAt: timestamp("approved_at"),
   approvedByUserId: uuid("approved_by_user_id").references(() => users.id),
+  // Settlement fields (post-approval)
+  paymentSettledAt: timestamp("payment_settled_at"),
+  salesInvoiceNumber: text("sales_invoice_number"),
+  warrantyAppliedAt: timestamp("warranty_applied_at"),
+  warrantyReferenceNumber: text("warranty_reference_number"),
   pricingSnapshotJson: jsonb("pricing_snapshot_json"),
   commissionSnapshotJson: jsonb("commission_snapshot_json"),
   billingValue: decimal("billing_value", { precision: 10, scale: 2 }), // Auto-populated from Work Order total
