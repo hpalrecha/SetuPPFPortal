@@ -2229,6 +2229,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             );
           }
+          
+          // Also notify stakeholders (Sales Person, Showroom Manager)
+          const stakeholders = await storage.getUsersByRole(
+            ['SALES_PERSON', 'SHOWROOM_MANAGER'],
+            {
+              oemId: workOrder.oemId,
+              showroomId: workOrder.showroomId
+            }
+          );
+          
+          // Add sales person if assigned
+          if (workOrder.salesPersonId) {
+            const salesPerson = await storage.getUser(workOrder.salesPersonId);
+            if (salesPerson && salesPerson.email && !stakeholders.find(s => s.id === salesPerson.id)) {
+              stakeholders.push(salesPerson);
+            }
+          }
+          
+          for (const stakeholder of stakeholders) {
+            if (stakeholder.email) {
+              await emailService.sendEmail({
+                to: stakeholder.email,
+                subject: `Job Card Approved - ${workOrder.workOrderNumber || workOrder.id.slice(0, 8)}`,
+                html: `
+                  <p>Job Card has been approved for ${workOrder.vehicleModel}.</p>
+                  <p><strong>Approved by:</strong> ${req.user!.name || req.user!.email}</p>
+                  <p><strong>Partner:</strong> ${partner?.displayName || 'N/A'}</p>
+                  <p><strong>Payout Amount:</strong> ₹${payoutAmount}</p>
+                `,
+                text: `Job Card approved for ${workOrder.vehicleModel}. Approved by: ${req.user!.name || req.user!.email}`
+              });
+            }
+          }
+          console.log(`📧 Sent job card approval emails to ${stakeholders.length} stakeholders`);
         } catch (emailError) {
           console.error("Failed to send approval email:", emailError);
           // Don't fail the approval if email fails
@@ -2653,6 +2687,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (payoutError) {
         console.error(`❌ Failed to auto-create detailer payout for job card ${req.params.id}:`, payoutError);
         // Don't fail the completion if payout creation fails
+      }
+
+      // 📧 Email Notification: Job Card Completed - Notify stakeholders
+      try {
+        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+        if (workOrder) {
+          const { notificationService } = await import('./services/notificationService');
+          
+          // Get stakeholders (Showroom Manager, OEM Admin, Dealership Admin)
+          const stakeholders = await storage.getUsersByRole(
+            ['SHOWROOM_MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'],
+            {
+              oemId: workOrder.oemId,
+              dealershipId: workOrder.dealershipId,
+              showroomId: workOrder.showroomId
+            }
+          );
+          
+          for (const stakeholder of stakeholders) {
+            if (stakeholder.email) {
+              await emailService.sendJobCardCompletionNotification(
+                stakeholder.email,
+                {
+                  jobCardId: jobCard.id,
+                  workOrderNumber: workOrder.workOrderNumber || workOrder.id.slice(0, 8),
+                  vehicleDetails: `${workOrder.vehicleModel || 'Vehicle'} ${workOrder.vehicleVariant || ''}`.trim(),
+                  completedAt: jobCard.completedAt || new Date(),
+                  partnerName: (await storage.getPartner(jobCard.partnerId))?.displayName || 'Partner'
+                }
+              );
+            }
+          }
+          console.log(`📧 Sent job card completion emails to ${stakeholders.length} stakeholders`);
+        }
+      } catch (emailError) {
+        console.error("Failed to send completion email to stakeholders:", emailError);
       }
 
       // 📱 WhatsApp Notification: Job Card Completed
