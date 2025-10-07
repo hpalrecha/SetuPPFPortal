@@ -2257,6 +2257,186 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Job Card Settlement - Settle Payment (Invoice Entry)
+  app.post("/api/job-cards/:id/settle-payment",
+    authenticate,
+    auditLog('job_card', 'settle_payment'),
+    async (req, res) => {
+      try {
+        const jobCardId = req.params.id;
+        const { salesInvoiceNumber } = req.body;
+
+        if (!salesInvoiceNumber || !salesInvoiceNumber.trim()) {
+          return res.status(400).json({ error: "Sales invoice number is required" });
+        }
+
+        // Get job card to check status and billing info
+        const jobCard = await storage.getJobCard(jobCardId);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        if (jobCard.status !== 'APPROVED' && jobCard.status !== 'PAYMENT_PENDING') {
+          return res.status(400).json({ error: "Job card must be approved before settling payment" });
+        }
+
+        // Get work order for permission checks
+        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+        if (!workOrder) {
+          return res.status(404).json({ error: "Associated work order not found" });
+        }
+
+        // Permission check: Admin for Plus Nine One billing, Partner for partner direct billing
+        const isPartnerDirectBilling = jobCard.partnerBilledDirectly === true;
+        let hasAccess = false;
+
+        if (isPartnerDirectBilling) {
+          // Partner can settle their own direct billing
+          if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+            hasAccess = jobCard.partnerId === req.user!.partnerId;
+          }
+        } else {
+          // Admin roles can settle Plus Nine One billing
+          if (req.user!.role === 'SUPER_ADMIN') {
+            hasAccess = true;
+          } else if (req.user!.role === 'OEM_ADMIN') {
+            hasAccess = workOrder.oemId === req.user!.oemId;
+          } else if (req.user!.role === 'DEALERSHIP_ADMIN') {
+            hasAccess = workOrder.dealershipId === req.user!.dealershipId;
+          } else if (req.user!.role === 'SHOWROOM_MANAGER') {
+            hasAccess = workOrder.showroomId === req.user!.showroomId;
+          }
+        }
+
+        if (!hasAccess) {
+          return res.status(403).json({ error: "Access denied - insufficient permissions" });
+        }
+
+        // Update job card with payment settlement info
+        const updatedJobCard = await storage.updateJobCard(jobCardId, {
+          paymentSettledAt: new Date(),
+          salesInvoiceNumber: salesInvoiceNumber.trim()
+        });
+
+        if (!updatedJobCard) {
+          return res.status(500).json({ error: "Failed to settle payment" });
+        }
+
+        // Check if warranty is also applied, if so, mark as CLOSED
+        if (updatedJobCard.warrantyAppliedAt) {
+          await storage.updateJobCard(jobCardId, {
+            status: 'CLOSED'
+          });
+          // Sync work order status
+          await storage.updateWorkOrder(jobCard.workOrderId, {
+            status: 'CLOSED'
+          });
+        } else {
+          // Mark as PAYMENT_PENDING waiting for warranty
+          await storage.updateJobCard(jobCardId, {
+            status: 'PAYMENT_PENDING'
+          });
+        }
+
+        const finalJobCard = await storage.getJobCard(jobCardId);
+        res.json({ message: "Payment settled successfully", jobCard: finalJobCard });
+      } catch (error) {
+        console.error("Settle payment error:", error);
+        res.status(500).json({ error: "Failed to settle payment" });
+      }
+    }
+  );
+
+  // Job Card Settlement - Apply Warranty
+  app.post("/api/job-cards/:id/apply-warranty",
+    authenticate,
+    auditLog('job_card', 'apply_warranty'),
+    async (req, res) => {
+      try {
+        const jobCardId = req.params.id;
+        const { warrantyReferenceNumber } = req.body;
+
+        if (!warrantyReferenceNumber || !warrantyReferenceNumber.trim()) {
+          return res.status(400).json({ error: "Warranty reference number is required" });
+        }
+
+        // Get job card to check status and billing info
+        const jobCard = await storage.getJobCard(jobCardId);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        if (jobCard.status !== 'APPROVED' && jobCard.status !== 'PAYMENT_PENDING') {
+          return res.status(400).json({ error: "Job card must be approved before applying warranty" });
+        }
+
+        // Get work order for permission checks
+        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+        if (!workOrder) {
+          return res.status(404).json({ error: "Associated work order not found" });
+        }
+
+        // Permission check: Admin for Plus Nine One billing, Partner for partner direct billing
+        const isPartnerDirectBilling = jobCard.partnerBilledDirectly === true;
+        let hasAccess = false;
+
+        if (isPartnerDirectBilling) {
+          // Partner can apply warranty for their own direct billing
+          if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+            hasAccess = jobCard.partnerId === req.user!.partnerId;
+          }
+        } else {
+          // Admin roles can apply warranty for Plus Nine One billing
+          if (req.user!.role === 'SUPER_ADMIN') {
+            hasAccess = true;
+          } else if (req.user!.role === 'OEM_ADMIN') {
+            hasAccess = workOrder.oemId === req.user!.oemId;
+          } else if (req.user!.role === 'DEALERSHIP_ADMIN') {
+            hasAccess = workOrder.dealershipId === req.user!.dealershipId;
+          } else if (req.user!.role === 'SHOWROOM_MANAGER') {
+            hasAccess = workOrder.showroomId === req.user!.showroomId;
+          }
+        }
+
+        if (!hasAccess) {
+          return res.status(403).json({ error: "Access denied - insufficient permissions" });
+        }
+
+        // Update job card with warranty info
+        const updatedJobCard = await storage.updateJobCard(jobCardId, {
+          warrantyAppliedAt: new Date(),
+          warrantyReferenceNumber: warrantyReferenceNumber.trim()
+        });
+
+        if (!updatedJobCard) {
+          return res.status(500).json({ error: "Failed to apply warranty" });
+        }
+
+        // Check if payment is also settled, if so, mark as CLOSED
+        if (updatedJobCard.paymentSettledAt) {
+          await storage.updateJobCard(jobCardId, {
+            status: 'CLOSED'
+          });
+          // Sync work order status
+          await storage.updateWorkOrder(jobCard.workOrderId, {
+            status: 'CLOSED'
+          });
+        } else {
+          // Mark as PAYMENT_PENDING waiting for payment settlement
+          await storage.updateJobCard(jobCardId, {
+            status: 'PAYMENT_PENDING'
+          });
+        }
+
+        const finalJobCard = await storage.getJobCard(jobCardId);
+        res.json({ message: "Warranty applied successfully", jobCard: finalJobCard });
+      } catch (error) {
+        console.error("Apply warranty error:", error);
+        res.status(500).json({ error: "Failed to apply warranty" });
+      }
+    }
+  );
+
   // REMOVED - Duplicate endpoint replaced by enhanced /request-rework below
 
   app.put("/api/job-cards/:id", 
