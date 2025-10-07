@@ -148,6 +148,9 @@ export function EditPartnerModal({
   }, [partner, open, form, partnerCategories, isLoadingCategories]);
 
   const onSubmit = async (data: PartnerFormData) => {
+    console.log("🔴 FORM SUBMIT DATA:", data);
+    console.log("🔴 serviceCategoryIds:", data.serviceCategoryIds);
+    console.log("🔴 brandIds:", data.brandIds);
     setIsLoading(true);
     try {
       const endpoint = isEditing ? `/api/partners/${partner.id}` : "/api/partners";
