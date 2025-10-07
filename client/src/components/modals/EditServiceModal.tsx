@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Badge } from '@/components/ui/badge';
 import { Check, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useAuth } from '@/hooks/use-auth';
 import { insertServiceSchema, serviceGroupValues, availabilityScopeValues } from '@shared/schema';
 import { cn } from '@/lib/utils';
@@ -194,6 +194,10 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
       return updatedService;
     },
     onSuccess: () => {
+      // Refetch the service materials to ensure fresh data
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/p91/service', service.id, 'raw_materials'] 
+      });
       toast({
         title: 'Success',
         description: 'Service updated successfully',
@@ -262,7 +266,11 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
       delete cleanData.dealershipId;
     }
 
-    updateServiceMutation.mutate(cleanData);
+    // Ensure rawMaterialIds is included
+    updateServiceMutation.mutate({
+      ...cleanData,
+      rawMaterialIds: data.rawMaterialIds
+    });
     setIsSubmitting(false);
   };
 
@@ -409,7 +417,7 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
                         <PopoverContent className="w-full p-0" align="start">
                           <Command>
                             <CommandInput placeholder="Search materials..." />
-                            <CommandList>
+                            <CommandList className="max-h-[300px] overflow-y-auto">
                               <CommandEmpty>No materials found.</CommandEmpty>
                               <CommandGroup>
                                 {rawMaterials.map((material: any) => {

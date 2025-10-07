@@ -367,7 +367,7 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
                         <PopoverContent className="w-full p-0" align="start">
                           <Command>
                             <CommandInput placeholder="Search materials..." />
-                            <CommandList>
+                            <CommandList className="max-h-[300px] overflow-y-auto">
                               <CommandEmpty>No materials found.</CommandEmpty>
                               <CommandGroup>
                                 {rawMaterials.map((material: any) => {
