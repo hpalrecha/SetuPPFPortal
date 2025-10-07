@@ -306,7 +306,7 @@ export const brands = pgTable("brands", {
 export const rawMaterials = pgTable("raw_materials", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
-  brand: text("brand"),
+  brandId: uuid("brand_id").references(() => brands.id),
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
@@ -922,6 +922,23 @@ export const knowledgeHub = pgTable("knowledge_hub", {
 export const knowledgeHubRelations = relations(knowledgeHub, ({ one }) => ({
   creator: one(users, { fields: [knowledgeHub.createdBy], references: [users.id] }),
   oem: one(oems, { fields: [knowledgeHub.oemId], references: [oems.id] })
+}));
+
+// Brand Relations
+export const brandsRelations = relations(brands, ({ many }) => ({
+  rawMaterials: many(rawMaterials)
+}));
+
+// Raw Materials Relations
+export const rawMaterialsRelations = relations(rawMaterials, ({ one, many }) => ({
+  brand: one(brands, { fields: [rawMaterials.brandId], references: [brands.id] }),
+  serviceLinks: many(serviceRawMaterials)
+}));
+
+// Service Raw Materials Relations
+export const serviceRawMaterialsRelations = relations(serviceRawMaterials, ({ one }) => ({
+  service: one(services, { fields: [serviceRawMaterials.serviceId], references: [services.id] }),
+  rawMaterial: one(rawMaterials, { fields: [serviceRawMaterials.rawMaterialId], references: [rawMaterials.id] })
 }));
 
 // Knowledge Hub Schemas
