@@ -3117,7 +3117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const { id } = req.params;
-        const { serviceCategoryIds, ...partnerData } = req.body;
+        const { serviceCategoryIds, brandIds, ...partnerData } = req.body;
         const validatedData = insertPartnerSchema.partial().parse(partnerData);
         
         const partner = await storage.updatePartner(id, validatedData);
@@ -3128,6 +3128,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Handle service category mappings if provided
         if (serviceCategoryIds !== undefined && Array.isArray(serviceCategoryIds)) {
           await storage.setPartnerServiceCategories(partner.id, serviceCategoryIds);
+        }
+        
+        // Handle brand mappings if provided
+        if (brandIds !== undefined && Array.isArray(brandIds)) {
+          await storage.setPartnerBrands(partner.id, brandIds);
         }
         
         res.json(partner);
@@ -3170,7 +3175,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const { id } = req.params;
         const categoryIds = await storage.getPartnerServiceCategories(id);
-        res.json({ serviceCategoryIds: categoryIds });
+        const brandIds = await storage.getPartnerBrands(id);
+        res.json({ serviceCategoryIds: categoryIds, brandIds });
       } catch (error) {
         console.error("Get partner service categories error:", error);
         res.status(500).json({ error: "Failed to fetch partner service categories" });

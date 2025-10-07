@@ -702,6 +702,17 @@ export const partnerServiceCategories = pgTable("partner_service_categories", {
   uniqueMapping: unique().on(table.partnerId, table.serviceCategoryId),
 }));
 
+// Partner Brands (many-to-many mapping)
+export const partnerBrands = pgTable("partner_brands", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerId: uuid("partner_id").references(() => partners.id, { onDelete: 'cascade' }).notNull(),
+  brandId: uuid("brand_id").references(() => brands.id, { onDelete: 'cascade' }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  // Unique constraint to prevent duplicate mappings
+  uniqueMapping: unique().on(table.partnerId, table.brandId),
+}));
+
 export const insertPartnerSchema = createInsertSchema(partners).omit({ id: true, createdAt: true, updatedAt: true });
 export const selectPartnerSchema = createSelectSchema(partners);
 export type InsertPartner = z.infer<typeof insertPartnerSchema>;
@@ -718,6 +729,12 @@ export const insertPartnerServiceCategorySchema = createInsertSchema(partnerServ
 export const selectPartnerServiceCategorySchema = createSelectSchema(partnerServiceCategories);
 export type InsertPartnerServiceCategory = z.infer<typeof insertPartnerServiceCategorySchema>;
 export type PartnerServiceCategory = z.infer<typeof selectPartnerServiceCategorySchema>;
+
+// Partner Brand schemas
+export const insertPartnerBrandSchema = createInsertSchema(partnerBrands).omit({ id: true, createdAt: true });
+export const selectPartnerBrandSchema = createSelectSchema(partnerBrands);
+export type InsertPartnerBrand = z.infer<typeof insertPartnerBrandSchema>;
+export type PartnerBrand = z.infer<typeof selectPartnerBrandSchema>;
 
 export const insertPricingRuleSchema = createInsertSchema(pricingRules).omit({ id: true, createdAt: true, updatedAt: true }).extend({
   effectiveFrom: z.string().or(z.date()).transform((val) => typeof val === 'string' ? new Date(val) : val),

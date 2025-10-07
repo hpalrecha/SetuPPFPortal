@@ -14,6 +14,7 @@ import {
   services,
   serviceCategories,
   partnerServiceCategories,
+  partnerBrands,
   brands,
   rawMaterials,
   serviceRawMaterials,
@@ -182,6 +183,10 @@ export interface IStorage {
   getPartnerServiceCategories(partnerId: string): Promise<string[]>;
   getPartnersWithCategories(): Promise<(Partner & { serviceCategories?: ServiceCategory[] })[]>;
   setPartnerServiceCategories(partnerId: string, serviceCategoryIds: string[]): Promise<void>;
+
+  // Partner Brands
+  getPartnerBrands(partnerId: string): Promise<string[]>;
+  setPartnerBrands(partnerId: string, brandIds: string[]): Promise<void>;
 
   // Partner Staff Management
   getPartnerStaff(partnerId: string): Promise<User[]>;
@@ -1498,6 +1503,31 @@ export class DatabaseStorage implements IStorage {
         serviceCategoryId: categoryId
       }));
       await db.insert(partnerServiceCategories).values(mappings);
+    }
+  }
+
+  // Partner Brands management
+  async getPartnerBrands(partnerId: string): Promise<string[]> {
+    const mappings = await db
+      .select({ brandId: partnerBrands.brandId })
+      .from(partnerBrands)
+      .where(eq(partnerBrands.partnerId, partnerId));
+    return mappings.map(m => m.brandId);
+  }
+
+  async setPartnerBrands(partnerId: string, brandIds: string[]): Promise<void> {
+    // Remove existing mappings
+    await db
+      .delete(partnerBrands)
+      .where(eq(partnerBrands.partnerId, partnerId));
+
+    // Add new mappings
+    if (brandIds.length > 0) {
+      const mappings = brandIds.map(brandId => ({
+        partnerId,
+        brandId: brandId
+      }));
+      await db.insert(partnerBrands).values(mappings);
     }
   }
 
