@@ -2,17 +2,18 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 
 const materialSchema = z.object({
   name: z.string().min(1, 'Material name is required'),
-  brand: z.string().optional(),
+  brandId: z.string().optional(),
 });
 
 type MaterialFormData = z.infer<typeof materialSchema>;
@@ -28,11 +29,15 @@ export function EditRawMaterialModal({ open, onOpenChange, material }: EditRawMa
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const { data: brands = [] } = useQuery({
+    queryKey: ['/api/p91/brand'],
+  });
+
   const form = useForm<MaterialFormData>({
     resolver: zodResolver(materialSchema),
     defaultValues: {
       name: '',
-      brand: '',
+      brandId: '',
     },
   });
 
@@ -40,7 +45,7 @@ export function EditRawMaterialModal({ open, onOpenChange, material }: EditRawMa
     if (material && open) {
       form.reset({
         name: material.name || '',
-        brand: material.brand || '',
+        brandId: material.brandId || '',
       });
     }
   }, [material, open, form]);
@@ -49,7 +54,7 @@ export function EditRawMaterialModal({ open, onOpenChange, material }: EditRawMa
     mutationFn: async (data: MaterialFormData) => {
       const payload = {
         name: data.name,
-        brand: data.brand || null,
+        brandId: data.brandId || null,
         description: null,
         estimatedPrice: null,
         unit: null,
@@ -111,17 +116,25 @@ export function EditRawMaterialModal({ open, onOpenChange, material }: EditRawMa
 
             <FormField
               control={form.control}
-              name="brand"
+              name="brandId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Brand (Optional)</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g., 3M, XPEL"
-                      {...field}
-                      data-testid="input-edit-brand"
-                    />
-                  </FormControl>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-edit-brand">
+                        <SelectValue placeholder="Select a brand" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="">No Brand</SelectItem>
+                      {brands.map((brand: any) => (
+                        <SelectItem key={brand.id} value={brand.id}>
+                          {brand.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

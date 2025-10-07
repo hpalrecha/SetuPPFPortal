@@ -26,6 +26,17 @@ export default function RawMaterialsPage() {
     enabled: !!user
   });
 
+  const { data: brands = [] } = useQuery({
+    queryKey: ['/api/p91/brand'],
+    enabled: !!user
+  });
+
+  const getBrandName = (brandId: string | null) => {
+    if (!brandId) return null;
+    const brand = brands.find((b: any) => b.id === brandId);
+    return brand?.name || null;
+  };
+
   const deleteMaterialMutation = useMutation({
     mutationFn: async (materialId: string) => {
       const response = await apiRequest('DELETE', `/api/p91/raw_material/delete/${materialId}`);
@@ -72,7 +83,7 @@ export default function RawMaterialsPage() {
       const text = await file.text();
       const lines = text.split('\n');
       
-      const materials: { name: string; brand: string | null }[] = [];
+      const materials: { name: string; brandId: string | null }[] = [];
       
       // Skip header (line 0) and process all data lines
       for (let i = 1; i < lines.length; i++) {
@@ -83,12 +94,12 @@ export default function RawMaterialsPage() {
         const matches = line.match(/"([^"]*)","([^"]*)","([^"]*)","([^"]*)"/);
         if (!matches) continue;
         
-        const [, , , brand, itemName] = matches;
+        const [, , , , itemName] = matches;
         
         if (itemName) {
           materials.push({
             name: itemName,
-            brand: brand || null
+            brandId: null
           });
         }
       }
@@ -139,11 +150,12 @@ export default function RawMaterialsPage() {
     }
   };
 
-  const filteredMaterials = materials.filter((material: any) =>
-    material.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (material.brand && material.brand.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (material.description && material.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredMaterials = materials.filter((material: any) => {
+    const brandName = getBrandName(material.brandId);
+    return material.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (brandName && brandName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (material.description && material.description.toLowerCase().includes(searchTerm.toLowerCase()));
+  });
 
   if (isLoading) {
     return (
@@ -232,9 +244,9 @@ export default function RawMaterialsPage() {
                     {material.name}
                   </CardTitle>
                   <CardDescription className="mt-2 space-y-1">
-                    {material.brand && (
+                    {getBrandName(material.brandId) && (
                       <Badge variant="secondary" data-testid={`text-material-brand-${material.id}`}>
-                        {material.brand}
+                        {getBrandName(material.brandId)}
                       </Badge>
                     )}
                     {material.estimatedPrice && (
