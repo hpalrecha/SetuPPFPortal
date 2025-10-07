@@ -3996,13 +3996,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get allocation brands
+  app.get("/api/allocations/:id/brands", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const brandIds = await storage.getAllocationBrands(id);
+        res.json({ brandIds });
+      } catch (error) {
+        console.error("Get allocation brands error:", error);
+        res.status(500).json({ error: "Failed to fetch allocation brands" });
+      }
+    }
+  );
+
   app.post("/api/allocations", 
     authenticate, 
     requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     auditLog('allocation', 'create'),
     async (req, res) => {
       try {
-        const allocationData = req.body;
+        const { brandIds, ...allocationData } = req.body;
         
         // Validate required fields
         if (!allocationData.level || !allocationData.levelId || !allocationData.partnerId) {
@@ -4012,6 +4028,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const allocation = await storage.createAllocation(allocationData);
+        
+        // Handle brand mappings if provided
+        if (brandIds !== undefined && Array.isArray(brandIds)) {
+          await storage.setAllocationBrands(allocation.id, brandIds);
+        }
+        
         res.status(201).json(allocation);
       } catch (error) {
         console.error("Create allocation error:", error);
@@ -4030,10 +4052,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     auditLog('allocation', 'update'),
     async (req, res) => {
       try {
-        const allocation = await storage.updateAllocation(req.params.id, req.body);
+        const { id } = req.params;
+        const { brandIds, ...allocationData } = req.body;
+        
+        const allocation = await storage.updateAllocation(id, allocationData);
         if (!allocation) {
           return res.status(404).json({ error: "Allocation not found" });
         }
+        
+        // Handle brand mappings if provided
+        if (brandIds !== undefined && Array.isArray(brandIds)) {
+          await storage.setAllocationBrands(allocation.id, brandIds);
+        }
+        
         res.json(allocation);
       } catch (error) {
         console.error("Update allocation error:", error);
