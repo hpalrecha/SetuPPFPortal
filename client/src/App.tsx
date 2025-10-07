@@ -26,6 +26,7 @@ import ServiceCategoriesPage from "./pages/ServiceCategories";
 import PayoutSettlementPage from "./pages/payout-settlement";
 import PartnerStaffPage from "./pages/partner-staff";
 import PayoutsPage from "./pages/payouts";
+import KnowledgeHub from "./pages/KnowledgeHub";
 import MainLayout from "./components/layout/main-layout";
 import NotFound from "@/pages/not-found";
 import ForgotPasswordPage from "@/pages/forgot-password";
@@ -148,6 +149,10 @@ function Router() {
       <Route
         path="/settings"
         component={() => <ProtectedRoute component={SettingsPage} />}
+      />
+      <Route
+        path="/knowledge-hub"
+        component={() => <ProtectedRoute component={KnowledgeHub} />}
       />
       <Route component={NotFound} />
     </Switch>
