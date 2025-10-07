@@ -827,3 +827,65 @@ export const oemRoyaltyCalculationsRelations = relations(oemRoyaltyCalculations,
   oem: one(oems, { fields: [oemRoyaltyCalculations.oemId], references: [oems.id] }),
   royaltyRule: one(oemRoyaltyRules, { fields: [oemRoyaltyCalculations.royaltyRuleId], references: [oemRoyaltyRules.id] })
 }));
+
+// Knowledge Hub Enums
+export const knowledgeHubCategoryEnum = pgEnum('knowledge_hub_category', [
+  'KNOWLEDGE_BASE',
+  'OFFERS',
+  'COMMUNICATION',
+  'TRAINING',
+  'MARKETING'
+]);
+
+export const knowledgeHubContentTypeEnum = pgEnum('knowledge_hub_content_type', [
+  'PDF',
+  'IMAGE',
+  'VIDEO',
+  'YOUTUBE',
+  'DOCUMENT',
+  'LINK'
+]);
+
+export const knowledgeHubApplicableToEnum = pgEnum('knowledge_hub_applicable_to', [
+  'DETAILER',
+  'INSTALLER',
+  'SHOWROOM',
+  'DEALERSHIP',
+  'OEM',
+  'ALL'
+]);
+
+// Knowledge Hub Table
+export const knowledgeHub = pgTable("knowledge_hub", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  category: knowledgeHubCategoryEnum("category").notNull(),
+  contentType: knowledgeHubContentTypeEnum("content_type").notNull(),
+  fileUrl: text("file_url"), // For uploaded files (stored in object storage)
+  externalLink: text("external_link"), // For YouTube/external links
+  applicableTo: knowledgeHubApplicableToEnum("applicable_to").array().notNull(), // Multi-select
+  description: text("description"),
+  isActive: boolean("is_active").default(true).notNull(),
+  viewCount: integer("view_count").default(0).notNull(),
+  createdBy: uuid("created_by").notNull().references(() => users.id),
+  oemId: uuid("oem_id").references(() => oems.id), // For multi-tenant support
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+// Knowledge Hub Relations
+export const knowledgeHubRelations = relations(knowledgeHub, ({ one }) => ({
+  creator: one(users, { fields: [knowledgeHub.createdBy], references: [users.id] }),
+  oem: one(oems, { fields: [knowledgeHub.oemId], references: [oems.id] })
+}));
+
+// Knowledge Hub Schemas
+export const insertKnowledgeHubSchema = createInsertSchema(knowledgeHub).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true,
+  viewCount: true
+});
+export const selectKnowledgeHubSchema = createSelectSchema(knowledgeHub);
+export type InsertKnowledgeHub = z.infer<typeof insertKnowledgeHubSchema>;
+export type KnowledgeHub = z.infer<typeof selectKnowledgeHubSchema>;

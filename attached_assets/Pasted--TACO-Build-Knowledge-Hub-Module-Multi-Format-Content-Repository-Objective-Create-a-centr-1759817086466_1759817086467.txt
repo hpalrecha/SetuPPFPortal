@@ -1,0 +1,107 @@
+🧩 TACO: Build “Knowledge Hub” Module (Multi-Format Content Repository)
+🎯 Objective
+
+Create a centralized Knowledge Hub module where the Admin can upload or embed content of various types — PDFs, images, YouTube/video links, or documents — and share them with specific user groups such as Detailers, Installers, Showrooms, Dealerships, and OEMs.
+Users should be able to view or download the content based on access permissions.
+
+⚙️ Module Details
+
+Module Name:
+Knowledge Hub
+
+Core Purpose:
+A content library that serves as a repository for:
+
+Technical knowledge base (training material, installation guides, etc.)
+
+Offers & promotions (dealer incentives, campaigns, schemes)
+
+Communication & branding assets (templates, creatives, social content)
+
+🧱 DocType Structure
+Field	Type	Description
+Title	Data	Name of the resource (e.g., "STEK PPF Installation SOP")
+Category	Select	Knowledge Base / Offers / Communication / Training / Marketing
+Content Type	Select	PDF / Image / YouTube / Document / Link
+Upload File	Attach (optional)	For file-based uploads (PDF, image, etc.)
+YouTube / External Link	Data (URL)	For embedding YouTube or drive links
+Applicable To	Multi-Select	Detailer / Installer / Showroom / Dealership / OEM
+Description	Small Text	Short overview or context
+Visibility	Check	Active / Inactive toggle
+Created By	Auto	Fetched from logged-in user
+🧭 Role-Based Access Rules
+
+Admin:
+
+Upload, tag, edit, or delete all content
+
+Set visibility and applicable roles
+
+Push notifications to selected user groups (WhatsApp / Email / In-app)
+
+Detailers / Installers / Showrooms / Dealerships / OEMs:
+
+View and download content visible to their group
+
+Access via “Knowledge Hub” tab in their dashboard
+
+Filter or search by category, content type, or keyword
+
+💡 User Interface
+
+Portal / Dashboard Section: “Knowledge Hub”
+
+Display content cards in a responsive grid:
+
+-------------------------------------------------------
+📘 Title: "PPF Coating Process Overview"
+Category: Knowledge Base | Type: Video (YouTube)
+Description: 10-minute walkthrough of coating process
+[▶️ Watch Video]   [⬇️ Download PDF] (if attached)
+-------------------------------------------------------
+
+
+Filter Controls:
+
+Category dropdown
+
+Content type filter (PDF / Image / Video / All)
+
+Search by keyword
+
+Sort by newest / most viewed
+
+🔔 Optional Automation
+
+When a new upload is made:
+
+Send automated WhatsApp or email notification to respective user group(s).
+Example message:
+
+New Knowledge Resource Added:
+"STEK PPF Offer Kit 2025" in Offers section.
+View it here → {{link}}
+
+🧠 (Optional AI Extension)
+
+Enable AI-assisted tagging & summarization:
+
+On upload, extract keywords and auto-suggest:
+
+Category (Knowledge / Offer / Communication)
+
+Applicable user roles
+
+Short summary (auto-generated)
+
+📤 Deliverables
+
+New DocType: Knowledge Hub
+
+Admin upload form with role tagging and content type detection
+
+Portal view for users with filtering and download/view support
+
+Notification workflow for new uploads
+
+(Optional) AI auto-tagging & summarization
