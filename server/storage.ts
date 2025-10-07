@@ -9,6 +9,7 @@ import {
   partnerOems,
   partnerShowroomMapping,
   allocations,
+  allocationBrands,
   vehicleModels,
   vehicleVariants,
   services,
@@ -187,6 +188,10 @@ export interface IStorage {
   // Partner Brands
   getPartnerBrands(partnerId: string): Promise<string[]>;
   setPartnerBrands(partnerId: string, brandIds: string[]): Promise<void>;
+
+  // Allocation Brands
+  getAllocationBrands(allocationId: string): Promise<string[]>;
+  setAllocationBrands(allocationId: string, brandIds: string[]): Promise<void>;
 
   // Partner Staff Management
   getPartnerStaff(partnerId: string): Promise<User[]>;
@@ -1528,6 +1533,31 @@ export class DatabaseStorage implements IStorage {
         brandId: brandId
       }));
       await db.insert(partnerBrands).values(mappings);
+    }
+  }
+
+  // Allocation Brands management
+  async getAllocationBrands(allocationId: string): Promise<string[]> {
+    const mappings = await db
+      .select({ brandId: allocationBrands.brandId })
+      .from(allocationBrands)
+      .where(eq(allocationBrands.allocationId, allocationId));
+    return mappings.map(m => m.brandId);
+  }
+
+  async setAllocationBrands(allocationId: string, brandIds: string[]): Promise<void> {
+    // Remove existing mappings
+    await db
+      .delete(allocationBrands)
+      .where(eq(allocationBrands.allocationId, allocationId));
+
+    // Add new mappings
+    if (brandIds.length > 0) {
+      const mappings = brandIds.map(brandId => ({
+        allocationId,
+        brandId: brandId
+      }));
+      await db.insert(allocationBrands).values(mappings);
     }
   }
 
