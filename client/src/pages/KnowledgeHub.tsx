@@ -28,7 +28,8 @@ import {
   BookOpen,
   Tag,
   ExternalLink,
-  Play
+  Play,
+  Upload
 } from "lucide-react";
 
 const categories = [
@@ -79,6 +80,7 @@ export default function KnowledgeHub() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'OEM_ADMIN';
 
@@ -103,7 +105,7 @@ export default function KnowledgeHub() {
   if (searchTerm) params.append('search', searchTerm);
   const queryString = params.toString();
 
-  const { data: items = [], isLoading } = useQuery({
+  const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: queryString ? [`/api/knowledge-hub?${queryString}`] : ['/api/knowledge-hub']
   });
 
@@ -167,6 +169,40 @@ export default function KnowledgeHub() {
       return apiRequest(`/api/knowledge-hub/${id}/view`, 'POST');
     }
   });
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadingFile(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Upload failed');
+      
+      const { url } = await response.json();
+      form.setValue('fileUrl', url);
+      toast({ title: "Success", description: "File uploaded successfully" });
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to upload file",
+        variant: "destructive"
+      });
+    } finally {
+      setUploadingFile(false);
+    }
+  };
 
   const handleSubmit = (data: KnowledgeHubFormData) => {
     if (editingItem) {
@@ -482,13 +518,32 @@ export default function KnowledgeHub() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>File URL</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="Upload file or paste URL" 
-                          {...field} 
-                          data-testid="input-file-url" 
-                        />
-                      </FormControl>
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input 
+                            placeholder="Upload file or paste URL" 
+                            {...field} 
+                            data-testid="input-file-url" 
+                          />
+                        </FormControl>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => document.getElementById('file-upload-input')?.click()}
+                          disabled={uploadingFile}
+                          data-testid="button-upload-file"
+                        >
+                          <Upload className="h-4 w-4 mr-2" />
+                          {uploadingFile ? 'Uploading...' : 'Upload'}
+                        </Button>
+                      </div>
+                      <input
+                        id="file-upload-input"
+                        type="file"
+                        className="hidden"
+                        onChange={handleFileUpload}
+                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                      />
                       <FormMessage />
                     </FormItem>
                   )}
