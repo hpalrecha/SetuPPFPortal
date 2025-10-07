@@ -1512,6 +1512,7 @@ export class DatabaseStorage implements IStorage {
       .select({ brandId: partnerBrands.brandId })
       .from(partnerBrands)
       .where(eq(partnerBrands.partnerId, partnerId));
+    console.log("🟣 getPartnerBrands query result:", { partnerId, mappings });
     return mappings.map(m => m.brandId);
   }
 
