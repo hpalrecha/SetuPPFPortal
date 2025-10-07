@@ -10,11 +10,15 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
+import { Check, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/hooks/use-auth';
 import { insertServiceSchema, serviceGroupValues, availabilityScopeValues } from '@shared/schema';
+import { cn } from '@/lib/utils';
 
 // Transform shared schema to UI-compatible types using shared enums
 const serviceSchema = insertServiceSchema.extend({
@@ -42,6 +46,7 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
   const { user } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [rawMaterialsOpen, setRawMaterialsOpen] = useState(false);
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
@@ -384,30 +389,95 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Raw Materials Used (Optional)</FormLabel>
-                    <FormControl>
-                      <div className="grid grid-cols-1 gap-3 max-h-40 overflow-y-auto border rounded-md p-3">
-                        {rawMaterials.map((material: any) => (
-                          <div key={material.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`edit-material-${material.id}`}
-                              checked={field.value?.includes(material.id) || false}
-                              onCheckedChange={(checked) => {
-                                const currentValue = field.value || [];
-                                if (checked) {
-                                  field.onChange([...currentValue, material.id]);
-                                } else {
-                                  field.onChange(currentValue.filter((id: string) => id !== material.id));
-                                }
-                              }}
-                              data-testid={`checkbox-edit-material-${material.id}`}
-                            />
-                            <Label htmlFor={`edit-material-${material.id}`} className="text-sm font-normal">
-                              {material.name} {material.brand && `(${material.brand})`}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    </FormControl>
+                    <div className="space-y-2">
+                      <Popover open={rawMaterialsOpen} onOpenChange={setRawMaterialsOpen}>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={rawMaterialsOpen}
+                              className="w-full justify-between"
+                              data-testid="button-edit-select-materials"
+                            >
+                              {field.value?.length 
+                                ? `${field.value.length} material${field.value.length > 1 ? 's' : ''} selected`
+                                : "Select materials..."}
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search materials..." />
+                            <CommandList>
+                              <CommandEmpty>No materials found.</CommandEmpty>
+                              <CommandGroup>
+                                {rawMaterials.map((material: any) => {
+                                  const isSelected = field.value?.includes(material.id);
+                                  return (
+                                    <CommandItem
+                                      key={material.id}
+                                      value={`${material.name} ${material.brand || ''}`}
+                                      onSelect={() => {
+                                        const currentValue = field.value || [];
+                                        if (isSelected) {
+                                          field.onChange(currentValue.filter((id: string) => id !== material.id));
+                                        } else {
+                                          field.onChange([...currentValue, material.id]);
+                                        }
+                                      }}
+                                      data-testid={`command-item-edit-material-${material.id}`}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          isSelected ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      <div className="flex flex-col">
+                                        <span className="font-medium">{material.name}</span>
+                                        {material.brand && (
+                                          <span className="text-xs text-muted-foreground">{material.brand}</span>
+                                        )}
+                                      </div>
+                                    </CommandItem>
+                                  );
+                                })}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      
+                      {/* Display selected materials as badges */}
+                      {field.value && field.value.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {field.value.map((materialId: string) => {
+                            const material = rawMaterials.find((m: any) => m.id === materialId);
+                            if (!material) return null;
+                            return (
+                              <Badge 
+                                key={materialId} 
+                                variant="secondary" 
+                                className="gap-1"
+                                data-testid={`badge-edit-material-${materialId}`}
+                              >
+                                <span>
+                                  {material.name}
+                                  {material.brand && ` (${material.brand})`}
+                                </span>
+                                <X
+                                  className="h-3 w-3 cursor-pointer"
+                                  onClick={() => {
+                                    field.onChange(field.value?.filter((id: string) => id !== materialId));
+                                  }}
+                                />
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
