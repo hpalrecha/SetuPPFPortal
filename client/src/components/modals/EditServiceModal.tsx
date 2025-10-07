@@ -26,6 +26,7 @@ const serviceSchema = insertServiceSchema.extend({
   dealershipId: z.string().optional(),
   oemIds: z.array(z.string()).optional(),
   dealershipIds: z.array(z.string()).optional(),
+  rawMaterialIds: z.array(z.string()).optional(),
 });
 
 type ServiceFormData = z.infer<typeof serviceSchema>;
@@ -57,6 +58,7 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
       dealershipId: '',
       oemIds: [],
       dealershipIds: [],
+      rawMaterialIds: [],
     },
   });
 
@@ -64,6 +66,18 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
   const { data: serviceCategories = [] } = useQuery({
     queryKey: ['/api/service-categories'],
     enabled: open,
+  });
+
+  // Fetch raw materials
+  const { data: rawMaterials = [] } = useQuery({
+    queryKey: ['/api/p91/raw_material'],
+    enabled: open,
+  });
+
+  // Fetch existing raw materials for this service
+  const { data: existingMaterials = [] } = useQuery({
+    queryKey: ['/api/p91/service', service?.id, 'raw_materials'],
+    enabled: open && !!service?.id,
   });
 
   // Update form when service changes
@@ -80,9 +94,10 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
         dealershipId: service.dealershipId || '',
         oemIds: service.oemIds || [],
         dealershipIds: service.dealershipIds || [],
+        rawMaterialIds: existingMaterials.map((m: any) => m.id) || [],
       });
     }
-  }, [service, open, form]);
+  }, [service, open, form, existingMaterials]);
 
   // Fetch OEMs for Super Admin
   const { data: oems = [] } = useQuery({
@@ -123,6 +138,9 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
 
   const updateServiceMutation = useMutation({
     mutationFn: async (data: ServiceFormData) => {
+      const { rawMaterialIds, ...serviceData } = data;
+      
+      // Update service first
       const response = await fetch(`/api/services/${service.id}`, {
         method: 'PUT',
         headers: {
@@ -130,13 +148,45 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         credentials: 'include',
-        body: JSON.stringify(data),
+        body: JSON.stringify(serviceData),
       });
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Failed to update service');
       }
-      return response.json();
+      const updatedService = await response.json();
+      
+      // Update raw materials
+      const currentMaterialIds = existingMaterials.map((m: any) => m.id);
+      const newMaterialIds = rawMaterialIds || [];
+      
+      // Remove materials that are no longer selected
+      const materialsToRemove = currentMaterialIds.filter((id: string) => !newMaterialIds.includes(id));
+      for (const materialId of materialsToRemove) {
+        await fetch(`/api/p91/service/${service.id}/raw_materials/${materialId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          },
+          credentials: 'include',
+        });
+      }
+      
+      // Add new materials
+      const materialsToAdd = newMaterialIds.filter((id: string) => !currentMaterialIds.includes(id));
+      for (const materialId of materialsToAdd) {
+        await fetch(`/api/p91/service/${service.id}/raw_materials`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify({ rawMaterialId: materialId }),
+        });
+      }
+      
+      return updatedService;
     },
     onSuccess: () => {
       toast({
@@ -325,6 +375,44 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
                 </FormItem>
               )}
             />
+
+            {/* Raw Materials Selection */}
+            {rawMaterials.length > 0 && (
+              <FormField
+                control={form.control}
+                name="rawMaterialIds"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Raw Materials Used (Optional)</FormLabel>
+                    <FormControl>
+                      <div className="grid grid-cols-1 gap-3 max-h-40 overflow-y-auto border rounded-md p-3">
+                        {rawMaterials.map((material: any) => (
+                          <div key={material.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`edit-material-${material.id}`}
+                              checked={field.value?.includes(material.id) || false}
+                              onCheckedChange={(checked) => {
+                                const currentValue = field.value || [];
+                                if (checked) {
+                                  field.onChange([...currentValue, material.id]);
+                                } else {
+                                  field.onChange(currentValue.filter((id: string) => id !== material.id));
+                                }
+                              }}
+                              data-testid={`checkbox-edit-material-${material.id}`}
+                            />
+                            <Label htmlFor={`edit-material-${material.id}`} className="text-sm font-normal">
+                              {material.name} {material.brand && `(${material.brand})`}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             {/* Availability Scope */}
             <FormField

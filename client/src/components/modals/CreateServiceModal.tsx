@@ -26,6 +26,7 @@ const serviceSchema = insertServiceSchema.extend({
   dealershipId: z.string().optional(),
   oemIds: z.array(z.string()).optional(),
   dealershipIds: z.array(z.string()).optional(),
+  rawMaterialIds: z.array(z.string()).optional(),
 });
 
 type ServiceFormData = z.infer<typeof serviceSchema>;
@@ -56,12 +57,19 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
       dealershipId: '',
       oemIds: [],
       dealershipIds: [],
+      rawMaterialIds: [],
     },
   });
 
   // Fetch service categories
   const { data: serviceCategories = [] } = useQuery({
     queryKey: ['/api/service-categories'],
+    enabled: open,
+  });
+
+  // Fetch raw materials
+  const { data: rawMaterials = [] } = useQuery({
+    queryKey: ['/api/p91/raw_material'],
     enabled: open,
   });
 
@@ -104,6 +112,9 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
 
   const createServiceMutation = useMutation({
     mutationFn: async (data: ServiceFormData) => {
+      const { rawMaterialIds, ...serviceData } = data;
+      
+      // Create service first
       const response = await fetch('/api/services', {
         method: 'POST',
         headers: {
@@ -111,13 +122,30 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         credentials: 'include',
-        body: JSON.stringify(data),
+        body: JSON.stringify(serviceData),
       });
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Failed to create service');
       }
-      return response.json();
+      const service = await response.json();
+      
+      // Add raw materials if selected
+      if (rawMaterialIds && rawMaterialIds.length > 0) {
+        for (const materialId of rawMaterialIds) {
+          await fetch(`/api/p91/service/${service.id}/raw_materials`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+            },
+            credentials: 'include',
+            body: JSON.stringify({ rawMaterialId: materialId }),
+          });
+        }
+      }
+      
+      return service;
     },
     onSuccess: () => {
       toast({
@@ -305,6 +333,44 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
                 </FormItem>
               )}
             />
+
+            {/* Raw Materials Selection */}
+            {rawMaterials.length > 0 && (
+              <FormField
+                control={form.control}
+                name="rawMaterialIds"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Raw Materials Used (Optional)</FormLabel>
+                    <FormControl>
+                      <div className="grid grid-cols-1 gap-3 max-h-40 overflow-y-auto border rounded-md p-3">
+                        {rawMaterials.map((material: any) => (
+                          <div key={material.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`material-${material.id}`}
+                              checked={field.value?.includes(material.id) || false}
+                              onCheckedChange={(checked) => {
+                                const currentValue = field.value || [];
+                                if (checked) {
+                                  field.onChange([...currentValue, material.id]);
+                                } else {
+                                  field.onChange(currentValue.filter((id: string) => id !== material.id));
+                                }
+                              }}
+                              data-testid={`checkbox-material-${material.id}`}
+                            />
+                            <Label htmlFor={`material-${material.id}`} className="text-sm font-normal">
+                              {material.name} {material.brand && `(${material.brand})`}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             {/* Availability Scope */}
             <FormField
