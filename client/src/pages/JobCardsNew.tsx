@@ -1733,16 +1733,23 @@ export default function JobCardsNew() {
                 )}
 
                 {/* Settlement Section - Post Approval */}
-                {(detailedJobCard.status === 'APPROVED' || detailedJobCard.status === 'PAYMENT_PENDING') && (
+                {(detailedJobCard.status === 'APPROVED' || detailedJobCard.status === 'PAYMENT_PENDING' || detailedJobCard.status === 'CLOSED') && (
                   (
                     (detailedJobCard.partnerBilledDirectly && (user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF')) ||
                     (!detailedJobCard.partnerBilledDirectly && isAdmin)
                   ) && (
-                  <Card className="col-span-1 lg:col-span-2 xl:col-span-3 border-2 border-dashed border-green-200 bg-green-50/50">
+                  <Card className={`col-span-1 lg:col-span-2 xl:col-span-3 border-2 ${detailedJobCard.status === 'CLOSED' ? 'border-gray-200 bg-gray-50/50' : 'border-dashed border-green-200 bg-green-50/50'}`}>
                     <CardHeader className="pb-3">
                       <div className="flex items-center gap-2">
-                        <Receipt className="h-5 w-5 text-green-600" />
-                        <CardTitle className="text-base text-green-900">Settlement Actions</CardTitle>
+                        <Receipt className={`h-5 w-5 ${detailedJobCard.status === 'CLOSED' ? 'text-gray-600' : 'text-green-600'}`} />
+                        <CardTitle className={`text-base ${detailedJobCard.status === 'CLOSED' ? 'text-gray-900' : 'text-green-900'}`}>
+                          {detailedJobCard.status === 'CLOSED' ? 'Settlement Details' : 'Settlement Actions'}
+                        </CardTitle>
+                        {detailedJobCard.status === 'CLOSED' && (
+                          <span className="ml-auto text-xs font-medium px-2 py-1 rounded bg-green-100 text-green-700">
+                            Completed
+                          </span>
+                        )}
                       </div>
                     </CardHeader>
                     <CardContent>
@@ -1772,7 +1779,7 @@ export default function JobCardsNew() {
                               </p>
                             )}
                           </div>
-                          {!detailedJobCard.paymentSettledAt && (
+                          {!detailedJobCard.paymentSettledAt && detailedJobCard.status !== 'CLOSED' && (
                             <Button
                               size="sm"
                               onClick={() => setShowSettlePaymentModal(true)}
@@ -1809,7 +1816,7 @@ export default function JobCardsNew() {
                               </p>
                             )}
                           </div>
-                          {!detailedJobCard.warrantyAppliedAt && (
+                          {!detailedJobCard.warrantyAppliedAt && detailedJobCard.status !== 'CLOSED' && (
                             <Button
                               size="sm"
                               onClick={() => setShowApplyWarrantyModal(true)}
@@ -1822,19 +1829,32 @@ export default function JobCardsNew() {
                         </div>
                       </div>
 
-                      <p className="text-xs text-muted-foreground">
-                        {detailedJobCard.partnerBilledDirectly 
-                          ? "As a partner, you must record the sales invoice number and apply e-warranty before closing this job card."
-                          : "As an admin, you must record the sales invoice number and apply e-warranty before closing this job card."
-                        }
-                      </p>
+                      {detailedJobCard.status !== 'CLOSED' && (
+                        <p className="text-xs text-muted-foreground">
+                          {detailedJobCard.partnerBilledDirectly 
+                            ? "As a partner, you must record the sales invoice number and apply e-warranty before closing this job card."
+                            : "As an admin, you must record the sales invoice number and apply e-warranty before closing this job card."
+                          }
+                        </p>
+                      )}
 
-                      {detailedJobCard.paymentSettledAt && detailedJobCard.warrantyAppliedAt && (
+                      {detailedJobCard.paymentSettledAt && detailedJobCard.warrantyAppliedAt && detailedJobCard.status !== 'CLOSED' && (
                         <div className="mt-3 p-3 bg-green-100 border border-green-300 rounded-lg">
                           <div className="flex items-center gap-2">
                             <CheckCircle className="h-4 w-4 text-green-700" />
                             <span className="text-sm font-medium text-green-900">
                               Settlement Complete - Job card will be closed automatically
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {detailedJobCard.status === 'CLOSED' && (
+                        <div className="mt-3 p-3 bg-green-100 border border-green-300 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-green-700" />
+                            <span className="text-sm font-medium text-green-900">
+                              Job card closed - Settlement completed successfully
                             </span>
                           </div>
                         </div>
