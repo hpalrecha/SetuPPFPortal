@@ -169,7 +169,6 @@ export function EditPartnerModal({
         description: `Partner ${isEditing ? 'updated' : 'created'} successfully`,
       });
 
-      form.reset();
       onSuccess();
     } catch (error) {
       console.error("Error saving partner:", error);

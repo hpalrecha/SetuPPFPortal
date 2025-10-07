@@ -3118,7 +3118,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const { id } = req.params;
         const { serviceCategoryIds, brandIds, ...partnerData } = req.body;
-        console.log("🔵 Update partner request:", { id, serviceCategoryIds, brandIds, partnerData });
         const validatedData = insertPartnerSchema.partial().parse(partnerData);
         
         const partner = await storage.updatePartner(id, validatedData);
@@ -3128,13 +3127,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Handle service category mappings if provided
         if (serviceCategoryIds !== undefined && Array.isArray(serviceCategoryIds)) {
-          console.log("✅ Setting service categories:", serviceCategoryIds);
           await storage.setPartnerServiceCategories(partner.id, serviceCategoryIds);
         }
         
         // Handle brand mappings if provided
         if (brandIds !== undefined && Array.isArray(brandIds)) {
-          console.log("✅ Setting brand IDs:", brandIds);
           await storage.setPartnerBrands(partner.id, brandIds);
         }
         
@@ -3179,7 +3176,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { id } = req.params;
         const categoryIds = await storage.getPartnerServiceCategories(id);
         const brandIds = await storage.getPartnerBrands(id);
-        console.log("🟢 Get partner categories/brands:", { id, categoryIds, brandIds });
         res.json({ serviceCategoryIds: categoryIds, brandIds });
       } catch (error) {
         console.error("Get partner service categories error:", error);
