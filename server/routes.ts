@@ -3724,7 +3724,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       else if (req.user!.oemId) filters.oemId = req.user!.oemId;
 
       const services = await storage.getServices(filters);
-      res.json(services);
+      
+      // Fetch raw materials for each service
+      const servicesWithMaterials = await Promise.all(
+        services.map(async (service: any) => {
+          const materials = await storage.getServiceRawMaterials(service.id);
+          return {
+            ...service,
+            rawMaterials: materials
+          };
+        })
+      );
+      
+      res.json(servicesWithMaterials);
     } catch (error) {
       console.error("Get services error:", error);
       res.status(500).json({ error: "Failed to fetch services" });

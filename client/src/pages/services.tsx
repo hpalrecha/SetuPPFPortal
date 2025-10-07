@@ -261,6 +261,26 @@ export default function ServicesPage() {
                 </div>
               )}
               
+              {service.rawMaterials && service.rawMaterials.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-sm font-medium">Raw Materials:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {service.rawMaterials.map((material: any) => (
+                      <Badge 
+                        key={material.id} 
+                        variant="outline" 
+                        className="gap-1 flex flex-col items-start py-1"
+                      >
+                        <span className="font-medium text-xs">{material.name}</span>
+                        {material.brand && (
+                          <span className="text-[10px] opacity-70">{material.brand}</span>
+                        )}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">Availability:</span>
                 {getAvailabilityBadge(service.availabilityScope, service.oemId, service.dealershipId, service.oemIds, service.dealershipIds)}
