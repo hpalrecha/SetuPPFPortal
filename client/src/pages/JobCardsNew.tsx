@@ -1878,6 +1878,138 @@ export default function JobCardsNew() {
         isOpen={!!selectedApprovalJobCard}
         onClose={() => setSelectedApprovalJobCard(null)}
       />
+
+      {/* Settle Payment Modal */}
+      <Dialog open={showSettlePaymentModal} onOpenChange={setShowSettlePaymentModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-green-600" />
+              Settle Payment
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Enter the sales invoice number to record the payment settlement for this job card.
+            </p>
+            <div className="space-y-2">
+              <label htmlFor="invoice-number" className="text-sm font-medium">
+                Sales Invoice Number
+              </label>
+              <Input
+                id="invoice-number"
+                placeholder="e.g., INV-2025-001"
+                value={salesInvoiceNumber}
+                onChange={(e) => setSalesInvoiceNumber(e.target.value)}
+                data-testid="input-invoice-number"
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowSettlePaymentModal(false);
+                  setSalesInvoiceNumber('');
+                }}
+                data-testid="button-cancel-settle"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (detailedJobCard?.id && salesInvoiceNumber.trim()) {
+                    settlePaymentMutation.mutate({
+                      jobCardId: detailedJobCard.id,
+                      salesInvoiceNumber: salesInvoiceNumber.trim()
+                    });
+                  }
+                }}
+                disabled={!salesInvoiceNumber.trim() || settlePaymentMutation.isPending}
+                className="bg-green-600 hover:bg-green-700"
+                data-testid="button-confirm-settle"
+              >
+                {settlePaymentMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Settling...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Confirm Settlement
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Apply Warranty Modal */}
+      <Dialog open={showApplyWarrantyModal} onOpenChange={setShowApplyWarrantyModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-blue-600" />
+              Apply E-Warranty
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Enter the e-warranty reference number to register the warranty for this job card.
+            </p>
+            <div className="space-y-2">
+              <label htmlFor="warranty-reference" className="text-sm font-medium">
+                Warranty Reference Number
+              </label>
+              <Input
+                id="warranty-reference"
+                placeholder="e.g., WRT-2025-001"
+                value={warrantyReferenceNumber}
+                onChange={(e) => setWarrantyReferenceNumber(e.target.value)}
+                data-testid="input-warranty-reference"
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowApplyWarrantyModal(false);
+                  setWarrantyReferenceNumber('');
+                }}
+                data-testid="button-cancel-warranty"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (detailedJobCard?.id && warrantyReferenceNumber.trim()) {
+                    applyWarrantyMutation.mutate({
+                      jobCardId: detailedJobCard.id,
+                      warrantyReferenceNumber: warrantyReferenceNumber.trim()
+                    });
+                  }
+                }}
+                disabled={!warrantyReferenceNumber.trim() || applyWarrantyMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-700"
+                data-testid="button-confirm-warranty"
+              >
+                {applyWarrantyMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Applying...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Confirm Application
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
