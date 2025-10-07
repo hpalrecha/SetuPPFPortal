@@ -3783,13 +3783,32 @@ export class DatabaseStorage implements IStorage {
       partnerCategoriesMap.set(mapping.partnerId, categories);
     }
 
-    // Add service categories to each allocation's partner
+    // Get all allocation-brand mappings with brand details
+    const allocationBrandMappings = await db
+      .select({
+        allocationId: allocationBrands.allocationId,
+        brand: brands
+      })
+      .from(allocationBrands)
+      .innerJoin(brands, eq(allocationBrands.brandId, brands.id))
+      .where(eq(brands.active, true));
+
+    // Group brands by allocation
+    const allocationBrandsMap = new Map<string, any[]>();
+    for (const mapping of allocationBrandMappings) {
+      const brandList = allocationBrandsMap.get(mapping.allocationId) || [];
+      brandList.push(mapping.brand);
+      allocationBrandsMap.set(mapping.allocationId, brandList);
+    }
+
+    // Add service categories and brands to each allocation
     return allocationsWithPartners.map(allocation => ({
       ...allocation,
       partner: {
         ...allocation.partner,
         serviceCategories: partnerCategoriesMap.get(allocation.partnerId) || []
-      }
+      },
+      brands: allocationBrandsMap.get(allocation.id) || []
     }));
   }
 

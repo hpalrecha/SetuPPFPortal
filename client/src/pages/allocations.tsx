@@ -22,6 +22,11 @@ interface Allocation {
     phone: string;
     email: string;
   };
+  brands?: Array<{
+    id: string;
+    name: string;
+    code: string;
+  }>;
 }
 
 export default function Allocations() {
@@ -324,6 +329,25 @@ export default function Allocations() {
                             data-testid={`tag-allocation-category-${category.code}`}
                           >
                             {category.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Brands */}
+                  {allocation.brands && allocation.brands.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-foreground mb-1">Product Brands</h4>
+                      <div className="flex flex-wrap gap-1">
+                        {allocation.brands.map((brand: any) => (
+                          <Badge 
+                            key={brand.id} 
+                            variant="secondary" 
+                            className="text-xs px-2 py-1 bg-blue-100 text-blue-800 hover:bg-blue-200"
+                            data-testid={`tag-allocation-brand-${brand.code}`}
+                          >
+                            {brand.name}
                           </Badge>
                         ))}
                       </div>
