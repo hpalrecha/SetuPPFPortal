@@ -151,6 +151,11 @@ export function EditPartnerModal({
     console.log("🔴 FORM SUBMIT DATA:", data);
     console.log("🔴 serviceCategoryIds:", data.serviceCategoryIds);
     console.log("🔴 brandIds:", data.brandIds);
+    
+    const requestBody = JSON.stringify(data);
+    console.log("🟡 STRINGIFIED BODY:", requestBody);
+    console.log("🟡 PARSED BACK:", JSON.parse(requestBody));
+    
     setIsLoading(true);
     try {
       const endpoint = isEditing ? `/api/partners/${partner.id}` : "/api/partners";
@@ -163,7 +168,7 @@ export function EditPartnerModal({
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         credentials: 'include',
-        body: JSON.stringify(data),
+        body: requestBody,
       });
 
       if (!response.ok) {
