@@ -114,9 +114,15 @@ Preferred communication style: Simple, everyday language.
   - **Job Card Completed**: Notifies showroom POC for approval
   - **Job Card Approved**: Notifies partner with approval confirmation
 - **Email Service**: Hybrid delivery system (AWS SES SDK + SMTP fallback)
-  - Work Order notifications (created, updated, completed)
-  - Job Card notifications (completion, approval)
-  - Password reset and OTP verification emails
+  - **URL Generation**: Dynamic URL construction using REPLIT_DEV_DOMAIN for deployed environments
+  - **Work Order Notifications**: Automated emails to stakeholders (OEM Admin, Dealership Admin, Showroom Manager, Sales Person)
+    - Work Order Created: Notifies all relevant stakeholders with order details
+    - Work Order Assigned: Notifies sales person and showroom manager
+    - Work Order Completed: Notifies all admins and managers
+  - **Job Card Notifications**: Multi-stakeholder email notifications
+    - Job Card Completed: Notifies showroom manager, OEM admin, and dealership admin
+    - Job Card Approved: Notifies partner and sales person with payout details
+  - **Authentication Emails**: Password reset and OTP verification with secure token URLs
 
 ## Monitoring & Observability
 - **Console Logging**: Structured logging for debugging and monitoring
