@@ -110,7 +110,7 @@ export function CreateRawMaterialModal({ open, onOpenChange }: CreateRawMaterial
               name="brandId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Brand (Optional)</FormLabel>
+                  <FormLabel>Brand</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger data-testid="select-brand">
