@@ -56,6 +56,7 @@ const organizationNavigation = [
   { name: "Sales Persons", href: "/sales-persons", icon: Users, roles: ["SUPER_ADMIN"] },
   { name: "Vehicles", href: "/vehicles", icon: Car, roles: ["SUPER_ADMIN"] },
   { name: "Service Categories", href: "/service-categories", icon: Tag, roles: ["SUPER_ADMIN"] },
+  { name: "Brands", href: "/brands", icon: Tag, roles: ["SUPER_ADMIN"] },
   { name: "Raw Materials", href: "/raw-materials", icon: Package, roles: ["SUPER_ADMIN"] },
 ];
 
