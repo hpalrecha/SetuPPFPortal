@@ -78,6 +78,12 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
     enabled: open,
   });
 
+  // Fetch brands
+  const { data: brands = [] } = useQuery({
+    queryKey: ['/api/p91/brand'],
+    enabled: open,
+  });
+
   // Fetch OEMs for Super Admin
   const { data: oems = [] } = useQuery({
     queryKey: ['/api/oems'],
@@ -327,13 +333,20 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Product Brand (Optional)</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g., 3M, XPEL, SunTek"
-                      {...field}
-                      data-testid="input-product-brand"
-                    />
-                  </FormControl>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-product-brand">
+                        <SelectValue placeholder="Select a brand (optional)" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {brands.map((brand: any) => (
+                        <SelectItem key={brand.id} value={brand.name}>
+                          {brand.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

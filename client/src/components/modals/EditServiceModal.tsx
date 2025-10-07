@@ -85,6 +85,12 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
     enabled: open && !!service?.id,
   });
 
+  // Fetch brands
+  const { data: brands = [] } = useQuery({
+    queryKey: ['/api/p91/brand'],
+    enabled: open,
+  });
+
   // Update form when service changes
   useEffect(() => {
     if (service && open) {
@@ -377,13 +383,20 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Product Brand (Optional)</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g., 3M, XPEL, SunTek"
-                      {...field}
-                      data-testid="input-edit-product-brand"
-                    />
-                  </FormControl>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-edit-product-brand">
+                        <SelectValue placeholder="Select a brand (optional)" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {brands.map((brand: any) => (
+                        <SelectItem key={brand.id} value={brand.name}>
+                          {brand.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
