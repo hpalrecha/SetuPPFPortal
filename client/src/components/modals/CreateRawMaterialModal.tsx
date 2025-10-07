@@ -114,11 +114,10 @@ export function CreateRawMaterialModal({ open, onOpenChange }: CreateRawMaterial
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger data-testid="select-brand">
-                        <SelectValue placeholder="Select a brand" />
+                        <SelectValue placeholder="Select a brand (optional)" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">No Brand</SelectItem>
                       {brands.map((brand: any) => (
                         <SelectItem key={brand.id} value={brand.id}>
                           {brand.name}

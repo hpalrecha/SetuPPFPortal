@@ -123,11 +123,10 @@ export function EditRawMaterialModal({ open, onOpenChange, material }: EditRawMa
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger data-testid="select-edit-brand">
-                        <SelectValue placeholder="Select a brand" />
+                        <SelectValue placeholder="Select a brand (optional)" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">No Brand</SelectItem>
                       {brands.map((brand: any) => (
                         <SelectItem key={brand.id} value={brand.id}>
                           {brand.name}
