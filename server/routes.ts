@@ -5282,6 +5282,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update raw material
+  app.put("/api/p91/raw_material/update/:id", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, brand } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ error: "Name is required" });
+      }
+
+      const updated = await storage.updateRawMaterial(id, { name, brand });
+
+      if (!updated) {
+        return res.status(404).json({ error: "Raw material not found" });
+      }
+
+      res.json({ status: "success", message: "Material updated" });
+    } catch (error) {
+      console.error("Error updating raw material:", error);
+      res.status(500).json({ error: "Failed to update raw material" });
+    }
+  });
+
+  // Delete raw material
+  app.delete("/api/p91/raw_material/delete/:id", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteRawMaterial(id);
+
+      if (!deleted) {
+        return res.status(404).json({ error: "Raw material not found" });
+      }
+
+      res.json({ status: "success", message: "Material deleted" });
+    } catch (error) {
+      console.error("Error deleting raw material:", error);
+      res.status(500).json({ error: "Failed to delete raw material" });
+    }
+  });
+
   // Get raw materials for a service
   app.get("/api/p91/service/:serviceId/raw_materials", authenticate, requireOEMAccess, async (req, res) => {
     try {
