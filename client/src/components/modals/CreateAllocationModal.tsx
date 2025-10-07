@@ -36,6 +36,7 @@ const allocationSchema = z.object({
   levelId: z.string().optional(), // Single ID for dealership
   showroomIds: z.array(z.string()).optional(), // Multiple IDs for showrooms
   partnerId: z.string().min(1, "Please select a partner"),
+  brandIds: z.array(z.string()).min(1, "Please select at least one brand"),
   priority: z.number().min(1).max(10).default(1),
   partnerBillsDirectly: z.boolean().default(false),
   active: z.boolean().default(true),
@@ -83,6 +84,7 @@ export function CreateAllocationModal({
       levelId: "",
       showroomIds: [],
       partnerId: "",
+      brandIds: [],
       priority: 1,
       partnerBillsDirectly: false,
       active: true,
@@ -90,6 +92,58 @@ export function CreateAllocationModal({
   });
 
   const selectedLevel = form.watch("level");
+  const selectedPartnerId = form.watch("partnerId");
+
+  // Fetch brands
+  const { data: brands = [] } = useQuery({
+    queryKey: ["/api/p91/brands"],
+    queryFn: async () => {
+      const response = await fetch('/api/p91/brands', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch brands');
+      return response.json();
+    },
+    enabled: open,
+  });
+
+  // Fetch partner's brands when partner is selected
+  const { data: partnerBrandsData } = useQuery({
+    queryKey: ["/api/partners", selectedPartnerId, "service-categories"],
+    queryFn: async () => {
+      const response = await fetch(`/api/partners/${selectedPartnerId}/service-categories`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch partner brands');
+      return response.json();
+    },
+    enabled: open && !!selectedPartnerId,
+  });
+
+  // Fetch allocation brands when editing
+  const { data: allocationBrandsData } = useQuery({
+    queryKey: ["/api/allocations", allocation?.id, "brands"],
+    queryFn: async () => {
+      const response = await fetch(`/api/allocations/${allocation.id}/brands`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch allocation brands');
+      return response.json();
+    },
+    enabled: open && isEditing && !!allocation?.id,
+  });
+
+  const partnerBrandIds = partnerBrandsData?.brandIds || [];
+  const availableBrands = brands.filter((brand: any) => partnerBrandIds.includes(brand.id));
 
   // Reset form when allocation prop changes (for editing)
   useEffect(() => {
@@ -99,6 +153,7 @@ export function CreateAllocationModal({
         levelId: allocation.levelId || "",
         showroomIds: allocation.level === "SHOWROOM" ? [allocation.levelId] : [],
         partnerId: allocation.partnerId || "",
+        brandIds: allocationBrandsData?.brandIds || [],
         priority: allocation.priority || 1,
         partnerBillsDirectly: allocation.partnerBillsDirectly ?? false,
         active: allocation.active ?? true,
@@ -109,12 +164,13 @@ export function CreateAllocationModal({
         levelId: "",
         showroomIds: [],
         partnerId: "",
+        brandIds: [],
         priority: 1,
         partnerBillsDirectly: false,
         active: true,
       });
     }
-  }, [allocation, open, form]);
+  }, [allocation, open, form, allocationBrandsData]);
 
   // Fetch dealerships
   const { data: dealerships = [] } = useQuery({
@@ -180,6 +236,7 @@ export function CreateAllocationModal({
             level: data.level,
             levelId: data.level === "DEALERSHIP" ? data.levelId : allocation.levelId,
             partnerId: data.partnerId,
+            brandIds: data.brandIds,
             priority: data.priority,
             partnerBillsDirectly: data.partnerBillsDirectly,
             active: data.active,
@@ -211,6 +268,7 @@ export function CreateAllocationModal({
                 level: "SHOWROOM",
                 levelId: showroomId,
                 partnerId: data.partnerId,
+                brandIds: data.brandIds,
                 priority: data.priority,
                 partnerBillsDirectly: data.partnerBillsDirectly,
                 active: data.active,
@@ -242,6 +300,7 @@ export function CreateAllocationModal({
               level: data.level,
               levelId: data.levelId,
               partnerId: data.partnerId,
+              brandIds: data.brandIds,
               priority: data.priority,
               partnerBillsDirectly: data.partnerBillsDirectly,
               active: data.active,
@@ -401,7 +460,13 @@ export function CreateAllocationModal({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Partner</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select 
+                    onValueChange={(value) => {
+                      field.onChange(value);
+                      form.setValue("brandIds", []); // Reset brands when partner changes
+                    }} 
+                    value={field.value}
+                  >
                     <FormControl>
                       <SelectTrigger data-testid="select-partner">
                         <SelectValue placeholder="Select partner" />
@@ -432,6 +497,51 @@ export function CreateAllocationModal({
                 </FormItem>
               )}
             />
+
+            {/* Brand Selection - only show if partner is selected */}
+            {selectedPartnerId && (
+              <FormField
+                control={form.control}
+                name="brandIds"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Product Brands (Select at least one)</FormLabel>
+                    {availableBrands.length === 0 ? (
+                      <div className="text-sm text-muted-foreground py-2">
+                        No brands assigned to this partner. Please assign brands to the partner first.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        {availableBrands.map((brand: any) => (
+                          <div key={brand.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`brand-${brand.id}`}
+                              checked={field.value?.includes(brand.id) || false}
+                              onCheckedChange={(checked) => {
+                                const currentValues = field.value || [];
+                                if (checked) {
+                                  field.onChange([...currentValues, brand.id]);
+                                } else {
+                                  field.onChange(currentValues.filter((id: string) => id !== brand.id));
+                                }
+                              }}
+                              data-testid={`checkbox-brand-${brand.id}`}
+                            />
+                            <label
+                              htmlFor={`brand-${brand.id}`}
+                              className="text-sm cursor-pointer"
+                            >
+                              {brand.name}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
