@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, Trash2, Search, Package } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Package, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,8 @@ export default function RawMaterialsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<any | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: materials = [], isLoading } = useQuery({
     queryKey: ['/api/p91/raw_material'],
@@ -48,6 +50,92 @@ export default function RawMaterialsPage() {
   const handleDeleteMaterial = (materialId: string) => {
     if (window.confirm('Are you sure you want to delete this raw material? This action cannot be undone.')) {
       deleteMaterialMutation.mutate(materialId);
+    }
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv')) {
+      toast({
+        title: "Invalid file",
+        description: "Please select a CSV file",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsImporting(true);
+
+    try {
+      const text = await file.text();
+      const lines = text.split('\n');
+      
+      const materials: { name: string; brand: string | null }[] = [];
+      
+      // Skip header (line 0) and process all data lines
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue; // Skip empty lines
+        
+        // Parse CSV line (handles quoted fields)
+        const matches = line.match(/"([^"]*)","([^"]*)","([^"]*)","([^"]*)"/);
+        if (!matches) continue;
+        
+        const [, , , brand, itemName] = matches;
+        
+        if (itemName) {
+          materials.push({
+            name: itemName,
+            brand: brand || null
+          });
+        }
+      }
+
+      if (materials.length === 0) {
+        toast({
+          title: "No data found",
+          description: "The CSV file appears to be empty or invalid",
+          variant: "destructive"
+        });
+        setIsImporting(false);
+        return;
+      }
+
+      // Import materials one by one
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const material of materials) {
+        try {
+          await apiRequest('POST', '/api/p91/raw_material/add', material);
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to import ${material.name}:`, error);
+          errorCount++;
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['/api/p91/raw_material'] });
+
+      toast({
+        title: "Import complete",
+        description: `Successfully imported ${successCount} materials${errorCount > 0 ? `, ${errorCount} failed` : ''}`,
+      });
+
+    } catch (error) {
+      console.error('Import error:', error);
+      toast({
+        title: "Import failed",
+        description: "Failed to process the CSV file",
+        variant: "destructive"
+      });
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -90,14 +178,33 @@ export default function RawMaterialsPage() {
             Manage raw materials, inventory, and pricing
           </p>
         </div>
-        <Button 
-          onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
-          data-testid="button-create-material"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Material
-        </Button>
+        <div className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            onChange={handleFileSelect}
+            className="hidden"
+            data-testid="input-csv-file"
+          />
+          <Button 
+            onClick={() => fileInputRef.current?.click()}
+            variant="outline"
+            disabled={isImporting}
+            data-testid="button-import-csv"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            {isImporting ? 'Importing...' : 'Import CSV'}
+          </Button>
+          <Button 
+            onClick={() => setShowCreateModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            data-testid="button-create-material"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Material
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-4 mb-6">
