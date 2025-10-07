@@ -48,6 +48,7 @@ const partnerSchema = z.object({
   active: z.boolean(),
   canViewJobCardPrice: z.boolean().optional(),
   serviceCategoryIds: z.array(z.string()).optional(),
+  brandIds: z.array(z.string()).optional(),
 });
 
 type PartnerFormData = z.infer<typeof partnerSchema>;
@@ -75,8 +76,14 @@ export function EditPartnerModal({
     enabled: open,
   });
 
+  // Fetch brands
+  const { data: brands = [] } = useQuery<any[]>({
+    queryKey: ['/api/p91/brand'],
+    enabled: open,
+  });
+
   // Fetch partner service categories when editing
-  const { data: partnerCategories } = useQuery<{ serviceCategoryIds: string[] }>({
+  const { data: partnerCategories } = useQuery<{ serviceCategoryIds: string[]; brandIds?: string[] }>({
     queryKey: ['/api/partners', partner?.id, 'service-categories'],
     enabled: open && isEditing && !!partner?.id,
   });
@@ -96,6 +103,7 @@ export function EditPartnerModal({
       active: true,
       canViewJobCardPrice: false,
       serviceCategoryIds: [],
+      brandIds: [],
     },
   });
 
@@ -115,6 +123,7 @@ export function EditPartnerModal({
         active: partner.active ?? true,
         canViewJobCardPrice: partner.canViewJobCardPrice ?? false,
         serviceCategoryIds: partnerCategories?.serviceCategoryIds || [],
+        brandIds: partnerCategories?.brandIds || [],
       });
     } else if (!partner && open) {
       form.reset({
@@ -130,6 +139,7 @@ export function EditPartnerModal({
         active: true,
         canViewJobCardPrice: false,
         serviceCategoryIds: [],
+        brandIds: [],
       });
     }
   }, [partner, open, form, partnerCategories]);
@@ -413,6 +423,49 @@ export function EditPartnerModal({
                             className="text-sm cursor-pointer"
                           >
                             {category.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Brands */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Product Brands</h3>
+              <p className="text-sm text-muted-foreground">
+                Select the brands this partner deals with
+              </p>
+              
+              <FormField
+                control={form.control}
+                name="brandIds"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {brands.map((brand: any) => (
+                        <div key={brand.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`brand-${brand.id}`}
+                            checked={field.value?.includes(brand.id) || false}
+                            onCheckedChange={(checked) => {
+                              const currentValues = field.value || [];
+                              if (checked) {
+                                field.onChange([...currentValues, brand.id]);
+                              } else {
+                                field.onChange(currentValues.filter((id: string) => id !== brand.id));
+                              }
+                            }}
+                            data-testid={`checkbox-brand-${brand.id}`}
+                          />
+                          <label
+                            htmlFor={`brand-${brand.id}`}
+                            className="text-sm cursor-pointer"
+                          >
+                            {brand.name}
                           </label>
                         </div>
                       ))}
