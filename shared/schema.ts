@@ -292,6 +292,16 @@ export const services = pgTable("services", {
   updatedAt: timestamp("updated_at").defaultNow()
 });
 
+// Brands Module
+export const brands = pgTable("brands", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
 // Raw Materials Module
 export const rawMaterials = pgTable("raw_materials", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -833,6 +843,11 @@ export const insertServiceSchema = createInsertSchema(services).omit({ id: true,
 export const selectServiceSchema = createSelectSchema(services);
 export type InsertService = z.infer<typeof insertServiceSchema>;
 export type Service = z.infer<typeof selectServiceSchema>;
+
+export const insertBrandSchema = createInsertSchema(brands).omit({ id: true, createdAt: true, updatedAt: true });
+export const selectBrandSchema = createSelectSchema(brands);
+export type InsertBrand = z.infer<typeof insertBrandSchema>;
+export type Brand = z.infer<typeof selectBrandSchema>;
 
 export const insertRawMaterialSchema = createInsertSchema(rawMaterials).omit({ id: true, createdAt: true, updatedAt: true });
 export const selectRawMaterialSchema = createSelectSchema(rawMaterials);
