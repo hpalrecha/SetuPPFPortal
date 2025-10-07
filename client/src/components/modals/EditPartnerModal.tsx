@@ -83,7 +83,7 @@ export function EditPartnerModal({
   });
 
   // Fetch partner service categories when editing
-  const { data: partnerCategories } = useQuery<{ serviceCategoryIds: string[]; brandIds?: string[] }>({
+  const { data: partnerCategories, isLoading: isLoadingCategories } = useQuery<{ serviceCategoryIds: string[]; brandIds?: string[] }>({
     queryKey: ['/api/partners', partner?.id, 'service-categories'],
     enabled: open && isEditing && !!partner?.id,
   });
@@ -110,8 +110,8 @@ export function EditPartnerModal({
   // Update form when partner prop or categories change
   useEffect(() => {
     if (partner && open) {
-      // For editing: only reset the form when partnerCategories is loaded
-      if (partnerCategories !== undefined) {
+      // For editing: only reset the form when partnerCategories has finished loading
+      if (!isLoadingCategories && partnerCategories) {
         form.reset({
           displayName: partner.displayName || "",
           type: partner.type || "INSTALLER",
@@ -145,7 +145,7 @@ export function EditPartnerModal({
         brandIds: [],
       });
     }
-  }, [partner, open, form, partnerCategories]);
+  }, [partner, open, form, partnerCategories, isLoadingCategories]);
 
   const onSubmit = async (data: PartnerFormData) => {
     setIsLoading(true);
