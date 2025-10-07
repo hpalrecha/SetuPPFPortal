@@ -5306,6 +5306,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 🏷️ BRANDS ROUTES
+
+  // Get all brands
+  app.get("/api/p91/brand", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const brands = await storage.getBrands();
+      res.json(brands);
+    } catch (error) {
+      console.error("Error fetching brands:", error);
+      res.status(500).json({ error: "Failed to fetch brands" });
+    }
+  });
+
+  // Get single brand
+  app.get("/api/p91/brand/:id", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const brand = await storage.getBrand(id);
+      
+      if (!brand) {
+        return res.status(404).json({ error: "Brand not found" });
+      }
+
+      res.json(brand);
+    } catch (error) {
+      console.error("Error fetching brand:", error);
+      res.status(500).json({ error: "Failed to fetch brand" });
+    }
+  });
+
+  // Create brand
+  app.post("/api/p91/brand", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { name, description } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ error: "Name is required" });
+      }
+
+      // Check if brand with same name exists
+      const existing = await storage.getBrandByName(name);
+
+      if (existing) {
+        return res.status(400).json({ error: "A brand with this name already exists" });
+      }
+
+      // Create new brand
+      const newBrand = await storage.createBrand({ name, description });
+      
+      // Audit log
+      await storage.createAuditLog({
+        actorUserId: req.user?.id,
+        entity: 'brand',
+        entityId: newBrand.id,
+        action: 'CREATE'
+      });
+
+      res.json({ status: "success", message: "Brand created successfully", data: newBrand });
+    } catch (error) {
+      console.error("Error creating brand:", error);
+      res.status(500).json({ error: "Failed to create brand" });
+    }
+  });
+
+  // Update brand
+  app.put("/api/p91/brand/:id", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ error: "Name is required" });
+      }
+
+      // Check if another brand with same name exists
+      const existing = await storage.getBrandByName(name);
+      if (existing && existing.id !== id) {
+        return res.status(400).json({ error: "A brand with this name already exists" });
+      }
+
+      const updated = await storage.updateBrand(id, { name, description });
+
+      if (!updated) {
+        return res.status(404).json({ error: "Brand not found" });
+      }
+
+      // Audit log
+      await storage.createAuditLog({
+        actorUserId: req.user?.id,
+        entity: 'brand',
+        entityId: id,
+        action: 'UPDATE'
+      });
+
+      res.json({ status: "success", message: "Brand updated successfully", data: updated });
+    } catch (error) {
+      console.error("Error updating brand:", error);
+      res.status(500).json({ error: "Failed to update brand" });
+    }
+  });
+
+  // Delete brand
+  app.delete("/api/p91/brand/:id", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteBrand(id);
+
+      if (!deleted) {
+        return res.status(404).json({ error: "Brand not found" });
+      }
+
+      // Audit log
+      await storage.createAuditLog({
+        actorUserId: req.user?.id,
+        entity: 'brand',
+        entityId: id,
+        action: 'DELETE'
+      });
+
+      res.json({ status: "success", message: "Brand deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting brand:", error);
+      res.status(500).json({ error: "Failed to delete brand" });
+    }
+  });
+
   // 🧪 RAW MATERIALS ROUTES
 
   // Get all raw materials
