@@ -14,6 +14,8 @@ import {
   services,
   serviceCategories,
   partnerServiceCategories,
+  rawMaterials,
+  serviceRawMaterials,
   pricingRules,
   commissionRules,
   workOrders,
@@ -54,6 +56,10 @@ import {
   type InsertServiceCategory,
   type PartnerServiceCategory,
   type InsertPartnerServiceCategory,
+  type RawMaterial,
+  type InsertRawMaterial,
+  type ServiceRawMaterial,
+  type InsertServiceRawMaterial,
   type OemRoyaltyRule,
   type InsertOemRoyaltyRule,
   type OemRoyaltyCalculation,
@@ -385,6 +391,17 @@ export interface IStorage {
     action: string;
     diffJson?: any;
   }): Promise<void>;
+
+  // Raw Material management
+  getRawMaterials(): Promise<RawMaterial[]>;
+  getRawMaterial(id: string): Promise<RawMaterial | undefined>;
+  getRawMaterialByName(name: string): Promise<RawMaterial | undefined>;
+  createRawMaterial(material: InsertRawMaterial): Promise<RawMaterial>;
+  updateRawMaterial(id: string, updates: Partial<InsertRawMaterial>): Promise<RawMaterial | undefined>;
+  deleteRawMaterial(id: string): Promise<boolean>;
+  getServiceRawMaterials(serviceId: string): Promise<RawMaterial[]>;
+  addServiceRawMaterial(serviceId: string, rawMaterialId: string): Promise<ServiceRawMaterial>;
+  removeServiceRawMaterial(serviceId: string, rawMaterialId: string): Promise<boolean>;
 
   // Knowledge Hub management
   getKnowledgeHubItems(filters?: { 
@@ -4118,6 +4135,92 @@ export class DatabaseStorage implements IStorage {
       .update(knowledgeHub)
       .set({ viewCount: sql`${knowledgeHub.viewCount} + 1` })
       .where(eq(knowledgeHub.id, id));
+  }
+
+  // Raw Material methods
+  async getRawMaterials(): Promise<RawMaterial[]> {
+    return await db
+      .select()
+      .from(rawMaterials)
+      .where(eq(rawMaterials.active, true))
+      .orderBy(asc(rawMaterials.name));
+  }
+
+  async getRawMaterial(id: string): Promise<RawMaterial | undefined> {
+    const [material] = await db
+      .select()
+      .from(rawMaterials)
+      .where(eq(rawMaterials.id, id));
+    return material || undefined;
+  }
+
+  async getRawMaterialByName(name: string): Promise<RawMaterial | undefined> {
+    const [material] = await db
+      .select()
+      .from(rawMaterials)
+      .where(eq(rawMaterials.name, name));
+    return material || undefined;
+  }
+
+  async createRawMaterial(material: InsertRawMaterial): Promise<RawMaterial> {
+    const [newMaterial] = await db
+      .insert(rawMaterials)
+      .values(material)
+      .returning();
+    return newMaterial;
+  }
+
+  async updateRawMaterial(id: string, updates: Partial<InsertRawMaterial>): Promise<RawMaterial | undefined> {
+    const [updatedMaterial] = await db
+      .update(rawMaterials)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(rawMaterials.id, id))
+      .returning();
+    return updatedMaterial || undefined;
+  }
+
+  async deleteRawMaterial(id: string): Promise<boolean> {
+    const result = await db
+      .delete(rawMaterials)
+      .where(eq(rawMaterials.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async getServiceRawMaterials(serviceId: string): Promise<RawMaterial[]> {
+    const results = await db
+      .select({
+        id: rawMaterials.id,
+        name: rawMaterials.name,
+        brand: rawMaterials.brand,
+        active: rawMaterials.active,
+        createdAt: rawMaterials.createdAt,
+        updatedAt: rawMaterials.updatedAt
+      })
+      .from(serviceRawMaterials)
+      .innerJoin(rawMaterials, eq(serviceRawMaterials.rawMaterialId, rawMaterials.id))
+      .where(eq(serviceRawMaterials.serviceId, serviceId));
+    
+    return results;
+  }
+
+  async addServiceRawMaterial(serviceId: string, rawMaterialId: string): Promise<ServiceRawMaterial> {
+    const [mapping] = await db
+      .insert(serviceRawMaterials)
+      .values({ serviceId, rawMaterialId })
+      .returning();
+    return mapping;
+  }
+
+  async removeServiceRawMaterial(serviceId: string, rawMaterialId: string): Promise<boolean> {
+    const result = await db
+      .delete(serviceRawMaterials)
+      .where(
+        and(
+          eq(serviceRawMaterials.serviceId, serviceId),
+          eq(serviceRawMaterials.rawMaterialId, rawMaterialId)
+        )
+      );
+    return result.rowCount !== null && result.rowCount > 0;
   }
 }
 
