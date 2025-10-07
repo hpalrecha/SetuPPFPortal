@@ -17,7 +17,7 @@ interface AuditLog {
 }
 
 export default function AuditPage() {
-  const [actionFilter, setActionFilter] = useState("");
+  const [actionFilter, setActionFilter] = useState("all");
 
   const handleExportAudit = () => {
     alert("Audit export functionality would be implemented here");
@@ -97,7 +97,7 @@ export default function AuditPage() {
     }
   };
 
-  const filteredLogs = actionFilter 
+  const filteredLogs = actionFilter && actionFilter !== "all"
     ? auditLogs.filter(log => log.action.toLowerCase() === actionFilter.toLowerCase())
     : auditLogs;
 
@@ -118,7 +118,7 @@ export default function AuditPage() {
               <SelectValue placeholder="All Actions" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Actions</SelectItem>
+              <SelectItem value="all">All Actions</SelectItem>
               <SelectItem value="create">Create</SelectItem>
               <SelectItem value="update">Update</SelectItem>
               <SelectItem value="delete">Delete</SelectItem>
