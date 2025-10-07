@@ -14,6 +14,7 @@ import {
   services,
   serviceCategories,
   partnerServiceCategories,
+  brands,
   rawMaterials,
   serviceRawMaterials,
   pricingRules,
@@ -56,6 +57,8 @@ import {
   type InsertServiceCategory,
   type PartnerServiceCategory,
   type InsertPartnerServiceCategory,
+  type Brand,
+  type InsertBrand,
   type RawMaterial,
   type InsertRawMaterial,
   type ServiceRawMaterial,
@@ -402,6 +405,14 @@ export interface IStorage {
   getServiceRawMaterials(serviceId: string): Promise<RawMaterial[]>;
   addServiceRawMaterial(serviceId: string, rawMaterialId: string): Promise<ServiceRawMaterial>;
   removeServiceRawMaterial(serviceId: string, rawMaterialId: string): Promise<boolean>;
+
+  // Brand management
+  getBrands(): Promise<Brand[]>;
+  getBrand(id: string): Promise<Brand | undefined>;
+  getBrandByName(name: string): Promise<Brand | undefined>;
+  createBrand(brand: InsertBrand): Promise<Brand>;
+  updateBrand(id: string, updates: Partial<InsertBrand>): Promise<Brand | undefined>;
+  deleteBrand(id: string): Promise<boolean>;
 
   // Knowledge Hub management
   getKnowledgeHubItems(filters?: { 
@@ -4135,6 +4146,55 @@ export class DatabaseStorage implements IStorage {
       .update(knowledgeHub)
       .set({ viewCount: sql`${knowledgeHub.viewCount} + 1` })
       .where(eq(knowledgeHub.id, id));
+  }
+
+  // Brand methods
+  async getBrands(): Promise<Brand[]> {
+    return await db
+      .select()
+      .from(brands)
+      .where(eq(brands.active, true))
+      .orderBy(asc(brands.name));
+  }
+
+  async getBrand(id: string): Promise<Brand | undefined> {
+    const [brand] = await db
+      .select()
+      .from(brands)
+      .where(eq(brands.id, id));
+    return brand || undefined;
+  }
+
+  async getBrandByName(name: string): Promise<Brand | undefined> {
+    const [brand] = await db
+      .select()
+      .from(brands)
+      .where(eq(brands.name, name));
+    return brand || undefined;
+  }
+
+  async createBrand(brand: InsertBrand): Promise<Brand> {
+    const [newBrand] = await db
+      .insert(brands)
+      .values(brand)
+      .returning();
+    return newBrand;
+  }
+
+  async updateBrand(id: string, updates: Partial<InsertBrand>): Promise<Brand | undefined> {
+    const [updatedBrand] = await db
+      .update(brands)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(brands.id, id))
+      .returning();
+    return updatedBrand || undefined;
+  }
+
+  async deleteBrand(id: string): Promise<boolean> {
+    const result = await db
+      .delete(brands)
+      .where(eq(brands.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
   }
 
   // Raw Material methods
