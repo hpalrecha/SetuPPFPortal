@@ -25,6 +25,7 @@ import {
   oemRoyaltyRules,
   oemRoyaltyCalculations,
   auditLogs,
+  knowledgeHub,
   type User, 
   type InsertUser,
   type Oem,
@@ -56,7 +57,9 @@ import {
   type OemRoyaltyRule,
   type InsertOemRoyaltyRule,
   type OemRoyaltyCalculation,
-  type InsertOemRoyaltyCalculation
+  type InsertOemRoyaltyCalculation,
+  type KnowledgeHub,
+  type InsertKnowledgeHub
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count, avg, sum, lte, gte, or, isNull, isNotNull, asc, inArray, ne, like } from "drizzle-orm";
@@ -382,6 +385,21 @@ export interface IStorage {
     action: string;
     diffJson?: any;
   }): Promise<void>;
+
+  // Knowledge Hub management
+  getKnowledgeHubItems(filters?: { 
+    oemId?: string; 
+    applicableTo?: string[];
+    category?: string;
+    contentType?: string;
+    isActive?: boolean;
+    searchTerm?: string;
+  }): Promise<any[]>;
+  getKnowledgeHubItem(id: string): Promise<any | undefined>;
+  createKnowledgeHubItem(item: any): Promise<any>;
+  updateKnowledgeHubItem(id: string, updates: any): Promise<any | undefined>;
+  deleteKnowledgeHubItem(id: string): Promise<boolean>;
+  incrementViewCount(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3955,6 +3973,151 @@ export class DatabaseStorage implements IStorage {
     });
 
     return newCalculation;
+  }
+
+  // Knowledge Hub methods
+  async getKnowledgeHubItems(filters?: { 
+    oemId?: string; 
+    applicableTo?: string[];
+    category?: string;
+    contentType?: string;
+    isActive?: boolean;
+    searchTerm?: string;
+  }): Promise<any[]> {
+    let query = db
+      .select({
+        id: knowledgeHub.id,
+        title: knowledgeHub.title,
+        category: knowledgeHub.category,
+        contentType: knowledgeHub.contentType,
+        fileUrl: knowledgeHub.fileUrl,
+        externalLink: knowledgeHub.externalLink,
+        applicableTo: knowledgeHub.applicableTo,
+        description: knowledgeHub.description,
+        isActive: knowledgeHub.isActive,
+        viewCount: knowledgeHub.viewCount,
+        createdBy: knowledgeHub.createdBy,
+        oemId: knowledgeHub.oemId,
+        createdAt: knowledgeHub.createdAt,
+        updatedAt: knowledgeHub.updatedAt,
+        creatorName: users.name,
+        creatorEmail: users.email
+      })
+      .from(knowledgeHub)
+      .leftJoin(users, eq(knowledgeHub.createdBy, users.id));
+
+    const conditions = [];
+
+    if (filters) {
+      if (filters.oemId) {
+        conditions.push(
+          or(
+            eq(knowledgeHub.oemId, filters.oemId),
+            isNull(knowledgeHub.oemId)
+          )
+        );
+      }
+
+      if (filters.category) {
+        conditions.push(eq(knowledgeHub.category, filters.category));
+      }
+
+      if (filters.contentType) {
+        conditions.push(eq(knowledgeHub.contentType, filters.contentType));
+      }
+
+      if (filters.isActive !== undefined) {
+        conditions.push(eq(knowledgeHub.isActive, filters.isActive));
+      }
+
+      if (filters.searchTerm) {
+        conditions.push(
+          or(
+            like(knowledgeHub.title, `%${filters.searchTerm}%`),
+            like(knowledgeHub.description, `%${filters.searchTerm}%`)
+          )
+        );
+      }
+
+      // Filter by applicable roles
+      if (filters.applicableTo && filters.applicableTo.length > 0) {
+        // Check if any of the user's roles are in the applicableTo array
+        conditions.push(
+          sql`${knowledgeHub.applicableTo} && ARRAY[${sql.join(
+            filters.applicableTo.map(role => sql`${role}::knowledge_hub_applicable_to`),
+            sql`, `
+          )}]::knowledge_hub_applicable_to[]`
+        );
+      }
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    const items = await query.orderBy(desc(knowledgeHub.createdAt));
+    return items;
+  }
+
+  async getKnowledgeHubItem(id: string): Promise<any | undefined> {
+    const [item] = await db
+      .select({
+        id: knowledgeHub.id,
+        title: knowledgeHub.title,
+        category: knowledgeHub.category,
+        contentType: knowledgeHub.contentType,
+        fileUrl: knowledgeHub.fileUrl,
+        externalLink: knowledgeHub.externalLink,
+        applicableTo: knowledgeHub.applicableTo,
+        description: knowledgeHub.description,
+        isActive: knowledgeHub.isActive,
+        viewCount: knowledgeHub.viewCount,
+        createdBy: knowledgeHub.createdBy,
+        oemId: knowledgeHub.oemId,
+        createdAt: knowledgeHub.createdAt,
+        updatedAt: knowledgeHub.updatedAt,
+        creatorName: users.name,
+        creatorEmail: users.email
+      })
+      .from(knowledgeHub)
+      .leftJoin(users, eq(knowledgeHub.createdBy, users.id))
+      .where(eq(knowledgeHub.id, id));
+
+    return item || undefined;
+  }
+
+  async createKnowledgeHubItem(item: InsertKnowledgeHub): Promise<KnowledgeHub> {
+    const [newItem] = await db
+      .insert(knowledgeHub)
+      .values(item)
+      .returning();
+
+    return newItem;
+  }
+
+  async updateKnowledgeHubItem(id: string, updates: Partial<InsertKnowledgeHub>): Promise<KnowledgeHub | undefined> {
+    const [updatedItem] = await db
+      .update(knowledgeHub)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(knowledgeHub.id, id))
+      .returning();
+
+    return updatedItem || undefined;
+  }
+
+  async deleteKnowledgeHubItem(id: string): Promise<boolean> {
+    const result = await db
+      .delete(knowledgeHub)
+      .where(eq(knowledgeHub.id, id));
+
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async incrementViewCount(id: string): Promise<void> {
+    await db
+      .update(knowledgeHub)
+      .set({ viewCount: sql`${knowledgeHub.viewCount} + 1` })
+      .where(eq(knowledgeHub.id, id));
   }
 }
 
