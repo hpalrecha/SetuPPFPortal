@@ -321,7 +321,11 @@ export class EmailService {
     resetToken: string,
     userName: string
   ): Promise<boolean> {
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+    // Use REPLIT_DEV_DOMAIN for deployed URL, fallback to localhost for local dev
+    const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+      : (process.env.FRONTEND_URL || 'http://localhost:5000');
+    const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
     
     const html = `
       <!DOCTYPE html>
