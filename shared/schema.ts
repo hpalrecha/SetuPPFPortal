@@ -292,6 +292,26 @@ export const services = pgTable("services", {
   updatedAt: timestamp("updated_at").defaultNow()
 });
 
+// Raw Materials Module
+export const rawMaterials = pgTable("raw_materials", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  brand: text("brand"),
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+// Service-RawMaterial Mapping (many-to-many)
+export const serviceRawMaterials = pgTable("service_raw_materials", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  serviceId: uuid("service_id").references(() => services.id, { onDelete: 'cascade' }).notNull(),
+  rawMaterialId: uuid("raw_material_id").references(() => rawMaterials.id, { onDelete: 'cascade' }).notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+}, (table) => ({
+  uniqueServiceMaterial: unique("unique_service_material").on(table.serviceId, table.rawMaterialId)
+}));
+
 // Pricing and Commission Rules
 export const pricingRules = pgTable("pricing_rules", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -813,6 +833,16 @@ export const insertServiceSchema = createInsertSchema(services).omit({ id: true,
 export const selectServiceSchema = createSelectSchema(services);
 export type InsertService = z.infer<typeof insertServiceSchema>;
 export type Service = z.infer<typeof selectServiceSchema>;
+
+export const insertRawMaterialSchema = createInsertSchema(rawMaterials).omit({ id: true, createdAt: true, updatedAt: true });
+export const selectRawMaterialSchema = createSelectSchema(rawMaterials);
+export type InsertRawMaterial = z.infer<typeof insertRawMaterialSchema>;
+export type RawMaterial = z.infer<typeof selectRawMaterialSchema>;
+
+export const insertServiceRawMaterialSchema = createInsertSchema(serviceRawMaterials).omit({ id: true, createdAt: true });
+export const selectServiceRawMaterialSchema = createSelectSchema(serviceRawMaterials);
+export type InsertServiceRawMaterial = z.infer<typeof insertServiceRawMaterialSchema>;
+export type ServiceRawMaterial = z.infer<typeof selectServiceRawMaterialSchema>;
 
 // OEM Royalty Relations
 export const oemRoyaltyRulesRelations = relations(oemRoyaltyRules, ({ one, many }) => ({
