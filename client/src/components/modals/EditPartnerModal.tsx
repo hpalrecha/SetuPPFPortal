@@ -110,21 +110,24 @@ export function EditPartnerModal({
   // Update form when partner prop or categories change
   useEffect(() => {
     if (partner && open) {
-      form.reset({
-        displayName: partner.displayName || "",
-        type: partner.type || "INSTALLER",
-        contactPersonName: partner.contactPersonName || "",
-        phone: partner.phone || "",
-        email: partner.email || "",
-        address: partner.address || "",
-        city: partner.city || "",
-        state: partner.state || "",
-        pincode: partner.pincode || "",
-        active: partner.active ?? true,
-        canViewJobCardPrice: partner.canViewJobCardPrice ?? false,
-        serviceCategoryIds: partnerCategories?.serviceCategoryIds || [],
-        brandIds: partnerCategories?.brandIds || [],
-      });
+      // For editing: only reset the form when partnerCategories is loaded
+      if (partnerCategories !== undefined) {
+        form.reset({
+          displayName: partner.displayName || "",
+          type: partner.type || "INSTALLER",
+          contactPersonName: partner.contactPersonName || "",
+          phone: partner.phone || "",
+          email: partner.email || "",
+          address: partner.address || "",
+          city: partner.city || "",
+          state: partner.state || "",
+          pincode: partner.pincode || "",
+          active: partner.active ?? true,
+          canViewJobCardPrice: partner.canViewJobCardPrice ?? false,
+          serviceCategoryIds: partnerCategories.serviceCategoryIds || [],
+          brandIds: partnerCategories.brandIds || [],
+        });
+      }
     } else if (!partner && open) {
       form.reset({
         displayName: "",
