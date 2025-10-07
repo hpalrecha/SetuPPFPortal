@@ -4968,6 +4968,203 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // 📚 KNOWLEDGE HUB ROUTES
+
+  // Get all knowledge hub items (role-based filtering)
+  app.get("/api/knowledge-hub", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { category, contentType, search } = req.query;
+      const user = req.user!;
+
+      // Map user role to applicable-to filter
+      const roleMapping: { [key: string]: string } = {
+        'PARTNER_ADMIN': 'INSTALLER',
+        'PARTNER_STAFF': 'INSTALLER',
+        'DEALERSHIP_ADMIN': 'DEALERSHIP',
+        'SHOWROOM_MANAGER': 'SHOWROOM',
+        'SALES_PERSON': 'SHOWROOM'
+      };
+
+      let applicableTo: string[] = ['ALL'];
+      
+      if (user.role !== 'SUPER_ADMIN' && user.role !== 'OEM_ADMIN') {
+        const mappedRole = roleMapping[user.role];
+        if (mappedRole) {
+          applicableTo.push(mappedRole);
+        }
+      }
+
+      const filters: any = {
+        oemId: user.oemId,
+        applicableTo,
+        isActive: true
+      };
+
+      if (category) filters.category = category;
+      if (contentType) filters.contentType = contentType;
+      if (search) filters.searchTerm = search;
+
+      const items = await storage.getKnowledgeHubItems(filters);
+      res.json(items);
+    } catch (error) {
+      console.error("Error fetching knowledge hub items:", error);
+      res.status(500).json({ error: "Failed to fetch knowledge hub items" });
+    }
+  });
+
+  // Get single knowledge hub item
+  app.get("/api/knowledge-hub/:id", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const item = await storage.getKnowledgeHubItem(id);
+
+      if (!item) {
+        return res.status(404).json({ error: "Knowledge hub item not found" });
+      }
+
+      res.json(item);
+    } catch (error) {
+      console.error("Error fetching knowledge hub item:", error);
+      res.status(500).json({ error: "Failed to fetch knowledge hub item" });
+    }
+  });
+
+  // Create knowledge hub item (admin only)
+  app.post("/api/knowledge-hub", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    async (req, res) => {
+      try {
+        const user = req.user!;
+        const { title, category, contentType, fileUrl, externalLink, applicableTo, description, isActive } = req.body;
+
+        // Validation
+        if (!title || !category || !contentType || !applicableTo || applicableTo.length === 0) {
+          return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        if (contentType === 'YOUTUBE' || contentType === 'LINK') {
+          if (!externalLink) {
+            return res.status(400).json({ error: "External link is required for this content type" });
+          }
+        } else if (!fileUrl && !externalLink) {
+          return res.status(400).json({ error: "Either file or external link is required" });
+        }
+
+        const newItem = await storage.createKnowledgeHubItem({
+          title,
+          category,
+          contentType,
+          fileUrl,
+          externalLink,
+          applicableTo,
+          description,
+          isActive: isActive !== undefined ? isActive : true,
+          createdBy: user.id,
+          oemId: user.oemId
+        });
+
+        // Create audit log
+        await storage.createAuditLog({
+          actorUserId: user.id,
+          entity: 'knowledge_hub',
+          entityId: newItem.id,
+          action: 'CREATE'
+        });
+
+        res.status(201).json(newItem);
+      } catch (error) {
+        console.error("Error creating knowledge hub item:", error);
+        res.status(500).json({ error: "Failed to create knowledge hub item" });
+      }
+    }
+  );
+
+  // Update knowledge hub item (admin only)
+  app.patch("/api/knowledge-hub/:id", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const user = req.user!;
+        const updates = req.body;
+
+        const existingItem = await storage.getKnowledgeHubItem(id);
+        if (!existingItem) {
+          return res.status(404).json({ error: "Knowledge hub item not found" });
+        }
+
+        const updatedItem = await storage.updateKnowledgeHubItem(id, updates);
+
+        // Create audit log
+        await storage.createAuditLog({
+          actorUserId: user.id,
+          entity: 'knowledge_hub',
+          entityId: id,
+          action: 'UPDATE',
+          diffJson: updates
+        });
+
+        res.json(updatedItem);
+      } catch (error) {
+        console.error("Error updating knowledge hub item:", error);
+        res.status(500).json({ error: "Failed to update knowledge hub item" });
+      }
+    }
+  );
+
+  // Delete knowledge hub item (admin only)
+  app.delete("/api/knowledge-hub/:id", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const user = req.user!;
+
+        const existingItem = await storage.getKnowledgeHubItem(id);
+        if (!existingItem) {
+          return res.status(404).json({ error: "Knowledge hub item not found" });
+        }
+
+        const deleted = await storage.deleteKnowledgeHubItem(id);
+
+        if (!deleted) {
+          return res.status(500).json({ error: "Failed to delete knowledge hub item" });
+        }
+
+        // Create audit log
+        await storage.createAuditLog({
+          actorUserId: user.id,
+          entity: 'knowledge_hub',
+          entityId: id,
+          action: 'DELETE'
+        });
+
+        res.json({ success: true, message: "Knowledge hub item deleted successfully" });
+      } catch (error) {
+        console.error("Error deleting knowledge hub item:", error);
+        res.status(500).json({ error: "Failed to delete knowledge hub item" });
+      }
+    }
+  );
+
+  // Increment view count
+  app.post("/api/knowledge-hub/:id/view", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.incrementViewCount(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error incrementing view count:", error);
+      res.status(500).json({ error: "Failed to increment view count" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
