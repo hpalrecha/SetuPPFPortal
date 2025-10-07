@@ -109,9 +109,21 @@ export function EditPartnerModal({
 
   // Update form when partner prop or categories change
   useEffect(() => {
+    console.log("🟣 FORM RESET EFFECT TRIGGERED", {
+      hasPartner: !!partner,
+      open,
+      isLoadingCategories,
+      hasPartnerCategories: !!partnerCategories,
+      brandIds: partnerCategories?.brandIds
+    });
+    
     if (partner && open) {
       // For editing: only reset the form when partnerCategories has finished loading
       if (!isLoadingCategories && partnerCategories) {
+        console.log("🟢 RESETTING FORM WITH DATA:", {
+          serviceCategoryIds: partnerCategories.serviceCategoryIds || [],
+          brandIds: partnerCategories.brandIds || [],
+        });
         form.reset({
           displayName: partner.displayName || "",
           type: partner.type || "INSTALLER",
@@ -129,6 +141,7 @@ export function EditPartnerModal({
         });
       }
     } else if (!partner && open) {
+      console.log("🔴 RESETTING FORM TO EMPTY (new partner)");
       form.reset({
         displayName: "",
         type: "INSTALLER",
