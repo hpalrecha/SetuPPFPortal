@@ -5223,6 +5223,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 🧪 RAW MATERIALS ROUTES
+
+  // Get all raw materials
+  app.get("/api/p91/raw_material", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const materials = await storage.getRawMaterials();
+      res.json(materials);
+    } catch (error) {
+      console.error("Error fetching raw materials:", error);
+      res.status(500).json({ error: "Failed to fetch raw materials" });
+    }
+  });
+
+  // Get single raw material
+  app.get("/api/p91/raw_material/:id", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const material = await storage.getRawMaterial(id);
+      
+      if (!material) {
+        return res.status(404).json({ error: "Raw material not found" });
+      }
+
+      res.json(material);
+    } catch (error) {
+      console.error("Error fetching raw material:", error);
+      res.status(500).json({ error: "Failed to fetch raw material" });
+    }
+  });
+
+  // Add or update raw material (upsert by name)
+  app.post("/api/p91/raw_material/add", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { name, brand } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ error: "Name is required" });
+      }
+
+      // Check if material exists
+      const existing = await storage.getRawMaterialByName(name);
+
+      if (existing) {
+        // Update if brand changed
+        if (brand && existing.brand !== brand) {
+          await storage.updateRawMaterial(existing.id, { brand });
+        }
+        return res.json({ status: "success", message: "Material updated", id: existing.id });
+      } else {
+        // Create new
+        const newMaterial = await storage.createRawMaterial({ name, brand });
+        return res.json({ status: "success", message: "Material created", id: newMaterial.id });
+      }
+    } catch (error) {
+      console.error("Error adding/updating raw material:", error);
+      res.status(500).json({ error: "Failed to add/update raw material" });
+    }
+  });
+
+  // Get raw materials for a service
+  app.get("/api/p91/service/:serviceId/raw_materials", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { serviceId } = req.params;
+      const materials = await storage.getServiceRawMaterials(serviceId);
+      res.json(materials);
+    } catch (error) {
+      console.error("Error fetching service raw materials:", error);
+      res.status(500).json({ error: "Failed to fetch service raw materials" });
+    }
+  });
+
+  // Add raw material to service
+  app.post("/api/p91/service/:serviceId/raw_materials", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { serviceId } = req.params;
+      const { rawMaterialId } = req.body;
+
+      if (!rawMaterialId) {
+        return res.status(400).json({ error: "rawMaterialId is required" });
+      }
+
+      const mapping = await storage.addServiceRawMaterial(serviceId, rawMaterialId);
+      res.json({ success: true, mapping });
+    } catch (error) {
+      console.error("Error adding service raw material:", error);
+      res.status(500).json({ error: "Failed to add service raw material" });
+    }
+  });
+
+  // Remove raw material from service
+  app.delete("/api/p91/service/:serviceId/raw_materials/:rawMaterialId", authenticate, requireOEMAccess, async (req, res) => {
+    try {
+      const { serviceId, rawMaterialId } = req.params;
+      const deleted = await storage.removeServiceRawMaterial(serviceId, rawMaterialId);
+
+      if (!deleted) {
+        return res.status(404).json({ error: "Mapping not found" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing service raw material:", error);
+      res.status(500).json({ error: "Failed to remove service raw material" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
