@@ -96,20 +96,15 @@ export default function KnowledgeHub() {
     }
   });
 
+  // Build query string for filters
+  const params = new URLSearchParams();
+  if (selectedCategory) params.append('category', selectedCategory);
+  if (selectedContentType) params.append('contentType', selectedContentType);
+  if (searchTerm) params.append('search', searchTerm);
+  const queryString = params.toString();
+
   const { data: items = [], isLoading } = useQuery({
-    queryKey: ['/api/knowledge-hub', selectedCategory, selectedContentType, searchTerm],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (selectedCategory) params.append('category', selectedCategory);
-      if (selectedContentType) params.append('contentType', selectedContentType);
-      if (searchTerm) params.append('search', searchTerm);
-      
-      const response = await fetch(`/api/knowledge-hub?${params.toString()}`, {
-        credentials: 'include'
-      });
-      if (!response.ok) throw new Error('Failed to fetch knowledge hub items');
-      return response.json();
-    }
+    queryKey: queryString ? [`/api/knowledge-hub?${queryString}`] : ['/api/knowledge-hub']
   });
 
   const createMutation = useMutation({
@@ -258,12 +253,12 @@ export default function KnowledgeHub() {
                 data-testid="input-search"
               />
             </div>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <Select value={selectedCategory || "ALL"} onValueChange={(value) => setSelectedCategory(value === "ALL" ? "" : value)}>
               <SelectTrigger data-testid="select-category">
                 <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Categories</SelectItem>
+                <SelectItem value="ALL">All Categories</SelectItem>
                 {categories.map(cat => (
                   <SelectItem key={cat.value} value={cat.value}>
                     {cat.label}
@@ -271,12 +266,12 @@ export default function KnowledgeHub() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={selectedContentType} onValueChange={setSelectedContentType}>
+            <Select value={selectedContentType || "ALL"} onValueChange={(value) => setSelectedContentType(value === "ALL" ? "" : value)}>
               <SelectTrigger data-testid="select-content-type">
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Types</SelectItem>
+                <SelectItem value="ALL">All Types</SelectItem>
                 {contentTypes.map(type => (
                   <SelectItem key={type.value} value={type.value}>
                     {type.label}
