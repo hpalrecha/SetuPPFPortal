@@ -4251,7 +4251,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: rawMaterials.id,
         name: rawMaterials.name,
-        brand: rawMaterials.brand,
+        brandId: rawMaterials.brandId,
         active: rawMaterials.active,
         createdAt: rawMaterials.createdAt,
         updatedAt: rawMaterials.updatedAt
