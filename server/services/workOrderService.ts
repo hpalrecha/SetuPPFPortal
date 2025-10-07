@@ -392,6 +392,7 @@ Please acknowledge receipt and provide estimated completion time.
 
     // Send notifications
     await notificationService.sendWorkOrderAssigned(updatedWorkOrder, partnerId);
+    await notificationService.notifyStakeholders('work_order_assigned', updatedWorkOrder);
 
     return updatedWorkOrder;
   }

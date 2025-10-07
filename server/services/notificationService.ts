@@ -1,6 +1,7 @@
 import { storage } from '../storage';
 import type { WorkOrder, JobCard, User } from '@shared/schema';
 import { whatsappService } from './whatsapp-service';
+import { emailService } from './email-service';
 
 export interface NotificationPayload {
   title: string;
@@ -78,12 +79,67 @@ export class NotificationService {
   }
 
   private async sendEmail(userId: string, payload: NotificationPayload): Promise<void> {
-    // Email service integration would go here
-    // Example with SendGrid, AWS SES, etc.
-    if (process.env.SMTP_HOST) {
-      // TODO: Implement actual email sending
-      console.log(`📧 Email notification sent to user ${userId}`);
+    try {
+      const user = await storage.getUser(userId);
+      if (!user || !user.email) {
+        console.warn(`⚠️ Cannot send email to user ${userId}: No email address found`);
+        return;
+      }
+
+      // Send email using the email service
+      const success = await emailService.sendEmail({
+        to: user.email,
+        subject: payload.title,
+        html: this.formatEmailHTML(payload),
+        text: payload.message
+      });
+
+      if (success) {
+        console.log(`✅ Email notification sent to ${user.email}`);
+      } else {
+        console.error(`❌ Failed to send email notification to ${user.email}`);
+      }
+    } catch (error) {
+      console.error(`❌ Error sending email to user ${userId}:`, error);
     }
+  }
+
+  private formatEmailHTML(payload: NotificationPayload): string {
+    const bgColor = {
+      'INFO': '#3b82f6',
+      'SUCCESS': '#10b981',
+      'WARNING': '#f59e0b',
+      'ERROR': '#ef4444'
+    }[payload.type] || '#3b82f6';
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; }
+          .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: ${bgColor}; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+          .content { padding: 30px; }
+          .footer { background: #f1f5f9; padding: 20px; border-radius: 0 0 8px 8px; text-align: center; color: #64748b; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0;">${payload.title}</h1>
+          </div>
+          <div class="content">
+            <p>${payload.message}</p>
+          </div>
+          <div class="footer">
+            <p>SetuPPF - Professional Paint Protection Film Services</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
   }
 
   private async sendSMS(userId: string, payload: NotificationPayload): Promise<void> {
@@ -591,7 +647,87 @@ export class NotificationService {
     return [];
   }
 
-  private async notifyStakeholders(eventType: string, workOrder: WorkOrder): Promise<void> {
+  async notifyStakeholders(eventType: string, workOrder: WorkOrder): Promise<void> {
+    // Send email notifications to relevant stakeholders based on event type
+    try {
+      let stakeholders: User[] = [];
+      let payload: NotificationPayload | null = null;
+
+      switch (eventType) {
+        case 'work_order_created':
+          // Notify OEM Admin, Dealership Admin, and Showroom Manager
+          stakeholders = await this.getUsersByRole(
+            ['OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER'],
+            {
+              oemId: workOrder.oemId,
+              dealershipId: workOrder.dealershipId,
+              showroomId: workOrder.showroomId
+            }
+          );
+          payload = {
+            title: 'New Work Order Created',
+            message: `Work Order #${workOrder.woNumber || workOrder.id.slice(0, 8)} has been created for ${workOrder.vehicleModel}. Customer: ${workOrder.customerName}. Service: ${workOrder.serviceName}.`,
+            type: 'INFO',
+            data: { workOrderId: workOrder.id, type: 'work_order_created' }
+          };
+          break;
+
+        case 'work_order_completed':
+          // Notify all admins and managers
+          stakeholders = await this.getUsersByRole(
+            ['OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER'],
+            {
+              oemId: workOrder.oemId,
+              dealershipId: workOrder.dealershipId,
+              showroomId: workOrder.showroomId
+            }
+          );
+          payload = {
+            title: 'Work Order Completed',
+            message: `Work Order #${workOrder.woNumber || workOrder.id.slice(0, 8)} for ${workOrder.vehicleModel} has been completed.`,
+            type: 'SUCCESS',
+            data: { workOrderId: workOrder.id, type: 'work_order_completed' }
+          };
+          break;
+
+        case 'work_order_assigned':
+          // Notify showroom manager and sales person
+          stakeholders = await this.getUsersByRole(
+            ['SHOWROOM_MANAGER', 'SALES_PERSON'],
+            {
+              oemId: workOrder.oemId,
+              showroomId: workOrder.showroomId
+            }
+          );
+          // Add sales person if assigned
+          if (workOrder.salesPersonId) {
+            const salesPerson = await storage.getUser(workOrder.salesPersonId);
+            if (salesPerson && !stakeholders.find(s => s.id === salesPerson.id)) {
+              stakeholders.push(salesPerson);
+            }
+          }
+          payload = {
+            title: 'Work Order Assigned to Partner',
+            message: `Work Order #${workOrder.woNumber || workOrder.id.slice(0, 8)} has been assigned to a partner for installation.`,
+            type: 'INFO',
+            data: { workOrderId: workOrder.id, type: 'work_order_assigned' }
+          };
+          break;
+      }
+
+      // Send email notifications to all stakeholders
+      if (payload && stakeholders.length > 0) {
+        await this.sendBulkNotification(
+          stakeholders.map(s => s.id),
+          'EMAIL',
+          payload
+        );
+        console.log(`📧 Sent ${eventType} email notifications to ${stakeholders.length} stakeholders`);
+      }
+    } catch (error) {
+      console.error(`Failed to notify stakeholders for ${eventType}:`, error);
+    }
+
     // Send webhooks to external systems
     try {
       await this.sendWebhookNotification(eventType, {
