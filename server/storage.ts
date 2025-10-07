@@ -1513,11 +1513,15 @@ export class DatabaseStorage implements IStorage {
 
   // Partner Brands management
   async getPartnerBrands(partnerId: string): Promise<string[]> {
+    console.log("🔍 Getting partner brands for:", partnerId);
     const mappings = await db
       .select({ brandId: partnerBrands.brandId })
       .from(partnerBrands)
       .where(eq(partnerBrands.partnerId, partnerId));
-    return mappings.map(m => m.brandId);
+    console.log("🔍 Partner brands query result:", mappings);
+    const brandIds = mappings.map(m => m.brandId);
+    console.log("🔍 Returning brand IDs:", brandIds);
+    return brandIds;
   }
 
   async setPartnerBrands(partnerId: string, brandIds: string[]): Promise<void> {
