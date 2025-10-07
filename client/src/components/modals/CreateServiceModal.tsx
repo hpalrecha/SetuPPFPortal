@@ -365,9 +365,9 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
                           </FormControl>
                         </PopoverTrigger>
                         <PopoverContent className="w-[400px] p-0" align="start">
-                          <Command className="max-h-[400px]">
+                          <Command className="overflow-visible">
                             <CommandInput placeholder="Search materials..." />
-                            <CommandList>
+                            <CommandList className="max-h-[300px] overflow-y-auto">
                               <CommandEmpty>No materials found.</CommandEmpty>
                               <CommandGroup>
                                 {rawMaterials.map((material: any) => {
