@@ -23,6 +23,7 @@ import SalesPersonsPage from "./pages/sales-persons";
 import VehiclesPage from "./pages/vehicles";
 import ServicesPage from "./pages/services";
 import ServiceCategoriesPage from "./pages/ServiceCategories";
+import RawMaterialsPage from "./pages/RawMaterials";
 import PayoutSettlementPage from "./pages/payout-settlement";
 import PartnerStaffPage from "./pages/partner-staff";
 import PayoutsPage from "./pages/payouts";
@@ -137,6 +138,10 @@ function Router() {
       <Route
         path="/service-categories"
         component={() => <ProtectedRoute component={ServiceCategoriesPage} />}
+      />
+      <Route
+        path="/raw-materials"
+        component={() => <ProtectedRoute component={RawMaterialsPage} />}
       />
       <Route
         path="/reports"
