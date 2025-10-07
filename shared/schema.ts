@@ -250,6 +250,16 @@ export const allocations = pgTable("allocations", {
   updatedAt: timestamp("updated_at").defaultNow()
 });
 
+// Allocation-Brand mapping for brand-scoped partner allocations
+export const allocationBrands = pgTable("allocation_brands", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  allocationId: uuid("allocation_id").references(() => allocations.id, { onDelete: 'cascade' }).notNull(),
+  brandId: uuid("brand_id").references(() => brands.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+}, (table) => ({
+  uniqueAllocationBrand: unique("unique_allocation_brand").on(table.allocationId, table.brandId)
+}));
+
 // Vehicle and Service Catalog  
 export const vehicleModels = pgTable("vehicle_models", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
