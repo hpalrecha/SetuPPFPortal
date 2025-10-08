@@ -185,7 +185,8 @@ export function EditPartnerModal({
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to ${isEditing ? 'update' : 'create'} partner`);
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `Failed to ${isEditing ? 'update' : 'create'} partner`);
       }
 
       toast({
@@ -196,9 +197,10 @@ export function EditPartnerModal({
       onSuccess();
     } catch (error) {
       console.error("Error saving partner:", error);
+      const errorMessage = error instanceof Error ? error.message : `Failed to ${isEditing ? 'update' : 'create'} partner`;
       toast({
         title: "Error",
-        description: `Failed to ${isEditing ? 'update' : 'create'} partner`,
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
