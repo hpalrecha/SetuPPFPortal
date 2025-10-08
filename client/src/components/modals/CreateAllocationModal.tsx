@@ -124,6 +124,7 @@ export function CreateAllocationModal({
       return response.json();
     },
     enabled: open && !!selectedPartnerId,
+    refetchOnMount: 'always', // Always fetch fresh data when modal opens
   });
 
   // Fetch allocation brands when editing
