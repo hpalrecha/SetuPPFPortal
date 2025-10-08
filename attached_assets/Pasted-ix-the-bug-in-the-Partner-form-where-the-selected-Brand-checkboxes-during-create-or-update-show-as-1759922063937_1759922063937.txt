@@ -1,0 +1,89 @@
+ix the bug in the Partner form where the selected Brand checkboxes (during create or update) show as saved in the popup notification, but when reopening the record, the checkboxes appear unchecked — meaning the values are not being persisted correctly in the database.
+
+Problem Summary
+
+When creating or updating a Partner record:
+
+Selecting any Brand checkbox triggers the “Partner updated” message.
+
+But after saving and reopening, the brand checkboxes are unchecked.
+
+Same issue occurs in both:
+
+Create mode (new Partner)
+
+Update mode (editing existing Partner)
+
+No console error, but data is not being stored or fetched properly.
+
+Tasks to Debug and Fix
+
+Verify Field Configuration
+
+Check the field type of “Brand” in Partner Doctype:
+
+If it’s a Check or Table MultiSelect, ensure proper mapping.
+
+If it’s Table MultiSelect, confirm child table is linked correctly.
+
+Confirm field name consistency:
+
+The database column should match fieldname (no mismatch like brands vs brand).
+
+Check Save Logic in JS / Controller
+
+Review partner.js or form event code:
+
+Look for frm.save(), frm.set_value(), or custom on_update handlers.
+
+Ensure no line resets or clears the brand field post-save.
+
+Verify that the on_change event for the checkbox doesn’t accidentally trigger a refresh or overwrite.
+
+Check Python Backend / Server Logic
+
+Inspect partner.py:
+
+Confirm that before_save, on_update, or custom validation isn’t resetting or ignoring the brand field.
+
+Example to check:
+
+def before_save(self):
+    if not self.brand:
+        frappe.throw("Brand is required")
+
+
+→ Sometimes bad conditional logic clears the field if not properly handled.
+
+Database Mapping
+
+Open DB shell:
+
+SELECT name, brand FROM `tabPartner` WHERE name='PARTNER-XXXX';
+
+
+See if brand is actually stored in the DB.
+
+If null even after save → field not linked properly to model or not whitelisted in API.
+
+Fix and Retest
+
+After identifying issue:
+
+If frontend issue → update frappe.ui.form.on("Partner", {...})
+
+If backend → fix before_save / validate logic.
+
+If DB mapping → re-save or migrate with bench migrate.
+
+Validation Steps
+
+Create a new Partner → select brand → Save → Reload form → checkbox must remain checked.
+
+Update existing Partner → modify brand → Save → Reload → updated correctly visible.
+
+Expected Outcome
+
+✅ Brand checkbox state persists after save and reload.
+✅ Update works without clearing checkbox selection.
+✅ Partner data consistent in both UI and DB.
