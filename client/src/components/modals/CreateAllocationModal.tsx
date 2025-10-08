@@ -117,6 +117,7 @@ export function CreateAllocationModal({
       const response = await fetch(`/api/partners/${selectedPartnerId}/service-categories`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Cache-Control': 'no-cache', // Prevent HTTP caching
         },
         credentials: 'include',
       });
@@ -124,6 +125,8 @@ export function CreateAllocationModal({
       return response.json();
     },
     enabled: open && !!selectedPartnerId,
+    staleTime: 0, // Data is immediately stale
+    gcTime: 0, // Don't cache at all
     refetchOnMount: 'always', // Always fetch fresh data when modal opens
   });
 
