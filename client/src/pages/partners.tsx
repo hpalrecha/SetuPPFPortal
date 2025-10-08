@@ -111,9 +111,12 @@ export default function PartnersPage() {
 
   const handleModalSuccess = () => {
     setShowEditModal(false);
-    setEditingPartner(null);
-    // Refresh the data
+    // Invalidate both the partners list AND the specific partner's service-categories cache
     queryClient.invalidateQueries({ queryKey: ["/api/partners-with-categories"] });
+    if (editingPartner?.id) {
+      queryClient.invalidateQueries({ queryKey: ["/api/partners", editingPartner.id, "service-categories"] });
+    }
+    setEditingPartner(null);
   };
 
   if (isLoading) {

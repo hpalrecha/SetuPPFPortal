@@ -132,7 +132,6 @@ export function EditPartnerModal({
     if (partner) {
       // For editing: only reset when categories have loaded
       if (partnerCategories && !isLoadingCategories) {
-        console.log("FORM DEBUG: Loading partner", partner.id, "with brandIds:", partnerCategories.brandIds);
         form.reset({
           displayName: partner.displayName || "",
           type: partner.type || "INSTALLER",
@@ -171,7 +170,6 @@ export function EditPartnerModal({
 
   const onSubmit = async (data: PartnerFormData) => {
     setIsLoading(true);
-    console.log("FORM DEBUG: Submitting partner with brandIds:", data.brandIds);
     try {
       const endpoint = isEditing ? `/api/partners/${partner.id}` : "/api/partners";
       const method = isEditing ? "PUT" : "POST";
