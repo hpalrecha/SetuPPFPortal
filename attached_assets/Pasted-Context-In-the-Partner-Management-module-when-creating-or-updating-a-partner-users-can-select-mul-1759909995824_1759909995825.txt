@@ -1,0 +1,66 @@
+Context
+
+In the Partner Management module, when creating or updating a partner, users can select multiple Product Brands and Service Categories from checkboxes.
+
+Problem
+
+When a user adds or changes the selected Brand(s) or Service Category(ies) in the partner form and clicks “Update Partner”,
+the success popup appears (showing “Partner updated successfully”).
+
+However, upon reopening the same partner record:
+
+The selected brand(s) revert to default or blank state.
+
+The selected service categories also reset or do not reflect the last saved values.
+
+This indicates that the UI reflects a success message but the backend payload or database update for these fields is not persisting.
+
+Expected Behavior
+
+When the user updates a partner’s brand or service categories, the selected values should:
+
+Be properly included in the update payload (API request body).
+
+Be saved correctly in the database.
+
+Reflect accurately when reloading or reopening the partner details modal.
+
+Likely Root Causes
+
+Payload Mapping Issue:
+The selected brand and category arrays are not being mapped or serialized properly in the request body (e.g., missing field names or incorrect key structure like brands vs productBrands).
+
+Backend Update Logic:
+API route may not be updating these specific fields on the server side — possibly due to missing fields in update schema or ORM mapping.
+
+State Sync Problem:
+UI shows success toast but doesn’t refresh or re-fetch updated data after API success, leading to stale data rendering.
+
+Fix Recommendations
+
+Frontend
+
+Ensure the checkbox selections are stored in state and included in the API request body correctly:
+
+{
+  ...formValues,
+  serviceCategories: selectedCategories,
+  productBrands: selectedBrands,
+}
+
+
+After successful API call, trigger a re-fetch or state refresh to show the latest values.
+
+Backend
+
+Validate that both serviceCategories and productBrands are part of the update schema.
+
+Confirm that they are being persisted correctly in the database model.
+
+Verification Steps
+
+Edit an existing partner → change brand & categories → click “Update Partner”.
+
+Refresh the page or reopen the same partner record.
+
+Ensure the newly selected options persist and are displayed correctly.

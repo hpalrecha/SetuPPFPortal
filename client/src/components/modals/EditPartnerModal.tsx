@@ -109,21 +109,29 @@ export function EditPartnerModal({
 
   // Update form when partner prop or categories change
   useEffect(() => {
-    console.log("🟣 FORM RESET EFFECT TRIGGERED", {
-      hasPartner: !!partner,
-      open,
-      isLoadingCategories,
-      hasPartnerCategories: !!partnerCategories,
-      brandIds: partnerCategories?.brandIds
-    });
+    if (!open) {
+      // Reset form when modal closes
+      form.reset({
+        displayName: "",
+        type: "INSTALLER",
+        contactPersonName: "",
+        phone: "",
+        email: "",
+        address: "",
+        city: "",
+        state: "",
+        pincode: "",
+        active: true,
+        canViewJobCardPrice: false,
+        serviceCategoryIds: [],
+        brandIds: [],
+      });
+      return;
+    }
     
-    if (partner && open) {
-      // For editing: only reset the form when partnerCategories has finished loading
-      if (!isLoadingCategories && partnerCategories) {
-        console.log("🟢 RESETTING FORM WITH DATA:", {
-          serviceCategoryIds: partnerCategories.serviceCategoryIds || [],
-          brandIds: partnerCategories.brandIds || [],
-        });
+    if (partner) {
+      // For editing: only reset when categories have loaded
+      if (partnerCategories && !isLoadingCategories) {
         form.reset({
           displayName: partner.displayName || "",
           type: partner.type || "INSTALLER",
@@ -140,8 +148,8 @@ export function EditPartnerModal({
           brandIds: partnerCategories.brandIds || [],
         });
       }
-    } else if (!partner && open) {
-      console.log("🔴 RESETTING FORM TO EMPTY (new partner)");
+    } else {
+      // For creating: reset to empty
       form.reset({
         displayName: "",
         type: "INSTALLER",
@@ -158,17 +166,9 @@ export function EditPartnerModal({
         brandIds: [],
       });
     }
-  }, [partner, open, form, partnerCategories, isLoadingCategories]);
+  }, [partner, open, partnerCategories, isLoadingCategories]);
 
   const onSubmit = async (data: PartnerFormData) => {
-    console.log("🔴 FORM SUBMIT DATA:", data);
-    console.log("🔴 serviceCategoryIds:", data.serviceCategoryIds);
-    console.log("🔴 brandIds:", data.brandIds);
-    
-    const requestBody = JSON.stringify(data);
-    console.log("🟡 STRINGIFIED BODY:", requestBody);
-    console.log("🟡 PARSED BACK:", JSON.parse(requestBody));
-    
     setIsLoading(true);
     try {
       const endpoint = isEditing ? `/api/partners/${partner.id}` : "/api/partners";
@@ -181,7 +181,7 @@ export function EditPartnerModal({
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         credentials: 'include',
-        body: requestBody,
+        body: JSON.stringify(data),
       });
 
       if (!response.ok) {
