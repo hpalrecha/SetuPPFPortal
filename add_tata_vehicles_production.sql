@@ -14,7 +14,7 @@ INSERT INTO oems (
 VALUES (
   '798eadc0-908f-4efd-ae77-231b706cb559',
   'TATA Motors',
-  'TATA',
+  'TM',
   'Tata Motors Admin',
   'admin@tatamotors.com',
   '+91-9876543210',
