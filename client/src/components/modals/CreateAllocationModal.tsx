@@ -781,18 +781,30 @@ export function CreateAllocationModal({
                                   </div>
                                 ) : (
                                   filteredLocations.map((showroom: any) => {
-                                    const isSelected = field.value?.includes(showroom.id);
+                                    const isSelected = Array.isArray(field.value) && field.value.includes(showroom.id);
                                     return (
                                       <CommandItem
                                         key={showroom.id}
                                         value={`${showroom.name} ${showroom.city} ${showroom.state}`}
                                         onSelect={() => {
+                                          console.log('[SHOWROOM SELECT]', {
+                                            showroomId: showroom.id,
+                                            showroomName: showroom.name,
+                                            isSelected,
+                                            currentFieldValue: field.value,
+                                            isArray: Array.isArray(field.value)
+                                          });
                                           const currentValues = Array.isArray(field.value) ? field.value : [];
                                           if (isSelected) {
-                                            field.onChange(currentValues.filter((id: string) => id !== showroom.id));
+                                            const newValue = currentValues.filter((id: string) => id !== showroom.id);
+                                            console.log('[SHOWROOM DESELECT]', { newValue });
+                                            field.onChange(newValue);
                                           } else {
-                                            field.onChange([...currentValues, showroom.id]);
+                                            const newValue = [...currentValues, showroom.id];
+                                            console.log('[SHOWROOM ADD]', { newValue });
+                                            field.onChange(newValue);
                                           }
+                                          console.log('[SHOWROOM AFTER CHANGE]', { fieldValue: field.value });
                                         }}
                                       >
                                         <Check
