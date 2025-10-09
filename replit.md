@@ -115,10 +115,15 @@ Preferred communication style: Simple, everyday language.
   - **Job Card Approved**: Notifies partner with approval confirmation
 - **Email Service**: Hybrid delivery system (AWS SES SDK + SMTP fallback)
   - **URL Generation**: Dynamic URL construction using REPLIT_DEV_DOMAIN for deployed environments
+  - **Dynamic From Email**: Brand-based sender email for transactional notifications
+    - 3M → ppfinstallation@justsigns.co.in
+    - STEK → noreply@stek-india.in
+    - P91 → noreply@p91india.com
+    - Default → noreply@p91india.com
   - **Work Order Notifications**: Automated emails to stakeholders (OEM Admin, Dealership Admin, Showroom Manager, Sales Person)
-    - Work Order Created: Notifies all relevant stakeholders with order details
-    - Work Order Assigned: Notifies sales person and showroom manager
-    - Work Order Completed: Notifies all admins and managers
+    - Work Order Created: Notifies all relevant stakeholders with order details (brand-specific from email)
+    - Work Order Assigned: Notifies sales person and showroom manager (brand-specific from email)
+    - Work Order Completed: Notifies all admins and managers (brand-specific from email)
   - **Job Card Notifications**: Multi-stakeholder email notifications
     - Job Card Completed: Notifies showroom manager, OEM admin, and dealership admin
     - Job Card Approved: Notifies partner and sales person with payout details

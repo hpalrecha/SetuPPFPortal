@@ -1,0 +1,94 @@
+Dynamic “From Email” Based on Product Brand in Transactional Notifications
+T — Task
+
+Modify the email sending logic (AWS SES request) used in transactional notifications triggered during Work Order creation so that the “From Email” address changes dynamically based on the Product Brand involved in that work order.
+
+This logic applies only to transactional notifications — not to marketing, system, or bulk emails.
+
+A — Action
+
+Identify Notification Trigger
+
+Locate the event or workflow that sends email notifications when a Work Order is created.
+
+Before invoking the AWS SES API, extract the Product Brand from the Work Order record:
+
+const brand = workOrder.product_brand;
+
+
+Apply Dynamic “From Email” Mapping
+
+Introduce a brand-to-email mapping rule:
+
+const fromEmailMap = {
+  "3M": "ppfinstallation@justsigns.co.in",
+  "STEK": "noreply@stek-india.in",
+  "P91": "noreply@p91india.com",
+};
+
+const fromEmail = fromEmailMap[brand] || "noreply@p91india.com"; // default fallback
+
+
+Integrate in AWS SES Request
+
+Pass the dynamic fromEmail into the SES send request object:
+
+await ses.sendEmail({
+  Source: fromEmail,
+  Destination: { ToAddresses: [recipientEmail] },
+  Message: {
+    Subject: { Data: emailSubject },
+    Body: { Html: { Data: emailBody } },
+  },
+}).promise();
+
+
+Ensure the chosen “From” address is verified in AWS SES and domain DKIM records are correctly configured (for all 3 domains).
+
+Scope Limitation
+
+This rule applies only to:
+
+Work Order creation notifications
+
+Job Card assignment notifications triggered by Work Order
+
+It does not affect:
+
+Generic admin or summary emails
+
+Manual test or system alerts
+
+Testing Steps
+
+Raise Work Order with brand = 3M → check email “From” shows ppfinstallation@justsigns.co.in
+
+Raise Work Order with brand = STEK → check “From” shows noreply@stek-india.in
+
+Raise Work Order with brand = P91 → check “From” shows noreply@p91india.com
+
+C — Context
+
+Currently, all transactional notifications use a single static “From” address in the AWS SES request, regardless of brand.
+Since P91 manages multiple brand identities (3M, STEK, P91),
+it’s important to ensure each outgoing transactional email reflects the brand identity tied to that work order.
+This improves brand authenticity, domain reputation, and customer trust while ensuring compliance with brand-specific communication protocols.
+
+O — Output
+
+✅ Expected Result:
+
+Work Order email “From” address changes automatically based on brand:
+
+Brand	From Email
+3M	ppfinstallation@justsigns.co.in
+
+STEK	noreply@stek-india.in
+
+P91	noreply@p91india.com
+
+All emails send successfully through AWS SES with correct headers.
+
+No other notification templates or non-transactional emails are affected.
+
+Verified logs show correct brand-based “From” email per transaction.

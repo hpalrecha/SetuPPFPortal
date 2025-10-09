@@ -6,6 +6,7 @@ export interface EmailOptions {
   subject: string;
   html?: string;
   text?: string;
+  from?: string; // Optional custom from email
   attachments?: Array<{
     filename: string;
     content: Buffer | string;
@@ -20,9 +21,32 @@ export class EmailService {
   private smtpConfigured = false;
   private senderEmail: string;
 
+  // Brand-to-email mapping for transactional notifications
+  private brandEmailMap: Record<string, string> = {
+    '3M': 'ppfinstallation@justsigns.co.in',
+    'STEK': 'noreply@stek-india.in',
+    'P91': 'noreply@p91india.com',
+  };
+
   constructor() {
     this.senderEmail = process.env.FROM_EMAIL || process.env.EMAIL_SENDER || 'noreply@p91india.com';
     this.initialize();
+  }
+
+  /**
+   * Get the "From Email" address based on product brand
+   * Used for transactional notifications (Work Order, Job Card)
+   */
+  getFromEmailByBrand(productBrand?: string): string {
+    if (!productBrand) {
+      return this.senderEmail;
+    }
+    
+    // Normalize brand name (uppercase, trim)
+    const normalizedBrand = productBrand.trim().toUpperCase();
+    
+    // Return mapped email or default
+    return this.brandEmailMap[normalizedBrand] || this.senderEmail;
   }
 
   private initialize() {
@@ -106,13 +130,14 @@ export class EmailService {
   }
 
   async sendEmail(options: EmailOptions): Promise<boolean> {
-    const { to, subject, html, text } = options;
+    const { to, subject, html, text, from } = options;
     const recipients = Array.isArray(to) ? to : [to];
+    const fromEmail = from || this.senderEmail; // Use custom from or default
 
     // Development mode - just log
     if (!this.sesConfigured && !this.smtpConfigured) {
       console.log('📧 [DEV MODE] Email would be sent:');
-      console.log('From:', this.senderEmail);
+      console.log('From:', fromEmail);
       console.log('To:', recipients.join(', '));
       console.log('Subject:', subject);
       console.log('HTML:', html ? 'Present' : 'Not provided');
@@ -124,7 +149,7 @@ export class EmailService {
     if (this.sesConfigured && this.sesClient) {
       try {
         const command = new SendEmailCommand({
-          Source: this.senderEmail,
+          Source: fromEmail, // Use dynamic from email
           Destination: {
             ToAddresses: recipients
           },
@@ -147,7 +172,7 @@ export class EmailService {
         });
 
         const result = await this.sesClient.send(command);
-        console.log('✅ Email sent via AWS SES SDK:', result.MessageId);
+        console.log(`✅ Email sent via AWS SES SDK from ${fromEmail}:`, result.MessageId);
         return true;
       } catch (error) {
         console.error('❌ AWS SES SDK failed, trying SMTP fallback:', error);
@@ -158,7 +183,7 @@ export class EmailService {
     if (this.smtpConfigured && this.smtpTransporter) {
       try {
         const mailOptions = {
-          from: this.senderEmail,
+          from: fromEmail, // Use dynamic from email
           to: recipients.join(', '),
           subject,
           html,
@@ -166,7 +191,7 @@ export class EmailService {
         };
 
         const result = await this.smtpTransporter.sendMail(mailOptions);
-        console.log('✅ Email sent via SMTP fallback:', result.messageId);
+        console.log(`✅ Email sent via SMTP fallback from ${fromEmail}:`, result.messageId);
         return true;
       } catch (error) {
         console.error('❌ SMTP fallback also failed:', error);

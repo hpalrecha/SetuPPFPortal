@@ -20,7 +20,8 @@ export class NotificationService {
   async sendNotification(
     userId: string,
     channel: 'EMAIL' | 'SMS' | 'PUSH' | 'WHATSAPP',
-    payload: NotificationPayload
+    payload: NotificationPayload,
+    productBrand?: string // Optional product brand for dynamic from email
   ): Promise<void> {
     try {
       await storage.createNotification({
@@ -36,7 +37,7 @@ export class NotificationService {
       // - SMS: Twilio, AWS SNS
       // - Push: Firebase Cloud Messaging, OneSignal
       
-      await this.processNotificationByChannel(channel, userId, payload);
+      await this.processNotificationByChannel(channel, userId, payload, productBrand);
       
       console.log(`✓ Notification sent to user ${userId} via ${channel}:`, payload.title);
     } catch (error) {
@@ -48,10 +49,11 @@ export class NotificationService {
   async sendBulkNotification(
     userIds: string[],
     channel: 'EMAIL' | 'SMS' | 'PUSH' | 'WHATSAPP',
-    payload: NotificationPayload
+    payload: NotificationPayload,
+    productBrand?: string // Optional product brand for dynamic from email
   ): Promise<void> {
     const promises = userIds.map(userId => 
-      this.sendNotification(userId, channel, payload)
+      this.sendNotification(userId, channel, payload, productBrand)
     );
     
     await Promise.allSettled(promises);
@@ -60,11 +62,12 @@ export class NotificationService {
   private async processNotificationByChannel(
     channel: 'EMAIL' | 'SMS' | 'PUSH' | 'WHATSAPP',
     userId: string,
-    payload: NotificationPayload
+    payload: NotificationPayload,
+    productBrand?: string
   ): Promise<void> {
     switch (channel) {
       case 'EMAIL':
-        await this.sendEmail(userId, payload);
+        await this.sendEmail(userId, payload, productBrand);
         break;
       case 'SMS':
         await this.sendSMS(userId, payload);
@@ -78,7 +81,7 @@ export class NotificationService {
     }
   }
 
-  private async sendEmail(userId: string, payload: NotificationPayload): Promise<void> {
+  private async sendEmail(userId: string, payload: NotificationPayload, productBrand?: string): Promise<void> {
     try {
       const user = await storage.getUser(userId);
       if (!user || !user.email) {
@@ -86,16 +89,20 @@ export class NotificationService {
         return;
       }
 
+      // Get dynamic from email based on product brand (for transactional emails)
+      const fromEmail = productBrand ? emailService.getFromEmailByBrand(productBrand) : undefined;
+
       // Send email using the email service
       const success = await emailService.sendEmail({
         to: user.email,
         subject: payload.title,
         html: this.formatEmailHTML(payload),
-        text: payload.message
+        text: payload.message,
+        from: fromEmail // Pass dynamic from email
       });
 
       if (success) {
-        console.log(`✅ Email notification sent to ${user.email}`);
+        console.log(`✅ Email notification sent to ${user.email} from ${fromEmail || 'default'}`);
       } else {
         console.error(`❌ Failed to send email notification to ${user.email}`);
       }
@@ -717,12 +724,22 @@ export class NotificationService {
 
       // Send email notifications to all stakeholders
       if (payload && stakeholders.length > 0) {
+        // Extract product brand from service for dynamic from email
+        let productBrand: string | undefined;
+        try {
+          const service = await storage.getService(workOrder.serviceId);
+          productBrand = service?.productBrand || undefined;
+        } catch (error) {
+          console.error('Failed to fetch service for product brand:', error);
+        }
+        
         await this.sendBulkNotification(
           stakeholders.map(s => s.id),
           'EMAIL',
-          payload
+          payload,
+          productBrand // Pass product brand for dynamic from email
         );
-        console.log(`📧 Sent ${eventType} email notifications to ${stakeholders.length} stakeholders`);
+        console.log(`📧 Sent ${eventType} email notifications to ${stakeholders.length} stakeholders (from: ${productBrand || 'default'})`);
       }
     } catch (error) {
       console.error(`Failed to notify stakeholders for ${eventType}:`, error);
