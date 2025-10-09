@@ -1,19 +1,20 @@
 -- SQL Queries to Add TATA Showrooms to Production Database
 -- IMPORTANT: Run these queries in your production database console
 
--- Step 1: Get TATA OEM ID (replace 'TATA_OEM_ID_HERE' with actual ID from this query)
+-- Step 1: Get TATA OEM ID (replace '798eadc0-908f-4efd-ae77-231b706cb559' with actual ID from this query)
 -- SELECT id FROM oems WHERE name = 'TATA Motors' OR brand_code LIKE '%TATA%';
 
 -- Step 2: Get Dealership IDs (to verify mappings)
--- SELECT id, name, code FROM dealerships WHERE oem_id = 'TATA_OEM_ID_HERE' ORDER BY name;
+-- SELECT id, name, code FROM dealerships WHERE oem_id = '798eadc0-908f-4efd-ae77-231b706cb559' ORDER BY name;
 
--- Step 3: Insert Showrooms (Update TATA_OEM_ID and DEALERSHIP_IDs based on above queries)
+-- Step 3: Insert Showrooms (Update DEALERSHIP_IDs based on above queries)
+-- TATA Motors OEM ID: 798eadc0-908f-4efd-ae77-231b706cb559
 
 -- 1. Kropex Auto - Hosur Road
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Kropex Auto' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Kropex Auto - Hosur Road',
   'KRO690-HR',
   '7608074168',
@@ -26,7 +27,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Kropex Auto' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Kropex Auto - Sa/Ajur',
   'KRO690-SA',
   '9167524154',
@@ -39,7 +40,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Kropex Auto' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Kropex Auto - Rajajinagar',
   'KRO690-RJ',
   '8291920371',
@@ -52,7 +53,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Prerana Motors' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Prerana Motors - Lalbagh Road',
   'PRE784-LR',
   '7506024202',
@@ -65,7 +66,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Prerana Motors' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Prerana Motors - BTM Layout',
   'PRE784-BTM',
   '7506014210',
@@ -78,7 +79,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Prerana Motors' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Prerana Motors - Rajajinagar',
   'PRE784-RJ',
   '7506024319',
@@ -91,7 +92,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Prerana Motors' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Prerana Motors - Yelahanka',
   'PRE784-YL',
   '9614944339',
@@ -104,7 +105,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Bellad Enterprises Pvt Ltd' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Bellad Enterprises Pvt Ltd - Bommanahalli',
   'BEL185-BM',
   '8123851815 / 9035151610',
@@ -117,7 +118,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Cauvery Motors' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Cauvery Motors - Avalahalli',
   'CAU344-AV',
   '8298440980',
@@ -130,7 +131,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Cauvery Motors' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Cauvery Motors - Mekhri Circle',
   'CAU344-MC',
   '2242720689',
@@ -143,7 +144,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Cauvery Motors' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Cauvery Motors - Devanahalli',
   'CAU344-DV',
   '8971731503',
@@ -156,7 +157,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Adishakti Cars' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Adishakti Cars - Hebbal',
   'ADI932-HB',
   '7506028871',
@@ -169,7 +170,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Adishakti Cars' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Adishakti Cars - Dasarahalli',
   'ADI932-DS',
   '9167524836',
@@ -182,7 +183,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Adishakti Cars' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Adishakti Cars - Kalyan Nagar',
   'ADI932-KN',
   '9617630167',
@@ -195,7 +196,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'KHT Motors' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'KHT Motors - Whitefield',
   'KHT384-WF',
   '7506021981',
@@ -208,7 +209,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'KHT Motors' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'KHT Motors - Domlur',
   'KHT384-DM',
   '7506024004',
@@ -221,7 +222,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'KHT Motors' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'KHT Motors - Koramangala',
   'KHT384-KM',
   '9731146956',
@@ -234,7 +235,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Key Motors' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Key Motors - Kanakapura Road',
   'KEY260-KR',
   '9614955400',
@@ -247,7 +248,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Key Motors' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Key Motors - Banasawadi',
   'KEY260-BN',
   '9614943368',
@@ -260,7 +261,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Key Motors' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Key Motors - J.P. Nagar',
   'KEY260-JP',
   '9614955673',
@@ -273,7 +274,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Sree Auto' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Sree Auto - Tumkur',
   'SRE221-TK',
   '7506024181',
@@ -286,7 +287,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Sree Auto' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Sree Auto - Tiptur',
   'SRE221-TP',
   '9615030468',
@@ -299,7 +300,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Sree Auto' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Sree Auto - Chitballapur',
   'SRE221-CB',
   '9167028429',
@@ -312,7 +313,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Sree Auto' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Sree Auto - Chikkamagalur',
   'SRE221-CM',
   '8197162478',
@@ -325,7 +326,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Manickcbag Automobiles' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Manickcbag Automobiles - Hubli',
   'MAN353-HB',
   '7506014313',
@@ -338,7 +339,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Manickcbag Automobiles' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Manickcbag Automobiles - Dharwad',
   'MAN353-DW',
   '8872985898',
@@ -351,7 +352,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Manickcbag Automobiles' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Manickcbag Automobiles - Haveri',
   'MAN353-HV',
   '9615048941',
@@ -364,7 +365,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Manickcbag Automobiles' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Manickcbag Automobiles - Belgaum',
   'MAN353-BG',
   '9615049831',
@@ -377,7 +378,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Manickcbag Automobiles' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Manickcbag Automobiles - Goa',
   'MAN353-GOA',
   '9615045770',
@@ -390,7 +391,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Manickcbag Automobiles' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Manickcbag Automobiles - Chikodi',
   'MAN353-CK',
   '8197192674',
@@ -403,7 +404,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Bellad Enterprises' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Bellad Enterprises - Haliyal',
   'BELZ-HL',
   '7506015245',
@@ -416,7 +417,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Bellad Enterprises' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Bellad Enterprises - Dharwad',
   'BELZ-DW',
   '8123053128',
@@ -429,7 +430,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Bellad Enterprises' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Bellad Enterprises - Gadag',
   'BELZ-GD',
   '8123461234',
@@ -442,7 +443,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Bellad Enterprises' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Bellad Enterprises - Gokak',
   'BELZ-GK',
   '8123474284',
@@ -455,7 +456,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Bellad Enterprises' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Bellad Enterprises - Sindhnur',
   'BELZ-SD',
   '8105110081',
@@ -468,7 +469,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Manickcbag Automobiles' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Manickcbag Automobiles - Kalburgi',
   'MAN353-KB',
   '9615048434',
@@ -481,7 +482,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Manickcbag Automobiles' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Manickcbag Automobiles - Bidar',
   'MAN353-BD',
   '9121038042',
@@ -494,7 +495,7 @@ VALUES (
 INSERT INTO showrooms (dealership_id, oem_id, name, code, contact_phone, address, city, active)
 VALUES (
   (SELECT id FROM dealerships WHERE name = 'Manickcbag Automobiles' LIMIT 1),
-  'TATA_OEM_ID_HERE',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
   'Manickcbag Automobiles - Yadgir',
   'MAN353-YD',
   '9740746406',
@@ -507,5 +508,5 @@ VALUES (
 -- SELECT s.id, s.name, s.code, s.contact_phone, s.city, d.name as dealership_name
 -- FROM showrooms s
 -- JOIN dealerships d ON s.dealership_id = d.id
--- WHERE s.oem_id = 'TATA_OEM_ID_HERE'
+-- WHERE s.oem_id = '798eadc0-908f-4efd-ae77-231b706cb559'
 -- ORDER BY d.name, s.name;
