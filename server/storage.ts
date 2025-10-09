@@ -309,6 +309,7 @@ export interface IStorage {
   getAllocations(filters?: { oemId?: string; partnerId?: string; level?: string; levelId?: string }): Promise<any[]>;
   getAllocationsWithCategories(filters?: { oemId?: string; partnerId?: string; level?: string; levelId?: string }): Promise<any[]>;
   getAllocation(id: string): Promise<any | undefined>;
+  getAllocatedBrands(level: string, levelId: string): Promise<{ brandId: string; partnerId: string; partnerName: string }[]>;
   createAllocation(allocation: any): Promise<any>;
   updateAllocation(id: string, updates: any): Promise<any | undefined>;
   deleteAllocation(id: string): Promise<boolean>;
@@ -3836,6 +3837,25 @@ export class DatabaseStorage implements IStorage {
       .where(eq(allocations.id, id));
     
     return allocation || undefined;
+  }
+
+  async getAllocatedBrands(level: string, levelId: string): Promise<{ brandId: string; partnerId: string; partnerName: string }[]> {
+    const result = await db
+      .select({
+        brandId: allocationBrands.brandId,
+        partnerId: allocations.partnerId,
+        partnerName: partners.displayName
+      })
+      .from(allocations)
+      .innerJoin(allocationBrands, eq(allocations.id, allocationBrands.allocationId))
+      .innerJoin(partners, eq(allocations.partnerId, partners.id))
+      .where(and(
+        eq(allocations.level, level),
+        eq(allocations.levelId, levelId),
+        eq(allocations.active, true)
+      ));
+    
+    return result;
   }
 
   async createAllocation(allocation: any): Promise<any> {
