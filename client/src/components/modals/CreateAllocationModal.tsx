@@ -93,6 +93,7 @@ export function CreateAllocationModal({
 
   const selectedLevel = form.watch("level");
   const selectedPartnerId = form.watch("partnerId");
+  const selectedLevelId = form.watch("levelId");
 
   // Fetch brands
   const { data: brands = [] } = useQuery({
@@ -130,6 +131,22 @@ export function CreateAllocationModal({
     refetchOnMount: 'always', // Always fetch fresh data when modal opens
   });
 
+  // Fetch already-allocated brands for the selected showroom/dealership
+  const { data: allocatedBrands = [] } = useQuery<{ brandId: string; partnerId: string; partnerName: string }[]>({
+    queryKey: ["/api/allocations/allocated-brands", selectedLevel, selectedLevelId],
+    queryFn: async () => {
+      const response = await fetch(`/api/allocations/allocated-brands?level=${selectedLevel}&levelId=${selectedLevelId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch allocated brands');
+      return response.json();
+    },
+    enabled: open && !!selectedLevelId,
+  });
+
   // Fetch allocation brands when editing
   const { data: allocationBrandsData } = useQuery({
     queryKey: ["/api/allocations", allocation?.id, "brands"],
@@ -147,7 +164,15 @@ export function CreateAllocationModal({
   });
 
   const partnerBrandIds = partnerBrandsData?.brandIds || [];
-  const availableBrands = brands.filter((brand: any) => partnerBrandIds.includes(brand.id));
+  
+  // Filter brands: show only partner's brands AND exclude already-assigned brands (unless editing current allocation)
+  const allocatedBrandIds = allocatedBrands
+    .filter(ab => !isEditing || ab.partnerId !== allocation?.partnerId) // Exclude current partner's allocations when editing
+    .map(ab => ab.brandId);
+  
+  const availableBrands = brands.filter((brand: any) => 
+    partnerBrandIds.includes(brand.id) && !allocatedBrandIds.includes(brand.id)
+  );
 
   // Reset form when allocation prop changes (for editing)
   useEffect(() => {
@@ -510,9 +535,16 @@ export function CreateAllocationModal({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Product Brands (Select at least one)</FormLabel>
+                    {selectedLevelId && allocatedBrands.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Only unassigned brands for this {selectedLevel.toLowerCase()} are shown
+                      </p>
+                    )}
                     {availableBrands.length === 0 ? (
                       <div className="text-sm text-muted-foreground py-2">
-                        No brands assigned to this partner. Please assign brands to the partner first.
+                        {selectedLevelId && allocatedBrandIds.length > 0 
+                          ? "All brands assigned to this partner are already allocated to other partners for this location."
+                          : "No brands assigned to this partner. Please assign brands to the partner first."}
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 gap-2 mt-2">
