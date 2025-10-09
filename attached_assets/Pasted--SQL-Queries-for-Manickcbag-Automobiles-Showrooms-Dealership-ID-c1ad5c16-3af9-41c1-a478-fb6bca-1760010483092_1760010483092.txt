@@ -1,0 +1,140 @@
+-- SQL Queries for Manickcbag Automobiles Showrooms
+-- Dealership ID: c1ad5c16-3af9-41c1-a478-fb6bca8dce9e
+-- OEM ID (TATA): 798eadc0-908f-4efd-ae77-231b706cb559
+-- State: Karnataka, Pincode: 560004
+
+-- 1. Manickcbag Automobiles - Hubli
+INSERT INTO showrooms (dealership_id, oem_id, name, code, manager_name, contact_phone, city, state, pincode, active)
+VALUES (
+  'c1ad5c16-3af9-41c1-a478-fb6bca8dce9e',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
+  'Manickcbag Automobiles - Hubli',
+  'MAN353-HB',
+  'Manickcbag Automobiles - Hubli',
+  '7506014313',
+  'Hubli',
+  'Karnataka',
+  '560004',
+  true
+);
+
+-- 2. Manickcbag Automobiles - Dharwad
+INSERT INTO showrooms (dealership_id, oem_id, name, code, manager_name, contact_phone, city, state, pincode, active)
+VALUES (
+  'c1ad5c16-3af9-41c1-a478-fb6bca8dce9e',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
+  'Manickcbag Automobiles - Dharwad',
+  'MAN353-DW',
+  'Manickcbag Automobiles - Dharwad',
+  '8872985898',
+  'Dharwad',
+  'Karnataka',
+  '560004',
+  true
+);
+
+-- 3. Manickcbag Automobiles - Haveri
+INSERT INTO showrooms (dealership_id, oem_id, name, code, manager_name, contact_phone, city, state, pincode, active)
+VALUES (
+  'c1ad5c16-3af9-41c1-a478-fb6bca8dce9e',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
+  'Manickcbag Automobiles - Haveri',
+  'MAN353-HV',
+  'Manickcbag Automobiles - Haveri',
+  '9615048941',
+  'Haveri',
+  'Karnataka',
+  '560004',
+  true
+);
+
+-- 4. Manickcbag Automobiles - Belgaum
+INSERT INTO showrooms (dealership_id, oem_id, name, code, manager_name, contact_phone, city, state, pincode, active)
+VALUES (
+  'c1ad5c16-3af9-41c1-a478-fb6bca8dce9e',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
+  'Manickcbag Automobiles - Belgaum',
+  'MAN353-BG',
+  'Manickcbag Automobiles - Belgaum',
+  '9615049831',
+  'Belgaum',
+  'Karnataka',
+  '560004',
+  true
+);
+
+-- 5. Manickcbag Automobiles - Goa
+INSERT INTO showrooms (dealership_id, oem_id, name, code, manager_name, contact_phone, city, state, pincode, active)
+VALUES (
+  'c1ad5c16-3af9-41c1-a478-fb6bca8dce9e',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
+  'Manickcbag Automobiles - Goa',
+  'MAN353-GOA',
+  'Manickcbag Automobiles - Goa',
+  '9615045770',
+  'Goa',
+  'Karnataka',
+  '560004',
+  true
+);
+
+-- 6. Manickcbag Automobiles - Chikodi
+INSERT INTO showrooms (dealership_id, oem_id, name, code, manager_name, contact_phone, city, state, pincode, active)
+VALUES (
+  'c1ad5c16-3af9-41c1-a478-fb6bca8dce9e',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
+  'Manickcbag Automobiles - Chikodi',
+  'MAN353-CK',
+  'Manickcbag Automobiles - Chikodi',
+  '8197192674',
+  'Chikodi',
+  'Karnataka',
+  '560004',
+  true
+);
+
+-- 7. Manickcbag Automobiles - Kalburgi
+INSERT INTO showrooms (dealership_id, oem_id, name, code, manager_name, contact_phone, city, state, pincode, active)
+VALUES (
+  'c1ad5c16-3af9-41c1-a478-fb6bca8dce9e',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
+  'Manickcbag Automobiles - Kalburgi',
+  'MAN353-KB',
+  'Manickcbag Automobiles - Kalburgi',
+  '9615048434',
+  'Kalburgi',
+  'Karnataka',
+  '560004',
+  true
+);
+
+-- 8. Manickcbag Automobiles - Bidar
+INSERT INTO showrooms (dealership_id, oem_id, name, code, manager_name, contact_phone, city, state, pincode, active)
+VALUES (
+  'c1ad5c16-3af9-41c1-a478-fb6bca8dce9e',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
+  'Manickcbag Automobiles - Bidar',
+  'MAN353-BD',
+  'Manickcbag Automobiles - Bidar',
+  '9121038042',
+  'Bidar',
+  'Karnataka',
+  '560004',
+  true
+);
+
+-- 9. Manickcbag Automobiles - Yadgir
+INSERT INTO showrooms (dealership_id, oem_id, name, code, manager_name, contact_phone, city, state, pincode, active)
+VALUES (
+  'c1ad5c16-3af9-41c1-a478-fb6bca8dce9e',
+  '798eadc0-908f-4efd-ae77-231b706cb559',
+  'Manickcbag Automobiles - Yadgir',
+  'MAN353-YD',
+  'Manickcbag Automobiles - Yadgir',
+  '9740746406',
+  'Yadgir',
+  'Karnataka',
+  '560004',
+  true
+);
+
