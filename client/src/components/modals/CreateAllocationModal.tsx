@@ -86,6 +86,7 @@ export function CreateAllocationModal({
   const [locationSearchOpen, setLocationSearchOpen] = useState(false);
   const [partnerSearch, setPartnerSearch] = useState("");
   const [locationSearch, setLocationSearch] = useState("");
+  const [selectedShowroomIds, setSelectedShowroomIds] = useState<string[]>([]);
   const isEditing = !!allocation;
 
   const form = useForm<AllocationFormData>({
@@ -105,7 +106,6 @@ export function CreateAllocationModal({
   const selectedPartnerId = form.watch("partnerId");
   const selectedLevel = form.watch("level");
   const selectedLevelId = form.watch("levelId");
-  const selectedShowroomIds = form.watch("showroomIds") || [];
 
   // Fetch partners with their service categories
   const { data: partners = [], isLoading: partnersLoading } = useQuery({
@@ -247,6 +247,7 @@ export function CreateAllocationModal({
         partnerBillsDirectly: allocation.partnerBillsDirectly ?? false,
         active: allocation.active ?? true,
       });
+      setSelectedShowroomIds(allocation.level === "SHOWROOM" ? [allocation.levelId] : []);
     } else if (!allocation && open) {
       form.reset({
         partnerId: "",
@@ -258,8 +259,16 @@ export function CreateAllocationModal({
         partnerBillsDirectly: false,
         active: true,
       });
+      setSelectedShowroomIds([]);
     }
   }, [allocation, open, form, allocationBrandsData]);
+
+  // Reset showroom selection when level changes
+  useEffect(() => {
+    if (selectedLevel !== "SHOWROOM") {
+      setSelectedShowroomIds([]);
+    }
+  }, [selectedLevel]);
 
   // Filtered partners based on search
   const filteredPartners = useMemo(() => {
@@ -318,8 +327,8 @@ export function CreateAllocationModal({
           description: "Allocation updated successfully",
         });
       } else {
-        if (data.level === "SHOWROOM" && data.showroomIds && data.showroomIds.length > 0) {
-          const promises = data.showroomIds.map(showroomId => 
+        if (data.level === "SHOWROOM" && selectedShowroomIds.length > 0) {
+          const promises = selectedShowroomIds.map(showroomId => 
             fetch("/api/allocations", {
               method: "POST",
               headers: {
@@ -766,8 +775,8 @@ export function CreateAllocationModal({
                               data-testid="select-showrooms"
                             >
                               <span className="truncate">
-                                {Array.isArray(field.value) && field.value.length > 0
-                                  ? `${field.value.length} showroom${field.value.length > 1 ? 's' : ''} selected`
+                                {selectedShowroomIds.length > 0
+                                  ? `${selectedShowroomIds.length} showroom${selectedShowroomIds.length > 1 ? 's' : ''} selected`
                                   : "Select showrooms"}
                               </span>
                               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -787,34 +796,23 @@ export function CreateAllocationModal({
                                   </div>
                                 ) : (
                                   filteredLocations.map((showroom: any) => {
+                                    const isSelected = selectedShowroomIds.includes(showroom.id);
                                     return (
                                       <CommandItem
                                         key={showroom.id}
                                         value={`${showroom.name} ${showroom.city} ${showroom.state}`}
                                         onSelect={() => {
-                                          const currentValues = Array.isArray(field.value) ? field.value : [];
-                                          const isCurrentlySelected = currentValues.includes(showroom.id);
-                                          
-                                          let newValue;
-                                          if (isCurrentlySelected) {
-                                            newValue = currentValues.filter((id: string) => id !== showroom.id);
+                                          if (isSelected) {
+                                            setSelectedShowroomIds(prev => prev.filter(id => id !== showroom.id));
                                           } else {
-                                            newValue = [...currentValues, showroom.id];
+                                            setSelectedShowroomIds(prev => [...prev, showroom.id]);
                                           }
-                                          
-                                          // Use form.setValue instead of field.onChange for better control
-                                          form.setValue("showroomIds", newValue, { 
-                                            shouldValidate: true,
-                                            shouldDirty: true,
-                                            shouldTouch: true
-                                          });
                                         }}
-                                        onClick={(e) => e.stopPropagation()}
                                       >
                                         <Check
                                           className={cn(
                                             "mr-2 h-4 w-4",
-                                            Array.isArray(field.value) && field.value.includes(showroom.id) ? "opacity-100" : "opacity-0"
+                                            isSelected ? "opacity-100" : "opacity-0"
                                           )}
                                         />
                                         <div className="flex-1">
@@ -833,9 +831,9 @@ export function CreateAllocationModal({
                           </Command>
                         </PopoverContent>
                       </Popover>
-                      {Array.isArray(field.value) && field.value.length > 0 && (
+                      {selectedShowroomIds.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-2">
-                          {field.value.map((showroomId: string) => {
+                          {selectedShowroomIds.map((showroomId: string) => {
                             const showroom = showrooms.find((s: any) => s.id === showroomId);
                             return (
                               <Badge key={showroomId} variant="secondary" className="gap-1">
@@ -843,8 +841,7 @@ export function CreateAllocationModal({
                                 <X
                                   className="h-3 w-3 cursor-pointer hover:text-destructive"
                                   onClick={() => {
-                                    const currentValues = Array.isArray(field.value) ? field.value : [];
-                                    field.onChange(currentValues.filter((id: string) => id !== showroomId));
+                                    setSelectedShowroomIds(prev => prev.filter(id => id !== showroomId));
                                   }}
                                 />
                               </Badge>
