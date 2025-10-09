@@ -1,0 +1,87 @@
+Improve UI/UX of Partner Allocation Modal for Scalability and Ease of Use
+T — Task
+
+Revamp the Create Partner Allocation modal for better usability and scalability when managing large datasets (100+ partners, multiple showrooms/dealerships).
+Optimize field flow, introduce searchable dropdowns, and ensure smooth scrolling and selection across lists.
+
+A — Action
+
+Reorder Field Flow
+
+Change the sequence to make allocation creation more intuitive:
+
+Select Partner (first field)
+
+Select Brand(s) (auto-populated from partner’s available brands)
+
+Select Level (Showroom / Dealership)
+
+Select Showrooms / Dealerships (multi-select)
+
+Once a partner is selected, dynamically load brands that the partner handles, and display only those under the "Select Brand" dropdown.
+
+Make All Large Lists Searchable
+
+Convert Partner, Showroom, and Dealership fields into searchable dropdowns (with debounce search).
+
+Implement lazy loading with scroll (infinite or paginated list).
+
+Add a search input inside the dropdown for real-time filtering by name, city, or specialization tags.
+
+Example (UX Flow):
+
+User types “Bangalore” → dropdown shows Bangalore PPF Pro, Bheem Bangalore, etc.
+
+User types “Mercedes” → dropdown shows all showrooms matching “Mercedes”.
+
+Scrollable Multi-Select UI for Large Lists
+
+For showroom/dealership lists with >10 items:
+
+Make list container scrollable (max-height: 240px).
+
+Support keyboard navigation and multi-select with Shift/Ctrl keys.
+
+Each item shows name, type (Showroom/Dealer), and location (City, State).
+
+Visual Enhancements
+
+Add subtle divider lines between field groups.
+
+Add hover highlight effect for dropdown items.
+
+Use tag-style chips to display selected items under the multi-select field.
+
+Increase modal width slightly (e.g., from 700px → 800px) for better field spacing.
+
+Performance Optimization
+
+Cache last 10 recently selected partners to speed up repeated use.
+
+Implement debounce (300ms) on search queries to prevent API overload.
+
+Use skeleton loader while fetching partner or showroom data.
+
+C — Context
+
+The current modal flow starts with Showroom selection first, which causes confusion since Partner & Brand are core drivers of allocation.
+
+When the list of partners or showrooms grows (100+ entries), scrolling becomes unmanageable and dropdowns lag.
+
+There’s no in-field search, leading to repetitive manual scrolling.
+
+The goal is to make allocation creation search-first, brand-aware, and fast, even for large data volumes.
+
+O — Output
+
+✅ Expected Result:
+
+Allocation form starts with Partner selection as the entry point.
+
+Partner → Brand → Showroom/Dealership hierarchy flows naturally.
+
+All dropdowns are searchable, scrollable, and responsive.
+
+Large data lists load smoothly with no lag.
+
+Visual experience is clean, organized, and scalable.

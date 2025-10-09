@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,41 +12,48 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Form,
   FormControl,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
+import { Check, ChevronsUpDown, X, Building2, MapPin, Briefcase } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const allocationSchema = z.object({
-  level: z.enum(['DEALERSHIP', 'SHOWROOM'], { required_error: "Level is required" }),
-  levelId: z.string().optional(), // Single ID for dealership
-  showroomIds: z.array(z.string()).optional(), // Multiple IDs for showrooms
   partnerId: z.string().min(1, "Please select a partner"),
   brandIds: z.array(z.string()).min(1, "Please select at least one brand"),
+  level: z.enum(['DEALERSHIP', 'SHOWROOM'], { required_error: "Level is required" }),
+  levelId: z.string().optional(),
+  showroomIds: z.array(z.string()).optional(),
   priority: z.number().min(1).max(10).default(1),
   partnerBillsDirectly: z.boolean().default(false),
   active: z.boolean().default(true),
 }).refine(
   (data) => {
-    // For DEALERSHIP, require levelId
     if (data.level === "DEALERSHIP") {
       return data.levelId && data.levelId.length > 0;
     }
-    // For SHOWROOM, require at least one showroom
     if (data.level === "SHOWROOM") {
       return data.showroomIds && data.showroomIds.length > 0;
     }
@@ -75,25 +82,46 @@ export function CreateAllocationModal({
 }: CreateAllocationModalProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [partnerSearchOpen, setPartnerSearchOpen] = useState(false);
+  const [locationSearchOpen, setLocationSearchOpen] = useState(false);
+  const [partnerSearch, setPartnerSearch] = useState("");
+  const [locationSearch, setLocationSearch] = useState("");
   const isEditing = !!allocation;
 
   const form = useForm<AllocationFormData>({
     resolver: zodResolver(allocationSchema),
     defaultValues: {
+      partnerId: "",
+      brandIds: [],
       level: "DEALERSHIP",
       levelId: "",
       showroomIds: [],
-      partnerId: "",
-      brandIds: [],
       priority: 1,
       partnerBillsDirectly: false,
       active: true,
     },
   });
 
-  const selectedLevel = form.watch("level");
   const selectedPartnerId = form.watch("partnerId");
+  const selectedLevel = form.watch("level");
   const selectedLevelId = form.watch("levelId");
+  const selectedShowroomIds = form.watch("showroomIds") || [];
+
+  // Fetch partners with their service categories
+  const { data: partners = [], isLoading: partnersLoading } = useQuery({
+    queryKey: ["/api/partners-with-categories"],
+    queryFn: async () => {
+      const response = await fetch('/api/partners-with-categories', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch partners');
+      return response.json();
+    },
+    enabled: open,
+  });
 
   // Fetch brands
   const { data: brands = [] } = useQuery({
@@ -118,7 +146,7 @@ export function CreateAllocationModal({
       const response = await fetch(`/api/partners/${selectedPartnerId}/service-categories`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-          'Cache-Control': 'no-cache', // Prevent HTTP caching
+          'Cache-Control': 'no-cache',
         },
         credentials: 'include',
       });
@@ -126,9 +154,9 @@ export function CreateAllocationModal({
       return response.json();
     },
     enabled: open && !!selectedPartnerId,
-    staleTime: 0, // Data is immediately stale
-    gcTime: 0, // Don't cache at all
-    refetchOnMount: 'always', // Always fetch fresh data when modal opens
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
   });
 
   // Fetch already-allocated brands for the selected showroom/dealership
@@ -165,44 +193,17 @@ export function CreateAllocationModal({
 
   const partnerBrandIds = partnerBrandsData?.brandIds || [];
   
-  // Filter brands: show only partner's brands AND exclude already-assigned brands (unless editing current allocation)
+  // Filter brands: show only partner's brands AND exclude already-assigned brands
   const allocatedBrandIds = allocatedBrands
-    .filter(ab => !isEditing || ab.partnerId !== allocation?.partnerId) // Exclude current partner's allocations when editing
+    .filter(ab => !isEditing || ab.partnerId !== allocation?.partnerId)
     .map(ab => ab.brandId);
   
   const availableBrands = brands.filter((brand: any) => 
     partnerBrandIds.includes(brand.id) && !allocatedBrandIds.includes(brand.id)
   );
 
-  // Reset form when allocation prop changes (for editing)
-  useEffect(() => {
-    if (allocation && open) {
-      form.reset({
-        level: allocation.level || "DEALERSHIP",
-        levelId: allocation.levelId || "",
-        showroomIds: allocation.level === "SHOWROOM" ? [allocation.levelId] : [],
-        partnerId: allocation.partnerId || "",
-        brandIds: allocationBrandsData?.brandIds || [],
-        priority: allocation.priority || 1,
-        partnerBillsDirectly: allocation.partnerBillsDirectly ?? false,
-        active: allocation.active ?? true,
-      });
-    } else if (!allocation && open) {
-      form.reset({
-        level: "DEALERSHIP",
-        levelId: "",
-        showroomIds: [],
-        partnerId: "",
-        brandIds: [],
-        priority: 1,
-        partnerBillsDirectly: false,
-        active: true,
-      });
-    }
-  }, [allocation, open, form, allocationBrandsData]);
-
   // Fetch dealerships
-  const { data: dealerships = [] } = useQuery({
+  const { data: dealerships = [], isLoading: dealershipsLoading } = useQuery({
     queryKey: ["/api/dealerships"],
     queryFn: async () => {
       const response = await fetch('/api/dealerships', {
@@ -218,7 +219,7 @@ export function CreateAllocationModal({
   });
 
   // Fetch showrooms
-  const { data: showrooms = [] } = useQuery({
+  const { data: showrooms = [], isLoading: showroomsLoading } = useQuery({
     queryKey: ["/api/showrooms"],
     queryFn: async () => {
       const response = await fetch('/api/showrooms', {
@@ -233,26 +234,61 @@ export function CreateAllocationModal({
     enabled: open,
   });
 
-  // Fetch partners with their service categories
-  const { data: partners = [] } = useQuery({
-    queryKey: ["/api/partners-with-categories"],
-    queryFn: async () => {
-      const response = await fetch('/api/partners-with-categories', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-        credentials: 'include',
+  // Reset form when allocation prop changes
+  useEffect(() => {
+    if (allocation && open) {
+      form.reset({
+        partnerId: allocation.partnerId || "",
+        brandIds: allocationBrandsData?.brandIds || [],
+        level: allocation.level || "DEALERSHIP",
+        levelId: allocation.levelId || "",
+        showroomIds: allocation.level === "SHOWROOM" ? [allocation.levelId] : [],
+        priority: allocation.priority || 1,
+        partnerBillsDirectly: allocation.partnerBillsDirectly ?? false,
+        active: allocation.active ?? true,
       });
-      if (!response.ok) throw new Error('Failed to fetch partners');
-      return response.json();
-    },
-    enabled: open,
-  });
+    } else if (!allocation && open) {
+      form.reset({
+        partnerId: "",
+        brandIds: [],
+        level: "DEALERSHIP",
+        levelId: "",
+        showroomIds: [],
+        priority: 1,
+        partnerBillsDirectly: false,
+        active: true,
+      });
+    }
+  }, [allocation, open, form, allocationBrandsData]);
+
+  // Filtered partners based on search
+  const filteredPartners = useMemo(() => {
+    if (!partnerSearch) return partners;
+    const search = partnerSearch.toLowerCase();
+    return partners.filter((partner: any) =>
+      partner.displayName?.toLowerCase().includes(search) ||
+      partner.email?.toLowerCase().includes(search) ||
+      partner.phone?.includes(search) ||
+      partner.city?.toLowerCase().includes(search)
+    );
+  }, [partners, partnerSearch]);
+
+  // Filtered locations based on search and level
+  const filteredLocations = useMemo(() => {
+    const locations = selectedLevel === "DEALERSHIP" ? dealerships : showrooms;
+    if (!locationSearch) return locations;
+    const search = locationSearch.toLowerCase();
+    return locations.filter((loc: any) =>
+      loc.name?.toLowerCase().includes(search) ||
+      loc.city?.toLowerCase().includes(search) ||
+      loc.state?.toLowerCase().includes(search) ||
+      loc.address?.toLowerCase().includes(search)
+    );
+  }, [selectedLevel, dealerships, showrooms, locationSearch]);
 
   const onSubmit = async (data: AllocationFormData) => {
     setIsLoading(true);
     try {
-      // For editing, use single allocation endpoint
       if (isEditing) {
         const response = await fetch(`/api/allocations/${allocation.id}`, {
           method: "PUT",
@@ -282,9 +318,7 @@ export function CreateAllocationModal({
           description: "Allocation updated successfully",
         });
       } else {
-        // For creating, handle multiple showrooms
         if (data.level === "SHOWROOM" && data.showroomIds && data.showroomIds.length > 0) {
-          // Create multiple allocations - one for each showroom
           const promises = data.showroomIds.map(showroomId => 
             fetch("/api/allocations", {
               method: "POST",
@@ -317,7 +351,6 @@ export function CreateAllocationModal({
             description: `Created ${data.showroomIds.length} allocation(s) successfully`,
           });
         } else {
-          // Single dealership allocation
           const response = await fetch("/api/allocations", {
             method: "POST",
             headers: {
@@ -365,42 +398,233 @@ export function CreateAllocationModal({
     onOpenChange(false);
   };
 
-  const getLevelOptions = () => {
-    if (selectedLevel === "DEALERSHIP") {
-      return dealerships.map((dealership) => ({
-        value: dealership.id,
-        label: dealership.name,
-      }));
-    } else {
-      return showrooms.map((showroom) => ({
-        value: showroom.id,
-        label: showroom.name,
-      }));
-    }
-  };
+  const selectedPartner = partners.find((p: any) => p.id === selectedPartnerId);
+  const selectedLocation = selectedLevel === "DEALERSHIP" 
+    ? dealerships.find((d: any) => d.id === selectedLevelId)
+    : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]" data-testid="modal-create-allocation">
+      <DialogContent className="max-w-[850px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Edit' : 'Create'} Partner Allocation</DialogTitle>
+          <DialogTitle>
+            {isEditing ? "Edit" : "Create"} Partner Allocation
+          </DialogTitle>
         </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {/* STEP 1: Partner Selection */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold">1</div>
+              <h3 className="text-sm font-semibold">Select Partner</h3>
+            </div>
+            
+            <FormField
+              control={form.control}
+              name="partnerId"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Partner <span className="text-destructive">*</span></FormLabel>
+                  <Popover open={partnerSearchOpen} onOpenChange={setPartnerSearchOpen}>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className={cn(
+                            "w-full justify-between",
+                            !field.value && "text-muted-foreground"
+                          )}
+                          data-testid="button-select-partner"
+                        >
+                          {field.value ? (
+                            <div className="flex items-center gap-2">
+                              <Briefcase className="h-4 w-4" />
+                              <span>{selectedPartner?.displayName}</span>
+                            </div>
+                          ) : (
+                            "Search and select partner..."
+                          )}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[600px] p-0" align="start">
+                      <Command>
+                        <CommandInput 
+                          placeholder="Search by name, city, email, or phone..." 
+                          value={partnerSearch}
+                          onValueChange={setPartnerSearch}
+                        />
+                        <CommandList>
+                          <CommandEmpty>
+                            {partnersLoading ? "Loading partners..." : "No partner found."}
+                          </CommandEmpty>
+                          <CommandGroup>
+                            <ScrollArea className="h-[300px]">
+                              {partnersLoading ? (
+                                <div className="p-4 space-y-2">
+                                  <Skeleton className="h-12 w-full" />
+                                  <Skeleton className="h-12 w-full" />
+                                  <Skeleton className="h-12 w-full" />
+                                </div>
+                              ) : (
+                                filteredPartners.map((partner: any) => (
+                                  <CommandItem
+                                    key={partner.id}
+                                    value={`${partner.displayName} ${partner.city} ${partner.email}`}
+                                    onSelect={() => {
+                                      field.onChange(partner.id);
+                                      form.setValue("brandIds", []); // Reset brands when partner changes
+                                      setPartnerSearchOpen(false);
+                                    }}
+                                    className="cursor-pointer"
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        partner.id === field.value ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    <div className="flex flex-col flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium">{partner.displayName}</span>
+                                        <Badge variant="outline" className="text-xs">
+                                          {partner.type || "Partner"}
+                                        </Badge>
+                                      </div>
+                                      <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+                                        {partner.city && (
+                                          <span className="flex items-center gap-1">
+                                            <MapPin className="h-3 w-3" />
+                                            {partner.city}, {partner.state}
+                                          </span>
+                                        )}
+                                        {partner.email && <span>{partner.email}</span>}
+                                      </div>
+                                    </div>
+                                  </CommandItem>
+                                ))
+                              )}
+                            </ScrollArea>
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <Separator />
+
+          {/* STEP 2: Brand Selection */}
+          {selectedPartnerId && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold">2</div>
+                <h3 className="text-sm font-semibold">Select Product Brands</h3>
+              </div>
+
+              <FormField
+                control={form.control}
+                name="brandIds"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Product Brands <span className="text-destructive">*</span></FormLabel>
+                    {selectedLevelId && allocatedBrands.length > 0 && (
+                      <FormDescription>
+                        Only unassigned brands for this {selectedLevel.toLowerCase()} are shown
+                      </FormDescription>
+                    )}
+                    {availableBrands.length === 0 ? (
+                      <div className="text-sm text-muted-foreground py-3 px-4 bg-muted rounded-md">
+                        {selectedLevelId && allocatedBrandIds.length > 0 
+                          ? "All brands assigned to this partner are already allocated to other partners for this location."
+                          : "No brands assigned to this partner. Please assign brands to the partner first."}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="border rounded-md p-3 max-h-[200px] overflow-y-auto">
+                          <div className="grid grid-cols-2 gap-3">
+                            {availableBrands.map((brand: any) => (
+                              <div key={brand.id} className="flex items-center space-x-2 hover:bg-accent p-2 rounded-md transition-colors">
+                                <Checkbox
+                                  id={`brand-${brand.id}`}
+                                  checked={field.value?.includes(brand.id) || false}
+                                  onCheckedChange={(checked) => {
+                                    const currentValues = field.value || [];
+                                    if (checked) {
+                                      field.onChange([...currentValues, brand.id]);
+                                    } else {
+                                      field.onChange(currentValues.filter((id: string) => id !== brand.id));
+                                    }
+                                  }}
+                                  data-testid={`checkbox-brand-${brand.id}`}
+                                />
+                                <label
+                                  htmlFor={`brand-${brand.id}`}
+                                  className="text-sm cursor-pointer flex-1"
+                                >
+                                  {brand.name}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        {field.value && field.value.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {field.value.map((brandId: string) => {
+                              const brand = brands.find((b: any) => b.id === brandId);
+                              return (
+                                <Badge key={brandId} variant="secondary" className="gap-1">
+                                  {brand?.name}
+                                  <X
+                                    className="h-3 w-3 cursor-pointer hover:text-destructive"
+                                    onClick={() => {
+                                      field.onChange(field.value.filter((id: string) => id !== brandId));
+                                    }}
+                                  />
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          )}
+
+          {selectedPartnerId && <Separator />}
+
+          {/* STEP 3: Level Selection */}
+          {selectedPartnerId && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold">3</div>
+                <h3 className="text-sm font-semibold">Select Allocation Level</h3>
+              </div>
+
               <FormField
                 control={form.control}
                 name="level"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Level</FormLabel>
+                    <FormLabel>Level <span className="text-destructive">*</span></FormLabel>
                     <Select 
                       onValueChange={(value) => {
                         field.onChange(value);
-                        form.setValue("levelId", ""); // Reset levelId when level changes
+                        form.setValue("levelId", "");
+                        form.setValue("showroomIds", []);
                       }} 
-                      defaultValue={field.value}
+                      value={field.value}
                     >
                       <FormControl>
                         <SelectTrigger data-testid="select-level">
@@ -416,254 +640,295 @@ export function CreateAllocationModal({
                   </FormItem>
                 )}
               />
+            </div>
+          )}
+
+          {selectedPartnerId && <Separator />}
+
+          {/* STEP 4: Location Selection */}
+          {selectedPartnerId && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold">4</div>
+                <h3 className="text-sm font-semibold">Select {selectedLevel === "DEALERSHIP" ? "Dealership" : "Showrooms"}</h3>
+              </div>
 
               {selectedLevel === "DEALERSHIP" ? (
                 <FormField
                   control={form.control}
                   name="levelId"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Dealership</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-level-id">
-                            <SelectValue placeholder="Select dealership" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {getLevelOptions().map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Dealership <span className="text-destructive">*</span></FormLabel>
+                      <Popover open={locationSearchOpen} onOpenChange={setLocationSearchOpen}>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                "w-full justify-between",
+                                !field.value && "text-muted-foreground"
+                              )}
+                              data-testid="button-select-dealership"
+                            >
+                              {field.value ? (
+                                <div className="flex items-center gap-2">
+                                  <Building2 className="h-4 w-4" />
+                                  <span>{selectedLocation?.name}</span>
+                                </div>
+                              ) : (
+                                "Search and select dealership..."
+                              )}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[600px] p-0" align="start">
+                          <Command>
+                            <CommandInput 
+                              placeholder="Search by name, city, or address..." 
+                              value={locationSearch}
+                              onValueChange={setLocationSearch}
+                            />
+                            <CommandList>
+                              <CommandEmpty>
+                                {dealershipsLoading ? "Loading dealerships..." : "No dealership found."}
+                              </CommandEmpty>
+                              <CommandGroup>
+                                <ScrollArea className="h-[300px]">
+                                  {dealershipsLoading ? (
+                                    <div className="p-4 space-y-2">
+                                      <Skeleton className="h-12 w-full" />
+                                      <Skeleton className="h-12 w-full" />
+                                    </div>
+                                  ) : (
+                                    filteredLocations.map((dealership: any) => (
+                                      <CommandItem
+                                        key={dealership.id}
+                                        value={`${dealership.name} ${dealership.city} ${dealership.state}`}
+                                        onSelect={() => {
+                                          field.onChange(dealership.id);
+                                          setLocationSearchOpen(false);
+                                        }}
+                                        className="cursor-pointer"
+                                      >
+                                        <Check
+                                          className={cn(
+                                            "mr-2 h-4 w-4",
+                                            dealership.id === field.value ? "opacity-100" : "opacity-0"
+                                          )}
+                                        />
+                                        <div className="flex flex-col flex-1">
+                                          <span className="font-medium">{dealership.name}</span>
+                                          <span className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                            <MapPin className="h-3 w-3" />
+                                            {dealership.city}, {dealership.state}
+                                          </span>
+                                        </div>
+                                      </CommandItem>
+                                    ))
+                                  )}
+                                </ScrollArea>
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               ) : (
-                <div className="col-span-2">
-                  <FormField
-                    control={form.control}
-                    name="showroomIds"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Showrooms (Select Multiple)</FormLabel>
-                        <div className="grid grid-cols-2 gap-2 mt-2">
-                          {showrooms.map((showroom: any) => (
-                            <div key={showroom.id} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`showroom-${showroom.id}`}
-                                checked={field.value?.includes(showroom.id) || false}
-                                onCheckedChange={(checked) => {
+                <FormField
+                  control={form.control}
+                  name="showroomIds"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Showrooms (Select multiple) <span className="text-destructive">*</span></FormLabel>
+                      <FormDescription>
+                        Search and select one or more showrooms
+                      </FormDescription>
+                      <div className="border rounded-md">
+                        <div className="p-3 border-b bg-muted/50">
+                          <Input
+                            placeholder="Search by name, city, or address..."
+                            value={locationSearch}
+                            onChange={(e) => setLocationSearch(e.target.value)}
+                            className="h-9"
+                          />
+                        </div>
+                        <ScrollArea className="h-[240px] p-2">
+                          {showroomsLoading ? (
+                            <div className="space-y-2">
+                              <Skeleton className="h-12 w-full" />
+                              <Skeleton className="h-12 w-full" />
+                              <Skeleton className="h-12 w-full" />
+                            </div>
+                          ) : filteredLocations.length === 0 ? (
+                            <div className="text-sm text-muted-foreground text-center py-8">
+                              No showrooms found
+                            </div>
+                          ) : (
+                            filteredLocations.map((showroom: any) => (
+                              <div
+                                key={showroom.id}
+                                className="flex items-center space-x-2 p-2 hover:bg-accent rounded-md cursor-pointer transition-colors"
+                                onClick={() => {
                                   const currentValues = field.value || [];
-                                  if (checked) {
-                                    field.onChange([...currentValues, showroom.id]);
-                                  } else {
+                                  if (currentValues.includes(showroom.id)) {
                                     field.onChange(currentValues.filter((id: string) => id !== showroom.id));
+                                  } else {
+                                    field.onChange([...currentValues, showroom.id]);
                                   }
                                 }}
-                                data-testid={`checkbox-showroom-${showroom.id}`}
-                              />
-                              <label
-                                htmlFor={`showroom-${showroom.id}`}
-                                className="text-sm cursor-pointer"
                               >
-                                {showroom.name}
-                              </label>
-                            </div>
-                          ))}
+                                <Checkbox
+                                  id={`showroom-${showroom.id}`}
+                                  checked={field.value?.includes(showroom.id) || false}
+                                  onCheckedChange={(checked) => {
+                                    const currentValues = field.value || [];
+                                    if (checked) {
+                                      field.onChange([...currentValues, showroom.id]);
+                                    } else {
+                                      field.onChange(currentValues.filter((id: string) => id !== showroom.id));
+                                    }
+                                  }}
+                                  data-testid={`checkbox-showroom-${showroom.id}`}
+                                />
+                                <label
+                                  htmlFor={`showroom-${showroom.id}`}
+                                  className="flex-1 cursor-pointer"
+                                >
+                                  <div className="font-medium text-sm">{showroom.name}</div>
+                                  <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                                    <MapPin className="h-3 w-3" />
+                                    {showroom.city}, {showroom.state}
+                                  </div>
+                                </label>
+                              </div>
+                            ))
+                          )}
+                        </ScrollArea>
+                      </div>
+                      {field.value && field.value.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {field.value.map((showroomId: string) => {
+                            const showroom = showrooms.find((s: any) => s.id === showroomId);
+                            return (
+                              <Badge key={showroomId} variant="secondary" className="gap-1">
+                                {showroom?.name}
+                                <X
+                                  className="h-3 w-3 cursor-pointer hover:text-destructive"
+                                  onClick={() => {
+                                    field.onChange((field.value || []).filter((id: string) => id !== showroomId));
+                                  }}
+                                />
+                              </Badge>
+                            );
+                          })}
                         </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               )}
             </div>
+          )}
 
-            <FormField
-              control={form.control}
-              name="partnerId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Partner</FormLabel>
-                  <Select 
-                    onValueChange={(value) => {
-                      field.onChange(value);
-                      form.setValue("brandIds", []); // Reset brands when partner changes
-                    }} 
-                    value={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger data-testid="select-partner">
-                        <SelectValue placeholder="Select partner" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {partners.map((partner) => {
-                        const serviceCategories = partner.serviceCategories || [];
-                        const categoryNames = serviceCategories.map(cat => cat.name).join(', ');
-                        const categoryDisplay = categoryNames || 'No specializations';
-                        
-                        return (
-                          <SelectItem key={partner.id} value={partner.id}>
-                            <div className="flex flex-col items-start">
-                              <div className="font-medium">
-                                {partner.displayName} ({partner.type})
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                Specializes in: {categoryDisplay}
-                              </div>
-                            </div>
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          {selectedPartnerId && <Separator />}
 
-            {/* Brand Selection - only show if partner is selected */}
-            {selectedPartnerId && (
-              <FormField
-                control={form.control}
-                name="brandIds"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Product Brands (Select at least one)</FormLabel>
-                    {selectedLevelId && allocatedBrands.length > 0 && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Only unassigned brands for this {selectedLevel.toLowerCase()} are shown
-                      </p>
-                    )}
-                    {availableBrands.length === 0 ? (
-                      <div className="text-sm text-muted-foreground py-2">
-                        {selectedLevelId && allocatedBrandIds.length > 0 
-                          ? "All brands assigned to this partner are already allocated to other partners for this location."
-                          : "No brands assigned to this partner. Please assign brands to the partner first."}
+          {/* Additional Settings */}
+          {selectedPartnerId && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">Additional Settings</h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Priority (1-10)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={10}
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          data-testid="input-priority"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="active"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                      <div className="space-y-0.5">
+                        <FormLabel>Active Status</FormLabel>
                       </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        {availableBrands.map((brand: any) => (
-                          <div key={brand.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`brand-${brand.id}`}
-                              checked={field.value?.includes(brand.id) || false}
-                              onCheckedChange={(checked) => {
-                                const currentValues = field.value || [];
-                                if (checked) {
-                                  field.onChange([...currentValues, brand.id]);
-                                } else {
-                                  field.onChange(currentValues.filter((id: string) => id !== brand.id));
-                                }
-                              }}
-                              data-testid={`checkbox-brand-${brand.id}`}
-                            />
-                            <label
-                              htmlFor={`brand-${brand.id}`}
-                              className="text-sm cursor-pointer"
-                            >
-                              {brand.name}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="priority"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Priority</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="1"
-                        max="10"
-                        {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value))}
-                        data-testid="input-priority"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-active"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <FormField
                 control={form.control}
-                name="active"
+                name="partnerBillsDirectly"
                 render={({ field }) => (
-                  <FormItem className="flex flex-col space-y-2">
-                    <FormLabel>Active</FormLabel>
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <FormLabel>Partner Bills Customer Directly</FormLabel>
+                      <FormDescription>
+                        Enable if partner handles billing independently
+                      </FormDescription>
+                    </div>
                     <FormControl>
                       <Switch
                         checked={field.value}
                         onCheckedChange={field.onChange}
-                        data-testid="switch-active"
+                        data-testid="switch-partner-bills-directly"
                       />
                     </FormControl>
-                    <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
+          )}
 
-            {/* Partner Bills Directly Toggle */}
-            <FormField
-              control={form.control}
-              name="partnerBillsDirectly"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">
-                      Partner Bills Customer Directly
-                    </FormLabel>
-                    <div className="text-sm text-muted-foreground">
-                      When enabled, this partner bills the customer directly and the system will not handle billing for their job cards.
-                    </div>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      data-testid="switch-partner-bills-directly"
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleCancel}
-                data-testid="button-cancel"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isLoading}
-                data-testid="button-submit"
-              >
-                {isLoading ? "Saving..." : isEditing ? "Update Allocation" : "Create Allocation"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCancel}
+              disabled={isLoading}
+              data-testid="button-cancel"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={isLoading}
+              data-testid="button-submit"
+            >
+              {isLoading ? "Saving..." : isEditing ? "Update" : "Create"} Allocation
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
