@@ -748,7 +748,7 @@ export function CreateAllocationModal({
                     <FormItem>
                       <FormLabel>Showrooms (Select multiple) <span className="text-destructive">*</span></FormLabel>
                       <FormDescription>
-                        Search and select one or more showrooms
+                        Click to search and select one or more showrooms
                       </FormDescription>
                       <Popover open={locationSearchOpen} onOpenChange={setLocationSearchOpen}>
                         <PopoverTrigger asChild>
