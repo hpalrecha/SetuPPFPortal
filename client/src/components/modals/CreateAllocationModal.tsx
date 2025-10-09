@@ -744,79 +744,79 @@ export function CreateAllocationModal({
                 <FormField
                   control={form.control}
                   name="showroomIds"
-                  render={({ field }) => {
-                    console.log('[SHOWROOM FIELD] Rendering field:', { 
-                      value: field.value, 
-                      type: typeof field.value,
-                      isArray: Array.isArray(field.value)
-                    });
-                    return (
+                  render={({ field }) => (
                     <FormItem>
                       <FormLabel>Showrooms (Select multiple) <span className="text-destructive">*</span></FormLabel>
                       <FormDescription>
                         Search and select one or more showrooms
                       </FormDescription>
-                      <div className="border rounded-md">
-                        <div className="p-3 border-b bg-muted/50">
-                          <Input
-                            placeholder="Search by name, city, or address..."
-                            value={locationSearch}
-                            onChange={(e) => setLocationSearch(e.target.value)}
-                            className="h-9"
-                          />
-                        </div>
-                        <ScrollArea className="h-[240px] p-2">
-                          {showroomsLoading ? (
-                            <div className="space-y-2">
-                              <Skeleton className="h-12 w-full" />
-                              <Skeleton className="h-12 w-full" />
-                              <Skeleton className="h-12 w-full" />
-                            </div>
-                          ) : filteredLocations.length === 0 ? (
-                            <div className="text-sm text-muted-foreground text-center py-8">
-                              No showrooms found
-                            </div>
-                          ) : (
-                            filteredLocations.map((showroom: any) => (
-                              <div
-                                key={showroom.id}
-                                className="flex items-center space-x-2 p-2 hover:bg-accent rounded-md transition-colors"
-                              >
-                                <Checkbox
-                                  id={`showroom-${showroom.id}`}
-                                  checked={Array.isArray(field.value) && field.value.includes(showroom.id)}
-                                  onCheckedChange={(checked) => {
-                                    console.log('[CHECKBOX CLICK]', {
-                                      showroomId: showroom.id,
-                                      checked,
-                                      currentValue: field.value,
-                                      isArray: Array.isArray(field.value)
-                                    });
-                                    const currentValues = Array.isArray(field.value) ? field.value : [];
-                                    const newValue = checked 
-                                      ? [...currentValues, showroom.id]
-                                      : currentValues.filter((id: string) => id !== showroom.id);
-                                    console.log('[CHECKBOX CHANGE]', { newValue });
-                                    field.onChange(newValue);
-                                    console.log('[CHECKBOX AFTER CHANGE]', { fieldValue: field.value });
-                                  }}
-                                  data-testid={`checkbox-showroom-${showroom.id}`}
-                                />
-                                <label
-                                  htmlFor={`showroom-${showroom.id}`}
-                                  className="flex-1 cursor-pointer"
-                                >
-                                  <div className="font-medium text-sm">{showroom.name}</div>
-                                  <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                                    <MapPin className="h-3 w-3" />
-                                    {showroom.city}, {showroom.state}
+                      <Popover open={locationSearchOpen} onOpenChange={setLocationSearchOpen}>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className="w-full justify-between h-auto min-h-10"
+                              data-testid="select-showrooms"
+                            >
+                              <span className="truncate">
+                                {field.value && field.value.length > 0
+                                  ? `${field.value.length} showroom${field.value.length > 1 ? 's' : ''} selected`
+                                  : "Select showrooms"}
+                              </span>
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[500px] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search by name, city, or address..." />
+                            <CommandList>
+                              <CommandEmpty>No showroom found.</CommandEmpty>
+                              <CommandGroup>
+                                {showroomsLoading ? (
+                                  <div className="space-y-2 p-2">
+                                    <Skeleton className="h-12 w-full" />
+                                    <Skeleton className="h-12 w-full" />
                                   </div>
-                                </label>
-                              </div>
-                            ))
-                          )}
-                        </ScrollArea>
-                      </div>
+                                ) : (
+                                  filteredLocations.map((showroom: any) => {
+                                    const isSelected = field.value?.includes(showroom.id);
+                                    return (
+                                      <CommandItem
+                                        key={showroom.id}
+                                        value={`${showroom.name} ${showroom.city} ${showroom.state}`}
+                                        onSelect={() => {
+                                          const currentValues = Array.isArray(field.value) ? field.value : [];
+                                          if (isSelected) {
+                                            field.onChange(currentValues.filter((id: string) => id !== showroom.id));
+                                          } else {
+                                            field.onChange([...currentValues, showroom.id]);
+                                          }
+                                        }}
+                                      >
+                                        <Check
+                                          className={cn(
+                                            "mr-2 h-4 w-4",
+                                            isSelected ? "opacity-100" : "opacity-0"
+                                          )}
+                                        />
+                                        <div className="flex-1">
+                                          <div className="font-medium">{showroom.name}</div>
+                                          <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                            <MapPin className="h-3 w-3" />
+                                            {showroom.city}, {showroom.state}
+                                          </div>
+                                        </div>
+                                      </CommandItem>
+                                    );
+                                  })
+                                )}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       {field.value && field.value.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-2">
                           {field.value.map((showroomId: string) => {
@@ -827,7 +827,7 @@ export function CreateAllocationModal({
                                 <X
                                   className="h-3 w-3 cursor-pointer hover:text-destructive"
                                   onClick={() => {
-                                    field.onChange((field.value || []).filter((id: string) => id !== showroomId));
+                                    field.onChange(field.value.filter((id: string) => id !== showroomId));
                                   }}
                                 />
                               </Badge>
@@ -837,7 +837,7 @@ export function CreateAllocationModal({
                       )}
                       <FormMessage />
                     </FormItem>
-                  )}}
+                  )}
                 />
               )}
             </div>
