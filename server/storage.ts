@@ -1547,6 +1547,43 @@ export class DatabaseStorage implements IStorage {
   }
 
   async setAllocationBrands(allocationId: string, brandIds: string[]): Promise<void> {
+    // Get the allocation details to check level and levelId
+    const [allocation] = await db
+      .select()
+      .from(allocations)
+      .where(eq(allocations.id, allocationId));
+    
+    if (!allocation) {
+      throw new Error('Allocation not found');
+    }
+
+    // Check for duplicate brand assignments
+    if (brandIds.length > 0) {
+      const existingBrandAllocations = await db
+        .select({
+          brandId: allocationBrands.brandId,
+          partnerId: allocations.partnerId,
+          partnerName: partners.displayName
+        })
+        .from(allocations)
+        .innerJoin(allocationBrands, eq(allocations.id, allocationBrands.allocationId))
+        .innerJoin(partners, eq(allocations.partnerId, partners.id))
+        .where(and(
+          eq(allocations.level, allocation.level),
+          eq(allocations.levelId, allocation.levelId),
+          eq(allocations.active, true),
+          ne(allocations.id, allocationId), // Exclude current allocation
+          inArray(allocationBrands.brandId, brandIds)
+        ));
+
+      if (existingBrandAllocations.length > 0) {
+        const duplicates = existingBrandAllocations.map(ba => 
+          `Brand already assigned to ${ba.partnerName}`
+        ).join('; ');
+        throw new Error(`Duplicate allocation detected: ${duplicates}. Each brand can only be assigned to one partner per ${allocation.level.toLowerCase()}.`);
+      }
+    }
+
     // Remove existing mappings
     await db
       .delete(allocationBrands)

@@ -4012,6 +4012,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Get allocated brands for a specific showroom/dealership
+  app.get("/api/allocations/allocated-brands", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    async (req, res) => {
+      try {
+        const { level, levelId } = req.query;
+        
+        if (!level || !levelId) {
+          return res.status(400).json({ error: "level and levelId are required" });
+        }
+        
+        const allocatedBrands = await storage.getAllocatedBrands(level as string, levelId as string);
+        res.json(allocatedBrands);
+      } catch (error) {
+        console.error("Get allocated brands error:", error);
+        res.status(500).json({ error: "Failed to fetch allocated brands" });
+      }
+    }
+  );
+
   app.post("/api/allocations", 
     authenticate, 
     requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
@@ -4038,7 +4059,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Create allocation error:", error);
         const err = error as Error;
-        if (err.message && err.message.includes("already has an active allocation")) {
+        if (err.message && (err.message.includes("already has an active allocation") || err.message.includes("Duplicate allocation detected"))) {
           return res.status(409).json({ error: err.message });
         }
         res.status(500).json({ error: "Failed to create allocation" });
@@ -4068,6 +4089,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json(allocation);
       } catch (error) {
         console.error("Update allocation error:", error);
+        const err = error as Error;
+        if (err.message && err.message.includes("Duplicate allocation detected")) {
+          return res.status(409).json({ error: err.message });
+        }
         res.status(500).json({ error: "Failed to update allocation" });
       }
     }
