@@ -1,0 +1,71 @@
+Task
+
+Implement a validation rule in the Partner Allocation module to prevent duplicate allocations of the same Brand for the same Showroom or Dealership across multiple partners.
+If a partner is already assigned to a showroom for a given brand, another partner cannot be assigned to that same showroom and brand combination again.
+
+A — Action
+
+Backend / Database Constraint
+
+Before creating a new allocation, check if an existing allocation record already exists where:
+
+(showroom_id OR dealership_id) + brand_id
+
+
+matches the incoming allocation request.
+
+If such an allocation exists and is active, reject the new entry with an appropriate error message:
+
+“An active allocation already exists for this showroom and brand. Please choose a different brand.”
+
+Frontend Validation
+
+When user selects a showroom/dealership and brand:
+
+Run a quick pre-check via API to fetch existing allocations for that showroom.
+
+Disable or hide already-assigned brands from the “Product Brands” multi-select dropdown.
+
+Example:
+If Metro Motors already has STEK mapped to Bangalore PPF Pro,
+then while allocating another partner, STEK should appear disabled or hidden for that showroom.
+
+Error Handling
+
+If user still tries to submit, show a clear toast/alert:
+
+🚫 Duplicate Allocation Not Allowed
+This showroom already has a partner assigned for STEK brand.
+
+
+Optional Enhancement
+
+Add a tooltip or label under Product Brand selector:
+
+“Only unassigned brands for this showroom are shown.”
+
+C — Context
+
+Currently, the allocation form allows assigning multiple partners to the same showroom for the same brand (e.g., STEK).
+This leads to conflicts in billing, reporting, and territory management.
+To maintain clean data integrity and partner exclusivity per brand, a uniqueness rule must be enforced.
+
+Scope:
+
+Applies to both Showroom and Dealership levels.
+
+Applies to all active partners and brands under the same OEM network.
+
+Does not affect allocations across different brands.
+
+O — Output
+
+✅ Expected Results:
+
+System blocks duplicate allocations for the same brand + showroom/dealership combination.
+
+Users see only available (unassigned) brands when selecting for a given showroom.
+
+Data remains consistent — no overlapping brand ownership per location.
+
+Error handling and messages are clear and user-friendly.
