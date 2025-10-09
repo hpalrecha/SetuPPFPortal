@@ -412,7 +412,8 @@ export function CreateAllocationModal({
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           {/* STEP 1: Partner Selection */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
@@ -929,6 +930,7 @@ export function CreateAllocationModal({
             </Button>
           </DialogFooter>
         </form>
+      </Form>
       </DialogContent>
     </Dialog>
   );
