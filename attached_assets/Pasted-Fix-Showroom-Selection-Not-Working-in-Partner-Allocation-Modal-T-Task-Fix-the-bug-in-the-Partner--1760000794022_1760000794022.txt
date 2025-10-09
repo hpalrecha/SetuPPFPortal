@@ -1,0 +1,71 @@
+Fix Showroom Selection Not Working in Partner Allocation Modal
+T — Task
+
+Fix the bug in the Partner Allocation modal where users are unable to select or check any Showroom after choosing Brand and Allocation Level.
+The list appears but clicking on any item does not select or update the field.
+
+A — Action
+
+Investigate the Multi-Select Logic
+
+Verify the onChange or onSelect event handler for the showroom field.
+
+Ensure that each option correctly updates the form’s state (e.g., selectedShowrooms or formData.showrooms).
+
+Example check:
+
+value={selectedShowrooms}
+onChange={(value) => setSelectedShowrooms(value)}
+
+
+If using checkboxes, ensure that click events don’t get swallowed by container elements (e.stopPropagation() if needed).
+
+Check Form Binding
+
+If the modal uses a form handler like Formik or React Hook Form, confirm that:
+
+The showroom field is properly registered.
+
+The selected value array updates correctly when a user clicks an item.
+
+The state is not being overridden by parent props or reset by rerenders.
+
+Verify Data Source
+
+Confirm that showroom objects returned from API have unique identifiers (id or uuid).
+
+If the key is missing or duplicated, React won’t track state updates correctly.
+
+Add debug log:
+
+console.log('Showroom options:', showrooms);
+console.log('Selected:', selectedShowrooms);
+
+
+UI Fix
+
+Check if scrollable container or z-index layering prevents checkbox clicks.
+
+If using custom dropdown (HeadlessUI/ReactSelect), ensure it supports multi-select properly (isMulti={true} or equivalent).
+
+Test selection both by click and keyboard.
+
+C — Context
+
+After implementing the new field order (Partner → Brand → Level → Showroom) and searchable dropdowns,
+the Showrooms list now renders correctly, but no click selection works — items highlight but don’t toggle or add to the selected state.
+This is breaking allocation creation because the modal requires at least one showroom to proceed.
+
+O — Output
+
+✅ Expected Result:
+
+Showrooms can be clicked or checked successfully.
+
+Selected showrooms appear as tags or pills below the dropdown.
+
+Multiple showrooms can be selected or deselected smoothly.
+
+No console or state errors on interaction.
+
+Allocation submission includes selected showroom IDs in payload.
