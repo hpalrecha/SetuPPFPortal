@@ -148,6 +148,12 @@ export function CreateAllocationModal({
 
   const partnerBrandIds = partnerBrandsData?.brandIds || [];
   const availableBrands = brands.filter((brand: any) => partnerBrandIds.includes(brand.id));
+  
+  // Debug logging
+  console.log('[ALLOCATION DEBUG] partnerBrandsData:', partnerBrandsData);
+  console.log('[ALLOCATION DEBUG] partnerBrandIds:', partnerBrandIds);
+  console.log('[ALLOCATION DEBUG] brands:', brands);
+  console.log('[ALLOCATION DEBUG] availableBrands:', availableBrands);
 
   // Reset form when allocation prop changes (for editing)
   useEffect(() => {

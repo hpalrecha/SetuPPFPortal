@@ -1,0 +1,65 @@
+T — Task
+
+Fix the issue where the Product Brand dropdown in the “Create Partner Allocation” modal shows
+
+“No brands assigned to this partner”
+even when the selected partner (e.g., Bangalore PPF Pro) already has brands assigned (e.g., STEK, 3M, P91).
+Also, improve the UI layout of this modal to avoid clutter and poor spacing.
+
+A — Action
+
+Backend / Data Fetch
+
+Validate API endpoint (e.g., /api/partners/:id) to ensure it returns the correct brand mapping field — e.g., productBrands, brandIds, or similar.
+
+If missing, include this relation in the partner model or API serializer.
+
+Frontend / UI Logic
+
+On partner selection, auto-fetch partner brand list.
+
+Populate Product Brands multi-select dynamically.
+
+Remove the error message "No brands assigned to this partner" unless the API actually returns an empty array.
+
+Add console.debug("Partner brands:", brandIds) or equivalent for trace logging.
+
+UI / UX Enhancement
+
+Increase modal width for better readability (from ~640px → ~760px).
+
+Add padding and dividers between:
+
+Level & Showroom Section
+
+Partner Details
+
+Product Brands
+
+Wrap specialization tags inside a scrollable container (max-height: 80px).
+
+Use card-style grouping for each logical section.
+
+Align toggle buttons (“Active”, “Partner Bills Customer Directly”) consistently at the bottom.
+
+C — Context
+
+Observed Issue: In the screenshot, while creating allocation, “Product Brands” shows blank despite partner having assigned brands (visible in “Partner Management” modal).
+
+Root Cause (likely): Frontend not mapping partner brand array properly from API response.
+
+UI Problem: Modal feels cramped — overlapping text and dense grouping of elements.
+
+Goal: Ensure data integrity between Partner → Allocation modules and improve layout experience.
+
+O — Output
+
+✅ When selecting any partner during allocation:
+
+The assigned brands automatically appear in the Product Brands dropdown.
+
+The modal no longer throws a “Select at least one brand” error.
+
+The layout is clean, padded, and visually separated into sections.
+
+Debug logs confirm brandIds are fetched and rendered correctly.
