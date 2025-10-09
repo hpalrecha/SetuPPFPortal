@@ -3176,7 +3176,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { id } = req.params;
         const categoryIds = await storage.getPartnerServiceCategories(id);
         const brandIds = await storage.getPartnerBrands(id);
-        console.log(`[DEBUG] Partner ${id} service-categories API returning:`, { serviceCategoryIds: categoryIds, brandIds });
         res.json({ serviceCategoryIds: categoryIds, brandIds });
       } catch (error) {
         console.error("Get partner service categories error:", error);

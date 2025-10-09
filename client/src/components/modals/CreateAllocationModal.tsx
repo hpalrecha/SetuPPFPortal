@@ -96,9 +96,9 @@ export function CreateAllocationModal({
 
   // Fetch brands
   const { data: brands = [] } = useQuery({
-    queryKey: ["/api/p91/brands"],
+    queryKey: ["/api/p91/brand"],
     queryFn: async () => {
-      const response = await fetch('/api/p91/brands', {
+      const response = await fetch('/api/p91/brand', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -148,12 +148,6 @@ export function CreateAllocationModal({
 
   const partnerBrandIds = partnerBrandsData?.brandIds || [];
   const availableBrands = brands.filter((brand: any) => partnerBrandIds.includes(brand.id));
-  
-  // Debug logging
-  console.log('[ALLOCATION DEBUG] partnerBrandsData:', partnerBrandsData);
-  console.log('[ALLOCATION DEBUG] partnerBrandIds:', partnerBrandIds);
-  console.log('[ALLOCATION DEBUG] brands:', brands);
-  console.log('[ALLOCATION DEBUG] availableBrands:', availableBrands);
 
   // Reset form when allocation prop changes (for editing)
   useEffect(() => {
