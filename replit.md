@@ -53,6 +53,7 @@ Preferred communication style: Simple, everyday language.
 - **Data Types**: Proper use of UUID, timestamps, decimals, and JSONB for flexible data storage
 - **Billing Data**: JSONB fields (billFrom, billTo, shipTo) store complete billing/shipping addresses with GSTIN
 - **Allocation Controls**: Partner-level billing flags (partnerBillsDirectly) at allocation level for granular control
+- **Material Consumption Tracking**: Vehicle variants include ppfQtyConsumption field (decimal) to record typical PPF usage in square feet for inventory planning and pricing benchmarks
 
 ## File Management
 - **Object Storage**: Google Cloud Storage integration through Replit Object Storage

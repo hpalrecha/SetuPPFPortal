@@ -34,6 +34,7 @@ type VehicleData = {
       fuelType?: string;
       transmission?: string;
       engineCapacity?: string;
+      ppfQtyConsumption?: string;
     }[];
   }[];
 };
@@ -55,7 +56,8 @@ const variantFormSchema = z.object({
   modelId: z.string().min(1, 'Model is required'),
   fuelType: z.string().optional(),
   transmission: z.string().optional(),
-  engineCapacity: z.string().optional()
+  engineCapacity: z.string().optional(),
+  ppfQtyConsumption: z.string().optional()
 });
 
 
@@ -98,7 +100,7 @@ export default function VehiclesPage() {
 
   const variantForm = useForm<z.infer<typeof variantFormSchema>>({
     resolver: zodResolver(variantFormSchema),
-    defaultValues: { variantName: '', modelId: '', fuelType: '', transmission: '', engineCapacity: '' }
+    defaultValues: { variantName: '', modelId: '', fuelType: '', transmission: '', engineCapacity: '', ppfQtyConsumption: '0.00' }
   });
 
 
@@ -849,6 +851,30 @@ export default function VehiclesPage() {
                     <FormLabel>Engine Capacity (Optional)</FormLabel>
                     <FormControl>
                       <Input placeholder="e.g., 1.2L, 1500cc" {...field} data-testid="input-engine-capacity" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={variantForm.control}
+                name="ppfQtyConsumption"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>PPF Quantity Consumption (Optional)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input 
+                          type="number" 
+                          step="0.01"
+                          placeholder="Enter total PPF used (in sq.ft)" 
+                          {...field} 
+                          data-testid="input-ppf-qty-consumption" 
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                          sq.ft
+                        </span>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
