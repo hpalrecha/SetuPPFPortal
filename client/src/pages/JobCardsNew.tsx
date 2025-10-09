@@ -690,7 +690,7 @@ export default function JobCardsNew() {
                 <div className="truncate">Vehicle</div>
                 <div className="truncate">Service</div>
                 <div className="truncate">Partner</div>
-                <div className="truncate">Bill To</div>
+                <div className="truncate">Bill From</div>
                 <div className="truncate">Created</div>
                 <div className="truncate">Scheduled</div>
                 <div className="truncate">Actions</div>
@@ -758,17 +758,12 @@ export default function JobCardsNew() {
                       </div>
                     </div>
 
-                    {/* Billing Column */}
+                    {/* Bill From Column */}
                     <div className="min-w-0 overflow-hidden">
-                      {jobCard.partnerBilledDirectly ? (
-                        <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-300">
-                          <Receipt className="h-3 w-3 mr-1" />
-                          Partner Direct
-                        </Badge>
-                      ) : jobCard.billTo?.entityType ? (
-                        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-300">
-                          {jobCard.billTo.entityType}
-                        </Badge>
+                      {jobCard.billFrom?.name ? (
+                        <div className="text-sm font-medium truncate" title={jobCard.billFrom.name}>
+                          {jobCard.billFrom.name}
+                        </div>
                       ) : (
                         <span className="text-xs text-muted-foreground">N/A</span>
                       )}
