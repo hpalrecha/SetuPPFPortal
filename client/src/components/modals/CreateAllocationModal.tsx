@@ -744,7 +744,13 @@ export function CreateAllocationModal({
                 <FormField
                   control={form.control}
                   name="showroomIds"
-                  render={({ field }) => (
+                  render={({ field }) => {
+                    console.log('[SHOWROOM FIELD] Rendering field:', { 
+                      value: field.value, 
+                      type: typeof field.value,
+                      isArray: Array.isArray(field.value)
+                    });
+                    return (
                     <FormItem>
                       <FormLabel>Showrooms (Select multiple) <span className="text-destructive">*</span></FormLabel>
                       <FormDescription>
@@ -780,12 +786,19 @@ export function CreateAllocationModal({
                                   id={`showroom-${showroom.id}`}
                                   checked={Array.isArray(field.value) && field.value.includes(showroom.id)}
                                   onCheckedChange={(checked) => {
+                                    console.log('[CHECKBOX CLICK]', {
+                                      showroomId: showroom.id,
+                                      checked,
+                                      currentValue: field.value,
+                                      isArray: Array.isArray(field.value)
+                                    });
                                     const currentValues = Array.isArray(field.value) ? field.value : [];
-                                    if (checked) {
-                                      field.onChange([...currentValues, showroom.id]);
-                                    } else {
-                                      field.onChange(currentValues.filter((id: string) => id !== showroom.id));
-                                    }
+                                    const newValue = checked 
+                                      ? [...currentValues, showroom.id]
+                                      : currentValues.filter((id: string) => id !== showroom.id);
+                                    console.log('[CHECKBOX CHANGE]', { newValue });
+                                    field.onChange(newValue);
+                                    console.log('[CHECKBOX AFTER CHANGE]', { fieldValue: field.value });
                                   }}
                                   data-testid={`checkbox-showroom-${showroom.id}`}
                                 />
@@ -824,7 +837,7 @@ export function CreateAllocationModal({
                       )}
                       <FormMessage />
                     </FormItem>
-                  )}
+                  )}}
                 />
               )}
             </div>
