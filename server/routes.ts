@@ -5606,7 +5606,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Add or update raw material (upsert by name)
   app.post("/api/p91/raw_material/add", authenticate, requireOEMAccess, async (req, res) => {
     try {
-      const { name, brand } = req.body;
+      const { name, brandId } = req.body;
 
       if (!name) {
         return res.status(400).json({ error: "Name is required" });
@@ -5617,13 +5617,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (existing) {
         // Update if brand changed
-        if (brand && existing.brand !== brand) {
-          await storage.updateRawMaterial(existing.id, { brand });
+        if (brandId && existing.brandId !== brandId) {
+          await storage.updateRawMaterial(existing.id, { brandId });
         }
         return res.json({ status: "success", message: "Material updated", id: existing.id });
       } else {
         // Create new
-        const newMaterial = await storage.createRawMaterial({ name, brand });
+        const newMaterial = await storage.createRawMaterial({ name, brandId });
         return res.json({ status: "success", message: "Material created", id: newMaterial.id });
       }
     } catch (error) {
@@ -5636,13 +5636,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/p91/raw_material/update/:id", authenticate, requireOEMAccess, async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, brand } = req.body;
+      const { name, brandId } = req.body;
 
       if (!name) {
         return res.status(400).json({ error: "Name is required" });
       }
 
-      const updated = await storage.updateRawMaterial(id, { name, brand });
+      const updated = await storage.updateRawMaterial(id, { name, brandId });
 
       if (!updated) {
         return res.status(404).json({ error: "Raw material not found" });
