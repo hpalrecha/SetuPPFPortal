@@ -403,41 +403,59 @@ Please acknowledge receipt and provide estimated completion time.
       throw new Error('Work order not found');
     }
 
-    // Get the service details to determine the required service category
+    // Get the service details to determine the required service category and brand
     const service = await storage.getService(workOrder.serviceId);
     if (!service || !service.serviceCategoryId) {
       console.warn(`Service ${workOrder.serviceId} has no service category, falling back to basic allocation`);
       return this.basicAutoAssignPartner(workOrderId);
     }
 
-    // Find partners who can handle this service category and are allocated to this showroom/dealership
+    // Get the brand ID from the service's productBrand (if exists)
+    let brandId: string | null = null;
+    if (service.productBrand) {
+      const brand = await storage.getBrandByName(service.productBrand);
+      brandId = brand?.id || null;
+      if (!brandId) {
+        console.warn(`⚠️ Service ${service.name} has productBrand "${service.productBrand}" but no matching brand found in database`);
+      } else {
+        console.log(`🏷️ Service uses brand: ${service.productBrand} (ID: ${brandId})`);
+      }
+    }
+
+    // Find partners who can handle this service category, are allocated to this showroom/dealership, AND have the correct brand
     const suitablePartner = await this.findSuitablePartner(
       workOrder.showroomId,
       workOrder.dealershipId,
-      service.serviceCategoryId
+      service.serviceCategoryId,
+      brandId
     );
 
     if (suitablePartner) {
-      console.log(`Auto-assigning work order ${workOrderId} to partner ${suitablePartner.id} based on service category match`);
+      console.log(`Auto-assigning work order ${workOrderId} to partner ${suitablePartner.id} based on service category and brand match`);
       await this.assignWorkOrder(workOrderId, suitablePartner.id, 'SYSTEM');
     } else {
-      console.warn(`No suitable partner found for service category. Falling back to basic allocation for work order ${workOrderId}`);
-      await this.basicAutoAssignPartner(workOrderId);
+      console.warn(`No suitable partner found for service category ${service.serviceCategoryId} and brand ${brandId}. Falling back to basic allocation for work order ${workOrderId}`);
+      await this.basicAutoAssignPartner(workOrderId, brandId);
     }
   }
 
-  // Enhanced partner finding with service category matching
-  private async findSuitablePartner(showroomId: string, dealershipId: string, serviceCategoryId: string): Promise<any | null> {
+  // Enhanced partner finding with service category and brand matching
+  private async findSuitablePartner(
+    showroomId: string, 
+    dealershipId: string, 
+    serviceCategoryId: string,
+    brandId: string | null = null
+  ): Promise<any | null> {
     // Get all partners with their service categories
     const partnersWithCategories = await storage.getPartnersWithCategories();
     
-    // Priority 1: Partners with SHOWROOM allocations who can handle the service category
+    // Priority 1: Partners with SHOWROOM allocations who can handle the service category AND brand
     const showroomAllocations = await storage.getAllocations({
       level: 'SHOWROOM',
       levelId: showroomId
     });
 
-    console.log(`🔍 Checking ${showroomAllocations.length} showroom allocations for service category ${serviceCategoryId}`);
+    console.log(`🔍 Checking ${showroomAllocations.length} showroom allocations for service category ${serviceCategoryId}${brandId ? ` and brand ${brandId}` : ''}`);
 
     // Sort allocations by priority (lowest number = highest priority)
     const sortedShowroomAllocations = showroomAllocations
@@ -448,21 +466,31 @@ Please acknowledge receipt and provide estimated completion time.
       const partner = partnersWithCategories.find(p => p.id === allocation.partnerId);
       if (partner) {
         const canHandle = partner.serviceCategories?.some(category => category.id === serviceCategoryId);
-        console.log(`  Partner ${partner.displayName}: Can handle? ${canHandle}`);
-        if (canHandle) {
+        
+        // Check brand matching if brandId is provided
+        let hasBrand = true;
+        if (brandId) {
+          const allocationBrandIds = await storage.getAllocationBrands(allocation.id);
+          hasBrand = allocationBrandIds.includes(brandId);
+          console.log(`  Partner ${partner.displayName}: Can handle service? ${canHandle}, Has brand? ${hasBrand}`);
+        } else {
+          console.log(`  Partner ${partner.displayName}: Can handle? ${canHandle}`);
+        }
+        
+        if (canHandle && hasBrand) {
           console.log(`✅ Found suitable partner via showroom allocation: ${partner.displayName}`);
           return partner;
         }
       }
     }
 
-    // Priority 2: Partners with DEALERSHIP allocations who can handle the service category  
+    // Priority 2: Partners with DEALERSHIP allocations who can handle the service category AND brand
     const dealershipAllocations = await storage.getAllocations({
       level: 'DEALERSHIP', 
       levelId: dealershipId
     });
 
-    console.log(`🔍 Checking ${dealershipAllocations.length} dealership allocations for service category ${serviceCategoryId}`);
+    console.log(`🔍 Checking ${dealershipAllocations.length} dealership allocations for service category ${serviceCategoryId}${brandId ? ` and brand ${brandId}` : ''}`);
 
     const sortedDealershipAllocations = dealershipAllocations
       .filter(a => a.active)
@@ -470,40 +498,53 @@ Please acknowledge receipt and provide estimated completion time.
 
     for (const allocation of sortedDealershipAllocations) {
       const partner = partnersWithCategories.find(p => p.id === allocation.partnerId);
-      if (partner && partner.serviceCategories?.some(category => category.id === serviceCategoryId)) {
-        console.log(`✅ Found suitable partner via dealership allocation: ${partner.displayName}`);
-        return partner;
+      if (partner) {
+        const canHandle = partner.serviceCategories?.some(category => category.id === serviceCategoryId);
+        
+        // Check brand matching if brandId is provided
+        let hasBrand = true;
+        if (brandId) {
+          const allocationBrandIds = await storage.getAllocationBrands(allocation.id);
+          hasBrand = allocationBrandIds.includes(brandId);
+        }
+        
+        if (canHandle && hasBrand) {
+          console.log(`✅ Found suitable partner via dealership allocation: ${partner.displayName}`);
+          return partner;
+        }
       }
     }
 
-    // Priority 3 (Fallback): Partners in old mapping system who can handle the service
-    const showroomPartners = await storage.getPartnersForShowroom(showroomId);
-    
-    const capablePartners = showroomPartners
-      .map(sp => partnersWithCategories.find(p => p.id === sp.id))
-      .filter(partner => 
-        partner && partner.serviceCategories?.some(category => category.id === serviceCategoryId)
-      );
+    // Priority 3 (Fallback): Partners in old mapping system who can handle the service (no brand check for legacy)
+    if (!brandId) {
+      const showroomPartners = await storage.getPartnersForShowroom(showroomId);
+      
+      const capablePartners = showroomPartners
+        .map(sp => partnersWithCategories.find(p => p.id === sp.id))
+        .filter(partner => 
+          partner && partner.serviceCategories?.some(category => category.id === serviceCategoryId)
+        );
 
-    if (capablePartners.length > 0 && capablePartners[0]) {
-      console.log(`✅ Found suitable partner via old mapping system: ${capablePartners[0].displayName}`);
-      return capablePartners[0];
+      if (capablePartners.length > 0 && capablePartners[0]) {
+        console.log(`✅ Found suitable partner via old mapping system: ${capablePartners[0].displayName}`);
+        return capablePartners[0];
+      }
     }
 
-    console.warn(`❌ No suitable partner found for service category ${serviceCategoryId}`);
+    console.warn(`❌ No suitable partner found for service category ${serviceCategoryId}${brandId ? ` and brand ${brandId}` : ''}`);
     return null;
   }
 
   // Fallback to basic allocation when service category matching is not possible
-  private async basicAutoAssignPartner(workOrderId: string): Promise<void> {
+  private async basicAutoAssignPartner(workOrderId: string, brandId: string | null = null): Promise<void> {
     const workOrder = await storage.getWorkOrder(workOrderId);
     if (!workOrder) {
       throw new Error('Work order not found');
     }
 
-    console.log(`🔍 Basic auto-assignment for work order ${workOrderId}`);
+    console.log(`🔍 Basic auto-assignment for work order ${workOrderId}${brandId ? ` with brand ${brandId}` : ''}`);
 
-    // Priority 1: Partners with SHOWROOM allocations (sorted by priority)
+    // Priority 1: Partners with SHOWROOM allocations (sorted by priority) that have the brand
     const showroomAllocations = await storage.getAllocations({
       level: 'SHOWROOM',
       levelId: workOrder.showroomId
@@ -513,14 +554,25 @@ Please acknowledge receipt and provide estimated completion time.
       .filter(a => a.active)
       .sort((a, b) => (a.priority || 999) - (b.priority || 999));
 
-    if (activeShowroomAllocations.length > 0) {
-      const firstAllocation = activeShowroomAllocations[0];
-      console.log(`✅ Assigning to partner ${firstAllocation.partnerId} via showroom allocation (priority ${firstAllocation.priority})`);
-      await this.assignWorkOrder(workOrderId, firstAllocation.partnerId, 'SYSTEM');
-      return;
+    for (const allocation of activeShowroomAllocations) {
+      // Check brand matching if brandId is provided
+      if (brandId) {
+        const allocationBrandIds = await storage.getAllocationBrands(allocation.id);
+        const hasBrand = allocationBrandIds.includes(brandId);
+        if (hasBrand) {
+          console.log(`✅ Assigning to partner ${allocation.partnerId} via showroom allocation (priority ${allocation.priority}) with brand match`);
+          await this.assignWorkOrder(workOrderId, allocation.partnerId, 'SYSTEM');
+          return;
+        }
+      } else {
+        // No brand check needed - assign to first active allocation
+        console.log(`✅ Assigning to partner ${allocation.partnerId} via showroom allocation (priority ${allocation.priority})`);
+        await this.assignWorkOrder(workOrderId, allocation.partnerId, 'SYSTEM');
+        return;
+      }
     }
 
-    // Priority 2: Partners with DEALERSHIP allocations (sorted by priority)
+    // Priority 2: Partners with DEALERSHIP allocations (sorted by priority) that have the brand
     const dealershipAllocations = await storage.getAllocations({
       level: 'DEALERSHIP',
       levelId: workOrder.dealershipId
@@ -530,31 +582,48 @@ Please acknowledge receipt and provide estimated completion time.
       .filter(a => a.active)
       .sort((a, b) => (a.priority || 999) - (b.priority || 999));
 
-    if (activeDealershipAllocations.length > 0) {
-      const firstAllocation = activeDealershipAllocations[0];
-      console.log(`✅ Assigning to partner ${firstAllocation.partnerId} via dealership allocation (priority ${firstAllocation.priority})`);
-      await this.assignWorkOrder(workOrderId, firstAllocation.partnerId, 'SYSTEM');
-      return;
+    for (const allocation of activeDealershipAllocations) {
+      // Check brand matching if brandId is provided
+      if (brandId) {
+        const allocationBrandIds = await storage.getAllocationBrands(allocation.id);
+        const hasBrand = allocationBrandIds.includes(brandId);
+        if (hasBrand) {
+          console.log(`✅ Assigning to partner ${allocation.partnerId} via dealership allocation (priority ${allocation.priority}) with brand match`);
+          await this.assignWorkOrder(workOrderId, allocation.partnerId, 'SYSTEM');
+          return;
+        }
+      } else {
+        // No brand check needed - assign to first active allocation
+        console.log(`✅ Assigning to partner ${allocation.partnerId} via dealership allocation (priority ${allocation.priority})`);
+        await this.assignWorkOrder(workOrderId, allocation.partnerId, 'SYSTEM');
+        return;
+      }
     }
 
-    // Priority 3 (Fallback): Partners in old mapping system
-    const showroomPartners = await storage.getPartnersForShowroom(workOrder.showroomId);
-    
-    if (showroomPartners.length > 0) {
-      console.log(`✅ Assigning to partner ${showroomPartners[0].id} via old mapping system`);
-      await this.assignWorkOrder(workOrderId, showroomPartners[0].id, 'SYSTEM');
-      return;
+    // Priority 3 (Fallback): Partners in old mapping system (no brand check for legacy)
+    if (!brandId) {
+      const showroomPartners = await storage.getPartnersForShowroom(workOrder.showroomId);
+      
+      if (showroomPartners.length > 0) {
+        console.log(`✅ Assigning to partner ${showroomPartners[0].id} via old mapping system`);
+        await this.assignWorkOrder(workOrderId, showroomPartners[0].id, 'SYSTEM');
+        return;
+      }
     }
 
     // SAFETY NET: No allocations found at any level
-    console.error(`❌ CRITICAL: Work order ${workOrderId} has NO partner mappings at showroom or dealership level. Marking as UNASSIGNED for admin intervention.`);
+    const errorMessage = brandId 
+      ? `No partner allocations available for this showroom and brand - requires manual assignment.`
+      : `No partner allocations available - requires manual assignment.`;
+      
+    console.error(`❌ CRITICAL: Work order ${workOrderId} has NO partner mappings${brandId ? ' for the specified brand' : ''}. Marking as UNASSIGNED for admin intervention.`);
     
     // Mark work order as needing manual assignment
     await storage.updateWorkOrder(workOrderId, {
       status: 'PENDING', // Keep as PENDING so it appears in admin queue
       notes: workOrder.notes 
-        ? `${workOrder.notes}\n\n[SYSTEM] No partner allocations available - requires manual assignment.`
-        : '[SYSTEM] No partner allocations available - requires manual assignment.'
+        ? `${workOrder.notes}\n\n[SYSTEM] ${errorMessage}`
+        : `[SYSTEM] ${errorMessage}`
     });
   }
 

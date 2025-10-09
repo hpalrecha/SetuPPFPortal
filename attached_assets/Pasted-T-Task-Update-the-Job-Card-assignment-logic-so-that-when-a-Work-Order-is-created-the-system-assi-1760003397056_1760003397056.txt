@@ -1,0 +1,94 @@
+T — Task
+
+Update the Job Card assignment logic so that when a Work Order is created, the system assigns the Job Card to the correct partner based on both the Showroom/Dealership and the Product Brand in the Work Order’s service.
+
+Currently, the logic only checks which partner the showroom/dealership is allocated to, regardless of brand.
+We now need to validate brand mapping as well before assigning the Job Card.
+
+A — Action
+
+Modify Assignment Logic
+
+When a new Work Order or Job Card is created:
+
+Read the showroom_id or dealership_id from the order.
+
+Read the product_brand (e.g., “STEK”, “3M”, “P91”) from the service or product line.
+
+Query the Partner Allocations table to find a record that matches:
+
+showroom_id = current_showroom
+AND product_brand = work_order_brand
+AND active = true
+
+
+Assign the Job Card to the matching partner from that allocation.
+
+If no matching brand allocation is found, flag as “Unassigned” and raise a validation warning:
+
+“No active partner allocation found for this showroom and brand.”
+
+Backend Rule Enforcement
+
+Ensure the API endpoint or ERPNext logic validates brand + location before finalizing Job Card creation.
+
+Sample pseudo-query:
+
+SELECT partner_id
+FROM partner_allocations
+WHERE location_id = {showroom_id}
+  AND brand = {product_brand}
+  AND active = 1
+LIMIT 1;
+
+
+Update assignment flow:
+
+if (allocation) {
+  assignJobCardTo(allocation.partner_id);
+} else {
+  markAsUnassigned();
+}
+
+
+UI / Workflow Handling
+
+In Job Card creation flow:
+
+If a matching allocation is found, auto-display partner name under “Assigned Partner”.
+
+If no match found, show alert:
+
+“This showroom does not have an assigned partner for the selected brand.”
+
+Add optional override (admin only) to manually select partner if allocation missing.
+
+C — Context
+
+Previously, Job Cards were assigned only based on Showroom/Dealership allocation, ignoring which brand the service/product belonged to.
+Now that showrooms can have multiple partners for different brands (e.g., Trident Hyundai → STEK = Partner A, 3M = Partner B),
+the system must verify both brand and location before assigning the responsible partner.
+
+Example:
+
+Trident Hyundai Basavanagudi has:
+
+STEK → Bangalore PPF Pro
+
+3M → Mumbai Care Auto
+
+When a work order is raised for “STEK PPF”, it should assign the Job Card to Bangalore PPF Pro only.
+
+If it’s for “3M Window Film”, then assign to Mumbai Care Auto.
+
+O — Output
+
+✅ Expected Result:
+
+Job Card assignment now validates Brand + Showroom/Dealership together.
+
+Correct partner automatically receives the Job Card based on brand allocation.
+
+Prevents incorrect assignment when multiple partners exist for the same showroom.
+
+Clear error shown if no brand-specific allocation exists.
