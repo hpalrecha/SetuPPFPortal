@@ -780,11 +780,16 @@ export function CreateAllocationModal({
                                   id={`showroom-${showroom.id}`}
                                   checked={field.value?.includes(showroom.id) || false}
                                   onCheckedChange={(checked) => {
+                                    console.log('[SHOWROOM CHECKBOX] Clicked:', { showroomId: showroom.id, checked, currentValue: field.value });
                                     const currentValues = field.value || [];
                                     if (checked) {
-                                      field.onChange([...currentValues, showroom.id]);
+                                      const newValue = [...currentValues, showroom.id];
+                                      console.log('[SHOWROOM CHECKBOX] Adding, new value:', newValue);
+                                      field.onChange(newValue);
                                     } else {
-                                      field.onChange(currentValues.filter((id: string) => id !== showroom.id));
+                                      const newValue = currentValues.filter((id: string) => id !== showroom.id);
+                                      console.log('[SHOWROOM CHECKBOX] Removing, new value:', newValue);
+                                      field.onChange(newValue);
                                     }
                                   }}
                                   data-testid={`checkbox-showroom-${showroom.id}`}
