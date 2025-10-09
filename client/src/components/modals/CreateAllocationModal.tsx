@@ -44,8 +44,8 @@ const allocationSchema = z.object({
   partnerId: z.string().min(1, "Please select a partner"),
   brandIds: z.array(z.string()).min(1, "Please select at least one brand"),
   level: z.enum(['DEALERSHIP', 'SHOWROOM'], { required_error: "Level is required" }),
-  levelId: z.string().optional(),
-  showroomIds: z.array(z.string()).optional(),
+  levelId: z.string().default(""),
+  showroomIds: z.array(z.string()).default([]),
   priority: z.number().min(1).max(10).default(1),
   partnerBillsDirectly: z.boolean().default(false),
   active: z.boolean().default(true),
@@ -760,7 +760,7 @@ export function CreateAllocationModal({
                               data-testid="select-showrooms"
                             >
                               <span className="truncate">
-                                {field.value && field.value.length > 0
+                                {Array.isArray(field.value) && field.value.length > 0
                                   ? `${field.value.length} showroom${field.value.length > 1 ? 's' : ''} selected`
                                   : "Select showrooms"}
                               </span>
@@ -817,7 +817,7 @@ export function CreateAllocationModal({
                           </Command>
                         </PopoverContent>
                       </Popover>
-                      {field.value && field.value.length > 0 && (
+                      {Array.isArray(field.value) && field.value.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-2">
                           {field.value.map((showroomId: string) => {
                             const showroom = showrooms.find((s: any) => s.id === showroomId);
@@ -827,7 +827,8 @@ export function CreateAllocationModal({
                                 <X
                                   className="h-3 w-3 cursor-pointer hover:text-destructive"
                                   onClick={() => {
-                                    field.onChange(field.value.filter((id: string) => id !== showroomId));
+                                    const currentValues = Array.isArray(field.value) ? field.value : [];
+                                    field.onChange(currentValues.filter((id: string) => id !== showroomId));
                                   }}
                                 />
                               </Badge>
