@@ -750,7 +750,13 @@ export function CreateAllocationModal({
                       <FormDescription>
                         Click to search and select one or more showrooms
                       </FormDescription>
-                      <Popover open={locationSearchOpen} onOpenChange={setLocationSearchOpen}>
+                      <Popover 
+                        open={locationSearchOpen} 
+                        onOpenChange={(open) => {
+                          setLocationSearchOpen(open);
+                        }}
+                        modal={false}
+                      >
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
@@ -789,23 +795,21 @@ export function CreateAllocationModal({
                                           const currentValues = Array.isArray(field.value) ? field.value : [];
                                           const isCurrentlySelected = currentValues.includes(showroom.id);
                                           
-                                          console.log('[SHOWROOM SELECT]', {
-                                            showroomId: showroom.id,
-                                            showroomName: showroom.name,
-                                            isCurrentlySelected,
-                                            currentValues,
-                                          });
-                                          
+                                          let newValue;
                                           if (isCurrentlySelected) {
-                                            const newValue = currentValues.filter((id: string) => id !== showroom.id);
-                                            console.log('[SHOWROOM DESELECT]', { newValue });
-                                            field.onChange(newValue);
+                                            newValue = currentValues.filter((id: string) => id !== showroom.id);
                                           } else {
-                                            const newValue = [...currentValues, showroom.id];
-                                            console.log('[SHOWROOM ADD]', { newValue });
-                                            field.onChange(newValue);
+                                            newValue = [...currentValues, showroom.id];
                                           }
+                                          
+                                          // Use form.setValue instead of field.onChange for better control
+                                          form.setValue("showroomIds", newValue, { 
+                                            shouldValidate: true,
+                                            shouldDirty: true,
+                                            shouldTouch: true
+                                          });
                                         }}
+                                        onClick={(e) => e.stopPropagation()}
                                       >
                                         <Check
                                           className={cn(
