@@ -774,15 +774,7 @@ export function CreateAllocationModal({
                             filteredLocations.map((showroom: any) => (
                               <div
                                 key={showroom.id}
-                                className="flex items-center space-x-2 p-2 hover:bg-accent rounded-md cursor-pointer transition-colors"
-                                onClick={() => {
-                                  const currentValues = field.value || [];
-                                  if (currentValues.includes(showroom.id)) {
-                                    field.onChange(currentValues.filter((id: string) => id !== showroom.id));
-                                  } else {
-                                    field.onChange([...currentValues, showroom.id]);
-                                  }
-                                }}
+                                className="flex items-center space-x-2 p-2 hover:bg-accent rounded-md transition-colors"
                               >
                                 <Checkbox
                                   id={`showroom-${showroom.id}`}
