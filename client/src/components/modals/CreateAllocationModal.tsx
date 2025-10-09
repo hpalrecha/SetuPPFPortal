@@ -781,21 +781,22 @@ export function CreateAllocationModal({
                                   </div>
                                 ) : (
                                   filteredLocations.map((showroom: any) => {
-                                    const isSelected = Array.isArray(field.value) && field.value.includes(showroom.id);
                                     return (
                                       <CommandItem
                                         key={showroom.id}
                                         value={`${showroom.name} ${showroom.city} ${showroom.state}`}
                                         onSelect={() => {
+                                          const currentValues = Array.isArray(field.value) ? field.value : [];
+                                          const isCurrentlySelected = currentValues.includes(showroom.id);
+                                          
                                           console.log('[SHOWROOM SELECT]', {
                                             showroomId: showroom.id,
                                             showroomName: showroom.name,
-                                            isSelected,
-                                            currentFieldValue: field.value,
-                                            isArray: Array.isArray(field.value)
+                                            isCurrentlySelected,
+                                            currentValues,
                                           });
-                                          const currentValues = Array.isArray(field.value) ? field.value : [];
-                                          if (isSelected) {
+                                          
+                                          if (isCurrentlySelected) {
                                             const newValue = currentValues.filter((id: string) => id !== showroom.id);
                                             console.log('[SHOWROOM DESELECT]', { newValue });
                                             field.onChange(newValue);
@@ -804,13 +805,12 @@ export function CreateAllocationModal({
                                             console.log('[SHOWROOM ADD]', { newValue });
                                             field.onChange(newValue);
                                           }
-                                          console.log('[SHOWROOM AFTER CHANGE]', { fieldValue: field.value });
                                         }}
                                       >
                                         <Check
                                           className={cn(
                                             "mr-2 h-4 w-4",
-                                            isSelected ? "opacity-100" : "opacity-0"
+                                            Array.isArray(field.value) && field.value.includes(showroom.id) ? "opacity-100" : "opacity-0"
                                           )}
                                         />
                                         <div className="flex-1">
