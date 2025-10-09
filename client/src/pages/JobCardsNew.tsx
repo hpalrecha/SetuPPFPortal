@@ -690,7 +690,7 @@ export default function JobCardsNew() {
                 <div className="truncate">Vehicle</div>
                 <div className="truncate">Service</div>
                 <div className="truncate">Partner</div>
-                <div className="truncate">Billing</div>
+                <div className="truncate">Bill To</div>
                 <div className="truncate">Created</div>
                 <div className="truncate">Scheduled</div>
                 <div className="truncate">Actions</div>
