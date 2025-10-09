@@ -54,13 +54,11 @@ const allocationSchema = z.object({
     if (data.level === "DEALERSHIP") {
       return data.levelId && data.levelId.length > 0;
     }
-    if (data.level === "SHOWROOM") {
-      return data.showroomIds && data.showroomIds.length > 0;
-    }
+    // Note: SHOWROOM validation handled manually in onSubmit using local state
     return true;
   },
   {
-    message: "Please select at least one showroom or dealership",
+    message: "Please select a dealership",
     path: ["levelId"],
   }
 );
@@ -296,6 +294,16 @@ export function CreateAllocationModal({
   }, [selectedLevel, dealerships, showrooms, locationSearch]);
 
   const onSubmit = async (data: AllocationFormData) => {
+    // Validate showroom selection manually since we use local state
+    if (data.level === "SHOWROOM" && selectedShowroomIds.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please select at least one showroom",
+      });
+      return;
+    }
+    
     setIsLoading(true);
     try {
       if (isEditing) {
