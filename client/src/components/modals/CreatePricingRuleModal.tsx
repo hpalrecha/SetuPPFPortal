@@ -112,17 +112,17 @@ export function CreatePricingRuleModal({
     enabled: open && pricingType === 'DEALERSHIP_PRICING',
   });
 
-  // Fetch detailers (partners with INSTALLER type)
+  // Fetch all partners (both INSTALLER and STUDIO types)
   const { data: detailers = [] } = useQuery({
-    queryKey: ["/api/partners", "INSTALLER"],
+    queryKey: ["/api/partners"],
     queryFn: async () => {
-      const response = await fetch('/api/partners?type=INSTALLER', {
+      const response = await fetch('/api/partners', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         credentials: 'include',
       });
-      if (!response.ok) throw new Error('Failed to fetch detailers');
+      if (!response.ok) throw new Error('Failed to fetch partners');
       return response.json();
     },
     enabled: open && pricingType === 'DETAILER_PRICING',
