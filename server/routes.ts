@@ -743,8 +743,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const { id } = req.params;
         console.log('UPDATE SHOWROOM - Request body:', JSON.stringify(req.body, null, 2));
-        const { resetPasswordData, adminUserData, createUser, ...showroomData } = req.body;
-        console.log('UPDATE SHOWROOM - createUser:', createUser, 'adminUserData:', adminUserData);
+        const { resetPasswordData, adminUserData, createUser, createAdminUserData, ...showroomData } = req.body;
+        console.log('UPDATE SHOWROOM - createUser:', createUser, 'adminUserData:', adminUserData, 'createAdminUserData:', createAdminUserData);
         
         // If updating dealershipId or oemId, validate the mapping
         if ((showroomData.dealershipId || showroomData.oemId)) {
@@ -773,7 +773,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Showroom not found" });
         }
         
-        // Create admin user if requested (for editing existing showrooms without manager)
+        // Create admin user if requested (for creating new showroom with manager)
         if (createUser && adminUserData) {
           try {
             // Check if email or phone number already exists
@@ -802,6 +802,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
               passwordHash: hashedPassword,
               role: 'SHOWROOM_MANAGER' as const,
               oemId: showroom.oemId, // Link to the same OEM
+              dealershipId: showroom.dealershipId,
+              showroomId: showroom.id,
+              isActive: true
+            };
+            
+            const createdUser = await storage.createUser(managerData);
+            console.log(`Created showroom manager user: ${createdUser.email} for ${showroom.name}`);
+          } catch (userError) {
+            console.error("Failed to create showroom manager user:", userError);
+            // Don't fail the showroom update if user creation fails
+            return res.status(200).json({ 
+              ...showroom, 
+              warning: "Showroom updated but manager user creation failed" 
+            });
+          }
+        }
+        
+        // Handle creating admin user if requested (for editing existing showrooms without manager)
+        if (createAdminUserData) {
+          try {
+            // Check if email or phone number already exists
+            if (createAdminUserData.email) {
+              const existingUser = await storage.getUserByEmail(createAdminUserData.email);
+              if (existingUser) {
+                return res.status(400).json({ error: `Email ${createAdminUserData.email} is already in use` });
+              }
+            }
+            
+            if (createAdminUserData.phone) {
+              const users = await storage.getUsers();
+              const existingUserByPhone = users.find(u => u.phone === createAdminUserData.phone);
+              if (existingUserByPhone) {
+                return res.status(400).json({ error: `Phone number ${createAdminUserData.phone} is already in use` });
+              }
+            }
+            
+            const bcrypt = await import('bcryptjs');
+            const hashedPassword = await bcrypt.hash(createAdminUserData.password, 10);
+            
+            const managerData = {
+              name: createAdminUserData.name,
+              email: createAdminUserData.email,
+              phone: createAdminUserData.phone || '',
+              passwordHash: hashedPassword,
+              role: 'SHOWROOM_MANAGER' as const,
+              oemId: showroom.oemId,
               dealershipId: showroom.dealershipId,
               showroomId: showroom.id,
               isActive: true
