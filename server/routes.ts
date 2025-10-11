@@ -3847,14 +3847,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         filters.oemId = oemId as string;
       } else if (dealershipId) {
         filters.dealershipId = dealershipId as string;
-      } else if (req.user!.dealershipId) {
-        filters.dealershipId = req.user!.dealershipId;
       } else if (req.user!.showroomId) {
-        // For showroom users, get the showroom's OEM
+        // For showroom users, get the showroom's OEM (check showroom BEFORE dealership)
         const showroom = await storage.getShowroom(req.user!.showroomId);
         if (showroom?.oemId) {
           filters.oemId = showroom.oemId;
         }
+      } else if (req.user!.dealershipId) {
+        filters.dealershipId = req.user!.dealershipId;
       } else if (req.user!.oemId) {
         filters.oemId = req.user!.oemId;
       }
