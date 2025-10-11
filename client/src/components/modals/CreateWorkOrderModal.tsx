@@ -53,9 +53,9 @@ const workOrderSchema = z.object({
   salesPersonId: z.string().optional(),
   
   // Customer Information
-  customerName: z.string().min(1, "Customer name is required"),
-  customerPhone: z.string().min(1, "Customer phone is required"),
-  customerEmail: z.string().email("Please enter a valid email").optional(),
+  customerName: z.string().optional(),
+  customerPhone: z.string().optional(),
+  customerEmail: z.string().email("Please enter a valid email").optional().or(z.literal("")),
   customerAddress: z.string().optional(),
   notes: z.string().optional(),
 });

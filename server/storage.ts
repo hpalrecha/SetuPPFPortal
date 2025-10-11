@@ -644,11 +644,11 @@ export class DatabaseStorage implements IStorage {
           eq(services.active, true),
           sql`(
             ${services.availabilityScope} = 'GLOBAL' OR 
-            (${services.availabilityScope} = 'DEALERSHIP' AND ${services.dealershipId} = ${filters.dealershipId}) OR
-            (${services.availabilityScope} = 'OEM' AND ${services.oemId} = (SELECT oem_id FROM dealerships WHERE id = ${filters.dealershipId})) OR
+            (${services.availabilityScope} = 'DEALERSHIP' AND ${services.dealershipId}::text = ${filters.dealershipId}) OR
+            (${services.availabilityScope} = 'OEM' AND ${services.oemId}::text = (SELECT oem_id::text FROM dealerships WHERE id::text = ${filters.dealershipId})) OR
             (${services.availabilityScope} = 'MULTIPLE' AND (
-              ${filters.dealershipId} = ANY(${services.dealershipIds}) OR
-              (SELECT oem_id FROM dealerships WHERE id = ${filters.dealershipId}) = ANY(${services.oemIds})
+              ${filters.dealershipId} = ANY(${services.dealershipIds}::text[]) OR
+              (SELECT oem_id::text FROM dealerships WHERE id::text = ${filters.dealershipId}) = ANY(${services.oemIds}::text[])
             ))
           )`
         )
@@ -660,8 +660,8 @@ export class DatabaseStorage implements IStorage {
           eq(services.active, true),
           sql`(
             ${services.availabilityScope} = 'GLOBAL' OR 
-            (${services.availabilityScope} = 'OEM' AND ${services.oemId} = ${filters.oemId}) OR
-            (${services.availabilityScope} = 'MULTIPLE' AND ${filters.oemId} = ANY(${services.oemIds}))
+            (${services.availabilityScope} = 'OEM' AND ${services.oemId}::text = ${filters.oemId}) OR
+            (${services.availabilityScope} = 'MULTIPLE' AND ${filters.oemId} = ANY(${services.oemIds}::text[]))
           )`
         )
       );
