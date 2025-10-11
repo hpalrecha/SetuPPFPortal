@@ -384,9 +384,22 @@ export default function VehiclesPage() {
       {selectedOemId && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Factory className="h-5 w-5" />
-              Vehicle Data for {oems.find(o => o.id === selectedOemId)?.name}
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Factory className="h-5 w-5" />
+                Vehicle Data for {oems.find(o => o.id === selectedOemId)?.name}
+              </div>
+              <Button 
+                onClick={() => {
+                  modelForm.setValue('oemId', selectedOemId);
+                  setShowModelDialog(true);
+                }}
+                className="flex items-center gap-2"
+                data-testid="button-add-model-header"
+              >
+                <Plus className="h-4 w-4" />
+                Add Model
+              </Button>
             </CardTitle>
             <CardDescription>
               {vehicleLoading ? 'Loading...' : `${vehicleData.reduce((total, brand) => total + brand.models.reduce((modelTotal, model) => modelTotal + model.variants.length, 0), 0)} vehicle records found`}
