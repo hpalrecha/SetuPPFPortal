@@ -1000,20 +1000,22 @@ export function CreateShowroomModal({
             {/* User Management Section - Only show when editing showroom */}
             {isEditing && (
               <div className="space-y-4 border-t pt-4">
-                {showroomUsers && showroomUsers.length > 0 ? (
+                {hasAdminUser ? (
                   // Show password reset option if admin user exists
                   <>
                     {/* Display current admin user details */}
-                    <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
-                      <h4 className="font-medium text-sm mb-2">Current Showroom Manager:</h4>
-                      <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                        <p><span className="font-medium">Name:</span> {showroomUsers[0].name}</p>
-                        <p><span className="font-medium">Email:</span> {showroomUsers[0].email}</p>
-                        {showroomUsers[0].phone && (
-                          <p><span className="font-medium">Phone:</span> {showroomUsers[0].phone}</p>
-                        )}
+                    {showroomUsers && showroomUsers.length > 0 && (
+                      <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
+                        <h4 className="font-medium text-sm mb-2">Current Showroom Manager:</h4>
+                        <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                          <p><span className="font-medium">Name:</span> {showroomUsers[0].name}</p>
+                          <p><span className="font-medium">Email:</span> {showroomUsers[0].email}</p>
+                          {showroomUsers[0].phone && (
+                            <p><span className="font-medium">Phone:</span> {showroomUsers[0].phone}</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     <FormField
                       control={form.control}
