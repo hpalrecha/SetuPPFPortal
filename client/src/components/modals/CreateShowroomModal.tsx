@@ -262,7 +262,7 @@ export function CreateShowroomModal({
         ...data,
         billToAddress,
         shipToAddress,
-        ...(data.createUser && !isEditing ? {
+        ...(data.createUser && (!isEditing || !showroomUsers || showroomUsers.length === 0) ? {
           adminUserData: {
             name: data.userName,
             email: data.userEmail,
