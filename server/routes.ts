@@ -3859,7 +3859,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         filters.oemId = req.user!.oemId;
       }
 
+      console.log('Services API - User:', req.user?.email, 'Role:', req.user?.role, 'Filters:', filters);
+
       const services = await storage.getServices(filters);
+      
+      console.log('Services API - Found', services.length, 'services:', services.map((s: any) => s.name).join(', '));
       
       // Fetch raw materials for each service
       const servicesWithMaterials = await Promise.all(
@@ -3871,6 +3875,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         })
       );
+      
+      // Disable caching for this endpoint
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       
       res.json(servicesWithMaterials);
     } catch (error) {
