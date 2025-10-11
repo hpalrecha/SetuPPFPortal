@@ -61,7 +61,7 @@ const showroomSchema = z.object({
   // Billing configuration
   billDirectlyToShowroom: z.boolean().default(false),
   
-  // Admin user creation fields
+  // Admin user creation fields (for new showrooms)
   createUser: z.boolean().default(false),
   userName: z.string().optional(),
   userEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
@@ -71,6 +71,13 @@ const showroomSchema = z.object({
   // Password reset fields for editing
   resetPassword: z.boolean().default(false),
   newPassword: z.string().optional(),
+  
+  // Create admin user fields for existing showrooms without users
+  createAdminUser: z.boolean().default(false),
+  adminName: z.string().optional(),
+  adminEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
+  adminPhone: z.string().optional(),
+  adminPassword: z.string().optional(),
 }).refine((data) => {
   if (data.createUser) {
     return data.userName && data.userName.length > 0 && 
@@ -80,9 +87,14 @@ const showroomSchema = z.object({
   if (data.resetPassword) {
     return data.newPassword && data.newPassword.length >= 6;
   }
+  if (data.createAdminUser) {
+    return data.adminName && data.adminName.length > 0 && 
+           data.adminEmail && data.adminEmail.length > 0 &&
+           data.adminPassword && data.adminPassword.length >= 6;
+  }
   return true;
 }, {
-  message: "When creating a user, name, email, and password (min 6 chars) are required. When resetting password, new password (min 6 chars) is required",
+  message: "When creating a user, name, email, and password (min 6 chars) are required. When resetting password, new password (min 6 chars) is required. When creating admin user, name, email, and password (min 6 chars) are required",
   path: ["createUser"]
 });
 
@@ -105,6 +117,7 @@ export function CreateShowroomModal({
   const [isLoading, setIsLoading] = useState(false);
   const [billToSameAsShowroom, setBillToSameAsShowroom] = useState(false);
   const [shipToSameAsBillTo, setShipToSameAsBillTo] = useState(false);
+  const [hasAdminUser, setHasAdminUser] = useState(false);
   const isEditing = !!showroom;
 
   const form = useForm<ShowroomFormData>({
@@ -138,6 +151,11 @@ export function CreateShowroomModal({
       userPassword: "",
       resetPassword: false,
       newPassword: "",
+      createAdminUser: false,
+      adminName: "",
+      adminEmail: "",
+      adminPhone: "",
+      adminPassword: "",
     },
   });
   
@@ -150,6 +168,13 @@ export function CreateShowroomModal({
     enabled: isEditing && !!showroom?.id,
     queryFn: () => fetch(`/api/users?showroomId=${showroom?.id}&role=SHOWROOM_MANAGER`).then(res => res.json())
   });
+
+  // Update hasAdminUser state when showroom users data changes
+  useEffect(() => {
+    if (isEditing && showroomUsers) {
+      setHasAdminUser(showroomUsers.length > 0);
+    }
+  }, [isEditing, showroomUsers]);
 
   // Reset form when showroom data changes (for editing)
   useEffect(() => {
@@ -165,6 +190,17 @@ export function CreateShowroomModal({
         city: showroom.city || "",
         state: showroom.state || "",
         pincode: showroom.pincode || "",
+        billToAddressLine1: showroom.billToAddress?.addressLine1 || "",
+        billToCity: showroom.billToAddress?.city || "",
+        billToState: showroom.billToAddress?.state || "",
+        billToPincode: showroom.billToAddress?.pincode || "",
+        billToGstin: showroom.billToAddress?.gstin || "",
+        shipToAddressLine1: showroom.shipToAddress?.addressLine1 || "",
+        shipToCity: showroom.shipToAddress?.city || "",
+        shipToState: showroom.shipToAddress?.state || "",
+        shipToPincode: showroom.shipToAddress?.pincode || "",
+        shipToGstin: showroom.shipToAddress?.gstin || "",
+        billDirectlyToShowroom: showroom.billDirectlyToShowroom || false,
         createUser: false,
         userName: "",
         userEmail: "",
@@ -172,6 +208,11 @@ export function CreateShowroomModal({
         userPassword: "",
         resetPassword: false,
         newPassword: "",
+        createAdminUser: false,
+        adminName: "",
+        adminEmail: "",
+        adminPhone: "",
+        adminPassword: "",
       });
     } else if (!showroom && open) {
       // Reset to empty values for new showroom
@@ -186,6 +227,17 @@ export function CreateShowroomModal({
         city: "",
         state: "",
         pincode: "",
+        billToAddressLine1: "",
+        billToCity: "",
+        billToState: "",
+        billToPincode: "",
+        billToGstin: "",
+        shipToAddressLine1: "",
+        shipToCity: "",
+        shipToState: "",
+        shipToPincode: "",
+        shipToGstin: "",
+        billDirectlyToShowroom: false,
         createUser: false,
         userName: "",
         userEmail: "",
@@ -193,6 +245,11 @@ export function CreateShowroomModal({
         userPassword: "",
         resetPassword: false,
         newPassword: "",
+        createAdminUser: false,
+        adminName: "",
+        adminEmail: "",
+        adminPhone: "",
+        adminPassword: "",
       });
     }
   }, [showroom, open, form]);
@@ -262,7 +319,7 @@ export function CreateShowroomModal({
         ...data,
         billToAddress,
         shipToAddress,
-        ...(data.createUser && (!isEditing || !showroomUsers || showroomUsers.length === 0) ? {
+        ...(data.createUser && !isEditing ? {
           adminUserData: {
             name: data.userName,
             email: data.userEmail,
@@ -274,11 +331,19 @@ export function CreateShowroomModal({
           resetPasswordData: {
             newPassword: data.newPassword
           }
+        } : {}),
+        ...(data.createAdminUser && isEditing ? {
+          createAdminUserData: {
+            name: data.adminName,
+            email: data.adminEmail,
+            phone: data.adminPhone,
+            password: data.adminPassword
+          }
         } : {})
       };
 
-      // Remove user fields from the main request body
-      const { userName, userEmail, userPhone, userPassword, resetPassword, newPassword, billToAddressLine1, billToCity, billToState, billToPincode, billToGstin, shipToAddressLine1, shipToCity, shipToState, shipToPincode, shipToGstin, ...showroomData } = requestBody;
+      // Remove user fields from the main request body but keep createAdminUserData and resetPasswordData
+      const { userName, userEmail, userPhone, userPassword, resetPassword, newPassword, createAdminUser, adminName, adminEmail, adminPhone, adminPassword, billToAddressLine1, billToCity, billToState, billToPincode, billToGstin, shipToAddressLine1, shipToCity, shipToState, shipToPincode, shipToGstin, ...showroomData } = requestBody;
       
       const response = await fetch(endpoint, {
         method,
