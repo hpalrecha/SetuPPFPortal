@@ -1067,14 +1067,14 @@ export function CreateShowroomModal({
                   <>
                     <FormField
                       control={form.control}
-                      name="createUser"
+                      name="createAdminUser"
                       render={({ field }) => (
                         <FormItem className="flex flex-row items-center space-x-3 space-y-0">
                           <FormControl>
                             <Checkbox
                               checked={field.value}
                               onCheckedChange={field.onChange}
-                              data-testid="checkbox-create-user"
+                              data-testid="checkbox-create-admin-user"
                             />
                           </FormControl>
                           <div className="space-y-1 leading-none">
@@ -1089,11 +1089,11 @@ export function CreateShowroomModal({
                       )}
                     />
 
-                    {form.watch("createUser") && (
+                    {form.watch("createAdminUser") && (
                       <div className="pl-7 space-y-4">
                         <FormField
                           control={form.control}
-                          name="userName"
+                          name="adminName"
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>Manager Name *</FormLabel>
@@ -1101,7 +1101,7 @@ export function CreateShowroomModal({
                                 <Input
                                   placeholder="Enter manager's full name"
                                   {...field}
-                                  data-testid="input-user-name"
+                                  data-testid="input-admin-name"
                                 />
                               </FormControl>
                               <FormMessage />
@@ -1112,7 +1112,7 @@ export function CreateShowroomModal({
                         <div className="grid grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
-                            name="userEmail"
+                            name="adminEmail"
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>Manager Email *</FormLabel>
@@ -1121,7 +1121,7 @@ export function CreateShowroomModal({
                                     type="email"
                                     placeholder="Enter email address"
                                     {...field}
-                                    data-testid="input-user-email"
+                                    data-testid="input-admin-email"
                                   />
                                 </FormControl>
                                 <FormMessage />
@@ -1131,7 +1131,7 @@ export function CreateShowroomModal({
 
                           <FormField
                             control={form.control}
-                            name="userPhone"
+                            name="adminPhone"
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>Manager Phone</FormLabel>
@@ -1139,7 +1139,7 @@ export function CreateShowroomModal({
                                   <Input
                                     placeholder="Enter phone number"
                                     {...field}
-                                    data-testid="input-user-phone"
+                                    data-testid="input-admin-phone"
                                   />
                                 </FormControl>
                                 <FormMessage />
@@ -1150,7 +1150,7 @@ export function CreateShowroomModal({
 
                         <FormField
                           control={form.control}
-                          name="userPassword"
+                          name="adminPassword"
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>Manager Password *</FormLabel>
@@ -1159,7 +1159,7 @@ export function CreateShowroomModal({
                                   type="password"
                                   placeholder="Enter password (min 6 chars)"
                                   {...field}
-                                  data-testid="input-user-password"
+                                  data-testid="input-admin-password"
                                 />
                               </FormControl>
                               <FormMessage />
