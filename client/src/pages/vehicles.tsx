@@ -384,22 +384,9 @@ export default function VehiclesPage() {
       {selectedOemId && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Factory className="h-5 w-5" />
-                Vehicle Data for {oems.find(o => o.id === selectedOemId)?.name}
-              </div>
-              <Button 
-                onClick={() => {
-                  brandForm.setValue('oemId', selectedOemId);
-                  setShowBrandDialog(true);
-                }}
-                className="flex items-center gap-2"
-                data-testid="button-add-brand"
-              >
-                <Plus className="h-4 w-4" />
-                Add Brand
-              </Button>
+            <CardTitle className="flex items-center gap-2">
+              <Factory className="h-5 w-5" />
+              Vehicle Data for {oems.find(o => o.id === selectedOemId)?.name}
             </CardTitle>
             <CardDescription>
               {vehicleLoading ? 'Loading...' : `${vehicleData.reduce((total, brand) => total + brand.models.reduce((modelTotal, model) => modelTotal + model.variants.length, 0), 0)} vehicle records found`}
@@ -425,32 +412,20 @@ export default function VehiclesPage() {
                       <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400">
                         {brand.name}
                       </h3>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            modelForm.setValue('oemId', brand.id);
-                            setSelectedBrandId(brand.id);
-                            setShowModelDialog(true);
-                          }}
-                          className="flex items-center gap-1"
-                          data-testid={`button-add-model-${brand.name}`}
-                        >
-                          <Plus className="h-3 w-3" />
-                          Add Model
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => deleteBrandMutation.mutate(brand.id)}
-                          disabled={deleteBrandMutation.isPending}
-                          className="text-red-600 hover:text-red-700"
-                          data-testid={`button-delete-brand-${brand.name}`}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          modelForm.setValue('oemId', brand.id);
+                          setSelectedBrandId(brand.id);
+                          setShowModelDialog(true);
+                        }}
+                        className="flex items-center gap-1"
+                        data-testid={`button-add-model-${brand.name}`}
+                      >
+                        <Plus className="h-3 w-3" />
+                        Add Model
+                      </Button>
                     </div>
                     {brand.models.length === 0 ? (
                       <p className="text-sm text-gray-500">No models found</p>
@@ -685,43 +660,6 @@ export default function VehiclesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Brand Dialog */}
-      <Dialog open={showBrandDialog} onOpenChange={setShowBrandDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add New Brand</DialogTitle>
-            <DialogDescription>
-              Create a new vehicle brand for {oems.find(o => o.id === selectedOemId)?.name}
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...brandForm}>
-            <form onSubmit={brandForm.handleSubmit(data => createBrandMutation.mutate(data))} className="space-y-4">
-              <FormField
-                control={brandForm.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Brand Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter brand name" {...field} data-testid="input-brand-name" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="flex justify-end gap-3">
-                <Button type="button" variant="outline" onClick={() => setShowBrandDialog(false)} data-testid="button-cancel-brand">
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={createBrandMutation.isPending} data-testid="button-save-brand">
-                  {createBrandMutation.isPending ? 'Creating...' : 'Create Brand'}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
       {/* Add Model Dialog */}
       <Dialog open={showModelDialog} onOpenChange={setShowModelDialog}>
         <DialogContent className="max-w-md">
@@ -763,6 +701,8 @@ export default function VehiclesPage() {
                         <SelectItem value="HATCHBACK">Hatchback</SelectItem>
                         <SelectItem value="SEDAN">Sedan</SelectItem>
                         <SelectItem value="SUV">SUV</SelectItem>
+                        <SelectItem value="ELECTRIC">Electric</SelectItem>
+                        <SelectItem value="HYBRID">Hybrid</SelectItem>
                         <SelectItem value="CROSSOVER">Crossover</SelectItem>
                         <SelectItem value="LUXURY_SEDAN">Luxury Sedan</SelectItem>
                         <SelectItem value="LUXURY_SUV">Luxury SUV</SelectItem>
@@ -771,8 +711,6 @@ export default function VehiclesPage() {
                         <SelectItem value="MPV">MPV</SelectItem>
                         <SelectItem value="PICKUP_TRUCK">Pickup Truck</SelectItem>
                         <SelectItem value="VAN">Van</SelectItem>
-                        <SelectItem value="ELECTRIC">Electric</SelectItem>
-                        <SelectItem value="HYBRID">Hybrid</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
