@@ -3843,10 +3843,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // If user is not Super Admin, filter by their context
       const filters: any = {};
-      if (oemId) filters.oemId = oemId as string;
-      else if (dealershipId) filters.dealershipId = dealershipId as string;
-      else if (req.user!.dealershipId) filters.dealershipId = req.user!.dealershipId;
-      else if (req.user!.oemId) filters.oemId = req.user!.oemId;
+      if (oemId) {
+        filters.oemId = oemId as string;
+      } else if (dealershipId) {
+        filters.dealershipId = dealershipId as string;
+      } else if (req.user!.dealershipId) {
+        filters.dealershipId = req.user!.dealershipId;
+      } else if (req.user!.showroomId) {
+        // For showroom users, get the showroom's OEM
+        const showroom = await storage.getShowroom(req.user!.showroomId);
+        if (showroom?.oemId) {
+          filters.oemId = showroom.oemId;
+        }
+      } else if (req.user!.oemId) {
+        filters.oemId = req.user!.oemId;
+      }
 
       const services = await storage.getServices(filters);
       
