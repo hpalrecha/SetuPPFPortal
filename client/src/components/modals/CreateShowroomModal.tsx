@@ -163,10 +163,19 @@ export function CreateShowroomModal({
   const selectedDealershipId = form.watch("dealershipId");
 
   // Query for existing showroom manager (for edit mode)
-  const { data: showroomUsers } = useQuery({
+  const { data: showroomUsers = [] } = useQuery({
     queryKey: ['/api/users', { showroomId: showroom?.id, role: 'SHOWROOM_MANAGER' }],
-    enabled: isEditing && !!showroom?.id,
-    queryFn: () => fetch(`/api/users?showroomId=${showroom?.id}&role=SHOWROOM_MANAGER`).then(res => res.json())
+    queryFn: async () => {
+      const response = await fetch(`/api/users?showroomId=${showroom?.id}&role=SHOWROOM_MANAGER`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch showroom users');
+      return response.json();
+    },
+    enabled: open && isEditing && !!showroom?.id,
   });
 
   // Update hasAdminUser state when showroom users data changes
