@@ -742,7 +742,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const { id } = req.params;
+        console.log('UPDATE SHOWROOM - Request body:', JSON.stringify(req.body, null, 2));
         const { resetPasswordData, adminUserData, createUser, ...showroomData } = req.body;
+        console.log('UPDATE SHOWROOM - createUser:', createUser, 'adminUserData:', adminUserData);
         
         // If updating dealershipId or oemId, validate the mapping
         if ((showroomData.dealershipId || showroomData.oemId)) {
