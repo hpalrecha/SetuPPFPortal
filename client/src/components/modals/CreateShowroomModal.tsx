@@ -287,7 +287,7 @@ export function CreateShowroomModal({
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         credentials: 'include',
-        body: JSON.stringify(isEditing ? data : showroomData),
+        body: JSON.stringify(isEditing ? requestBody : showroomData),
       });
 
       if (!response.ok) {
