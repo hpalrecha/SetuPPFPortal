@@ -3080,7 +3080,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               phone: partner.phone || undefined,
               passwordHash,
               name: partner.displayName || partner.contactPersonName || 'Partner User',
-              role: 'PARTNER_STAFF',
+              role: 'PARTNER_ADMIN',
               partnerId: partner.id,
               isActive: true
             });
@@ -3165,7 +3165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const { id } = req.params;
-        const { serviceCategoryIds, brandIds, ...partnerData } = req.body;
+        const { serviceCategoryIds, brandIds, resetPasswordData, ...partnerData } = req.body;
         const validatedData = insertPartnerSchema.partial().parse(partnerData);
         
         const partner = await storage.updatePartner(id, validatedData);
@@ -3181,6 +3181,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Handle brand mappings if provided
         if (brandIds !== undefined && Array.isArray(brandIds)) {
           await storage.setPartnerBrands(partner.id, brandIds);
+        }
+        
+        // Handle password reset if requested
+        if (resetPasswordData && resetPasswordData.newPassword) {
+          if (partner.email) {
+            const user = await storage.getUserByEmail(partner.email);
+            if (user) {
+              const hashedPassword = await bcrypt.hash(resetPasswordData.newPassword, 10);
+              await storage.updateUser(user.id, { passwordHash: hashedPassword });
+              console.log(`✅ Password reset for partner admin: ${partner.email}`);
+            }
+          }
         }
         
         res.json(partner);

@@ -49,6 +49,16 @@ const partnerSchema = z.object({
   canViewJobCardPrice: z.boolean().optional(),
   serviceCategoryIds: z.array(z.string()).optional(),
   brandIds: z.array(z.string()).optional(),
+  resetPassword: z.boolean().default(false),
+  newPassword: z.string().optional(),
+}).refine((data) => {
+  if (data.resetPassword) {
+    return data.newPassword && data.newPassword.length >= 6;
+  }
+  return true;
+}, {
+  message: "Password must be at least 6 characters",
+  path: ["newPassword"],
 });
 
 type PartnerFormData = z.infer<typeof partnerSchema>;
@@ -104,6 +114,8 @@ export function EditPartnerModal({
       canViewJobCardPrice: false,
       serviceCategoryIds: [],
       brandIds: [],
+      resetPassword: false,
+      newPassword: "",
     },
   });
 
@@ -125,6 +137,8 @@ export function EditPartnerModal({
         canViewJobCardPrice: false,
         serviceCategoryIds: [],
         brandIds: [],
+        resetPassword: false,
+        newPassword: "",
       });
       return;
     }
@@ -146,6 +160,8 @@ export function EditPartnerModal({
           canViewJobCardPrice: partner.canViewJobCardPrice ?? false,
           serviceCategoryIds: partnerCategories.serviceCategoryIds || [],
           brandIds: partnerCategories.brandIds || [],
+          resetPassword: false,
+          newPassword: "",
         });
       }
     } else {
@@ -164,6 +180,8 @@ export function EditPartnerModal({
         canViewJobCardPrice: false,
         serviceCategoryIds: [],
         brandIds: [],
+        resetPassword: false,
+        newPassword: "",
       });
     }
   }, [partner, open, partnerCategories, isLoadingCategories]);
@@ -174,6 +192,23 @@ export function EditPartnerModal({
       const endpoint = isEditing ? `/api/partners/${partner.id}` : "/api/partners";
       const method = isEditing ? "PUT" : "POST";
       
+      // Prepare request body
+      const requestBody: any = { ...data };
+      
+      // Add reset password data if editing and reset is requested
+      if (isEditing && data.resetPassword && data.newPassword) {
+        requestBody.resetPasswordData = {
+          newPassword: data.newPassword
+        };
+      }
+      
+      // Remove reset password fields from main body
+      const { resetPassword, newPassword, ...partnerData } = requestBody;
+      const finalBody = {
+        ...partnerData,
+        ...(requestBody.resetPasswordData ? { resetPasswordData: requestBody.resetPasswordData } : {})
+      };
+      
       const response = await fetch(endpoint, {
         method,
         headers: {
@@ -181,7 +216,7 @@ export function EditPartnerModal({
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         credentials: 'include',
-        body: JSON.stringify(data),
+        body: JSON.stringify(finalBody),
       });
 
       if (!response.ok) {
@@ -548,6 +583,55 @@ export function EditPartnerModal({
                     </FormItem>
                   )}
                 />
+              )}
+
+              {/* Reset Password - Only when editing */}
+              {isEditing && (
+                <div className="space-y-4 rounded-lg border p-4 bg-amber-50 dark:bg-amber-950/20">
+                  <FormField
+                    control={form.control}
+                    name="resetPassword"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            data-testid="checkbox-reset-password"
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel className="text-sm font-medium">
+                            Reset Partner Admin Password
+                          </FormLabel>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+
+                  {form.watch("resetPassword") && (
+                    <div className="pl-7">
+                      <FormField
+                        control={form.control}
+                        name="newPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>New Password</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="password"
+                                placeholder="Enter new password (min 6 characters)"
+                                {...field}
+                                data-testid="input-new-password"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
