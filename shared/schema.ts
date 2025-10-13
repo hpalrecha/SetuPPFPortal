@@ -203,6 +203,11 @@ export const partners = pgTable("partners", {
   phone: text("phone"),
   active: boolean("active").default(true),
   canViewJobCardPrice: boolean("can_view_job_card_price").default(false),
+  billToAddressLine1: text("bill_to_address_line_1"),
+  billToCity: text("bill_to_city"),
+  billToState: text("bill_to_state"),
+  billToPincode: text("bill_to_pincode"),
+  billToGstin: text("bill_to_gstin"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });

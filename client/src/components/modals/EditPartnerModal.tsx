@@ -51,6 +51,11 @@ const partnerSchema = z.object({
   brandIds: z.array(z.string()).optional(),
   resetPassword: z.boolean().default(false),
   newPassword: z.string().optional(),
+  billToAddressLine1: z.string().optional(),
+  billToCity: z.string().optional(),
+  billToState: z.string().optional(),
+  billToPincode: z.string().optional(),
+  billToGstin: z.string().optional(),
 }).refine((data) => {
   if (data.resetPassword) {
     return data.newPassword && data.newPassword.length >= 6;
@@ -116,6 +121,11 @@ export function EditPartnerModal({
       brandIds: [],
       resetPassword: false,
       newPassword: "",
+      billToAddressLine1: "",
+      billToCity: "",
+      billToState: "",
+      billToPincode: "",
+      billToGstin: "",
     },
   });
 
@@ -139,6 +149,11 @@ export function EditPartnerModal({
         brandIds: [],
         resetPassword: false,
         newPassword: "",
+        billToAddressLine1: "",
+        billToCity: "",
+        billToState: "",
+        billToPincode: "",
+        billToGstin: "",
       });
       return;
     }
@@ -162,6 +177,11 @@ export function EditPartnerModal({
           brandIds: partnerCategories.brandIds || [],
           resetPassword: false,
           newPassword: "",
+          billToAddressLine1: partner.billToAddressLine1 || "",
+          billToCity: partner.billToCity || "",
+          billToState: partner.billToState || "",
+          billToPincode: partner.billToPincode || "",
+          billToGstin: partner.billToGstin || "",
         });
       }
     } else {
@@ -182,6 +202,11 @@ export function EditPartnerModal({
         brandIds: [],
         resetPassword: false,
         newPassword: "",
+        billToAddressLine1: "",
+        billToCity: "",
+        billToState: "",
+        billToPincode: "",
+        billToGstin: "",
       });
     }
   }, [partner, open, partnerCategories, isLoadingCategories]);
@@ -448,6 +473,103 @@ export function EditPartnerModal({
                   )}
                 />
               </div>
+            </div>
+
+            {/* Billing Address Information */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Billing Address with GST</h3>
+              
+              <FormField
+                control={form.control}
+                name="billToAddressLine1"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Billing Address (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Enter billing address"
+                        {...field}
+                        data-testid="textarea-billing-address"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="billToCity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>City (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter city"
+                          {...field}
+                          data-testid="input-billing-city"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="billToState"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter state"
+                          {...field}
+                          data-testid="input-billing-state"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="billToPincode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Pincode (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter pincode"
+                          {...field}
+                          data-testid="input-billing-pincode"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="billToGstin"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>GSTIN (Optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter GSTIN (e.g., 29ABCDE1234F1Z5)"
+                        {...field}
+                        data-testid="input-billing-gstin"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             {/* Service Categories */}
