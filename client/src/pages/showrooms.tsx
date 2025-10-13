@@ -3,7 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, MapPin, Phone, Users, Handshake } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Edit, Trash2, MapPin, Phone, Users, Handshake, Search, Filter } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { CreateShowroomModal } from "@/components/modals/CreateShowroomModal";
@@ -15,6 +17,9 @@ export default function ShowroomsPage() {
   
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingShowroom, setEditingShowroom] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [selectedOEM, setSelectedOEM] = useState<string>("all");
+  const [selectedDealership, setSelectedDealership] = useState<string>("all");
   
   // Only Super Admin can access showroom management
   const canAccessShowrooms = user?.role === 'SUPER_ADMIN';
@@ -36,6 +41,38 @@ export default function ShowroomsPage() {
       return response.json();
     },
     refetchInterval: 30000,
+    enabled: canAccessShowrooms
+  });
+
+  // Fetch OEMs for filtering
+  const { data: oems = [] } = useQuery<any[]>({
+    queryKey: ["/api/oems"],
+    queryFn: async () => {
+      const response = await fetch('/api/oems', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch OEMs');
+      return response.json();
+    },
+    enabled: canAccessShowrooms
+  });
+
+  // Fetch Dealerships for filtering
+  const { data: dealerships = [] } = useQuery<any[]>({
+    queryKey: ["/api/dealerships"],
+    queryFn: async () => {
+      const response = await fetch('/api/dealerships', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch dealerships');
+      return response.json();
+    },
     enabled: canAccessShowrooms
   });
 
@@ -114,6 +151,19 @@ export default function ShowroomsPage() {
     queryClient.invalidateQueries({ queryKey: ["/api/showrooms"] });
   };
 
+  // Filter showrooms based on search term, OEM, and Dealership
+  const filteredShowrooms = showrooms.filter((showroom) => {
+    const searchMatch = searchTerm === "" || 
+      showroom.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      showroom.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      showroom.state?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const oemMatch = selectedOEM === "all" || showroom.oemId === selectedOEM;
+    const dealershipMatch = selectedDealership === "all" || showroom.dealershipId === selectedDealership;
+    
+    return searchMatch && oemMatch && dealershipMatch;
+  });
+
   // Show access denied for non-admin users
   if (!canAccessShowrooms) {
     return (
@@ -159,9 +209,66 @@ export default function ShowroomsPage() {
         </Button>
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-col gap-4 p-4 bg-muted/50 rounded-lg">
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Filters:</span>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name or location..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+              data-testid="input-search-showroom"
+            />
+          </div>
+
+          <div>
+            <Select value={selectedOEM} onValueChange={setSelectedOEM}>
+              <SelectTrigger className="w-48" data-testid="filter-oem">
+                <SelectValue placeholder="Filter by OEM" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All OEMs</SelectItem>
+                {oems.map((oem: any) => (
+                  <SelectItem key={oem.id} value={oem.id}>
+                    {oem.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Select value={selectedDealership} onValueChange={setSelectedDealership}>
+              <SelectTrigger className="w-48" data-testid="filter-dealership">
+                <SelectValue placeholder="Filter by Dealership" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Dealerships</SelectItem>
+                {dealerships.map((dealership: any) => (
+                  <SelectItem key={dealership.id} value={dealership.id}>
+                    {dealership.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="text-sm text-muted-foreground">
+          Showing {filteredShowrooms.length} of {showrooms.length} showrooms
+        </div>
+      </div>
+
       {/* Showrooms Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {showrooms.length === 0 ? (
+        {filteredShowrooms.length === 0 ? (
           <div className="col-span-full">
             <Card>
               <CardContent className="py-12 text-center">
@@ -178,7 +285,7 @@ export default function ShowroomsPage() {
             </Card>
           </div>
         ) : (
-          showrooms.map((showroom) => (
+          filteredShowrooms.map((showroom) => (
             <Card key={showroom.id} data-testid={`card-showroom-${showroom.id}`}>
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">

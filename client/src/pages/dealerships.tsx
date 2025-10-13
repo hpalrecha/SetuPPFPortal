@@ -3,7 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Store, MapPin, Phone, Handshake } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Edit, Trash2, Store, MapPin, Phone, Handshake, Search, Filter } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { CreateDealershipModal } from "@/components/modals/CreateDealershipModal";
@@ -16,6 +18,8 @@ export default function DealershipsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingDealership, setEditingDealership] = useState<any>(null);
   const [isLoadingDealership, setIsLoadingDealership] = useState(false);
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [selectedOEM, setSelectedOEM] = useState<string>("all");
   
   // Only Super Admin can access dealership management
   const canAccessDealerships = user?.role === 'SUPER_ADMIN';
@@ -39,6 +43,22 @@ export default function DealershipsPage() {
     refetchInterval: 5000, // Refresh every 5 seconds to see changes quickly
     staleTime: 0, // Always consider data stale
     cacheTime: 0, // Don't cache data
+    enabled: canAccessDealerships
+  });
+
+  // Fetch OEMs for filtering
+  const { data: oems = [] } = useQuery<any[]>({
+    queryKey: ["/api/oems"],
+    queryFn: async () => {
+      const response = await fetch('/api/oems', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch OEMs');
+      return response.json();
+    },
     enabled: canAccessDealerships
   });
 
@@ -144,6 +164,19 @@ export default function DealershipsPage() {
     queryClient.invalidateQueries({ queryKey: ["/api/dealerships"] });
   };
 
+  // Filter dealerships based on search term and OEM
+  const filteredDealerships = dealerships.filter((dealership) => {
+    const searchMatch = searchTerm === "" || 
+      dealership.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dealership.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dealership.state?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const oemMatch = selectedOEM === "all" || 
+      dealership.oemIds?.includes(selectedOEM);
+    
+    return searchMatch && oemMatch;
+  });
+
   // Show access denied for non-admin users
   if (!canAccessDealerships) {
     return (
@@ -189,9 +222,50 @@ export default function DealershipsPage() {
         </Button>
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-col gap-4 p-4 bg-muted/50 rounded-lg">
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Filters:</span>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name or location..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+              data-testid="input-search-dealership"
+            />
+          </div>
+
+          <div>
+            <Select value={selectedOEM} onValueChange={setSelectedOEM}>
+              <SelectTrigger className="w-48" data-testid="filter-oem">
+                <SelectValue placeholder="Filter by OEM" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All OEMs</SelectItem>
+                {oems.map((oem: any) => (
+                  <SelectItem key={oem.id} value={oem.id}>
+                    {oem.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="text-sm text-muted-foreground">
+          Showing {filteredDealerships.length} of {dealerships.length} dealerships
+        </div>
+      </div>
+
       {/* Dealerships Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {dealerships.length === 0 ? (
+        {filteredDealerships.length === 0 ? (
           <div className="col-span-full">
             <Card>
               <CardContent className="py-12 text-center">
@@ -208,7 +282,7 @@ export default function DealershipsPage() {
             </Card>
           </div>
         ) : (
-          dealerships.map((dealership) => (
+          filteredDealerships.map((dealership) => (
             <Card key={dealership.id} data-testid={`card-dealership-${dealership.id}`}>
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">

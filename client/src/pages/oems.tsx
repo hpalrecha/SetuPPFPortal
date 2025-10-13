@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Building2, Percent } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Plus, Edit, Trash2, Building2, Percent, Search } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { CreateOEMModal } from "@/components/modals/CreateOEMModal";
@@ -18,6 +19,7 @@ export default function OEMsPage() {
   const [editingOEM, setEditingOEM] = useState<any>(null);
   const [showRoyaltyModal, setShowRoyaltyModal] = useState(false);
   const [editingRoyaltyRule, setEditingRoyaltyRule] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState<string>("");
   
   // Only Super Admin can access OEM management
   const canAccessOEMs = user?.role === 'SUPER_ADMIN';
@@ -138,6 +140,14 @@ export default function OEMsPage() {
     return royaltyRules.find(rule => rule.oemId === oemId && rule.isActive);
   };
 
+  // Filter OEMs based on search term
+  const filteredOEMs = oems.filter((oem) => {
+    const searchMatch = searchTerm === "" || 
+      oem.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      oem.code?.toLowerCase().includes(searchTerm.toLowerCase());
+    return searchMatch;
+  });
+
   // Show access denied for non-admin users
   if (!canAccessOEMs) {
     return (
@@ -182,9 +192,26 @@ export default function OEMsPage() {
         </Button>
       </div>
 
+      {/* Search Filter */}
+      <div className="flex flex-col gap-4 p-4 bg-muted/50 rounded-lg">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name or code..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+            data-testid="input-search-oem"
+          />
+        </div>
+        <div className="text-sm text-muted-foreground">
+          Showing {filteredOEMs.length} of {oems.length} OEMs
+        </div>
+      </div>
+
       {/* OEMs Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {oems.length === 0 ? (
+        {filteredOEMs.length === 0 ? (
           <div className="col-span-full">
             <Card>
               <CardContent className="py-12 text-center">
@@ -201,7 +228,7 @@ export default function OEMsPage() {
             </Card>
           </div>
         ) : (
-          oems.map((oem) => (
+          filteredOEMs.map((oem) => (
             <Card key={oem.id} data-testid={`card-oem-${oem.id}`}>
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">

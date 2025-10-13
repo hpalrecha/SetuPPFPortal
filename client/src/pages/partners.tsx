@@ -3,8 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Store, User, MapPin, Phone, Star, BarChart3, Edit, Trash2, Filter } from "lucide-react";
+import { Plus, Store, User, MapPin, Phone, Star, BarChart3, Edit, Trash2, Filter, Search } from "lucide-react";
 import type { Partner } from "@shared/schema";
 import { EditPartnerModal } from "@/components/modals/EditPartnerModal";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +17,7 @@ export default function PartnersPage() {
   const [editingPartner, setEditingPartner] = useState<any>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedType, setSelectedType] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState<string>("");
   
   const { data: partners = [], isLoading } = useQuery<Partner[]>({
     queryKey: ["/api/partners-with-categories"],
@@ -56,7 +58,11 @@ export default function PartnersPage() {
     const categoryMatch = selectedCategory === "all" || 
       partner.serviceCategories?.some((cat: any) => cat.id === selectedCategory);
     const typeMatch = selectedType === "all" || partner.type === selectedType;
-    return categoryMatch && typeMatch;
+    const searchMatch = searchTerm === "" || 
+      partner.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      partner.contactPersonName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      partner.city?.toLowerCase().includes(searchTerm.toLowerCase());
+    return categoryMatch && typeMatch && searchMatch;
   });
 
   const handleAddPartner = () => {
@@ -149,13 +155,24 @@ export default function PartnersPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 p-4 bg-muted/50 rounded-lg">
+      <div className="flex flex-col gap-4 p-4 bg-muted/50 rounded-lg">
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium">Filters:</span>
         </div>
         
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name, contact, or city..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+              data-testid="input-search-partner"
+            />
+          </div>
+
           <div>
             <Select value={selectedType} onValueChange={setSelectedType}>
               <SelectTrigger className="w-40" data-testid="filter-type">
@@ -186,7 +203,7 @@ export default function PartnersPage() {
           </div>
         </div>
 
-        <div className="text-sm text-muted-foreground flex items-center">
+        <div className="text-sm text-muted-foreground">
           Showing {filteredPartners.length} of {partners.length} partners
         </div>
       </div>
