@@ -1740,7 +1740,7 @@ export default function JobCardsNew() {
                 )}
 
                 {/* Settlement Section - Post Approval */}
-                {(detailedJobCard.status === 'APPROVED' || detailedJobCard.status === 'PAYMENT_PENDING' || detailedJobCard.status === 'CLOSED') && (
+                {(detailedJobCard.status === 'APPROVED' || detailedJobCard.status === 'PENDING_SALES_INVOICE' || detailedJobCard.status === 'INVOICE_RAISED' || detailedJobCard.status === 'WARRANTY_REGISTRATION' || detailedJobCard.status === 'PAYMENT_PENDING' || detailedJobCard.status === 'CLOSED') && (
                   (
                     (detailedJobCard.partnerBilledDirectly && (user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF')) ||
                     (!detailedJobCard.partnerBilledDirectly && isAdmin)
