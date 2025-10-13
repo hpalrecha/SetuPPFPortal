@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit, Trash2, Building, MapPin, Filter } from "lucide-react";
+import { Plus, Edit, Trash2, Building, MapPin, Filter, Search } from "lucide-react";
 import { CreateAllocationModal } from "@/components/modals/CreateAllocationModal";
 import { useToast } from "@/hooks/use-toast";
 
@@ -34,9 +35,11 @@ export default function Allocations() {
   const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingAllocation, setEditingAllocation] = useState<Allocation | null>(null);
-  const [selectedLevel, setSelectedLevel] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [selectedBrand, setSelectedBrand] = useState<string>("all");
+  const [selectedDealership, setSelectedDealership] = useState<string>("all");
+  const [selectedShowroom, setSelectedShowroom] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [selectedLevelEntity, setSelectedLevelEntity] = useState<string>("all");
 
   // Fetch allocations
   const { data: allocations = [], isLoading } = useQuery({
@@ -82,6 +85,21 @@ export default function Allocations() {
     },
   });
 
+  // Fetch OEMs/Brands for filtering
+  const { data: oems = [] } = useQuery({
+    queryKey: ["/api/oems"],
+    queryFn: async () => {
+      const response = await fetch('/api/oems', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch OEMs');
+      return response.json();
+    },
+  });
+
   // Fetch service categories for filtering
   const { data: serviceCategories = [] } = useQuery({
     queryKey: ["/api/service-categories"],
@@ -97,23 +115,63 @@ export default function Allocations() {
     },
   });
 
+  // Helper function to get OEM/Brand ID from allocation
+  const getOemIdFromAllocation = (allocation: Allocation) => {
+    if (allocation.level === 'DEALERSHIP') {
+      const dealership = dealerships.find((d: any) => d.id === allocation.levelId);
+      return dealership?.oemId;
+    } else {
+      const showroom = showrooms.find((s: any) => s.id === allocation.levelId);
+      if (showroom) {
+        const dealership = dealerships.find((d: any) => d.id === showroom.dealershipId);
+        return dealership?.oemId;
+      }
+    }
+    return null;
+  };
+
+  // Helper function to get Dealership ID from allocation
+  const getDealershipIdFromAllocation = (allocation: Allocation) => {
+    if (allocation.level === 'DEALERSHIP') {
+      return allocation.levelId;
+    } else {
+      const showroom = showrooms.find((s: any) => s.id === allocation.levelId);
+      return showroom?.dealershipId;
+    }
+  };
+
   // Filter allocations based on selected filters
-  const filteredAllocations = allocations.filter((allocation) => {
-    const levelMatch = selectedLevel === "all" || allocation.level === selectedLevel;
+  const filteredAllocations = allocations.filter((allocation: any) => {
+    // Text search - search in partner name and level entity name
+    const searchMatch = searchTerm === "" || 
+      allocation.partner.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      getLevelDisplayName(allocation).toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Brand/OEM filter
+    const brandMatch = selectedBrand === "all" || getOemIdFromAllocation(allocation) === selectedBrand;
+    
+    // Dealership filter
+    const dealershipMatch = selectedDealership === "all" || getDealershipIdFromAllocation(allocation) === selectedDealership;
+    
+    // Showroom filter
+    const showroomMatch = selectedShowroom === "all" || 
+      (allocation.level === 'SHOWROOM' && allocation.levelId === selectedShowroom);
+    
+    // Service Category filter
     const categoryMatch = selectedCategory === "all" || 
       allocation.partner.serviceCategories?.some((cat: any) => cat.id === selectedCategory);
-    const entityMatch = selectedLevelEntity === "all" || allocation.levelId === selectedLevelEntity;
-    return levelMatch && categoryMatch && entityMatch;
+    
+    return searchMatch && brandMatch && dealershipMatch && showroomMatch && categoryMatch;
   });
 
-  // Get level entities for dropdown based on selected level
-  const getLevelEntities = () => {
-    if (selectedLevel === "DEALERSHIP") {
-      return dealerships.map((d) => ({ value: d.id, label: d.name }));
-    } else if (selectedLevel === "SHOWROOM") {
-      return showrooms.map((s) => ({ value: s.id, label: s.name }));
+  const getLevelDisplayName = (allocation: Allocation) => {
+    if (allocation.level === 'DEALERSHIP') {
+      const dealership = dealerships.find((d: any) => d.id === allocation.levelId);
+      return dealership?.name || 'Unknown Dealership';
+    } else {
+      const showroom = showrooms.find((s: any) => s.id === allocation.levelId);
+      return showroom?.name || 'Unknown Showroom';
     }
-    return [];
   };
 
   // Delete allocation mutation
@@ -144,16 +202,6 @@ export default function Allocations() {
       });
     },
   });
-
-  const getLevelDisplayName = (allocation: Allocation) => {
-    if (allocation.level === 'DEALERSHIP') {
-      const dealership = dealerships.find(d => d.id === allocation.levelId);
-      return dealership?.name || 'Unknown Dealership';
-    } else {
-      const showroom = showrooms.find(s => s.id === allocation.levelId);
-      return showroom?.name || 'Unknown Showroom';
-    }
-  };
 
   const handleAddAllocation = () => {
     setEditingAllocation(null);
@@ -193,54 +241,79 @@ export default function Allocations() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 p-4 bg-muted/50 rounded-lg">
+      <div className="flex flex-col gap-4 p-4 bg-muted/50 rounded-lg">
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium">Filters:</span>
         </div>
         
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by partner or location..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+              data-testid="input-search-allocation"
+            />
+          </div>
+
           <div>
-            <Select value={selectedLevel} onValueChange={(value) => {
-              setSelectedLevel(value);
-              setSelectedLevelEntity("all"); // Reset entity when level changes
-            }}>
-              <SelectTrigger className="w-40" data-testid="filter-level">
-                <SelectValue placeholder="Level" />
+            <Select value={selectedBrand} onValueChange={setSelectedBrand}>
+              <SelectTrigger className="w-48" data-testid="filter-brand">
+                <SelectValue placeholder="Filter by Brand/OEM" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Levels</SelectItem>
-                <SelectItem value="DEALERSHIP">Dealership</SelectItem>
-                <SelectItem value="SHOWROOM">Showroom</SelectItem>
+                <SelectItem value="all">All Brands/OEMs</SelectItem>
+                {oems.map((oem: any) => (
+                  <SelectItem key={oem.id} value={oem.id}>
+                    {oem.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
 
-          {selectedLevel !== "all" && (
-            <div>
-              <Select value={selectedLevelEntity} onValueChange={setSelectedLevelEntity}>
-                <SelectTrigger className="w-48" data-testid="filter-entity">
-                  <SelectValue placeholder={`Select ${selectedLevel === "DEALERSHIP" ? "Dealership" : "Showroom"}`} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All {selectedLevel === "DEALERSHIP" ? "Dealerships" : "Showrooms"}</SelectItem>
-                  {getLevelEntities().map((entity) => (
-                    <SelectItem key={entity.value} value={entity.value}>
-                      {entity.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div>
+            <Select value={selectedDealership} onValueChange={setSelectedDealership}>
+              <SelectTrigger className="w-48" data-testid="filter-dealership">
+                <SelectValue placeholder="Filter by Dealership" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Dealerships</SelectItem>
+                {dealerships.map((dealership: any) => (
+                  <SelectItem key={dealership.id} value={dealership.id}>
+                    {dealership.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Select value={selectedShowroom} onValueChange={setSelectedShowroom}>
+              <SelectTrigger className="w-48" data-testid="filter-showroom">
+                <SelectValue placeholder="Filter by Showroom" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Showrooms</SelectItem>
+                {showrooms.map((showroom: any) => (
+                  <SelectItem key={showroom.id} value={showroom.id}>
+                    {showroom.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div>
             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="w-48" data-testid="filter-specialization">
-                <SelectValue placeholder="Partner Specialization" />
+              <SelectTrigger className="w-48" data-testid="filter-category">
+                <SelectValue placeholder="Filter by Category" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Specializations</SelectItem>
+                <SelectItem value="all">All Categories</SelectItem>
                 {serviceCategories.map((category: any) => (
                   <SelectItem key={category.id} value={category.id}>
                     {category.name}
@@ -251,7 +324,7 @@ export default function Allocations() {
           </div>
         </div>
 
-        <div className="text-sm text-muted-foreground flex items-center">
+        <div className="text-sm text-muted-foreground">
           Showing {filteredAllocations.length} of {allocations.length} allocations
         </div>
       </div>
@@ -275,7 +348,7 @@ export default function Allocations() {
             </Card>
           </div>
         ) : (
-          filteredAllocations.map((allocation) => (
+          filteredAllocations.map((allocation: any) => (
             <Card key={allocation.id} data-testid={`card-allocation-${allocation.id}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
