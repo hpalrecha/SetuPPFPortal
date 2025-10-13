@@ -1741,6 +1741,9 @@ export default function JobCardsNew() {
 
                 {/* Settlement Section - Post Approval */}
                 {(detailedJobCard.status === 'APPROVED' || detailedJobCard.status === 'PENDING_SALES_INVOICE' || detailedJobCard.status === 'INVOICE_RAISED' || detailedJobCard.status === 'WARRANTY_REGISTRATION' || detailedJobCard.status === 'PAYMENT_PENDING' || detailedJobCard.status === 'CLOSED') && (
+                  (detailedJobCard.partnerBilledDirectly && (user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF')) ||
+                  (!detailedJobCard.partnerBilledDirectly && isAdmin)
+                ) && (
                   <Card className={`col-span-1 lg:col-span-2 xl:col-span-3 border-2 ${detailedJobCard.status === 'CLOSED' ? 'border-gray-200 bg-gray-50/50' : 'border-dashed border-green-200 bg-green-50/50'}`}>
                     <CardHeader className="pb-3">
                       <div className="flex items-center gap-2">
