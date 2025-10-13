@@ -2171,9 +2171,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Access denied - insufficient permissions" });
         }
 
-        // Update job card status to APPROVED
+        // Update job card status to PENDING_SALES_INVOICE (after approval)
         const updatedJobCard = await storage.updateJobCard(jobCardId, {
-          status: 'APPROVED',
+          status: 'PENDING_SALES_INVOICE',
           approvedAt: new Date(),
           approvedByUserId: req.user!.id
         });
@@ -2365,8 +2365,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Job card not found" });
         }
 
-        if (jobCard.status !== 'APPROVED' && jobCard.status !== 'PAYMENT_PENDING') {
-          return res.status(400).json({ error: "Job card must be approved before settling payment" });
+        if (jobCard.status !== 'PENDING_SALES_INVOICE') {
+          return res.status(400).json({ error: "Job card must be in pending sales invoice status before entering invoice" });
         }
 
         // Get work order for permission checks
@@ -2401,31 +2401,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Access denied - insufficient permissions" });
         }
 
-        // Update job card with payment settlement info
+        // Update job card with invoice info and set status to INVOICE_RAISED
         const updatedJobCard = await storage.updateJobCard(jobCardId, {
           paymentSettledAt: new Date(),
-          salesInvoiceNumber: salesInvoiceNumber.trim()
+          salesInvoiceNumber: salesInvoiceNumber.trim(),
+          status: 'INVOICE_RAISED'
         });
 
         if (!updatedJobCard) {
           return res.status(500).json({ error: "Failed to settle payment" });
         }
 
-        // Check if warranty is also applied, if so, mark as CLOSED
-        if (updatedJobCard.warrantyAppliedAt) {
-          await storage.updateJobCard(jobCardId, {
-            status: 'CLOSED'
-          });
-          // Sync work order status
-          await storage.updateWorkOrder(jobCard.workOrderId, {
-            status: 'CLOSED'
-          });
-        } else {
-          // Mark as PAYMENT_PENDING waiting for warranty
-          await storage.updateJobCard(jobCardId, {
-            status: 'PAYMENT_PENDING'
-          });
-        }
+        // Note: Status is already set to INVOICE_RAISED above
+        // Warranty will be applied separately via the apply-warranty endpoint
 
         const finalJobCard = await storage.getJobCard(jobCardId);
         res.json({ message: "Payment settled successfully", jobCard: finalJobCard });
@@ -2455,8 +2443,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Job card not found" });
         }
 
-        if (jobCard.status !== 'APPROVED' && jobCard.status !== 'PAYMENT_PENDING') {
-          return res.status(400).json({ error: "Job card must be approved before applying warranty" });
+        if (jobCard.status !== 'INVOICE_RAISED') {
+          return res.status(400).json({ error: "Invoice must be raised before applying warranty" });
         }
 
         // Get work order for permission checks
@@ -2491,31 +2479,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Access denied - insufficient permissions" });
         }
 
-        // Update job card with warranty info
+        // Update job card with warranty info and set status to WARRANTY_REGISTRATION
         const updatedJobCard = await storage.updateJobCard(jobCardId, {
           warrantyAppliedAt: new Date(),
-          warrantyReferenceNumber: warrantyReferenceNumber.trim()
+          warrantyReferenceNumber: warrantyReferenceNumber.trim(),
+          status: 'WARRANTY_REGISTRATION'
         });
 
         if (!updatedJobCard) {
           return res.status(500).json({ error: "Failed to apply warranty" });
         }
 
-        // Check if payment is also settled, if so, mark as CLOSED
-        if (updatedJobCard.paymentSettledAt) {
-          await storage.updateJobCard(jobCardId, {
-            status: 'CLOSED'
-          });
-          // Sync work order status
-          await storage.updateWorkOrder(jobCard.workOrderId, {
-            status: 'CLOSED'
-          });
-        } else {
-          // Mark as PAYMENT_PENDING waiting for payment settlement
-          await storage.updateJobCard(jobCardId, {
-            status: 'PAYMENT_PENDING'
-          });
-        }
+        // Sync work order status to CLOSED after warranty registration
+        await storage.updateWorkOrder(jobCard.workOrderId, {
+          status: 'CLOSED'
+        });
 
         const finalJobCard = await storage.getJobCard(jobCardId);
         res.json({ message: "Warranty applied successfully", jobCard: finalJobCard });

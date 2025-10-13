@@ -152,6 +152,9 @@ const STATUS_COLORS = {
   'COMPLETED': 'bg-green-100 text-green-800 border-green-200',
   'PENDING_APPROVAL': 'bg-orange-100 text-orange-800 border-orange-200',
   'APPROVED': 'bg-green-100 text-green-800 border-green-200',
+  'PENDING_SALES_INVOICE': 'bg-purple-100 text-purple-800 border-purple-200',
+  'INVOICE_RAISED': 'bg-indigo-100 text-indigo-800 border-indigo-200',
+  'WARRANTY_REGISTRATION': 'bg-teal-100 text-teal-800 border-teal-200',
   'CANCELLED': 'bg-red-100 text-red-800 border-red-200',
   'CLOSED': 'bg-gray-100 text-gray-800 border-gray-200'
 };
@@ -165,6 +168,9 @@ const STATUS_ICONS = {
   'COMPLETED': CheckCircle2,
   'PENDING_APPROVAL': AlertCircle,
   'APPROVED': Trophy,
+  'PENDING_SALES_INVOICE': DollarSign,
+  'INVOICE_RAISED': FileText,
+  'WARRANTY_REGISTRATION': Shield,
   'CANCELLED': AlertCircle,
   'CLOSED': Trophy
 };
@@ -178,6 +184,9 @@ const STATUS_LABELS = {
   'COMPLETED': 'Completed',
   'PENDING_APPROVAL': 'Pending Approval',
   'APPROVED': 'Approved',
+  'PENDING_SALES_INVOICE': 'Pending Invoice',
+  'INVOICE_RAISED': 'Invoice Raised',
+  'WARRANTY_REGISTRATION': 'Warranty Registered',
   'CANCELLED': 'Cancelled',
   'CLOSED': 'Closed'
 };
@@ -436,7 +445,10 @@ export default function JobCardsNew() {
       IN_PROGRESS: 60,
       COMPLETED: 80,
       PENDING_APPROVAL: 90,
-      APPROVED: 100,
+      APPROVED: 92,
+      PENDING_SALES_INVOICE: 94,
+      INVOICE_RAISED: 96,
+      WARRANTY_REGISTRATION: 98,
       CLOSED: 100
     };
     return progressMap[status] || 0;
@@ -447,7 +459,7 @@ export default function JobCardsNew() {
     AWAITING_ACK: jobCards.filter(jc => jc.status === 'AWAITING_ACK'),
     IN_PROGRESS: jobCards.filter(jc => jc.status && ['ACKNOWLEDGED', 'ASSIGNED', 'SCHEDULED', 'IN_PROGRESS'].includes(jc.status)),
     PENDING_APPROVAL: jobCards.filter(jc => jc.status === 'PENDING_APPROVAL'),
-    COMPLETED: jobCards.filter(jc => jc.status && ['COMPLETED', 'APPROVED', 'CLOSED'].includes(jc.status))
+    COMPLETED: jobCards.filter(jc => jc.status && ['COMPLETED', 'APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'CLOSED'].includes(jc.status))
   };
 
   const handleViewJobCard = (jobCard: EnrichedJobCard) => {
@@ -1774,14 +1786,14 @@ export default function JobCardsNew() {
                               </p>
                             )}
                           </div>
-                          {!detailedJobCard.paymentSettledAt && detailedJobCard.status !== 'CLOSED' && (
+                          {detailedJobCard.status === 'PENDING_SALES_INVOICE' && (
                             <Button
                               size="sm"
                               onClick={() => setShowSettlePaymentModal(true)}
                               className="bg-green-600 hover:bg-green-700"
                               data-testid="button-settle-payment"
                             >
-                              Settle
+                              Enter Invoice
                             </Button>
                           )}
                         </div>
@@ -1811,14 +1823,14 @@ export default function JobCardsNew() {
                               </p>
                             )}
                           </div>
-                          {!detailedJobCard.warrantyAppliedAt && detailedJobCard.status !== 'CLOSED' && (
+                          {detailedJobCard.status === 'INVOICE_RAISED' && (
                             <Button
                               size="sm"
                               onClick={() => setShowApplyWarrantyModal(true)}
                               className="bg-blue-600 hover:bg-blue-700"
                               data-testid="button-apply-warranty"
                             >
-                              Apply
+                              Apply eWarranty
                             </Button>
                           )}
                         </div>
