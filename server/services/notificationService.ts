@@ -643,15 +643,47 @@ export class NotificationService {
       showroomId?: string;
     }
   ): Promise<User[]> {
-    // This would be implemented in the storage layer
-    // For now, return empty array
-    return [];
+    try {
+      const allUsers = await storage.getUsers();
+      
+      return allUsers.filter(user => {
+        // Check if user has one of the required roles
+        if (!roles.includes(user.role)) {
+          return false;
+        }
+        
+        // Apply filters
+        if (filters.oemId && user.oemId !== filters.oemId) {
+          return false;
+        }
+        if (filters.dealershipId && user.dealershipId !== filters.dealershipId) {
+          return false;
+        }
+        if (filters.showroomId && user.showroomId !== filters.showroomId) {
+          return false;
+        }
+        
+        return true;
+      });
+    } catch (error) {
+      console.error('Error fetching users by role:', error);
+      return [];
+    }
   }
 
   private async getPartnerMembers(partnerId: string): Promise<{ userId: string }[]> {
-    // This would be implemented in the storage layer
-    // For now, return empty array
-    return [];
+    try {
+      const allUsers = await storage.getUsers();
+      const partnerUsers = allUsers.filter(user => 
+        user.partnerId === partnerId && 
+        (user.role === 'PARTNER_ADMIN' || user.role === 'PARTNER_STAFF')
+      );
+      
+      return partnerUsers.map(user => ({ userId: user.id }));
+    } catch (error) {
+      console.error('Error fetching partner members:', error);
+      return [];
+    }
   }
 
   async notifyStakeholders(eventType: string, workOrder: WorkOrder): Promise<void> {
