@@ -317,9 +317,29 @@ export const brands = pgTable("brands", {
   name: text("name").notNull().unique(),
   description: text("description"),
   active: boolean("active").default(true),
+  // WhatsApp Business API (WABA) Configuration
+  wabaPhoneNumberId: text("waba_phone_number_id"), // Meta WABA Phone Number ID for this brand
+  wabaBusinessAccountId: text("waba_business_account_id"), // Meta WABA Business Account ID
+  wabaAccessToken: text("waba_access_token"), // Optional: Brand-specific access token
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });
+
+// WhatsApp Templates - Map brands to Meta WABA approved templates
+export const whatsappTemplates = pgTable("whatsapp_templates", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  brandId: uuid("brand_id").references(() => brands.id, { onDelete: 'cascade' }).notNull(),
+  eventType: text("event_type").notNull(), // job_card_created, job_card_scheduled, job_card_completed, etc.
+  templateName: text("template_name").notNull(), // Meta WABA template name (e.g., stek_job_card_created_en)
+  languageCode: text("language_code").default("en").notNull(),
+  parametersCount: integer("parameters_count").default(0).notNull(), // Number of parameters in template
+  parameters: jsonb("parameters"), // Parameter names/descriptions for reference
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+}, (table) => ({
+  uniqueBrandEvent: unique("unique_brand_event").on(table.brandId, table.eventType)
+}));
 
 // Raw Materials Module
 export const rawMaterials = pgTable("raw_materials", {
@@ -885,6 +905,11 @@ export const selectBrandSchema = createSelectSchema(brands);
 export type InsertBrand = z.infer<typeof insertBrandSchema>;
 export type Brand = z.infer<typeof selectBrandSchema>;
 
+export const insertWhatsappTemplateSchema = createInsertSchema(whatsappTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export const selectWhatsappTemplateSchema = createSelectSchema(whatsappTemplates);
+export type InsertWhatsappTemplate = z.infer<typeof insertWhatsappTemplateSchema>;
+export type WhatsappTemplate = z.infer<typeof selectWhatsappTemplateSchema>;
+
 export const insertRawMaterialSchema = createInsertSchema(rawMaterials).omit({ id: true, createdAt: true, updatedAt: true });
 export const selectRawMaterialSchema = createSelectSchema(rawMaterials);
 export type InsertRawMaterial = z.infer<typeof insertRawMaterialSchema>;
@@ -962,7 +987,13 @@ export const knowledgeHubRelations = relations(knowledgeHub, ({ one }) => ({
 
 // Brand Relations
 export const brandsRelations = relations(brands, ({ many }) => ({
-  rawMaterials: many(rawMaterials)
+  rawMaterials: many(rawMaterials),
+  whatsappTemplates: many(whatsappTemplates)
+}));
+
+// WhatsApp Templates Relations
+export const whatsappTemplatesRelations = relations(whatsappTemplates, ({ one }) => ({
+  brand: one(brands, { fields: [whatsappTemplates.brandId], references: [brands.id] })
 }));
 
 // Raw Materials Relations
