@@ -1,4 +1,7 @@
 // Meta WhatsApp Business API integration
+import { db } from '../db';
+import { brands } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 export interface WhatsAppMessage {
   to: string; // Phone number with country code (e.g., +919876543210)
@@ -22,6 +25,13 @@ export interface MetaWABAConfig {
   phoneNumberId: string;
   businessAccountId: string;
   apiVersion?: string;
+}
+
+export interface BrandWABAConfig {
+  brandId?: string;
+  phoneNumberId?: string;
+  businessAccountId?: string;
+  accessToken?: string;
 }
 
 export class WhatsAppService {
@@ -63,9 +73,55 @@ export class WhatsAppService {
     }
   }
 
-  async sendMessage(message: WhatsAppMessage): Promise<boolean> {
+  // Get brand-specific WABA config from database
+  async getBrandWABAConfig(brandId: string): Promise<MetaWABAConfig | null> {
     try {
-      if (!this.isConfigured || !this.config) {
+      const [brand] = await db
+        .select()
+        .from(brands)
+        .where(eq(brands.id, brandId));
+      
+      if (!brand || !brand.wabaPhoneNumberId || !brand.wabaBusinessAccountId) {
+        return null;
+      }
+
+      // Use brand-specific access token if available, otherwise use default
+      const accessToken = brand.wabaAccessToken || this.config?.accessToken || process.env.META_WABA_ACCESS_TOKEN;
+      
+      if (!accessToken) {
+        return null;
+      }
+
+      return {
+        accessToken,
+        phoneNumberId: brand.wabaPhoneNumberId,
+        businessAccountId: brand.wabaBusinessAccountId,
+        apiVersion: this.config?.apiVersion || 'v19.0'
+      };
+    } catch (error) {
+      console.error('❌ Failed to get brand WABA config:', error);
+      return null;
+    }
+  }
+
+  async sendMessage(message: WhatsAppMessage, brandId?: string): Promise<boolean> {
+    try {
+      // Try to get brand-specific WABA config first
+      let wabaConfig: MetaWABAConfig | null = null;
+      
+      if (brandId) {
+        wabaConfig = await this.getBrandWABAConfig(brandId);
+        if (wabaConfig) {
+          console.log(`📱 Using brand-specific WABA config for brand: ${brandId}`);
+        }
+      }
+      
+      // Fallback to default config if no brand-specific config
+      if (!wabaConfig) {
+        wabaConfig = this.config;
+      }
+
+      if (!wabaConfig) {
         // Development mode - log message content
         console.log('📱 [DEV MODE] WhatsApp message would be sent:');
         console.log('To:', message.to);
@@ -83,7 +139,7 @@ export class WhatsAppService {
       }
 
       // Production mode - send actual WhatsApp message via Meta API
-      const endpoint = `${this.baseUrl}/${this.config.apiVersion}/${this.config.phoneNumberId}/messages`;
+      const endpoint = `${this.baseUrl}/${wabaConfig.apiVersion}/${wabaConfig.phoneNumberId}/messages`;
       
       const payload = {
         messaging_product: 'whatsapp',
@@ -95,7 +151,7 @@ export class WhatsAppService {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.config.accessToken}`,
+          'Authorization': `Bearer ${wabaConfig.accessToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)
@@ -143,6 +199,66 @@ export class WhatsAppService {
       return `Image: ${message.image.link} ${message.image.caption ? '- ' + message.image.caption : ''}`;
     }
     return 'Unknown message format';
+  }
+
+  // Send message using database template
+  async sendTemplateMessage(
+    phoneNumber: string,
+    brandId: string,
+    eventType: string,
+    parameters: { [key: string]: string },
+    buttonUrl?: string
+  ): Promise<boolean> {
+    try {
+      // Get template from database
+      const storage = (await import('../storage')).storage;
+      const template = await storage.getWhatsappTemplateByBrandAndEvent(brandId, eventType);
+      
+      if (!template) {
+        console.log(`⚠️ No template found for brand ${brandId} and event ${eventType}, falling back to custom message`);
+        return false;
+      }
+
+      // Build template components
+      const components: any[] = [];
+      
+      // Add body parameters if any
+      if (template.parametersCount > 0) {
+        const bodyParams = Object.values(parameters).slice(0, template.parametersCount).map(value => ({
+          type: 'text',
+          text: value
+        }));
+        
+        components.push({
+          type: 'body',
+          parameters: bodyParams
+        });
+      }
+      
+      // Add button URL parameter if provided
+      if (buttonUrl) {
+        components.push({
+          type: 'button',
+          sub_type: 'url',
+          index: '0',
+          parameters: [{ type: 'text', text: buttonUrl }]
+        });
+      }
+
+      // Send message using brand-specific WABA
+      return await this.sendMessage({
+        to: phoneNumber,
+        type: 'template',
+        template: {
+          name: template.templateName,
+          language: { code: template.languageCode },
+          components
+        }
+      }, brandId);
+    } catch (error) {
+      console.error(`❌ Failed to send template message for event ${eventType}:`, error);
+      return false;
+    }
   }
 
   // Job Card Lifecycle Templates - Conversational with Action Buttons
