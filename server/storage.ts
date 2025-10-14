@@ -19,6 +19,7 @@ import {
   brands,
   rawMaterials,
   serviceRawMaterials,
+  whatsappTemplates,
   pricingRules,
   commissionRules,
   workOrders,
@@ -70,7 +71,9 @@ import {
   type OemRoyaltyCalculation,
   type InsertOemRoyaltyCalculation,
   type KnowledgeHub,
-  type InsertKnowledgeHub
+  type InsertKnowledgeHub,
+  type WhatsappTemplate,
+  type InsertWhatsappTemplate
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count, avg, sum, lte, gte, or, isNull, isNotNull, asc, inArray, ne, like } from "drizzle-orm";
@@ -424,6 +427,14 @@ export interface IStorage {
   createBrand(brand: InsertBrand): Promise<Brand>;
   updateBrand(id: string, updates: Partial<InsertBrand>): Promise<Brand | undefined>;
   deleteBrand(id: string): Promise<boolean>;
+
+  // WhatsApp Template management
+  getWhatsappTemplates(filters?: { brandId?: string; eventType?: string }): Promise<any[]>;
+  getWhatsappTemplate(id: string): Promise<any | undefined>;
+  getWhatsappTemplateByBrandAndEvent(brandId: string, eventType: string): Promise<any | undefined>;
+  createWhatsappTemplate(template: any): Promise<any>;
+  updateWhatsappTemplate(id: string, updates: any): Promise<any | undefined>;
+  deleteWhatsappTemplate(id: string): Promise<boolean>;
 
   // Knowledge Hub management
   getKnowledgeHubItems(filters?: { 
@@ -4330,6 +4341,69 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(brands)
       .where(eq(brands.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // WhatsApp Template methods
+  async getWhatsappTemplates(filters?: { brandId?: string; eventType?: string }): Promise<WhatsappTemplate[]> {
+    let query = db.select().from(whatsappTemplates);
+    
+    const conditions = [];
+    if (filters?.brandId) {
+      conditions.push(eq(whatsappTemplates.brandId, filters.brandId));
+    }
+    if (filters?.eventType) {
+      conditions.push(eq(whatsappTemplates.eventType, filters.eventType));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return await query.orderBy(asc(whatsappTemplates.eventType));
+  }
+
+  async getWhatsappTemplate(id: string): Promise<WhatsappTemplate | undefined> {
+    const [template] = await db
+      .select()
+      .from(whatsappTemplates)
+      .where(eq(whatsappTemplates.id, id));
+    return template || undefined;
+  }
+
+  async getWhatsappTemplateByBrandAndEvent(brandId: string, eventType: string): Promise<WhatsappTemplate | undefined> {
+    const [template] = await db
+      .select()
+      .from(whatsappTemplates)
+      .where(and(
+        eq(whatsappTemplates.brandId, brandId),
+        eq(whatsappTemplates.eventType, eventType),
+        eq(whatsappTemplates.isActive, true)
+      ));
+    return template || undefined;
+  }
+
+  async createWhatsappTemplate(template: InsertWhatsappTemplate): Promise<WhatsappTemplate> {
+    const [newTemplate] = await db
+      .insert(whatsappTemplates)
+      .values(template)
+      .returning();
+    return newTemplate;
+  }
+
+  async updateWhatsappTemplate(id: string, updates: Partial<InsertWhatsappTemplate>): Promise<WhatsappTemplate | undefined> {
+    const [updatedTemplate] = await db
+      .update(whatsappTemplates)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(whatsappTemplates.id, id))
+      .returning();
+    return updatedTemplate || undefined;
+  }
+
+  async deleteWhatsappTemplate(id: string): Promise<boolean> {
+    const result = await db
+      .delete(whatsappTemplates)
+      .where(eq(whatsappTemplates.id, id));
     return result.rowCount !== null && result.rowCount > 0;
   }
 
