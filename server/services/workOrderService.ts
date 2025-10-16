@@ -298,10 +298,9 @@ export class WorkOrderService {
       throw new Error('Work order must be in PENDING, SUBMITTED or ASSIGNED status to assign');
     }
 
-    // Get pricing for estimation
-    const pricing = await pricingService.resolvePricing(
-      partnerId,
-      'SHOWROOM', // Fix: Use scope type not dealership ID
+    // Get DEALERSHIP_PRICING for job card billing value (what dealership pays)
+    const pricing = await pricingService.getDealershipPricing(
+      workOrder.dealershipId,
       workOrder.showroomId,
       workOrder.vehicleModelId,
       workOrder.serviceId
