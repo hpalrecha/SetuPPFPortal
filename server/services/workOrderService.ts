@@ -299,12 +299,14 @@ export class WorkOrderService {
     }
 
     // Get DEALERSHIP_PRICING for job card billing value (what dealership pays)
-    const pricing = await pricingService.getDealershipPricing(
+    const pricingResult = await pricingService.calculateWorkOrderPrice(
       workOrder.dealershipId,
-      workOrder.showroomId,
       workOrder.vehicleModelId,
-      workOrder.serviceId
+      workOrder.serviceId,
+      1
     );
+    
+    const pricing = pricingResult.ruleFound ? { priceAmount: pricingResult.price } : null;
 
     // 💵 Recalculate billing details with partner information
     let billingDetails;
