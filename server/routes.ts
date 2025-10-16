@@ -2261,6 +2261,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Don't fail the approval if payout update fails
         }
 
+        // 💰 Calculate OEM Royalty automatically on job card approval
+        try {
+          // Get dealership pricing for royalty calculation base
+          const { pricingService } = await import('./services/pricingService');
+          const dealershipPricing = await pricingService.resolvePricing(
+            jobCard.partnerId,
+            'SHOWROOM',
+            workOrder.showroomId,
+            workOrder.vehicleModelId,
+            workOrder.serviceId
+          );
+          
+          const finalPrice = dealershipPricing?.priceAmount || workOrder.estimatedPrice || 0;
+          
+          const royaltyCalculation = await storage.calculateRoyaltyForWorkOrder(
+            workOrder.id,
+            Number(finalPrice),
+            workOrder.oemId
+          );
+          
+          if (royaltyCalculation) {
+            console.log(`✅ OEM Royalty calculated: ₹${royaltyCalculation.royaltyAmount} (${royaltyCalculation.royaltyPercentage}%)`);
+          } else {
+            console.log(`ℹ️ No royalty rule found for OEM ${workOrder.oemId}`);
+          }
+        } catch (royaltyError) {
+          console.error('❌ Error calculating OEM royalty:', royaltyError);
+          // Don't fail approval if royalty calculation fails
+        }
+
         // Send email notification to partner about approval
         try {
           const partner = await storage.getPartner(jobCard.partnerId);
