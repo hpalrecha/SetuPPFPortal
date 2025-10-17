@@ -2262,6 +2262,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // 💰 Calculate OEM Royalty automatically on job card approval
+        let finalPrice = 0;
         try {
           // Get dealership pricing for royalty calculation base
           const { pricingService } = await import('./services/pricingService');
@@ -2273,7 +2274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             workOrder.serviceId
           );
           
-          const finalPrice = dealershipPricing?.priceAmount || workOrder.estimatedPrice || 0;
+          finalPrice = dealershipPricing?.priceAmount || workOrder.estimatedPrice || 0;
           
           const royaltyCalculation = await storage.calculateRoyaltyForWorkOrder(
             workOrder.id,
@@ -2289,6 +2290,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (royaltyError) {
           console.error('❌ Error calculating OEM royalty:', royaltyError);
           // Don't fail approval if royalty calculation fails
+        }
+
+        // 💰 Calculate and update Sales Commission on job card approval
+        try {
+          if (workOrder.salesPersonId) {
+            const { commissionService } = await import('./services/commissionService');
+            
+            // Calculate commission amount using final dealership price
+            const commission = await commissionService.calculateCommission(
+              workOrder.showroomId,
+              workOrder.salesPersonId,
+              workOrder.serviceId,
+              Number(finalPrice)
+            );
+            
+            const commissionAmount = commission.amount;
+            console.log(`💰 Commission calculated: ₹${commissionAmount} for sales person ${workOrder.salesPersonId}`);
+            
+            // Update existing commission instead of creating duplicate
+            if (commissionAmount > 0) {
+              const existingCommissions = await storage.getCommissions({ workOrderId: workOrder.id });
+              
+              if (existingCommissions.commissions.length > 0) {
+                // Update existing commission with final amounts
+                await storage.updateCommission(existingCommissions.commissions[0].id, {
+                  computedAmount: commissionAmount,
+                  status: 'COMPUTED'
+                });
+                console.log(`✅ Updated existing commission to COMPUTED status with final amount: ₹${commissionAmount}`);
+              } else {
+                // Fallback: create commission if somehow none exists
+                if (commission.rule) {
+                  await storage.createCommission({
+                    workOrderId: workOrder.id,
+                    showroomId: workOrder.showroomId,
+                    salesPersonId: workOrder.salesPersonId,
+                    basis: commission.rule.type,
+                    value: Number(commission.rule.valueNumeric),
+                    computedAmount: commissionAmount,
+                    status: 'COMPUTED'
+                  });
+                  console.log(`⚠️ No existing commission found, created new COMPUTED commission: ₹${commissionAmount}`);
+                }
+              }
+            }
+          } else {
+            console.log(`ℹ️ No sales person assigned, skipping commission calculation`);
+          }
+        } catch (commissionError) {
+          console.error('❌ Error calculating/updating commission:', commissionError);
+          // Don't fail approval if commission update fails
         }
 
         // Send email notification to partner about approval
