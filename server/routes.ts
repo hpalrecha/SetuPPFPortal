@@ -1631,6 +1631,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        // ✅ NEW: DEALERSHIP_ADMIN validation - ensure showroom belongs to their dealership
+        if (req.user!.role === 'DEALERSHIP_ADMIN' && req.user!.dealershipId) {
+          if (!workOrderData.showroomId) {
+            return res.status(400).json({ error: "Showroom is required for dealership users" });
+          }
+          
+          // Verify the showroom belongs to this dealership
+          const showroom = await storage.getShowroom(workOrderData.showroomId);
+          if (!showroom) {
+            return res.status(404).json({ error: "Showroom not found" });
+          }
+          
+          if (showroom.dealershipId !== req.user!.dealershipId) {
+            return res.status(403).json({ error: "Access denied - showroom does not belong to your dealership" });
+          }
+          
+          console.log(`✅ DEALERSHIP ACCESS: Dealership ${req.user!.dealershipId} creating work order for their showroom ${showroom.name}`);
+        }
+
         // Now validate the complete data including createdByUserId
         const validatedData = insertWorkOrderSchema.extend({
           createdByUserId: z.string()

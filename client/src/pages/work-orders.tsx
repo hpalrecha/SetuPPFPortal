@@ -58,8 +58,8 @@ export default function WorkOrdersPage() {
     partnerName: ''
   });
 
-  // Check if user can create work orders (showroom managers, sales persons, and super admin)
-  const canCreateWorkOrder = user && ['SHOWROOM_MANAGER', 'SALES_PERSON', 'SUPER_ADMIN'].includes(user.role);
+  // Check if user can create work orders (showroom managers, dealership admins, sales persons, and super admin)
+  const canCreateWorkOrder = user && ['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'SALES_PERSON', 'SUPER_ADMIN'].includes(user.role);
 
   // Query for work orders list
   const { data: allWorkOrders = [], isLoading } = useQuery<WorkOrder[]>({
