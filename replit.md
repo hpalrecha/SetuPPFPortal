@@ -187,3 +187,80 @@ Preferred communication style: Simple, everyday language.
 - **Error Handling**: Comprehensive error boundaries and API error responses
 - **Audit Trails**: Complete activity logging for compliance and debugging
 - **Performance Metrics**: Query optimization and response time monitoring
+
+# Pulse Integration (Added: October 22, 2025)
+
+## Overview
+PPF Setu integrates with Pulse (master portal) for centralized user access control. Pulse admins can enable/disable user access to PPF Setu using a simple toggle, providing real-time user activation and deactivation.
+
+## Integration Architecture
+
+### Webhook Endpoint
+- **URL**: `POST /api/webhooks/pulse/user-access`
+- **Security**: HMAC-SHA256 signature verification using shared secret
+- **Scope**: PARTNER_ADMIN and PARTNER_STAFF roles only
+- **Actions**: `activate` (create/enable user) or `deactivate` (disable user)
+
+### Authentication & Security
+- **Shared Secret**: `PULSE_WEBHOOK_SECRET` environment variable
+- **Signature Header**: `X-Pulse-Signature` with HMAC-SHA256 digest
+- **Timestamp Validation**: Requests must be within 5 minutes to prevent replay attacks
+- **Audit Logging**: All webhook actions logged with source tracking
+
+### User Lifecycle
+
+**Activation Flow:**
+1. Pulse sends webhook with user details and `action: "activate"`
+2. PPF Setu verifies HMAC signature
+3. If user exists: activate and update details
+4. If user is new: create account with auto-generated password
+5. Send welcome email with password reset link (24-hour expiry)
+6. Return success with userId
+
+**Deactivation Flow:**
+1. Pulse sends webhook with `action: "deactivate"`
+2. PPF Setu verifies signature
+3. Set `isActive: false` on user record
+4. User immediately blocked from login
+5. Return success confirmation
+
+### Webhook Payload Structure
+```json
+{
+  "action": "activate" | "deactivate",
+  "user": {
+    "email": "installer@example.com",
+    "name": "John Doe",
+    "phone": "+919876543210",
+    "role": "PARTNER_ADMIN" | "PARTNER_STAFF",
+    "partnerId": "uuid-of-partner",
+    "partnerType": "STUDIO" | "INSTALLER"
+  },
+  "timestamp": "2025-01-15T10:30:00Z"
+}
+```
+
+### Login Protection
+- `isActive` flag checked during authentication (server/auth.ts line 57)
+- Inactive users blocked with null response (no access token issued)
+- Real-time enforcement - immediate effect on deactivation
+
+### Email Notifications
+- Welcome emails sent on new user creation
+- Contains password reset link valid for 24 hours
+- Dynamic domain detection using REPLIT_DEV_DOMAIN
+- Auto-generated temporary passwords using nanoid
+
+### Error Handling
+- **401 Unauthorized**: Invalid HMAC signature
+- **400 Bad Request**: Missing required fields or invalid role
+- **404 Not Found**: Partner doesn't exist in system
+- **500 Internal Server Error**: Processing failure
+
+### Audit Trail
+All webhook actions logged with:
+- Actor: System-level webhook user
+- Entity: `user`
+- Action: `CREATED_BY_PULSE`, `ACTIVATED_BY_PULSE`, `DEACTIVATED_BY_PULSE`
+- Source: `pulse_webhook`
+- Full user details in diffJson
