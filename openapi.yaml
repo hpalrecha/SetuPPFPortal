@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
-  title: SetuPPF API
+  title: Pulse VAS API
   description: PPF Installation Management Portal API
   version: 1.0.0
   contact:
-    name: SetuPPF Support
-    email: support@setuppf.com
+    name: Pulse VAS Support
+    email: support@pulsevas.com
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -13,7 +13,7 @@ info:
 servers:
   - url: http://localhost:5000
     description: Development server
-  - url: https://api.setuppf.com
+  - url: https://api.pulsevas.com
     description: Production server
 
 security:

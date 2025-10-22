@@ -1,4 +1,4 @@
-# SetuPPF - PPF Installation Management Portal
+# Pulse VAS - PPF Installation Management Portal
 
 A comprehensive multi-tenant web application for managing Paint Protection Film (PPF) installation orders across Vehicle OEMs, dealerships, showrooms, and installation partners with complete workflow automation, pricing management, and commission tracking.
 
@@ -59,4 +59,4 @@ A comprehensive multi-tenant web application for managing Paint Protection Film 
 1. **Clone the repository**
 ```bash
 git clone <repository-url>
-cd setuppf
+cd pulse-vas
