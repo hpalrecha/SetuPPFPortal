@@ -100,7 +100,7 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
   const { data: dealerships = [] } = useQuery({
     queryKey: ['/api/dealerships', selectedOemId, watchedScope],
     queryFn: async () => {
-      const url = watchedScope === 'MULTIPLE' 
+      const url = watchedScope === 'MULTIPLE_DEALERSHIPS' 
         ? '/api/dealerships' 
         : `/api/dealerships?oemId=${selectedOemId}`;
       const response = await fetch(url, {
@@ -112,7 +112,7 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
       if (!response.ok) throw new Error('Failed to fetch dealerships');
       return response.json();
     },
-    enabled: isSuperAdmin && open && (watchedScope === 'MULTIPLE' || !!selectedOemId),
+    enabled: isSuperAdmin && open && (watchedScope === 'MULTIPLE_DEALERSHIPS' || !!selectedOemId),
   });
 
   const createServiceMutation = useMutation({
@@ -396,9 +396,10 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="GLOBAL">Global - Available to All</SelectItem>
-                      <SelectItem value="OEM">OEM Specific</SelectItem>
-                      <SelectItem value="DEALERSHIP">Dealership Specific</SelectItem>
-                      <SelectItem value="MULTIPLE">Multiple OEMs/Dealerships</SelectItem>
+                      <SelectItem value="OEM_SPECIFIC">OEM Specific</SelectItem>
+                      <SelectItem value="DEALERSHIP_SPECIFIC">Dealership Specific</SelectItem>
+                      <SelectItem value="MULTIPLE_OEMS">Multiple OEMs</SelectItem>
+                      <SelectItem value="MULTIPLE_DEALERSHIPS">Multiple Dealerships</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -406,8 +407,8 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
               )}
             />
 
-            {/* OEM Selection (for OEM and DEALERSHIP scopes) */}
-            {isSuperAdmin && (watchedScope === 'OEM' || watchedScope === 'DEALERSHIP') && (
+            {/* OEM Selection (for OEM_SPECIFIC and DEALERSHIP_SPECIFIC scopes) */}
+            {isSuperAdmin && (watchedScope === 'OEM_SPECIFIC' || watchedScope === 'DEALERSHIP_SPECIFIC') && (
               <FormField
                 control={form.control}
                 name="oemId"
@@ -417,7 +418,7 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
                     <Select
                       onValueChange={(value) => {
                         field.onChange(value);
-                        if (watchedScope === 'DEALERSHIP') {
+                        if (watchedScope === 'DEALERSHIP_SPECIFIC') {
                           form.setValue('dealershipId', '');
                         }
                       }}
@@ -443,8 +444,8 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
               />
             )}
 
-            {/* Dealership Selection (for DEALERSHIP scope) */}
-            {isSuperAdmin && watchedScope === 'DEALERSHIP' && selectedOemId && (
+            {/* Dealership Selection (for DEALERSHIP_SPECIFIC scope) */}
+            {isSuperAdmin && watchedScope === 'DEALERSHIP_SPECIFIC' && selectedOemId && (
               <FormField
                 control={form.control}
                 name="dealershipId"
@@ -475,8 +476,8 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
               />
             )}
 
-            {/* Multiple OEMs Selection (for MULTIPLE scope) */}
-            {isSuperAdmin && watchedScope === 'MULTIPLE' && (
+            {/* Multiple OEMs Selection (for MULTIPLE_OEMS scope) */}
+            {isSuperAdmin && watchedScope === 'MULTIPLE_OEMS' && (
               <FormField
                 control={form.control}
                 name="oemIds"
@@ -500,8 +501,8 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
               />
             )}
 
-            {/* Multiple Dealerships Selection (for MULTIPLE scope) */}
-            {isSuperAdmin && watchedScope === 'MULTIPLE' && (
+            {/* Multiple Dealerships Selection (for MULTIPLE_DEALERSHIPS scope) */}
+            {isSuperAdmin && watchedScope === 'MULTIPLE_DEALERSHIPS' && (
               <FormField
                 control={form.control}
                 name="dealershipIds"

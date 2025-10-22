@@ -94,7 +94,7 @@ export const serviceGroupValues = ["PPF", "CERAMIC_COATING", "WINDOW_TINTING", "
 export const serviceGroupEnum = pgEnum("service_group", serviceGroupValues);
 
 // Availability Scope Values
-export const availabilityScopeValues = ["GLOBAL", "OEM", "DEALERSHIP", "MULTIPLE"] as const;
+export const availabilityScopeValues = ["GLOBAL", "OEM_SPECIFIC", "DEALERSHIP_SPECIFIC", "MULTIPLE_OEMS", "MULTIPLE_DEALERSHIPS"] as const;
 
 // Core Organization Tables
 export const oems = pgTable("oems", {
