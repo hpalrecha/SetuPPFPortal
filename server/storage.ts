@@ -650,15 +650,22 @@ export class DatabaseStorage implements IStorage {
     
     if (filters?.dealershipId) {
       // For dealership-specific services, include GLOBAL, OEM-specific, dealership-specific, and MULTIPLE
+      // Note: Dealerships use many-to-many OEM relationship via dealership_oem_mapping table
       query = query.where(
         and(
           eq(services.active, true),
           sql`(
             ${services.availabilityScope} = 'GLOBAL' OR 
             (${services.availabilityScope} = 'DEALERSHIP_SPECIFIC' AND ${services.dealershipId}::text = ${filters.dealershipId}) OR
-            (${services.availabilityScope} = 'OEM_SPECIFIC' AND ${services.oemId}::text = (SELECT oem_id::text FROM dealerships WHERE id::text = ${filters.dealershipId})) OR
+            (${services.availabilityScope} = 'OEM_SPECIFIC' AND ${services.oemId}::text IN (
+              SELECT oem_id::text FROM dealership_oem_mapping WHERE dealership_id::text = ${filters.dealershipId}
+            )) OR
             (${services.availabilityScope} = 'MULTIPLE_DEALERSHIPS' AND ${filters.dealershipId} = ANY(${services.dealershipIds}::text[])) OR
-            (${services.availabilityScope} = 'MULTIPLE_OEMS' AND (SELECT oem_id::text FROM dealerships WHERE id::text = ${filters.dealershipId}) = ANY(${services.oemIds}::text[]))
+            (${services.availabilityScope} = 'MULTIPLE_OEMS' AND EXISTS (
+              SELECT 1 FROM dealership_oem_mapping dom
+              WHERE dom.dealership_id::text = ${filters.dealershipId}
+              AND dom.oem_id::text = ANY(${services.oemIds}::text[])
+            ))
           )`
         )
       );
