@@ -132,7 +132,7 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
   const { data: dealerships = [] } = useQuery({
     queryKey: ['/api/dealerships', selectedOemId, watchedScope],
     queryFn: async () => {
-      const url = watchedScope === 'MULTIPLE' 
+      const url = watchedScope === 'MULTIPLE_DEALERSHIPS' 
         ? '/api/dealerships' 
         : `/api/dealerships?oemId=${selectedOemId}`;
       const response = await fetch(url, {
@@ -144,7 +144,7 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
       if (!response.ok) throw new Error('Failed to fetch dealerships');
       return response.json();
     },
-    enabled: isSuperAdmin && open && (watchedScope === 'MULTIPLE' || !!selectedOemId),
+    enabled: isSuperAdmin && open && (watchedScope === 'MULTIPLE_DEALERSHIPS' || !!selectedOemId),
   });
 
   const updateServiceMutation = useMutation({
@@ -223,7 +223,7 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
     setIsSubmitting(true);
     
     // Validate scope requirements
-    if (data.availabilityScope === 'OEM' && !data.oemId) {
+    if (data.availabilityScope === 'OEM_SPECIFIC' && !data.oemId) {
       toast({
         title: 'Error',
         description: 'OEM selection is required for OEM-specific services',
@@ -233,7 +233,7 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
       return;
     }
     
-    if (data.availabilityScope === 'DEALERSHIP' && (!data.oemId || !data.dealershipId)) {
+    if (data.availabilityScope === 'DEALERSHIP_SPECIFIC' && (!data.oemId || !data.dealershipId)) {
       toast({
         title: 'Error',
         description: 'OEM and Dealership selection is required for dealership-specific services',
@@ -243,10 +243,20 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
       return;
     }
     
-    if (data.availabilityScope === 'MULTIPLE' && (!data.oemIds?.length && !data.dealershipIds?.length)) {
+    if (data.availabilityScope === 'MULTIPLE_OEMS' && !data.oemIds?.length) {
       toast({
         title: 'Error',
-        description: 'At least one OEM or Dealership must be selected for multiple scope services',
+        description: 'At least one OEM must be selected',
+        variant: 'destructive',
+      });
+      setIsSubmitting(false);
+      return;
+    }
+    
+    if (data.availabilityScope === 'MULTIPLE_DEALERSHIPS' && !data.dealershipIds?.length) {
+      toast({
+        title: 'Error',
+        description: 'At least one Dealership must be selected',
         variant: 'destructive',
       });
       setIsSubmitting(false);
@@ -260,16 +270,21 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
       delete cleanData.dealershipId;
       delete cleanData.oemIds;
       delete cleanData.dealershipIds;
-    } else if (cleanData.availabilityScope === 'OEM') {
+    } else if (cleanData.availabilityScope === 'OEM_SPECIFIC') {
       delete cleanData.dealershipId;
       delete cleanData.oemIds;
       delete cleanData.dealershipIds;
-    } else if (cleanData.availabilityScope === 'DEALERSHIP') {
+    } else if (cleanData.availabilityScope === 'DEALERSHIP_SPECIFIC') {
       delete cleanData.oemIds;
       delete cleanData.dealershipIds;
-    } else if (cleanData.availabilityScope === 'MULTIPLE') {
+    } else if (cleanData.availabilityScope === 'MULTIPLE_OEMS') {
       delete cleanData.oemId;
       delete cleanData.dealershipId;
+      delete cleanData.dealershipIds;
+    } else if (cleanData.availabilityScope === 'MULTIPLE_DEALERSHIPS') {
+      delete cleanData.oemId;
+      delete cleanData.dealershipId;
+      delete cleanData.oemIds;
     }
 
     // Ensure rawMaterialIds is included
@@ -532,9 +547,10 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="GLOBAL">Global - Available to All</SelectItem>
-                      <SelectItem value="OEM">OEM Specific</SelectItem>
-                      <SelectItem value="DEALERSHIP">Dealership Specific</SelectItem>
-                      <SelectItem value="MULTIPLE">Multiple OEMs/Dealerships</SelectItem>
+                      <SelectItem value="OEM_SPECIFIC">OEM Specific</SelectItem>
+                      <SelectItem value="DEALERSHIP_SPECIFIC">Dealership Specific</SelectItem>
+                      <SelectItem value="MULTIPLE_OEMS">Multiple OEMs</SelectItem>
+                      <SelectItem value="MULTIPLE_DEALERSHIPS">Multiple Dealerships</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

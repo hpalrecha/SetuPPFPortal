@@ -119,6 +119,8 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
     mutationFn: async (data: ServiceFormData) => {
       const { rawMaterialIds, ...serviceData } = data;
       
+      console.log('Creating service with data:', serviceData);
+      
       // Create service first
       const response = await fetch('/api/services', {
         method: 'POST',
