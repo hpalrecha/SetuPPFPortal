@@ -173,7 +173,7 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
     setIsSubmitting(true);
     
     // Validate scope requirements
-    if (data.availabilityScope === 'OEM' && !data.oemId) {
+    if (data.availabilityScope === 'OEM_SPECIFIC' && !data.oemId) {
       toast({
         title: 'Error',
         description: 'OEM selection is required for OEM-specific services',
@@ -183,7 +183,7 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
       return;
     }
     
-    if (data.availabilityScope === 'DEALERSHIP' && (!data.oemId || !data.dealershipId)) {
+    if (data.availabilityScope === 'DEALERSHIP_SPECIFIC' && (!data.oemId || !data.dealershipId)) {
       toast({
         title: 'Error',
         description: 'OEM and Dealership selection is required for dealership-specific services',
@@ -193,33 +193,48 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
       return;
     }
     
-    if (data.availabilityScope === 'MULTIPLE' && (!data.oemIds?.length && !data.dealershipIds?.length)) {
+    if (data.availabilityScope === 'MULTIPLE_OEMS' && !data.oemIds?.length) {
       toast({
         title: 'Error',
-        description: 'At least one OEM or Dealership must be selected for multiple scope services',
+        description: 'At least one OEM must be selected',
+        variant: 'destructive',
+      });
+      setIsSubmitting(false);
+      return;
+    }
+    
+    if (data.availabilityScope === 'MULTIPLE_DEALERSHIPS' && !data.dealershipIds?.length) {
+      toast({
+        title: 'Error',
+        description: 'At least one Dealership must be selected',
         variant: 'destructive',
       });
       setIsSubmitting(false);
       return;
     }
 
-    // Clean up data based on scope
+    // Clean up data based on scope - remove unused fields
     const cleanData = { ...data };
     if (cleanData.availabilityScope === 'GLOBAL') {
       delete cleanData.oemId;
       delete cleanData.dealershipId;
       delete cleanData.oemIds;
       delete cleanData.dealershipIds;
-    } else if (cleanData.availabilityScope === 'OEM') {
+    } else if (cleanData.availabilityScope === 'OEM_SPECIFIC') {
       delete cleanData.dealershipId;
       delete cleanData.oemIds;
       delete cleanData.dealershipIds;
-    } else if (cleanData.availabilityScope === 'DEALERSHIP') {
+    } else if (cleanData.availabilityScope === 'DEALERSHIP_SPECIFIC') {
       delete cleanData.oemIds;
       delete cleanData.dealershipIds;
-    } else if (cleanData.availabilityScope === 'MULTIPLE') {
+    } else if (cleanData.availabilityScope === 'MULTIPLE_OEMS') {
       delete cleanData.oemId;
       delete cleanData.dealershipId;
+      delete cleanData.dealershipIds;
+    } else if (cleanData.availabilityScope === 'MULTIPLE_DEALERSHIPS') {
+      delete cleanData.oemId;
+      delete cleanData.dealershipId;
+      delete cleanData.oemIds;
     }
 
     createServiceMutation.mutate(cleanData);
