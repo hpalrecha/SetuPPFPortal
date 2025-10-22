@@ -4107,53 +4107,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // Allocation Routes
-  app.get("/api/allocations", authenticate, requireOEMAccess, async (req, res) => {
-    try {
-      const { partnerId, level, levelId } = req.query;
-      
-      const filters: any = {};
-      if (partnerId) filters.partnerId = partnerId as string;
-      if (level) filters.level = level as string;
-      if (levelId) filters.levelId = levelId as string;
+  // Allocation Routes - Restricted to SUPER_ADMIN and OEM_ADMIN only
+  app.get("/api/allocations", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    async (req, res) => {
+      try {
+        const { partnerId, level, levelId } = req.query;
+        
+        const filters: any = {};
+        if (partnerId) filters.partnerId = partnerId as string;
+        if (level) filters.level = level as string;
+        if (levelId) filters.levelId = levelId as string;
 
-      const allocations = await storage.getAllocations(filters);
-      res.json(allocations);
-    } catch (error) {
-      console.error("Get allocations error:", error);
-      res.status(500).json({ error: "Failed to fetch allocations" });
-    }
-  });
-
-  app.get("/api/allocations-with-categories", authenticate, requireOEMAccess, async (req, res) => {
-    try {
-      const { partnerId, level, levelId } = req.query;
-      
-      const filters: any = {};
-      if (partnerId) filters.partnerId = partnerId as string;
-      if (level) filters.level = level as string;
-      if (levelId) filters.levelId = levelId as string;
-
-      const allocations = await storage.getAllocationsWithCategories(filters);
-      res.json(allocations);
-    } catch (error) {
-      console.error("Get allocations with categories error:", error);
-      res.status(500).json({ error: "Failed to fetch allocations with categories" });
-    }
-  });
-
-  app.get("/api/allocations/:id", authenticate, requireOEMAccess, async (req, res) => {
-    try {
-      const allocation = await storage.getAllocation(req.params.id);
-      if (!allocation) {
-        return res.status(404).json({ error: "Allocation not found" });
+        const allocations = await storage.getAllocations(filters);
+        res.json(allocations);
+      } catch (error) {
+        console.error("Get allocations error:", error);
+        res.status(500).json({ error: "Failed to fetch allocations" });
       }
-      res.json(allocation);
-    } catch (error) {
-      console.error("Get allocation error:", error);
-      res.status(500).json({ error: "Failed to fetch allocation" });
     }
-  });
+  );
+
+  app.get("/api/allocations-with-categories", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    async (req, res) => {
+      try {
+        const { partnerId, level, levelId } = req.query;
+        
+        const filters: any = {};
+        if (partnerId) filters.partnerId = partnerId as string;
+        if (level) filters.level = level as string;
+        if (levelId) filters.levelId = levelId as string;
+
+        const allocations = await storage.getAllocationsWithCategories(filters);
+        res.json(allocations);
+      } catch (error) {
+        console.error("Get allocations with categories error:", error);
+        res.status(500).json({ error: "Failed to fetch allocations with categories" });
+      }
+    }
+  );
+
+  app.get("/api/allocations/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    async (req, res) => {
+      try {
+        const allocation = await storage.getAllocation(req.params.id);
+        if (!allocation) {
+          return res.status(404).json({ error: "Allocation not found" });
+        }
+        res.json(allocation);
+      } catch (error) {
+        console.error("Get allocation error:", error);
+        res.status(500).json({ error: "Failed to fetch allocation" });
+      }
+    }
+  );
 
   // Get allocation brands
   app.get("/api/allocations/:id/brands", 

@@ -655,24 +655,22 @@ export class DatabaseStorage implements IStorage {
           eq(services.active, true),
           sql`(
             ${services.availabilityScope} = 'GLOBAL' OR 
-            (${services.availabilityScope} = 'DEALERSHIP' AND ${services.dealershipId}::text = ${filters.dealershipId}) OR
-            (${services.availabilityScope} = 'OEM' AND ${services.oemId}::text = (SELECT oem_id::text FROM dealerships WHERE id::text = ${filters.dealershipId})) OR
-            (${services.availabilityScope} = 'MULTIPLE' AND (
-              ${filters.dealershipId} = ANY(${services.dealershipIds}::text[]) OR
-              (SELECT oem_id::text FROM dealerships WHERE id::text = ${filters.dealershipId}) = ANY(${services.oemIds}::text[])
-            ))
+            (${services.availabilityScope} = 'DEALERSHIP_SPECIFIC' AND ${services.dealershipId}::text = ${filters.dealershipId}) OR
+            (${services.availabilityScope} = 'OEM_SPECIFIC' AND ${services.oemId}::text = (SELECT oem_id::text FROM dealerships WHERE id::text = ${filters.dealershipId})) OR
+            (${services.availabilityScope} = 'MULTIPLE_DEALERSHIPS' AND ${filters.dealershipId} = ANY(${services.dealershipIds}::text[])) OR
+            (${services.availabilityScope} = 'MULTIPLE_OEMS' AND (SELECT oem_id::text FROM dealerships WHERE id::text = ${filters.dealershipId}) = ANY(${services.oemIds}::text[]))
           )`
         )
       );
     } else if (filters?.oemId) {
-      // For OEM-specific services, include GLOBAL, OEM-specific, and MULTIPLE with matching OEMs
+      // For OEM-specific services, include GLOBAL, OEM-specific, and MULTIPLE_OEMS with matching OEMs
       query = query.where(
         and(
           eq(services.active, true),
           sql`(
             ${services.availabilityScope} = 'GLOBAL' OR 
-            (${services.availabilityScope} = 'OEM' AND ${services.oemId}::text = ${filters.oemId}) OR
-            (${services.availabilityScope} = 'MULTIPLE' AND ${filters.oemId} = ANY(${services.oemIds}::text[]))
+            (${services.availabilityScope} = 'OEM_SPECIFIC' AND ${services.oemId}::text = ${filters.oemId}) OR
+            (${services.availabilityScope} = 'MULTIPLE_OEMS' AND ${filters.oemId} = ANY(${services.oemIds}::text[]))
           )`
         )
       );
