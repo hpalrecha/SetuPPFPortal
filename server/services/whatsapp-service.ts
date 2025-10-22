@@ -73,53 +73,10 @@ export class WhatsAppService {
     }
   }
 
-  // Get brand-specific WABA config from database
-  async getBrandWABAConfig(brandId: string): Promise<MetaWABAConfig | null> {
+  async sendMessage(message: WhatsAppMessage): Promise<boolean> {
     try {
-      const [brand] = await db
-        .select()
-        .from(brands)
-        .where(eq(brands.id, brandId));
-      
-      if (!brand || !brand.wabaPhoneNumberId || !brand.wabaBusinessAccountId) {
-        return null;
-      }
-
-      // Use brand-specific access token if available, otherwise use default
-      const accessToken = brand.wabaAccessToken || this.config?.accessToken || process.env.META_WABA_ACCESS_TOKEN;
-      
-      if (!accessToken) {
-        return null;
-      }
-
-      return {
-        accessToken,
-        phoneNumberId: brand.wabaPhoneNumberId,
-        businessAccountId: brand.wabaBusinessAccountId,
-        apiVersion: this.config?.apiVersion || 'v19.0'
-      };
-    } catch (error) {
-      console.error('❌ Failed to get brand WABA config:', error);
-      return null;
-    }
-  }
-
-  async sendMessage(message: WhatsAppMessage, brandId?: string): Promise<boolean> {
-    try {
-      // Try to get brand-specific WABA config first
-      let wabaConfig: MetaWABAConfig | null = null;
-      
-      if (brandId) {
-        wabaConfig = await this.getBrandWABAConfig(brandId);
-        if (wabaConfig) {
-          console.log(`📱 Using brand-specific WABA config for brand: ${brandId}`);
-        }
-      }
-      
-      // Fallback to default config if no brand-specific config
-      if (!wabaConfig) {
-        wabaConfig = this.config;
-      }
+      // Use default WABA config
+      const wabaConfig = this.config;
 
       if (!wabaConfig) {
         // Development mode - log message content
@@ -201,30 +158,22 @@ export class WhatsAppService {
     return 'Unknown message format';
   }
 
-  // Send message using database template
+  // Send message using database template (simplified - no brand dependency)
   async sendTemplateMessage(
     phoneNumber: string,
-    brandId: string,
-    eventType: string,
+    templateName: string,
+    languageCode: string,
     parameters: { [key: string]: string },
     buttonUrl?: string
   ): Promise<boolean> {
     try {
-      // Get template from database
-      const storage = (await import('../storage')).storage;
-      const template = await storage.getWhatsappTemplateByBrandAndEvent(brandId, eventType);
-      
-      if (!template) {
-        console.log(`⚠️ No template found for brand ${brandId} and event ${eventType}, falling back to custom message`);
-        return false;
-      }
-
       // Build template components
       const components: any[] = [];
       
       // Add body parameters if any
-      if (template.parametersCount > 0) {
-        const bodyParams = Object.values(parameters).slice(0, template.parametersCount).map(value => ({
+      const parameterValues = Object.values(parameters);
+      if (parameterValues.length > 0) {
+        const bodyParams = parameterValues.map(value => ({
           type: 'text',
           text: value
         }));
@@ -245,18 +194,18 @@ export class WhatsAppService {
         });
       }
 
-      // Send message using brand-specific WABA
+      // Send message using default WABA configuration
       return await this.sendMessage({
         to: phoneNumber,
         type: 'template',
         template: {
-          name: template.templateName,
-          language: { code: template.languageCode },
+          name: templateName,
+          language: { code: languageCode },
           components
         }
-      }, brandId);
+      });
     } catch (error) {
-      console.error(`❌ Failed to send template message for event ${eventType}:`, error);
+      console.error(`❌ Failed to send template message:`, error);
       return false;
     }
   }

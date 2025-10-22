@@ -245,7 +245,7 @@ export class NotificationService {
       'SMS', 
       {
         ...payload,
-        message: `URGENT: New PPF job assigned. Please acknowledge in SetuPPF app within 2 hours.`
+        message: `URGENT: New PPF job assigned. Please acknowledge in Pulse VAS app within 2 hours.`
       }
     );
   }
@@ -261,44 +261,16 @@ export class NotificationService {
     // Send WhatsApp notification to assigned detailer/installer
     if (assignedUser.phone) {
       try {
-        // Get brand from service
-        const service = await storage.getService(workOrder.serviceId);
-        const brandId = service?.productBrand ? await this.getBrandIdByName(service.productBrand) : null;
+        const showroom = await storage.getShowroom(workOrder.showroomId);
         
-        // Try template-based messaging first if brand is configured
-        let templateSent = false;
-        if (brandId) {
-          const partner = await storage.getPartner(jobCard.partnerId);
-          const showroom = await storage.getShowroom(workOrder.showroomId);
-          
-          templateSent = await whatsappService.sendTemplateMessage(
-            whatsappService.formatPhoneNumber(assignedUser.phone),
-            brandId,
-            'job_card_created',
-            {
-              partnerName: assignedUser.name,
-              vehicleDetails: `${workOrder.vehicleModel} - ${workOrder.customerName}`,
-              showroomName: showroom?.name || 'Unknown',
-              serviceName: workOrder.serviceName
-            },
-            jobCard.id
-          );
-        }
-        
-        // Fallback to direct WhatsApp method if template failed
-        if (!templateSent) {
-          const partner = await storage.getPartner(jobCard.partnerId);
-          const showroom = await storage.getShowroom(workOrder.showroomId);
-          
-          await whatsappService.sendJobCardCreated(
-            whatsappService.formatPhoneNumber(assignedUser.phone),
-            assignedUser.name,
-            `${workOrder.vehicleModel} - ${workOrder.customerName}`,
-            showroom?.name || 'Unknown',
-            workOrder.serviceName,
-            jobCard.id
-          );
-        }
+        await whatsappService.sendJobCardCreated(
+          whatsappService.formatPhoneNumber(assignedUser.phone),
+          assignedUser.name,
+          `${workOrder.vehicleModel} - ${workOrder.customerName}`,
+          showroom?.name || 'Unknown',
+          workOrder.serviceName,
+          jobCard.id
+        );
         
         console.log(`📱 WhatsApp notification sent to detailer ${assignedUser.name} for job card ${jobCard.id.slice(0, 8)}`);
       } catch (error) {
@@ -334,40 +306,17 @@ export class NotificationService {
       ? (await storage.getUser(jobCard.assignedToUserId))?.name || 'Unknown'
       : 'Unknown';
 
-    // Get brand from service
-    const service = await storage.getService(workOrder.serviceId);
-    const brandId = service?.productBrand ? await this.getBrandIdByName(service.productBrand) : null;
-
     // Send WhatsApp notifications to showroom managers
     for (const manager of showroomManagers) {
       if (manager.phone) {
         try {
-          // Try template-based messaging first if brand is configured
-          let templateSent = false;
-          if (brandId) {
-            templateSent = await whatsappService.sendTemplateMessage(
-              whatsappService.formatPhoneNumber(manager.phone),
-              brandId,
-              'job_card_completed',
-              {
-                partnerName: detailerName,
-                vehicleDetails: `${workOrder.vehicleModel} - ${workOrder.customerName}`,
-                serviceName: workOrder.serviceName
-              },
-              jobCard.id
-            );
-          }
-          
-          // Fallback to direct WhatsApp method if template failed
-          if (!templateSent) {
-            await whatsappService.sendJobCardCompleted(
-              whatsappService.formatPhoneNumber(manager.phone),
-              detailerName,
-              `${workOrder.vehicleModel} - ${workOrder.customerName}`,
-              workOrder.serviceName,
-              jobCard.id
-            );
-          }
+          await whatsappService.sendJobCardCompleted(
+            whatsappService.formatPhoneNumber(manager.phone),
+            detailerName,
+            `${workOrder.vehicleModel} - ${workOrder.customerName}`,
+            workOrder.serviceName,
+            jobCard.id
+          );
           
           console.log(`📱 WhatsApp completion notification sent to showroom manager ${manager.name}`);
         } catch (error) {
@@ -685,16 +634,6 @@ export class NotificationService {
   }
 
   // Helper methods
-  private async getBrandIdByName(brandName: string): Promise<string | null> {
-    try {
-      const brand = await storage.getBrandByName(brandName);
-      return brand?.id || null;
-    } catch (error) {
-      console.error(`❌ Failed to get brand ID for ${brandName}:`, error);
-      return null;
-    }
-  }
-
   private async getUsersByRole(
     roles: string[], 
     filters: {
