@@ -77,6 +77,7 @@ export function CreateWorkOrderModal({
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isDealershipAdmin = user?.role === 'DEALERSHIP_ADMIN';
 
   const form = useForm<WorkOrderFormData>({
     resolver: zodResolver(workOrderSchema),
@@ -142,6 +143,22 @@ export function CreateWorkOrderModal({
       return response.json();
     },
     enabled: isSuperAdmin && !!selectedDealershipId && !!selectedOemId,
+  });
+
+  // Fetch showrooms for DEALERSHIP_ADMIN users
+  const { data: dealershipShowrooms = [] } = useQuery({
+    queryKey: ["/api/showrooms", user?.dealershipId, user?.oemId],
+    queryFn: async () => {
+      const response = await fetch(`/api/showrooms?dealershipId=${user?.dealershipId}&oemId=${user?.oemId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch showrooms');
+      return response.json();
+    },
+    enabled: isDealershipAdmin && !!user?.dealershipId && !!user?.oemId,
   });
 
   // Get the OEM ID for vehicle data fetching
@@ -226,7 +243,24 @@ export function CreateWorkOrderModal({
         dealershipId: data.dealershipId, 
         showroomId: data.showroomId,
       };
+    } else if (isDealershipAdmin) {
+      // DEALERSHIP_ADMIN: Must select showroom from their dealership
+      if (!data.showroomId) {
+        toast({
+          title: "Error",
+          description: "Please select a showroom",
+          variant: "destructive",
+        });
+        return;
+      }
+      workOrderData = {
+        ...data,
+        oemId: user!.oemId,
+        dealershipId: user!.dealershipId,
+        showroomId: data.showroomId,
+      };
     } else {
+      // SHOWROOM_MANAGER and SALES_PERSON: Use their showroom
       if (!user?.showroomId || !user?.dealershipId || !user?.oemId) {
         toast({
           title: "Error",
@@ -275,6 +309,46 @@ export function CreateWorkOrderModal({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Showroom Selection (Dealership Admin Only) */}
+            {isDealershipAdmin && (
+              <div className="space-y-4 p-4 border border-green-200 rounded-lg bg-green-50">
+                <div className="flex items-center gap-2 mb-4">
+                  <Store className="h-5 w-5 text-green-600" />
+                  <h3 className="text-lg font-medium text-green-800">Select Showroom</h3>
+                  <Badge variant="outline" className="text-xs bg-green-100 text-green-700">Required</Badge>
+                </div>
+                
+                <FormField
+                  control={form.control}
+                  name="showroomId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-green-700">Showroom</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        data-testid="select-dealership-showroom"
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select showroom for this work order" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {dealershipShowrooms?.map((showroom: any) => (
+                            <SelectItem key={showroom.id} value={showroom.id}>
+                              {showroom.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
+
             {/* Organization Selection (Super Admin Only) */}
             {isSuperAdmin && (
               <div className="space-y-4 p-4 border border-blue-200 rounded-lg bg-blue-50">
