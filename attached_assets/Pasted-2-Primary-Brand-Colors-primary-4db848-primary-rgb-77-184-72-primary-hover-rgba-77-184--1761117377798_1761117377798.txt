@@ -1,0 +1,53 @@
+2. Primary Brand Colors
+--primary: #4db848
+--primary-rgb: 77, 184, 72
+--primary-hover: rgba(77, 184, 72, 0.9)
+--primary-light: rgba(77, 184, 72, 0.1)
+3. Typography - Google Fonts
+Import these fonts:
+
+@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap');
+Font Stack:
+
+Body text: Sarabun (default)
+Headings: Oxanium (bold, tracking-tight)
+Monospace: SF Mono, Menlo, Monaco, Consolas
+4. Custom Shadows
+boxShadow: {
+  'premium': '0 4px 20px rgba(0, 0, 0, 0.08)',
+  'premium-hover': '0 8px 30px rgba(0, 0, 0, 0.12)',
+  'subtle': '0 1px 3px rgba(0, 0, 0, 0.05)',
+  'card': '0 2px 8px rgba(0, 0, 0, 0.06)'
+}
+5. Border Radius
+borderRadius: {
+  lg: "var(--radius)",     // 0.25rem
+  md: "calc(var(--radius) - 2px)",
+  sm: "calc(var(--radius) - 4px)",
+  xl: "16px",
+  "2xl": "20px"
+}
+6. Custom Animations
+accordion-down / accordion-up
+float - 6s floating effect
+fade-in - 0.7s opacity transition
+fade-in-up - 0.6s slide up with fade
+scale - 0.4s scale effect
+7. Utility Classes
+.glass-panel - White backdrop blur effect
+.dark-panel - Dark neutral background
+.btn-premium - Black solid button
+.btn-premium-outline - Black outline button
+.btn-premium-accent - Green P91 brand button
+.premium-card - White card with hover shadow
+.hero-gradient - Dark gradient overlay
+.container-premium - Max-width container with padding
+.separator - Small accent line (neutral-900)
+8. Background Colors
+Main background: White (#FFFFFF)
+Text: Neutral-900 (#171717)
+Dark backgrounds: Neutral-900 with 95% opacity
+9. Complete CSS Variables Setup
+The theme uses Tailwind's CSS variable system with HSL colors for shadcn components. All standard shadcn variables are configured (background, foreground, card, popover, primary, secondary, muted, accent, destructive, border, input, ring, chart colors, sidebar colors).
+
+This configuration creates the P91 brand feel with the green accent color (#4db848), clean typography using Oxanium for headings and Sarabun for body text, and premium subtle shadows and animations.

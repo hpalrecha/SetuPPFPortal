@@ -8,6 +8,58 @@ The application serves multiple user roles including Super Admins, OEM Admins, D
 
 Preferred communication style: Simple, everyday language.
 
+# Design System & Branding
+
+## P91 Brand Theme (Updated: October 22, 2025)
+
+### Primary Colors
+- **Brand Green**: #4db848 (HSL: 118° 44% 50%)
+- **Primary RGB**: 77, 184, 72
+- **Primary Hover**: rgba(77, 184, 72, 0.9)
+- **Primary Light**: rgba(77, 184, 72, 0.1)
+
+### Typography
+- **Headings**: Oxanium (400, 500, 600, 700) - Bold, tracking-tight
+- **Body Text**: Sarabun (300, 400, 500, 600, 700) - Default font
+- **Monospace**: SF Mono, Menlo, Monaco, Consolas
+
+### Custom Shadows
+- **Premium**: 0 4px 20px rgba(0, 0, 0, 0.08)
+- **Premium Hover**: 0 8px 30px rgba(0, 0, 0, 0.12)
+- **Subtle**: 0 1px 3px rgba(0, 0, 0, 0.05)
+- **Card**: 0 2px 8px rgba(0, 0, 0, 0.06)
+
+### Border Radius
+- **lg**: 4px (0.25rem)
+- **md**: 2px
+- **sm**: 0px
+- **xl**: 16px
+- **2xl**: 20px
+
+### Custom Animations
+- **accordion-down / accordion-up**: Standard accordion transitions
+- **float**: 6s floating effect for elements
+- **fade-in**: 0.7s opacity transition
+- **fade-in-up**: 0.6s slide up with fade
+- **scale**: 0.4s scale effect
+
+### Utility Classes
+- **.glass-panel**: White backdrop blur effect
+- **.dark-panel**: Dark neutral background (95% opacity)
+- **.btn-premium**: Black solid button with hover shadow
+- **.btn-premium-outline**: Black outline button
+- **.btn-premium-accent**: Green P91 brand button
+- **.premium-card**: White card with premium shadow and hover effect
+- **.hero-gradient**: Dark gradient overlay for hero sections
+- **.container-premium**: Max-width container with responsive padding
+- **.separator**: Small accent line (neutral-900)
+
+### Color Palette
+- **Background**: White (#FFFFFF) / Neutral-900 in dark mode
+- **Foreground**: Neutral-900 (#171717) / White in dark mode
+- **Cards**: White with subtle shadows
+- **Borders**: Neutral-200 (light) / Neutral-800 (dark)
+
 # System Architecture
 
 ## Frontend Architecture
