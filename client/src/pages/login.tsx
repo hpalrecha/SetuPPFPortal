@@ -57,7 +57,7 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-xl mb-4">
             <Shield className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground">SetuPPF</h1>
+          <h1 className="text-3xl font-bold text-foreground">Pulse VAS</h1>
           <p className="text-muted-foreground mt-2">PPF Installation Management Portal</p>
         </div>
 

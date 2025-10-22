@@ -306,7 +306,7 @@ export class PulseWebhookService {
       // Send email
       await emailService.sendEmail({
         to: email,
-        subject: 'Welcome to PPF Setu - Set Your Password',
+        subject: 'Welcome to Pulse VAS - Set Your Password',
         html: `
           <!DOCTYPE html>
           <html>
@@ -323,12 +323,12 @@ export class PulseWebhookService {
           <body>
             <div class="container">
               <div class="header">
-                <h1 style="margin: 0;">Welcome to PPF Setu! 🎉</h1>
+                <h1 style="margin: 0;">Welcome to Pulse VAS! 🎉</h1>
               </div>
               <div class="content">
                 <p>Hello ${name},</p>
                 
-                <p>Your account has been created in the PPF Setu portal. You now have access to manage your installation services and track job cards.</p>
+                <p>Your account has been created in the Pulse VAS portal. You now have access to manage your installation services and track job cards.</p>
                 
                 <p><strong>To get started, please set your password:</strong></p>
                 
@@ -344,7 +344,7 @@ export class PulseWebhookService {
                 <p>If you have any questions, please contact your administrator.</p>
               </div>
               <div class="footer">
-                <p>SetuPPF - Professional Paint Protection Film Services</p>
+                <p>Pulse VAS - Professional Paint Protection Film Services</p>
               </div>
             </div>
           </body>

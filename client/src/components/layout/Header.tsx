@@ -55,7 +55,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
             <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary rounded-lg flex items-center justify-center">
               <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
             </div>
-            <h1 className="text-lg sm:text-xl font-semibold text-foreground hidden xs:block">SetuPPF</h1>
+            <h1 className="text-lg sm:text-xl font-semibold text-foreground hidden xs:block">Pulse VAS</h1>
           </div>
         </div>
 

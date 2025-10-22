@@ -255,7 +255,7 @@ export class EmailService {
             <p>Thank you for choosing our services!</p>
           </div>
           <div class="footer">
-            <p>SetuPPF - Professional Paint Protection Film Services</p>
+            <p>Pulse VAS - Professional Paint Protection Film Services</p>
           </div>
         </div>
       </body>
@@ -327,7 +327,7 @@ export class EmailService {
             <p>Thank you for your excellent work! Keep up the great service.</p>
           </div>
           <div class="footer">
-            <p>SetuPPF - Professional Paint Protection Film Services</p>
+            <p>Pulse VAS - Professional Paint Protection Film Services</p>
           </div>
         </div>
       </body>
@@ -378,7 +378,7 @@ export class EmailService {
           <div class="content">
             <p>Hello ${userName},</p>
             
-            <p>We received a request to reset your password for your SetuPPF account. If you didn't make this request, you can safely ignore this email.</p>
+            <p>We received a request to reset your password for your Pulse VAS account. If you didn't make this request, you can safely ignore this email.</p>
             
             <p>To reset your password, click the button below:</p>
             
@@ -398,10 +398,10 @@ export class EmailService {
             
             <p>If you continue to have problems, please contact our support team.</p>
             
-            <p>Thank you,<br>The SetuPPF Team</p>
+            <p>Thank you,<br>The Pulse VAS Team</p>
           </div>
           <div class="footer">
-            <p>SetuPPF - Professional Paint Protection Film Services<br>
+            <p>Pulse VAS - Professional Paint Protection Film Services<br>
             This is an automated message, please do not reply.</p>
           </div>
         </div>
@@ -411,7 +411,7 @@ export class EmailService {
 
     return this.sendEmail({
       to: recipientEmail,
-      subject: 'Password Reset Request - SetuPPF',
+      subject: 'Password Reset Request - Pulse VAS',
       html
     });
   }
@@ -452,7 +452,7 @@ export class EmailService {
             <p>If you didn't request this OTP, please ignore this email.</p>
           </div>
           <div class="footer">
-            <p>SetuPPF - Professional Paint Protection Film Services<br>
+            <p>Pulse VAS - Professional Paint Protection Film Services<br>
             This is an automated message, please do not reply.</p>
           </div>
         </div>
@@ -509,7 +509,7 @@ export class EmailService {
             </div>
           </div>
           <div class="footer">
-            <p>SetuPPF - Professional Paint Protection Film Services</p>
+            <p>Pulse VAS - Professional Paint Protection Film Services</p>
           </div>
         </div>
       </body>
@@ -559,7 +559,7 @@ export class EmailService {
             </div>
           </div>
           <div class="footer">
-            <p>SetuPPF - Professional Paint Protection Film Services</p>
+            <p>Pulse VAS - Professional Paint Protection Film Services</p>
           </div>
         </div>
       </body>
@@ -610,7 +610,7 @@ export class EmailService {
             </div>
           </div>
           <div class="footer">
-            <p>SetuPPF - Professional Paint Protection Film Services</p>
+            <p>Pulse VAS - Professional Paint Protection Film Services</p>
           </div>
         </div>
       </body>
@@ -662,7 +662,7 @@ export class EmailService {
             </div>
           </div>
           <div class="footer">
-            <p>SetuPPF - Professional Paint Protection Film Services</p>
+            <p>Pulse VAS - Professional Paint Protection Film Services</p>
           </div>
         </div>
       </body>
