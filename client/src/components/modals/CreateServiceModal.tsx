@@ -235,7 +235,7 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Service</DialogTitle>
         </DialogHeader>
@@ -616,7 +616,9 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
                               {oem.name}
                             </div>
                             {dealerships
-                              .filter((dealership: any) => dealership.oemId === oem.id)
+                              .filter((dealership: any) => 
+                                dealership.oemIds?.includes(oem.id) || dealership.oemId === oem.id
+                              )
                               .map((dealership: any) => (
                                 <div key={dealership.id} className="flex items-center space-x-2 ml-4">
                                   <Checkbox
