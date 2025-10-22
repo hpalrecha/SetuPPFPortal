@@ -57,12 +57,12 @@ export function Header({ onToggleSidebar }: HeaderProps) {
             <img 
               src={logoGreen} 
               alt="Pulse VAS" 
-              className="h-8 sm:h-10 w-auto object-contain dark:hidden"
+              className="h-[42px] sm:h-[52px] w-auto object-contain dark:hidden"
             />
             <img 
               src={logoWhite} 
               alt="Pulse VAS" 
-              className="h-8 sm:h-10 w-auto object-contain hidden dark:block"
+              className="h-[42px] sm:h-[52px] w-auto object-contain hidden dark:block"
             />
           </div>
         </div>
