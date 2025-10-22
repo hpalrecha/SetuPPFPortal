@@ -5890,6 +5890,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========================================
+  // PULSE WEBHOOK INTEGRATION
+  // ========================================
+  
+  // Import pulse webhook service
+  const { pulseWebhookService } = await import('./services/pulseWebhookService');
+
+  /**
+   * Pulse webhook endpoint for user access control
+   * POST /api/webhooks/pulse/user-access
+   */
+  app.post("/api/webhooks/pulse/user-access", async (req, res) => {
+    try {
+      const signature = req.headers['x-pulse-signature'] as string;
+      const payload = req.body;
+
+      // Verify signature
+      const payloadString = JSON.stringify(payload);
+      const isValid = pulseWebhookService.verifySignature(payloadString, signature || '');
+
+      if (!isValid) {
+        console.error('❌ Invalid Pulse webhook signature');
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid signature'
+        });
+      }
+
+      // Process webhook
+      const result = await pulseWebhookService.processWebhook(payload, req.user?.id);
+
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error: any) {
+      console.error('❌ Pulse webhook error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Internal server error'
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
