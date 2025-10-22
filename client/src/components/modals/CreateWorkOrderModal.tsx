@@ -191,11 +191,12 @@ export function CreateWorkOrderModal({
   const vehicleModels = selectedBrandId ? 
     (vehicleData?.find((brand: any) => brand.id === selectedBrandId)?.models || []) : [];
 
-  // Fetch services
+  // Fetch services filtered by OEM context
   const { data: services = [] } = useQuery({
-    queryKey: ["/api/services"],
+    queryKey: ["/api/services", finalOemId],
     queryFn: async () => {
-      const response = await fetch('/api/services', {
+      const url = finalOemId ? `/api/services?oemId=${finalOemId}` : '/api/services';
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -204,6 +205,7 @@ export function CreateWorkOrderModal({
       if (!response.ok) throw new Error('Failed to fetch services');
       return response.json();
     },
+    enabled: !!finalOemId,
   });
 
   // Fetch sales persons based on selected showroom
