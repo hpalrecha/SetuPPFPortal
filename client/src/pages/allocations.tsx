@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Edit, Trash2, Building, MapPin, Filter, Search } from "lucide-react";
 import { CreateAllocationModal } from "@/components/modals/CreateAllocationModal";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 interface Allocation {
   id: string;
@@ -33,6 +35,8 @@ interface Allocation {
 export default function Allocations() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
+  const { user } = useAuth();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingAllocation, setEditingAllocation] = useState<Allocation | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -40,6 +44,18 @@ export default function Allocations() {
   const [selectedDealership, setSelectedDealership] = useState<string>("all");
   const [selectedShowroom, setSelectedShowroom] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+
+  // Redirect if not SUPER_ADMIN
+  useEffect(() => {
+    if (user && user.role !== "SUPER_ADMIN") {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to access this page.",
+        variant: "destructive",
+      });
+      navigate("/dashboard");
+    }
+  }, [user, navigate, toast]);
 
   // Fetch allocations
   const { data: allocations = [], isLoading } = useQuery({

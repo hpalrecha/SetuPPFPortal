@@ -43,7 +43,7 @@ const baseNavigation = [
   { name: "Partners", href: "/partners", icon: Handshake, roles: ["SUPER_ADMIN", "SHOWROOM_MANAGER"] },
   { name: "Staff Management", href: "/partner-staff", icon: Users, roles: ["PARTNER_ADMIN"] },
   { name: "Payouts & Earnings", href: "/payouts", icon: DollarSign, roles: ["PARTNER_ADMIN"] },
-  { name: "Allocations", href: "/allocations", icon: Network, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER"] },
+  { name: "Allocations", href: "/allocations", icon: Network, roles: ["SUPER_ADMIN"] },
   { name: "Services", href: "/services", icon: Shield, roles: ["SUPER_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON"] },
   { name: "Pricing Rules", href: "/pricing", icon: DollarSign, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN"] },
   { name: "Commissions", href: "/commissions", icon: Percent, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN"] },

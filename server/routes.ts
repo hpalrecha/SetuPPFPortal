@@ -5744,10 +5744,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // 🧪 RAW MATERIALS ROUTES
+  // 🧪 RAW MATERIALS ROUTES - SUPER_ADMIN ONLY
 
   // Get all raw materials
-  app.get("/api/p91/raw_material", authenticate, requireOEMAccess, async (req, res) => {
+  app.get("/api/p91/raw_material", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
     try {
       const materials = await storage.getRawMaterials();
       res.json(materials);
@@ -5758,7 +5758,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get single raw material
-  app.get("/api/p91/raw_material/:id", authenticate, requireOEMAccess, async (req, res) => {
+  app.get("/api/p91/raw_material/:id", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
     try {
       const { id } = req.params;
       const material = await storage.getRawMaterial(id);
@@ -5775,7 +5775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Add or update raw material (upsert by name)
-  app.post("/api/p91/raw_material/add", authenticate, requireOEMAccess, async (req, res) => {
+  app.post("/api/p91/raw_material/add", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
     try {
       const { name, brandId } = req.body;
 
@@ -5804,7 +5804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update raw material
-  app.put("/api/p91/raw_material/update/:id", authenticate, requireOEMAccess, async (req, res) => {
+  app.put("/api/p91/raw_material/update/:id", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
     try {
       const { id } = req.params;
       const { name, brandId } = req.body;
@@ -5827,7 +5827,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete raw material
-  app.delete("/api/p91/raw_material/delete/:id", authenticate, requireOEMAccess, async (req, res) => {
+  app.delete("/api/p91/raw_material/delete/:id", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
     try {
       const { id } = req.params;
       const deleted = await storage.deleteRawMaterial(id);
@@ -5844,7 +5844,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get raw materials for a service
-  app.get("/api/p91/service/:serviceId/raw_materials", authenticate, requireOEMAccess, async (req, res) => {
+  app.get("/api/p91/service/:serviceId/raw_materials", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
     try {
       const { serviceId } = req.params;
       const materials = await storage.getServiceRawMaterials(serviceId);
@@ -5856,7 +5856,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Add raw material to service
-  app.post("/api/p91/service/:serviceId/raw_materials", authenticate, requireOEMAccess, async (req, res) => {
+  app.post("/api/p91/service/:serviceId/raw_materials", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
     try {
       const { serviceId } = req.params;
       const { rawMaterialId } = req.body;
@@ -5874,7 +5874,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Remove raw material from service
-  app.delete("/api/p91/service/:serviceId/raw_materials/:rawMaterialId", authenticate, requireOEMAccess, async (req, res) => {
+  app.delete("/api/p91/service/:serviceId/raw_materials/:rawMaterialId", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
     try {
       const { serviceId, rawMaterialId } = req.params;
       const deleted = await storage.removeServiceRawMaterial(serviceId, rawMaterialId);
