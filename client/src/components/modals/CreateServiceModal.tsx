@@ -6,20 +6,14 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Check, X } from 'lucide-react';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/hooks/use-auth';
 import { insertServiceSchema, serviceGroupValues, availabilityScopeValues } from '@shared/schema';
-import { cn } from '@/lib/utils';
 
 // Transform shared schema to UI-compatible types using shared enums
 const serviceSchema = insertServiceSchema.extend({
@@ -46,7 +40,6 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
   const { user } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [rawMaterialsOpen, setRawMaterialsOpen] = useState(false);
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
@@ -361,97 +354,17 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Raw Materials Used (Optional)</FormLabel>
-                    <div className="space-y-2">
-                      <Popover open={rawMaterialsOpen} onOpenChange={setRawMaterialsOpen}>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              aria-expanded={rawMaterialsOpen}
-                              className="w-full justify-between"
-                              data-testid="button-select-materials"
-                            >
-                              {field.value?.length 
-                                ? `${field.value.length} material${field.value.length > 1 ? 's' : ''} selected`
-                                : "Select materials..."}
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[400px] p-0" align="start">
-                          <Command className="overflow-visible">
-                            <CommandInput placeholder="Search materials..." />
-                            <CommandList className="max-h-[300px] overflow-y-auto">
-                              <CommandEmpty>No materials found.</CommandEmpty>
-                              <CommandGroup>
-                                {rawMaterials.map((material: any) => {
-                                  const isSelected = field.value?.includes(material.id);
-                                  return (
-                                    <CommandItem
-                                      key={material.id}
-                                      value={`${material.name} ${material.brand || ''}`}
-                                      onSelect={() => {
-                                        const currentValue = field.value || [];
-                                        if (isSelected) {
-                                          field.onChange(currentValue.filter((id: string) => id !== material.id));
-                                        } else {
-                                          field.onChange([...currentValue, material.id]);
-                                        }
-                                      }}
-                                      data-testid={`command-item-material-${material.id}`}
-                                    >
-                                      <Check
-                                        className={cn(
-                                          "mr-2 h-4 w-4",
-                                          isSelected ? "opacity-100" : "opacity-0"
-                                        )}
-                                      />
-                                      <div className="flex flex-col">
-                                        <span className="font-medium">{material.name}</span>
-                                        {material.brand && (
-                                          <span className="text-xs text-muted-foreground">{material.brand}</span>
-                                        )}
-                                      </div>
-                                    </CommandItem>
-                                  );
-                                })}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                      
-                      {/* Display selected materials as badges */}
-                      {field.value && field.value.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {field.value.map((materialId: string) => {
-                            const material = rawMaterials.find((m: any) => m.id === materialId);
-                            if (!material) return null;
-                            return (
-                              <Badge 
-                                key={materialId} 
-                                variant="secondary" 
-                                className="gap-1 flex items-center"
-                                data-testid={`badge-material-${materialId}`}
-                              >
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{material.name}</span>
-                                  {material.brand && (
-                                    <span className="text-xs opacity-80">{material.brand}</span>
-                                  )}
-                                </div>
-                                <X
-                                  className="h-3 w-3 cursor-pointer ml-1"
-                                  onClick={() => {
-                                    field.onChange(field.value?.filter((id: string) => id !== materialId));
-                                  }}
-                                />
-                              </Badge>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+                    <FormControl>
+                      <MultiSelect
+                        options={rawMaterials.map((material: any) => ({
+                          label: material.brand ? `${material.name} (${material.brand})` : material.name,
+                          value: material.id,
+                        }))}
+                        selected={field.value || []}
+                        onChange={field.onChange}
+                        placeholder="Select materials..."
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -571,28 +484,15 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
                   <FormItem>
                     <FormLabel>Select OEMs</FormLabel>
                     <FormControl>
-                      <div className="grid grid-cols-1 gap-3 max-h-40 overflow-y-auto border rounded-md p-3">
-                        {oems.map((oem: any) => (
-                          <div key={oem.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`oem-${oem.id}`}
-                              checked={field.value?.includes(oem.id) || false}
-                              onCheckedChange={(checked) => {
-                                const currentValue = field.value || [];
-                                if (checked) {
-                                  field.onChange([...currentValue, oem.id]);
-                                } else {
-                                  field.onChange(currentValue.filter((id: string) => id !== oem.id));
-                                }
-                              }}
-                              data-testid={`checkbox-oem-${oem.id}`}
-                            />
-                            <Label htmlFor={`oem-${oem.id}`} className="text-sm font-normal">
-                              {oem.name}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
+                      <MultiSelect
+                        options={oems.map((oem: any) => ({
+                          label: oem.name,
+                          value: oem.id,
+                        }))}
+                        selected={field.value || []}
+                        onChange={field.onChange}
+                        placeholder="Select OEMs..."
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -601,7 +501,7 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
             )}
 
             {/* Multiple Dealerships Selection (for MULTIPLE scope) */}
-            {isSuperAdmin && watchedScope === 'MULTIPLE' && oems.length > 0 && (
+            {isSuperAdmin && watchedScope === 'MULTIPLE' && (
               <FormField
                 control={form.control}
                 name="dealershipIds"
@@ -609,39 +509,15 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
                   <FormItem>
                     <FormLabel>Select Dealerships</FormLabel>
                     <FormControl>
-                      <div className="grid grid-cols-1 gap-3 max-h-40 overflow-y-auto border rounded-md p-3">
-                        {oems.map((oem: any) => (
-                          <div key={oem.id} className="space-y-2">
-                            <div className="font-medium text-sm text-muted-foreground border-b pb-1">
-                              {oem.name}
-                            </div>
-                            {dealerships
-                              .filter((dealership: any) => 
-                                dealership.oemIds?.includes(oem.id) || dealership.oemId === oem.id
-                              )
-                              .map((dealership: any) => (
-                                <div key={dealership.id} className="flex items-center space-x-2 ml-4">
-                                  <Checkbox
-                                    id={`dealership-${dealership.id}`}
-                                    checked={field.value?.includes(dealership.id) || false}
-                                    onCheckedChange={(checked) => {
-                                      const currentValue = field.value || [];
-                                      if (checked) {
-                                        field.onChange([...currentValue, dealership.id]);
-                                      } else {
-                                        field.onChange(currentValue.filter((id: string) => id !== dealership.id));
-                                      }
-                                    }}
-                                    data-testid={`checkbox-dealership-${dealership.id}`}
-                                  />
-                                  <Label htmlFor={`dealership-${dealership.id}`} className="text-sm font-normal">
-                                    {dealership.name}
-                                  </Label>
-                                </div>
-                              ))}
-                          </div>
-                        ))}
-                      </div>
+                      <MultiSelect
+                        options={dealerships.map((dealership: any) => ({
+                          label: `${dealership.name}${dealership.oemIds?.length > 0 ? ` (${oems.find((o: any) => dealership.oemIds.includes(o.id))?.name || 'Multi-OEM'})` : ''}`,
+                          value: dealership.id,
+                        }))}
+                        selected={field.value || []}
+                        onChange={field.onChange}
+                        placeholder="Select Dealerships..."
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
