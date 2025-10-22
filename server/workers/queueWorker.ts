@@ -242,7 +242,7 @@ export class QueueWorker {
           type: 'template',
           template: {
             name: template,
-            language: 'en',
+            language: { code: 'en' },
             components: templateParams
           }
         });
