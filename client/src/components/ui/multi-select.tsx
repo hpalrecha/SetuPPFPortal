@@ -80,8 +80,10 @@ export function MultiSelect({
                     data-testid={`badge-${value}`}
                   >
                     {option?.label}
-                    <button
-                      className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    <span
+                      className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer inline-flex"
+                      role="button"
+                      tabIndex={0}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           handleUnselect(value);
@@ -91,10 +93,14 @@ export function MultiSelect({
                         e.preventDefault();
                         e.stopPropagation();
                       }}
-                      onClick={() => handleUnselect(value)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleUnselect(value);
+                      }}
                     >
                       <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                    </button>
+                    </span>
                   </Badge>
                 );
               })
