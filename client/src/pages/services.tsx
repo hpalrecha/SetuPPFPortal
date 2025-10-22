@@ -103,15 +103,16 @@ export default function ServicesPage() {
     switch (scope) {
       case 'GLOBAL':
         return <Badge variant="secondary">Global</Badge>;
-      case 'OEM':
+      case 'OEM_SPECIFIC':
         return <Badge variant="outline">OEM Specific</Badge>;
-      case 'DEALERSHIP':
+      case 'DEALERSHIP_SPECIFIC':
         return <Badge variant="destructive">Dealership Only</Badge>;
-      case 'MULTIPLE':
+      case 'MULTIPLE_OEMS':
         const oemCount = oemIds?.length || 0;
+        return <Badge variant="default" className="bg-blue-100 text-blue-800">Multiple OEMs ({oemCount})</Badge>;
+      case 'MULTIPLE_DEALERSHIPS':
         const dealershipCount = dealershipIds?.length || 0;
-        const total = oemCount + dealershipCount;
-        return <Badge variant="default" className="bg-purple-100 text-purple-800">Multiple ({total} orgs)</Badge>;
+        return <Badge variant="default" className="bg-purple-100 text-purple-800">Multiple Dealerships ({dealershipCount})</Badge>;
       default:
         return <Badge variant="secondary">Global</Badge>;
     }
