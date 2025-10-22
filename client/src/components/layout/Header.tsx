@@ -1,4 +1,4 @@
-import { Bell, Shield, User } from "lucide-react";
+import { Bell, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
+import logoGreen from "@assets/P91 PULSE logo-01_1761139835394.png";
+import logoWhite from "@assets/P91 PULSE logo  copy-01_1761139835393.png";
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -52,10 +54,16 @@ export function Header({ onToggleSidebar }: HeaderProps) {
           </Button>
           
           <div className="flex items-center space-x-2 sm:space-x-3">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary rounded-lg flex items-center justify-center">
-              <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
-            </div>
-            <h1 className="text-lg sm:text-xl font-semibold text-foreground hidden xs:block">Pulse VAS</h1>
+            <img 
+              src={logoGreen} 
+              alt="Pulse VAS" 
+              className="h-8 sm:h-10 w-auto object-contain dark:hidden"
+            />
+            <img 
+              src={logoWhite} 
+              alt="Pulse VAS" 
+              className="h-8 sm:h-10 w-auto object-contain hidden dark:block"
+            />
           </div>
         </div>
 

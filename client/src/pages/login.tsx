@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Shield } from "lucide-react";
+import logoGreen from "@assets/P91 PULSE logo-01_1761139835394.png";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -52,12 +52,15 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-accent/10 px-4">
       <div className="w-full max-w-md">
-        {/* SetuPPF Branding */}
+        {/* Pulse VAS Branding */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-xl mb-4">
-            <Shield className="h-8 w-8 text-primary-foreground" />
+          <div className="inline-flex items-center justify-center mb-4">
+            <img 
+              src={logoGreen} 
+              alt="Pulse VAS Logo" 
+              className="h-24 w-auto object-contain"
+            />
           </div>
-          <h1 className="text-3xl font-bold text-foreground">Pulse VAS</h1>
           <p className="text-muted-foreground mt-2">PPF Installation Management Portal</p>
         </div>
 
