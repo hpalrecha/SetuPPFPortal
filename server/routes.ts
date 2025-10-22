@@ -5902,10 +5902,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
    * POST /api/webhooks/pulse/user-access
    */
   app.post("/api/webhooks/pulse/user-access", async (req, res) => {
+    console.log('🔔 Pulse webhook received!');
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Body:', JSON.stringify(req.body, null, 2));
+    
     try {
       const signature = req.headers['x-pulse-signature'] as string;
       const payload = req.body;
 
+      console.log('🔐 Verifying signature...');
+      
       // Verify signature
       const payloadString = JSON.stringify(payload);
       const isValid = pulseWebhookService.verifySignature(payloadString, signature || '');
@@ -5918,8 +5924,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      console.log('✅ Signature verified, processing webhook...');
+
       // Process webhook
       const result = await pulseWebhookService.processWebhook(payload, req.user?.id);
+
+      console.log('📤 Webhook result:', result);
 
       if (result.success) {
         res.json(result);
