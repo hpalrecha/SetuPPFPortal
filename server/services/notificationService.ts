@@ -20,8 +20,7 @@ export class NotificationService {
   async sendNotification(
     userId: string,
     channel: 'EMAIL' | 'SMS' | 'PUSH' | 'WHATSAPP',
-    payload: NotificationPayload,
-    productBrand?: string // Optional product brand for dynamic from email
+    payload: NotificationPayload
   ): Promise<void> {
     try {
       await storage.createNotification({
@@ -37,7 +36,7 @@ export class NotificationService {
       // - SMS: Twilio, AWS SNS
       // - Push: Firebase Cloud Messaging, OneSignal
       
-      await this.processNotificationByChannel(channel, userId, payload, productBrand);
+      await this.processNotificationByChannel(channel, userId, payload);
       
       console.log(`✓ Notification sent to user ${userId} via ${channel}:`, payload.title);
     } catch (error) {
@@ -49,11 +48,10 @@ export class NotificationService {
   async sendBulkNotification(
     userIds: string[],
     channel: 'EMAIL' | 'SMS' | 'PUSH' | 'WHATSAPP',
-    payload: NotificationPayload,
-    productBrand?: string // Optional product brand for dynamic from email
+    payload: NotificationPayload
   ): Promise<void> {
     const promises = userIds.map(userId => 
-      this.sendNotification(userId, channel, payload, productBrand)
+      this.sendNotification(userId, channel, payload)
     );
     
     await Promise.allSettled(promises);
@@ -62,12 +60,11 @@ export class NotificationService {
   private async processNotificationByChannel(
     channel: 'EMAIL' | 'SMS' | 'PUSH' | 'WHATSAPP',
     userId: string,
-    payload: NotificationPayload,
-    productBrand?: string
+    payload: NotificationPayload
   ): Promise<void> {
     switch (channel) {
       case 'EMAIL':
-        await this.sendEmail(userId, payload, productBrand);
+        await this.sendEmail(userId, payload);
         break;
       case 'SMS':
         await this.sendSMS(userId, payload);
@@ -81,7 +78,7 @@ export class NotificationService {
     }
   }
 
-  private async sendEmail(userId: string, payload: NotificationPayload, productBrand?: string): Promise<void> {
+  private async sendEmail(userId: string, payload: NotificationPayload): Promise<void> {
     try {
       const user = await storage.getUser(userId);
       if (!user || !user.email) {
@@ -89,20 +86,16 @@ export class NotificationService {
         return;
       }
 
-      // Get dynamic from email based on product brand (for transactional emails)
-      const fromEmail = productBrand ? emailService.getFromEmailByBrand(productBrand) : undefined;
-
-      // Send email using the email service
+      // Send email using the email service (always uses noreply@p91india.com)
       const success = await emailService.sendEmail({
         to: user.email,
         subject: payload.title,
         html: this.formatEmailHTML(payload),
-        text: payload.message,
-        from: fromEmail // Pass dynamic from email
+        text: payload.message
       });
 
       if (success) {
-        console.log(`✅ Email notification sent to ${user.email} from ${fromEmail || 'default'}`);
+        console.log(`✅ Email notification sent to ${user.email}`);
       } else {
         console.error(`❌ Failed to send email notification to ${user.email}`);
       }
@@ -141,7 +134,7 @@ export class NotificationService {
             <p>${payload.message}</p>
           </div>
           <div class="footer">
-            <p>SetuPPF - Professional Paint Protection Film Services</p>
+            <p>Pulse VAS - Professional Paint Protection Film Services</p>
           </div>
         </div>
       </body>

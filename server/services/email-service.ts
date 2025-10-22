@@ -21,32 +21,10 @@ export class EmailService {
   private smtpConfigured = false;
   private senderEmail: string;
 
-  // Brand-to-email mapping for transactional notifications
-  private brandEmailMap: Record<string, string> = {
-    '3M': 'ppfinstallation@justsigns.co.in',
-    'STEK': 'noreply@stek-india.in',
-    'P91': 'noreply@p91india.com',
-  };
-
   constructor() {
-    this.senderEmail = process.env.FROM_EMAIL || process.env.EMAIL_SENDER || 'noreply@p91india.com';
+    // Always use noreply@p91india.com as the sender email
+    this.senderEmail = 'noreply@p91india.com';
     this.initialize();
-  }
-
-  /**
-   * Get the "From Email" address based on product brand
-   * Used for transactional notifications (Work Order, Job Card)
-   */
-  getFromEmailByBrand(productBrand?: string): string {
-    if (!productBrand) {
-      return this.senderEmail;
-    }
-    
-    // Normalize brand name (uppercase, trim)
-    const normalizedBrand = productBrand.trim().toUpperCase();
-    
-    // Return mapped email or default
-    return this.brandEmailMap[normalizedBrand] || this.senderEmail;
   }
 
   private initialize() {
