@@ -1,7 +1,5 @@
 // Meta WhatsApp Business API integration
-import { db } from '../db';
-import { brands } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+// Uses single WABA configuration for all messages (no brand-specific configs)
 
 export interface WhatsAppMessage {
   to: string; // Phone number with country code (e.g., +919876543210)
@@ -25,13 +23,6 @@ export interface MetaWABAConfig {
   phoneNumberId: string;
   businessAccountId: string;
   apiVersion?: string;
-}
-
-export interface BrandWABAConfig {
-  brandId?: string;
-  phoneNumberId?: string;
-  businessAccountId?: string;
-  accessToken?: string;
 }
 
 export class WhatsAppService {
