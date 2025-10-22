@@ -4034,7 +4034,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Set user context if not Super Admin
         if (req.user!.role !== 'SUPER_ADMIN') {
           serviceData.oemId = req.user!.oemId;
-          if (serviceData.availabilityScope === 'DEALERSHIP') {
+          if (serviceData.availabilityScope === 'DEALERSHIP_SPECIFIC') {
             serviceData.dealershipId = req.user!.dealershipId;
           }
         }
