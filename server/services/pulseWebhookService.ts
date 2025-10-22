@@ -6,13 +6,25 @@ import { nanoid } from 'nanoid';
 
 interface PulseWebhookPayload {
   action: 'activate' | 'deactivate';
+  partner: {
+    id: string; // Pulse's internal partner ID (we'll use as our partnerId)
+    displayName: string;
+    type: 'STUDIO' | 'INSTALLER';
+    email?: string;
+    phone?: string;
+    contactPersonName?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    gstin?: string;
+    pan?: string;
+  };
   user: {
     email: string;
     name: string;
     phone?: string;
     role: 'PARTNER_ADMIN' | 'PARTNER_STAFF';
-    partnerId: string;
-    partnerType?: 'STUDIO' | 'INSTALLER';
   };
   timestamp: string;
 }
@@ -53,21 +65,19 @@ export class PulseWebhookService {
     success: boolean;
     message: string;
     userId?: string;
+    partnerId?: string;
   }> {
     try {
       // Validate payload
       this.validatePayload(payload);
 
-      // Verify partner exists
-      const partner = await storage.getPartner(payload.user.partnerId);
-      if (!partner) {
-        throw new Error(`Partner not found: ${payload.user.partnerId}`);
-      }
+      // Create or update partner first
+      const partnerId = await this.ensurePartner(payload.partner, actorId);
 
       if (payload.action === 'activate') {
-        return await this.activateUser(payload, actorId);
+        return await this.activateUser(payload, partnerId, actorId);
       } else if (payload.action === 'deactivate') {
-        return await this.deactivateUser(payload, actorId);
+        return await this.deactivateUser(payload, partnerId, actorId);
       } else {
         throw new Error(`Invalid action: ${payload.action}`);
       }
@@ -81,12 +91,86 @@ export class PulseWebhookService {
   }
 
   /**
+   * Ensure partner exists (create if new, update if exists)
+   * Looks up partner by email or displayName to find existing partners
+   */
+  private async ensurePartner(partnerData: PulseWebhookPayload['partner'], actorId?: string): Promise<string> {
+    try {
+      // Try to find existing partner by email or name
+      const allPartners = await storage.getPartners({});
+      const existingPartner = allPartners.find(p => 
+        (partnerData.email && p.email === partnerData.email) ||
+        p.displayName === partnerData.displayName
+      );
+
+      if (existingPartner) {
+        // Partner exists - update details
+        await storage.updatePartner(existingPartner.id, {
+          displayName: partnerData.displayName,
+          type: partnerData.type,
+          email: partnerData.email,
+          phone: partnerData.phone,
+          contactPersonName: partnerData.contactPersonName,
+          address: partnerData.address,
+          city: partnerData.city,
+          state: partnerData.state,
+          pincode: partnerData.pincode,
+          gstin: partnerData.gstin,
+          pan: partnerData.pan,
+          active: true
+        });
+
+        console.log(`✅ Partner updated: ${partnerData.displayName} (${existingPartner.id})`);
+        return existingPartner.id;
+      }
+
+      // Create new partner (UUID will be auto-generated)
+      const newPartner = await storage.createPartner({
+        displayName: partnerData.displayName,
+        type: partnerData.type,
+        email: partnerData.email,
+        phone: partnerData.phone,
+        contactPersonName: partnerData.contactPersonName,
+        address: partnerData.address,
+        city: partnerData.city,
+        state: partnerData.state,
+        pincode: partnerData.pincode,
+        gstin: partnerData.gstin,
+        pan: partnerData.pan,
+        active: true,
+        canViewJobCardPrice: false
+      });
+
+      // Audit log
+      await storage.createAuditLog({
+        actorUserId: actorId,
+        entity: 'partner',
+        entityId: newPartner.id,
+        action: 'CREATED_BY_PULSE',
+        diffJson: {
+          displayName: partnerData.displayName,
+          type: partnerData.type,
+          pulsePartnerId: partnerData.id, // Store Pulse's ID in audit trail
+          source: 'pulse_webhook'
+        }
+      });
+
+      console.log(`✅ Partner created: ${partnerData.displayName} (${newPartner.id})`);
+      return newPartner.id;
+    } catch (error: any) {
+      console.error('❌ Failed to ensure partner:', error);
+      throw new Error(`Failed to create/update partner: ${error.message}`);
+    }
+  }
+
+  /**
    * Activate user (create if new, enable if exists)
    */
-  private async activateUser(payload: PulseWebhookPayload, actorId?: string): Promise<{
+  private async activateUser(payload: PulseWebhookPayload, partnerId: string, actorId?: string): Promise<{
     success: boolean;
     message: string;
     userId: string;
+    partnerId: string;
   }> {
     // Check if user already exists
     const existingUser = await storage.getUserByEmail(payload.user.email);
@@ -97,7 +181,8 @@ export class PulseWebhookService {
         return {
           success: true,
           message: 'User already active',
-          userId: existingUser.id
+          userId: existingUser.id,
+          partnerId
         };
       }
 
@@ -107,7 +192,7 @@ export class PulseWebhookService {
         name: payload.user.name, // Update name in case it changed
         phone: payload.user.phone,
         role: payload.user.role,
-        partnerId: payload.user.partnerId
+        partnerId
       });
 
       // Audit log
@@ -127,7 +212,8 @@ export class PulseWebhookService {
       return {
         success: true,
         message: 'User activated successfully',
-        userId: existingUser.id
+        userId: existingUser.id,
+        partnerId
       };
     }
 
@@ -140,7 +226,7 @@ export class PulseWebhookService {
       name: payload.user.name,
       phone: payload.user.phone,
       role: payload.user.role,
-      partnerId: payload.user.partnerId,
+      partnerId,
       passwordHash,
       isActive: true
     });
@@ -157,7 +243,7 @@ export class PulseWebhookService {
       diffJson: {
         email: payload.user.email,
         role: payload.user.role,
-        partnerId: payload.user.partnerId,
+        partnerId,
         source: 'pulse_webhook'
       }
     });
@@ -167,17 +253,19 @@ export class PulseWebhookService {
     return {
       success: true,
       message: 'User created successfully',
-      userId: newUser.id
+      userId: newUser.id,
+      partnerId
     };
   }
 
   /**
    * Deactivate user
    */
-  private async deactivateUser(payload: PulseWebhookPayload, actorId?: string): Promise<{
+  private async deactivateUser(payload: PulseWebhookPayload, partnerId: string, actorId?: string): Promise<{
     success: boolean;
     message: string;
     userId?: string;
+    partnerId?: string;
   }> {
     const existingUser = await storage.getUserByEmail(payload.user.email);
 
@@ -314,12 +402,24 @@ export class PulseWebhookService {
       throw new Error('Invalid action');
     }
 
+    if (!payload.partner) {
+      throw new Error('Missing partner data');
+    }
+
+    if (!payload.partner.id || !payload.partner.displayName || !payload.partner.type) {
+      throw new Error('Missing required partner fields (id, displayName, type)');
+    }
+
+    if (!['STUDIO', 'INSTALLER'].includes(payload.partner.type)) {
+      throw new Error('Invalid partner type - only STUDIO and INSTALLER are supported');
+    }
+
     if (!payload.user) {
       throw new Error('Missing user data');
     }
 
-    if (!payload.user.email || !payload.user.name || !payload.user.role || !payload.user.partnerId) {
-      throw new Error('Missing required user fields');
+    if (!payload.user.email || !payload.user.name || !payload.user.role) {
+      throw new Error('Missing required user fields (email, name, role)');
     }
 
     if (!['PARTNER_ADMIN', 'PARTNER_STAFF'].includes(payload.user.role)) {

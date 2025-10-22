@@ -1,266 +1,66 @@
 # Overview
 
-SetuPPF is a comprehensive multi-tenant web application for managing Paint Protection Film (PPF) installation orders across the automotive industry. The platform connects Vehicle OEMs, dealerships, showrooms, and installation partners through a complete workflow management system with real-time tracking, automated pricing, and commission management.
-
-The application serves multiple user roles including Super Admins, OEM Admins, Dealership Admins, Showroom Managers, Sales Persons, and Partner Staff, each with role-specific dashboards and permissions. Key features include work order lifecycle management, job card tracking, partner allocation systems, hierarchical pricing rules, automated commission calculations, and comprehensive audit trails.
+SetuPPF is a multi-tenant web application designed for managing Paint Protection Film (PPF) installation orders within the automotive industry. It connects Vehicle OEMs, dealerships, showrooms, and installation partners, offering a complete workflow management system with features like real-time tracking, automated pricing, and commission management. The platform supports various user roles, providing role-specific dashboards and permissions to streamline work order lifecycles, track job cards, manage partner allocations, and handle complex billing and commission structures.
 
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
 
-# Design System & Branding
-
-## P91 Brand Theme (Updated: October 22, 2025)
-
-### Primary Colors
-- **Brand Green**: #4db848 (HSL: 118° 44% 50%)
-- **Primary RGB**: 77, 184, 72
-- **Primary Hover**: rgba(77, 184, 72, 0.9)
-- **Primary Light**: rgba(77, 184, 72, 0.1)
-
-### Typography
-- **Headings**: Oxanium (400, 500, 600, 700) - Bold, tracking-tight
-- **Body Text**: Sarabun (300, 400, 500, 600, 700) - Default font
-- **Monospace**: SF Mono, Menlo, Monaco, Consolas
-
-### Custom Shadows
-- **Premium**: 0 4px 20px rgba(0, 0, 0, 0.08)
-- **Premium Hover**: 0 8px 30px rgba(0, 0, 0, 0.12)
-- **Subtle**: 0 1px 3px rgba(0, 0, 0, 0.05)
-- **Card**: 0 2px 8px rgba(0, 0, 0, 0.06)
-
-### Border Radius
-- **lg**: 4px (0.25rem)
-- **md**: 2px
-- **sm**: 0px
-- **xl**: 16px
-- **2xl**: 20px
-
-### Custom Animations
-- **accordion-down / accordion-up**: Standard accordion transitions
-- **float**: 6s floating effect for elements
-- **fade-in**: 0.7s opacity transition
-- **fade-in-up**: 0.6s slide up with fade
-- **scale**: 0.4s scale effect
-
-### Utility Classes
-- **.glass-panel**: White backdrop blur effect
-- **.dark-panel**: Dark neutral background (95% opacity)
-- **.btn-premium**: Black solid button with hover shadow
-- **.btn-premium-outline**: Black outline button
-- **.btn-premium-accent**: Green P91 brand button
-- **.premium-card**: White card with premium shadow and hover effect
-- **.hero-gradient**: Dark gradient overlay for hero sections
-- **.container-premium**: Max-width container with responsive padding
-- **.separator**: Small accent line (neutral-900)
-
-### Color Palette
-- **Background**: White (#FFFFFF) / Neutral-900 in dark mode
-- **Foreground**: Neutral-900 (#171717) / White in dark mode
-- **Cards**: White with subtle shadows
-- **Borders**: Neutral-200 (light) / Neutral-800 (dark)
-
 # System Architecture
 
-## Frontend Architecture
-- **Framework**: Next.js 14 with TypeScript for type safety and modern React features
-- **Styling**: Tailwind CSS with Shadcn UI component library for consistent design system
-- **State Management**: React Query for server state management and caching
-- **Form Handling**: React Hook Form with Zod validation for type-safe form management
-- **Routing**: Wouter for lightweight client-side routing
-- **Build System**: Vite for fast development and optimized production builds
+## UI/UX Decisions
+The application utilizes the P91 Brand Theme, featuring a Brand Green primary color (`#4db848`), Oxanium for headings, and Sarabun for body text. It includes custom shadows (Premium, Subtle, Card), defined border-radii (lg, md, sm, xl, 2xl), and custom animations (accordion, float, fade-in, scale). Utility classes like `.glass-panel`, `.dark-panel`, and `.btn-premium` are used for consistent styling.
 
-## Backend Architecture
-- **Framework**: Express.js with TypeScript for robust API development
-- **Database**: PostgreSQL with Drizzle ORM for type-safe database operations
-- **Authentication**: JWT-based authentication with role-based access control (RBAC)
-- **File Storage**: Google Cloud Storage with signed URLs for secure file handling
-- **Background Processing**: BullMQ with Redis for job queues and background tasks
-- **Validation**: Zod schemas for consistent data validation across frontend and backend
+## Technical Implementations
+- **Frontend**: Built with Next.js 14, TypeScript, Tailwind CSS, Shadcn UI, React Query for state management, React Hook Form with Zod for form validation, and Wouter for routing.
+- **Backend**: Implemented using Express.js with TypeScript, PostgreSQL database managed by Drizzle ORM, JWT for authentication with RBAC, Google Cloud Storage for file handling, and BullMQ with Redis for background processing. Zod schemas ensure consistent data validation.
+- **Multi-Tenancy**: Achieved through OEM-level data isolation, role-based permissions, and a middleware stack for authentication, tenant context, and RBAC. Data is automatically scoped to the user's tenant.
 
-## Multi-Tenant Architecture
-- **Tenant Isolation**: Complete OEM-level data isolation with hierarchical access control
-- **Role-Based Permissions**: Six distinct user roles with specific permissions and data access
-- **Middleware Stack**: Authentication, tenant context, and RBAC middleware for request processing
-- **Data Scoping**: Automatic tenant-specific data filtering based on user context
+## Feature Specifications
+- **Work Order Management**: Full lifecycle management including approvals.
+- **Job Card System**: Real-time status tracking, SLA monitoring, and notifications.
+- **Partner Allocation**: Priority-based auto-assignment with manual overrides and billing controls.
+- **Pricing Engine**: Hierarchical pricing rules applied at Partner, Showroom, and Dealership levels.
+- **Commission System**: Automated calculations based on percentages/fixed amounts, with caps/floors.
+- **Billing System**: Automated detail population with hierarchical rules. Includes "Bill From" and "Bill To" logic, "Ship To" always from Showroom, and partner direct billing options.
+- **Audit System**: Comprehensive activity logging and timeline views.
 
-## Core Business Logic
-- **Work Order Management**: Complete lifecycle from draft to completion with approval workflows
-- **Job Card System**: Real-time status tracking with SLA monitoring and automated notifications
-- **Partner Allocation**: Priority-based auto-assignment system with manual override capabilities and partner billing controls
-- **Pricing Engine**: Hierarchical pricing rules with flexible resolution (Partner > Showroom > Dealership)
-- **Commission System**: Automated commission calculation with percentage/fixed amount rules and caps/floors
-- **Billing System**: Automated billing detail population with hierarchical rules and partner billing control
-  - **Bill From**: Defaults to "Plus Nine One Inc"; uses Partner address if "Partner Bills Customer Directly" toggle is enabled
-  - **Bill To Hierarchy**: OEM (if billJobsDirectlyToOem) > Dealership (if billDirectlyToDealership) > Showroom (if billDirectlyToShowroom) > Dealership address (fallback)
-  - **Ship To**: Always uses Showroom's ship to address
-  - **Partner Direct Billing**: Partners can bill customers directly, bypassing system billing (configurable per allocation)
-- **Audit System**: Comprehensive activity logging with timeline views and export capabilities
-
-## Database Design
-- **Schema Management**: Drizzle migrations with version control
-- **Relationships**: Well-defined foreign key relationships with cascade handling
-- **Enums**: PostgreSQL enums for status fields and user roles
-- **Indexing**: Strategic indexes for query performance optimization
-- **Data Types**: Proper use of UUID, timestamps, decimals, and JSONB for flexible data storage
-- **Billing Data**: JSONB fields (billFrom, billTo, shipTo) store complete billing/shipping addresses with GSTIN
-- **Allocation Controls**: Partner-level billing flags (partnerBillsDirectly) at allocation level for granular control
-- **Material Consumption Tracking**: Vehicle variants include ppfQtyConsumption field (decimal) to record typical PPF usage in square feet for inventory planning and pricing benchmarks
-
-## File Management
-- **Object Storage**: Google Cloud Storage integration through Replit Object Storage
-- **Access Control**: ACL policies for fine-grained file access control
-- **Signed URLs**: Temporary access URLs for secure file downloads
-- **Media Handling**: Support for proof uploads with metadata tracking
-
-## Background Jobs
-- **Queue System**: BullMQ with Redis for reliable job processing
-- **SLA Monitoring**: Automated breach detection with configurable thresholds
-- **Notifications**: Multi-channel notification system (Email, WhatsApp)
-  - **Email**: Hybrid AWS SES SDK (primary) + SMTP fallback for reliable delivery
-  - **WhatsApp**: Meta WABA integration for Job Card lifecycle notifications
-- **Webhook Delivery**: Outbound webhook system with retry logic and failure handling
-- **Report Generation**: Automated report generation and distribution
+## System Design Choices
+- **Database**: PostgreSQL with Drizzle ORM, utilizing UUIDs, timestamps, decimals, JSONB, enums, and strategic indexing. Material consumption tracking is included in vehicle variants.
+- **File Management**: Google Cloud Storage via Replit Object Storage, with ACLs and signed URLs.
+- **Background Jobs**: BullMQ and Redis for queues, SLA monitoring, multi-channel notifications (Email, WhatsApp), webhook delivery, and report generation.
+- **Authentication**: JWT-based with bcryptjs for password hashing and CORS configured.
+- **Pulse Integration**: Webhook endpoint (`POST /api/webhooks/pulse/user-access`) for user access control (activate/deactivate PARTNER_ADMIN and PARTNER_STAFF roles) from an external system named Pulse. This integration uses HMAC-SHA256 signature verification, timestamp validation, and detailed audit logging. User activation sends a welcome email with a password reset link.
 
 # External Dependencies
 
 ## Database & Storage
-- **PostgreSQL 15+**: Primary database for all application data with advanced features like JSONB and enums
-- **Redis 7+**: Used for session storage, job queues, and caching layer
-- **Google Cloud Storage**: Object storage through Replit Object Storage for file management
+- **PostgreSQL 15+**: Primary data storage.
+- **Redis 7+**: Session storage, job queues, caching.
+- **Google Cloud Storage**: Object storage for files.
 
 ## Authentication & Security
-- **JWT**: JSON Web Tokens for stateless authentication
-- **bcryptjs**: Password hashing and verification
-- **CORS**: Cross-origin resource sharing configuration
+- **JWT**: Stateless authentication.
+- **bcryptjs**: Password hashing.
+- **CORS**: Cross-origin resource sharing.
 
 ## Frontend Libraries
-- **@radix-ui**: Comprehensive set of accessible UI primitives
-- **@tanstack/react-query**: Server state management and caching
-- **@hookform/resolvers**: React Hook Form integration with validation libraries
-- **date-fns**: Date manipulation and formatting utilities
-- **embla-carousel-react**: Carousel component for image galleries
-- **class-variance-authority**: Type-safe CSS class management
+- **@radix-ui**: Accessible UI primitives.
+- **@tanstack/react-query**: Server state management.
+- **@hookform/resolvers**: Form validation integration.
+- **date-fns**: Date manipulation.
+- **embla-carousel-react**: Carousel component.
+- **class-variance-authority**: Type-safe CSS classes.
 
 ## Backend Libraries
-- **drizzle-orm**: Type-safe SQL ORM with PostgreSQL support
-- **@neondatabase/serverless**: Serverless PostgreSQL connection handling
-- **connect-pg-simple**: PostgreSQL session store for Express
-- **nanoid**: URL-safe unique string ID generator
-
-## Development Tools
-- **TypeScript**: Static type checking for both frontend and backend
-- **Vite**: Fast build tool with HMR for development
-- **ESBuild**: Fast JavaScript bundler for production builds
-- **Tailwind CSS**: Utility-first CSS framework
-- **PostCSS**: CSS post-processing with autoprefixer
+- **drizzle-orm**: Type-safe SQL ORM.
+- **@neondatabase/serverless**: Serverless PostgreSQL connection.
+- **connect-pg-simple**: PostgreSQL session store.
+- **nanoid**: Unique ID generator.
 
 ## API Integration
-- **RESTful APIs**: Standard HTTP methods with JSON payloads
-- **Webhook System**: Outbound webhooks for external system integration
-- **File Upload**: Direct-to-storage upload with presigned URLs
-- **Real-time Updates**: Polling-based updates for dashboard metrics
-- **WhatsApp Business API (WABA)**: Meta Graph API v19.0 for automated notifications
-  - **Job Card Created**: Notifies customer and assigned partner
-  - **Job Card Scheduled**: Notifies partner with schedule details
-  - **Job Card Started**: Notifies showroom POC for monitoring
-  - **Job Card Completed**: Notifies showroom POC for approval
-  - **Job Card Approved**: Notifies partner with approval confirmation
-- **Email Service**: Hybrid delivery system (AWS SES SDK + SMTP fallback)
-  - **URL Generation**: Dynamic URL construction using REPLIT_DEV_DOMAIN for deployed environments
-  - **Dynamic From Email**: Brand-based sender email for transactional notifications
-    - 3M → ppfinstallation@justsigns.co.in
-    - STEK → noreply@stek-india.in
-    - P91 → noreply@p91india.com
-    - Default → noreply@p91india.com
-  - **Work Order Notifications**: Automated emails to stakeholders (OEM Admin, Dealership Admin, Showroom Manager, Sales Person)
-    - Work Order Created: Notifies all relevant stakeholders with order details (brand-specific from email)
-    - Work Order Assigned: Notifies sales person and showroom manager (brand-specific from email)
-    - Work Order Completed: Notifies all admins and managers (brand-specific from email)
-  - **Job Card Notifications**: Multi-stakeholder email notifications
-    - Job Card Completed: Notifies showroom manager, OEM admin, and dealership admin
-    - Job Card Approved: Notifies partner and sales person with payout details
-  - **Authentication Emails**: Password reset and OTP verification with secure token URLs
-
-## Monitoring & Observability
-- **Console Logging**: Structured logging for debugging and monitoring
-- **Error Handling**: Comprehensive error boundaries and API error responses
-- **Audit Trails**: Complete activity logging for compliance and debugging
-- **Performance Metrics**: Query optimization and response time monitoring
-
-# Pulse Integration (Added: October 22, 2025)
-
-## Overview
-PPF Setu integrates with Pulse (master portal) for centralized user access control. Pulse admins can enable/disable user access to PPF Setu using a simple toggle, providing real-time user activation and deactivation.
-
-## Integration Architecture
-
-### Webhook Endpoint
-- **URL**: `POST /api/webhooks/pulse/user-access`
-- **Security**: HMAC-SHA256 signature verification using shared secret
-- **Scope**: PARTNER_ADMIN and PARTNER_STAFF roles only
-- **Actions**: `activate` (create/enable user) or `deactivate` (disable user)
-
-### Authentication & Security
-- **Shared Secret**: `PULSE_WEBHOOK_SECRET` environment variable
-- **Signature Header**: `X-Pulse-Signature` with HMAC-SHA256 digest
-- **Timestamp Validation**: Requests must be within 5 minutes to prevent replay attacks
-- **Audit Logging**: All webhook actions logged with source tracking
-
-### User Lifecycle
-
-**Activation Flow:**
-1. Pulse sends webhook with user details and `action: "activate"`
-2. PPF Setu verifies HMAC signature
-3. If user exists: activate and update details
-4. If user is new: create account with auto-generated password
-5. Send welcome email with password reset link (24-hour expiry)
-6. Return success with userId
-
-**Deactivation Flow:**
-1. Pulse sends webhook with `action: "deactivate"`
-2. PPF Setu verifies signature
-3. Set `isActive: false` on user record
-4. User immediately blocked from login
-5. Return success confirmation
-
-### Webhook Payload Structure
-```json
-{
-  "action": "activate" | "deactivate",
-  "user": {
-    "email": "installer@example.com",
-    "name": "John Doe",
-    "phone": "+919876543210",
-    "role": "PARTNER_ADMIN" | "PARTNER_STAFF",
-    "partnerId": "uuid-of-partner",
-    "partnerType": "STUDIO" | "INSTALLER"
-  },
-  "timestamp": "2025-01-15T10:30:00Z"
-}
-```
-
-### Login Protection
-- `isActive` flag checked during authentication (server/auth.ts line 57)
-- Inactive users blocked with null response (no access token issued)
-- Real-time enforcement - immediate effect on deactivation
-
-### Email Notifications
-- Welcome emails sent on new user creation
-- Contains password reset link valid for 24 hours
-- Dynamic domain detection using REPLIT_DEV_DOMAIN
-- Auto-generated temporary passwords using nanoid
-
-### Error Handling
-- **401 Unauthorized**: Invalid HMAC signature
-- **400 Bad Request**: Missing required fields or invalid role
-- **404 Not Found**: Partner doesn't exist in system
-- **500 Internal Server Error**: Processing failure
-
-### Audit Trail
-All webhook actions logged with:
-- Actor: System-level webhook user
-- Entity: `user`
-- Action: `CREATED_BY_PULSE`, `ACTIVATED_BY_PULSE`, `DEACTIVATED_BY_PULSE`
-- Source: `pulse_webhook`
-- Full user details in diffJson
+- **RESTful APIs**: Standard HTTP communication.
+- **Webhook System**: Outbound webhooks.
+- **WhatsApp Business API (Meta WABA)**: For Job Card lifecycle notifications (Created, Scheduled, Started, Completed, Approved).
+- **Email Service (Hybrid AWS SES SDK + SMTP)**: For Work Order, Job Card, and Authentication notifications. Supports dynamic "From" emails based on brand and dynamic URL generation.
+- **Pulse Integration Webhook**: Inbound webhook for user lifecycle management (activate/deactivate).
