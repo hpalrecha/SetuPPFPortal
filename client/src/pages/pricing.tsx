@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,14 +15,27 @@ export default function PricingPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingRule, setEditingRule] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('dealership'); // dealership, detailer
   const [selectedPricingType, setSelectedPricingType] = useState<'DEALERSHIP_PRICING' | 'DETAILER_PRICING'>('DEALERSHIP_PRICING');
   
+  // Redirect if not SUPER_ADMIN
+  useEffect(() => {
+    if (user && user.role !== "SUPER_ADMIN") {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to access this page.",
+        variant: "destructive",
+      });
+      navigate("/dashboard");
+    }
+  }, [user, navigate, toast]);
+  
   // Only admins can access pricing rules
-  const canAccessPricing = user && ['SUPER_ADMIN', 'OEM_ADMIN'].includes(user.role);
+  const canAccessPricing = user && user.role === 'SUPER_ADMIN';
   
   const { data: pricingRules = [], isLoading } = useQuery<PricingRule[]>({
     queryKey: ["/api/pricing-rules", selectedPricingType],

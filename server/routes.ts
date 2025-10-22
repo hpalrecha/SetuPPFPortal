@@ -3598,8 +3598,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // Pricing Rules Routes
-  app.get("/api/pricing-rules", authenticate, requireOEMAccess, async (req, res) => {
+  // Pricing Rules Routes - SUPER_ADMIN ONLY
+  app.get("/api/pricing-rules", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
     try {
       const { partnerId, scopeId, pricingType, dealershipId, detailerId, serviceCategoryId } = req.query;
       
@@ -3621,7 +3621,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/pricing-rules", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN']),
     auditLog('pricing_rule', 'create'),
     async (req, res) => {
       try {
@@ -3640,7 +3640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/pricing-rules/:id", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN']),
     auditLog('pricing_rule', 'delete'),
     async (req, res) => {
       try {
