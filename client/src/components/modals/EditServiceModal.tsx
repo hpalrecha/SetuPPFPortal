@@ -13,12 +13,14 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Check, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useAuth } from '@/hooks/use-auth';
 import { insertServiceSchema, serviceGroupValues, availabilityScopeValues } from '@shared/schema';
 import { cn } from '@/lib/utils';
+import { MultiSelect } from '@/components/ui/multi-select';
 
 // Transform shared schema to UI-compatible types using shared enums
 const serviceSchema = insertServiceSchema.extend({
@@ -558,8 +560,8 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
               )}
             />
 
-            {/* OEM Selection (for OEM and DEALERSHIP scopes) */}
-            {isSuperAdmin && (watchedScope === 'OEM' || watchedScope === 'DEALERSHIP') && (
+            {/* OEM Selection (for OEM_SPECIFIC and DEALERSHIP_SPECIFIC scopes) */}
+            {isSuperAdmin && (watchedScope === 'OEM_SPECIFIC' || watchedScope === 'DEALERSHIP_SPECIFIC') && (
               <FormField
                 control={form.control}
                 name="oemId"
@@ -569,7 +571,7 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
                     <Select
                       onValueChange={(value) => {
                         field.onChange(value);
-                        if (watchedScope === 'DEALERSHIP') {
+                        if (watchedScope === 'DEALERSHIP_SPECIFIC') {
                           form.setValue('dealershipId', '');
                         }
                       }}
@@ -595,8 +597,8 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
               />
             )}
 
-            {/* Dealership Selection (for DEALERSHIP scope) */}
-            {isSuperAdmin && watchedScope === 'DEALERSHIP' && selectedOemId && (
+            {/* Dealership Selection (for DEALERSHIP_SPECIFIC scope) */}
+            {isSuperAdmin && watchedScope === 'DEALERSHIP_SPECIFIC' && selectedOemId && (
               <FormField
                 control={form.control}
                 name="dealershipId"
@@ -627,8 +629,8 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
               />
             )}
 
-            {/* Multiple OEMs Selection (for MULTIPLE scope) */}
-            {isSuperAdmin && watchedScope === 'MULTIPLE' && (
+            {/* Multiple OEMs Selection (for MULTIPLE_OEMS scope) */}
+            {isSuperAdmin && watchedScope === 'MULTIPLE_OEMS' && (
               <FormField
                 control={form.control}
                 name="oemIds"
@@ -636,28 +638,12 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
                   <FormItem>
                     <FormLabel>Select OEMs</FormLabel>
                     <FormControl>
-                      <div className="grid grid-cols-1 gap-3 max-h-40 overflow-y-auto border rounded-md p-3">
-                        {oems.map((oem: any) => (
-                          <div key={oem.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`edit-oem-${oem.id}`}
-                              checked={field.value?.includes(oem.id) || false}
-                              onCheckedChange={(checked) => {
-                                const currentValue = field.value || [];
-                                if (checked) {
-                                  field.onChange([...currentValue, oem.id]);
-                                } else {
-                                  field.onChange(currentValue.filter((id: string) => id !== oem.id));
-                                }
-                              }}
-                              data-testid={`checkbox-edit-oem-${oem.id}`}
-                            />
-                            <Label htmlFor={`edit-oem-${oem.id}`} className="text-sm font-normal">
-                              {oem.name}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
+                      <MultiSelect
+                        options={oems.map((oem: any) => ({ value: oem.id, label: oem.name }))}
+                        selected={field.value || []}
+                        onChange={field.onChange}
+                        placeholder="Search and select OEMs..."
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -665,8 +651,8 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
               />
             )}
 
-            {/* Multiple Dealerships Selection (for MULTIPLE scope) */}
-            {isSuperAdmin && watchedScope === 'MULTIPLE' && oems.length > 0 && (
+            {/* Multiple Dealerships Selection (for MULTIPLE_DEALERSHIPS scope) */}
+            {isSuperAdmin && watchedScope === 'MULTIPLE_DEALERSHIPS' && (
               <FormField
                 control={form.control}
                 name="dealershipIds"
@@ -674,37 +660,15 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
                   <FormItem>
                     <FormLabel>Select Dealerships</FormLabel>
                     <FormControl>
-                      <div className="grid grid-cols-1 gap-3 max-h-40 overflow-y-auto border rounded-md p-3">
-                        {oems.map((oem: any) => (
-                          <div key={oem.id} className="space-y-2">
-                            <div className="font-medium text-sm text-muted-foreground border-b pb-1">
-                              {oem.name}
-                            </div>
-                            {dealerships
-                              .filter((dealership: any) => dealership.oemId === oem.id)
-                              .map((dealership: any) => (
-                                <div key={dealership.id} className="flex items-center space-x-2 ml-4">
-                                  <Checkbox
-                                    id={`edit-dealership-${dealership.id}`}
-                                    checked={field.value?.includes(dealership.id) || false}
-                                    onCheckedChange={(checked) => {
-                                      const currentValue = field.value || [];
-                                      if (checked) {
-                                        field.onChange([...currentValue, dealership.id]);
-                                      } else {
-                                        field.onChange(currentValue.filter((id: string) => id !== dealership.id));
-                                      }
-                                    }}
-                                    data-testid={`checkbox-edit-dealership-${dealership.id}`}
-                                  />
-                                  <Label htmlFor={`edit-dealership-${dealership.id}`} className="text-sm font-normal">
-                                    {dealership.name}
-                                  </Label>
-                                </div>
-                              ))}
-                          </div>
-                        ))}
-                      </div>
+                      <MultiSelect
+                        options={dealerships.map((dealership: any) => ({ 
+                          value: dealership.id, 
+                          label: dealership.name 
+                        }))}
+                        selected={field.value || []}
+                        onChange={field.onChange}
+                        placeholder="Search and select dealerships..."
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
