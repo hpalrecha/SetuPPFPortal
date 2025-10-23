@@ -292,24 +292,34 @@ export class NotificationService {
       }
     }
 
-    // ✉️ Send Email notification to partner admin users
+    // ✉️ Send Email notification to partner admin users & partner contact email using proper template
     try {
-      const partnerAdmins = await this.getPartnerMembers(jobCard.partnerId);
-      if (partnerAdmins.length > 0) {
-        const payload: NotificationPayload = {
-          title: 'New Job Card Created',
-          message: `Job Card #${jobCard.id.slice(0, 8)} has been created for ${vehicleDetails}. Customer: ${workOrder.customerName}. Service: ${service?.name || 'Service'}.`,
-          type: 'INFO',
-          data: { jobCardId: jobCard.id, workOrderId: workOrder.id, type: 'job_card_created' }
-        };
-
-        await this.sendBulkNotification(
-          partnerAdmins.map(admin => admin.userId),
-          'EMAIL',
-          payload
-        );
-        console.log(`📧 Email (Job Created) sent to ${partnerAdmins.length} partner admins`);
+      const emailList: string[] = [];
+      
+      // Add partner contact email if available
+      if (partner.email) {
+        emailList.push(partner.email);
       }
+      
+      // Add partner admin user emails
+      const partnerAdmins = await this.getPartnerMembers(jobCard.partnerId);
+      for (const admin of partnerAdmins) {
+        const user = await storage.getUser(admin.userId);
+        if (user?.email && !emailList.includes(user.email)) {
+          emailList.push(user.email);
+        }
+      }
+
+      // Send proper job card created email template with logo and button
+      for (const email of emailList) {
+        await emailService.sendJobCardCreatedNotification(email, {
+          jobCardId: jobCard.id.slice(0, 8),
+          workOrderNumber: `WO-${workOrder.id.slice(0, 8)}`,
+          vehicleDetails: vehicleDetails,
+          assignedTo: partner.displayName
+        });
+      }
+      console.log(`📧 Email (Job Created) with logo and button sent to ${emailList.length} recipients: ${emailList.join(', ')}`);
     } catch (error) {
       console.error(`❌ Failed to send email notification for job card creation:`, error);
     }
