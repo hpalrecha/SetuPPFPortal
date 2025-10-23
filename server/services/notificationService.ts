@@ -251,96 +251,72 @@ export class NotificationService {
   }
 
   // Job Card Notifications
+  // 1. Job Card Created - Send WhatsApp to Assigned Partner
   async sendJobCardCreated(jobCard: JobCard): Promise<void> {
     const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
-    if (!workOrder || !jobCard.assignedToUserId) return;
+    if (!workOrder) return;
 
-    const assignedUser = await storage.getUser(jobCard.assignedToUserId);
-    if (!assignedUser) return;
-
-    // Send WhatsApp notification to assigned detailer/installer
-    if (assignedUser.phone) {
-      try {
-        const showroom = await storage.getShowroom(workOrder.showroomId);
-        
-        await whatsappService.sendJobCardCreated(
-          whatsappService.formatPhoneNumber(assignedUser.phone),
-          assignedUser.name,
-          `${workOrder.vehicleModel} - ${workOrder.customerName}`,
-          showroom?.name || 'Unknown',
-          workOrder.serviceName,
-          jobCard.id
-        );
-        
-        console.log(`📱 WhatsApp notification sent to detailer ${assignedUser.name} for job card ${jobCard.id.slice(0, 8)}`);
-      } catch (error) {
-        console.error(`❌ Failed to send WhatsApp notification for job card creation:`, error);
-      }
+    // Get partner information
+    const partner = await storage.getPartner(jobCard.partnerId);
+    if (!partner || !partner.contactPhone) {
+      console.warn(`⚠️ No contact phone for partner ${jobCard.partnerId}`);
+      return;
     }
 
-    // Also send push notification as backup
-    await this.sendNotification(assignedUser.id, 'PUSH', {
-      title: 'New Job Assignment',
-      message: `Job card ${jobCard.id.slice(0, 8)} assigned for ${workOrder.vehicleModel} - ${workOrder.serviceName}. Please acknowledge within 2 hours.`,
-      type: 'WARNING',
-      data: { 
-        jobCardId: jobCard.id, 
-        workOrderId: workOrder.id,
-        type: 'job_card_created',
-        priority: 'high'
-      }
-    });
+    // Send WhatsApp notification to partner
+    try {
+      const showroom = await storage.getShowroom(workOrder.showroomId);
+      const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCard.id}`;
+      
+      await whatsappService.sendJobCardCreated(
+        whatsappService.formatPhoneNumber(partner.contactPhone),
+        partner.name,
+        jobCard.id.slice(0, 8),
+        `${workOrder.vehicleModel} - ${workOrder.registrationNumber || workOrder.customerName}`,
+        showroom?.name || 'Unknown Location',
+        workOrder.serviceName,
+        jobCardLink
+      );
+      
+      console.log(`✅ WhatsApp (Job Created) sent to partner ${partner.name}`);
+    } catch (error) {
+      console.error(`❌ Failed to send WhatsApp notification for job card creation:`, error);
+    }
   }
 
+  // 2. Job Card Completed (Status: APPROVED) - Send WhatsApp to Order Placer
   async sendJobCardCompleted(jobCard: JobCard): Promise<void> {
     const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
     if (!workOrder) return;
 
-    // Get showroom managers to notify
-    const showroomManagers = await this.getUsersByRole(
-      ['SHOWROOM_MANAGER'], 
-      { showroomId: workOrder.showroomId }
-    );
-
-    const detailerName = jobCard.assignedToUserId 
-      ? (await storage.getUser(jobCard.assignedToUserId))?.name || 'Unknown'
-      : 'Unknown';
-
-    // Send WhatsApp notifications to showroom managers
-    for (const manager of showroomManagers) {
-      if (manager.phone) {
-        try {
-          await whatsappService.sendJobCardCompleted(
-            whatsappService.formatPhoneNumber(manager.phone),
-            detailerName,
-            `${workOrder.vehicleModel} - ${workOrder.customerName}`,
-            workOrder.serviceName,
-            jobCard.id
-          );
-          
-          console.log(`📱 WhatsApp completion notification sent to showroom manager ${manager.name}`);
-        } catch (error) {
-          console.error(`❌ Failed to send WhatsApp completion notification:`, error);
-        }
-      }
+    // Get the user who placed the order
+    const orderPlacer = await storage.getUser(workOrder.createdByUserId);
+    if (!orderPlacer || !orderPlacer.phone) {
+      console.warn(`⚠️ No phone for order placer ${workOrder.createdByUserId}`);
+      return;
     }
 
-    // Also send push notifications as backup
-    await this.sendBulkNotification(
-      showroomManagers.map(manager => manager.id),
-      'PUSH',
-      {
-        title: 'Job Completed',
-        message: `PPF installation completed for job ${jobCard.id.slice(0, 8)} by ${detailerName}.`,
-        type: 'SUCCESS',
-        data: { 
-          jobCardId: jobCard.id, 
-          workOrderId: workOrder.id,
-          detailerName,
-          type: 'job_card_completed'
-        }
-      }
-    );
+    // Get partner information
+    const partner = await storage.getPartner(jobCard.partnerId);
+    if (!partner) return;
+
+    // Send WhatsApp notification to order placer
+    try {
+      const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCard.id}`;
+      
+      await whatsappService.sendJobCardCompleted(
+        whatsappService.formatPhoneNumber(orderPlacer.phone),
+        orderPlacer.name,
+        jobCard.id.slice(0, 8),
+        `${workOrder.vehicleModel} - ${workOrder.registrationNumber || workOrder.customerName}`,
+        partner.name,
+        jobCardLink
+      );
+      
+      console.log(`✅ WhatsApp (Job Completed) sent to order placer ${orderPlacer.name}`);
+    } catch (error) {
+      console.error(`❌ Failed to send WhatsApp completion notification:`, error);
+    }
   }
 
   async sendJobCardAcknowledged(jobCard: JobCard): Promise<void> {
@@ -421,75 +397,105 @@ export class NotificationService {
     );
   }
 
+  // 3. Job Card Pending Approval - Send WhatsApp to Order Placer
   async sendJobCardPendingApproval(jobCard: JobCard): Promise<void> {
     const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
     if (!workOrder) return;
 
-    const showroomManagers = await this.getUsersByRole(
-      ['SHOWROOM_MANAGER'], 
-      { showroomId: workOrder.showroomId }
-    );
+    // Get the user who placed the order
+    const orderPlacer = await storage.getUser(workOrder.createdByUserId);
+    if (!orderPlacer || !orderPlacer.phone) {
+      console.warn(`⚠️ No phone for order placer ${workOrder.createdByUserId}`);
+      return;
+    }
 
-    await this.sendBulkNotification(
-      showroomManagers.map(manager => manager.id),
-      'EMAIL',
-      {
-        title: 'Job Completed - Approval Required',
-        message: `Job ${jobCard.id.slice(0, 8)} has been completed and requires your approval. Please review the uploaded proofs.`,
-        type: 'WARNING',
-        data: { 
-          jobCardId: jobCard.id, 
-          type: 'approval_required',
-          priority: 'high'
-        }
-      }
-    );
+    // Get partner information
+    const partner = await storage.getPartner(jobCard.partnerId);
+    if (!partner) return;
 
-    // Also send push notification for immediate attention
-    await this.sendBulkNotification(
-      showroomManagers.map(manager => manager.id),
-      'PUSH',
-      {
-        title: '🔔 Approval Required',
-        message: `Job ${jobCard.id.slice(0, 8)} completed - Review needed`,
-        type: 'WARNING',
-        data: { jobCardId: jobCard.id, type: 'approval_required' }
-      }
-    );
+    // Send WhatsApp notification to order placer
+    try {
+      const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCard.id}`;
+      
+      await whatsappService.sendJobCardPendingApproval(
+        whatsappService.formatPhoneNumber(orderPlacer.phone),
+        orderPlacer.name,
+        jobCard.id.slice(0, 8),
+        `${workOrder.vehicleModel} - ${workOrder.registrationNumber || workOrder.customerName}`,
+        partner.name,
+        jobCardLink
+      );
+      
+      console.log(`✅ WhatsApp (Pending Approval) sent to order placer ${orderPlacer.name}`);
+    } catch (error) {
+      console.error(`❌ Failed to send WhatsApp pending approval notification:`, error);
+    }
   }
 
+  // 4. Job Card Approved - Send WhatsApp to Assigned Partner
   async sendJobCardApproved(jobCard: JobCard): Promise<void> {
-    const partnerMembers = await this.getPartnerMembers(jobCard.partnerId);
-    
-    await this.sendBulkNotification(
-      partnerMembers.map(member => member.userId),
-      'PUSH',
-      {
-        title: 'Job Approved ✅',
-        message: `Your completed job ${jobCard.id.slice(0, 8)} has been approved. Payment will be processed soon.`,
-        type: 'SUCCESS',
-        data: { jobCardId: jobCard.id, type: 'job_approved' }
-      }
-    );
+    const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+    if (!workOrder) return;
+
+    // Get partner information
+    const partner = await storage.getPartner(jobCard.partnerId);
+    if (!partner || !partner.contactPhone) {
+      console.warn(`⚠️ No contact phone for partner ${jobCard.partnerId}`);
+      return;
+    }
+
+    // Send WhatsApp notification to partner
+    try {
+      const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCard.id}`;
+      
+      // Calculate payout amount from billing (if available)
+      const payoutAmount = jobCard.billingAmount?.toString() || '0';
+      
+      await whatsappService.sendJobCardApproved(
+        whatsappService.formatPhoneNumber(partner.contactPhone),
+        partner.name,
+        jobCard.id.slice(0, 8),
+        `${workOrder.vehicleModel} - ${workOrder.registrationNumber || workOrder.customerName}`,
+        payoutAmount,
+        jobCardLink
+      );
+      
+      console.log(`✅ WhatsApp (Job Approved) sent to partner ${partner.name}`);
+    } catch (error) {
+      console.error(`❌ Failed to send WhatsApp approval notification:`, error);
+    }
   }
 
+  // 5. Job Card Rejected - Send WhatsApp to Assigned Partner
   async sendJobCardRejected(jobCard: JobCard): Promise<void> {
-    const partnerMembers = await this.getPartnerMembers(jobCard.partnerId);
-    
-    await this.sendBulkNotification(
-      partnerMembers.map(member => member.userId),
-      'EMAIL',
-      {
-        title: 'Job Rejected',
-        message: `Your submitted job ${jobCard.id.slice(0, 8)} has been rejected. Please check the feedback and contact the showroom.`,
-        type: 'ERROR',
-        data: { 
-          jobCardId: jobCard.id, 
-          reason: jobCard.rejectionReason,
-          type: 'job_rejected'
-        }
-      }
-    );
+    const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+    if (!workOrder) return;
+
+    // Get partner information
+    const partner = await storage.getPartner(jobCard.partnerId);
+    if (!partner || !partner.contactPhone) {
+      console.warn(`⚠️ No contact phone for partner ${jobCard.partnerId}`);
+      return;
+    }
+
+    // Send WhatsApp notification to partner
+    try {
+      const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCard.id}`;
+      const rejectionReason = jobCard.rejectionReason || 'Not specified';
+      
+      await whatsappService.sendJobCardRejected(
+        whatsappService.formatPhoneNumber(partner.contactPhone),
+        partner.name,
+        jobCard.id.slice(0, 8),
+        `${workOrder.vehicleModel} - ${workOrder.registrationNumber || workOrder.customerName}`,
+        rejectionReason,
+        jobCardLink
+      );
+      
+      console.log(`✅ WhatsApp (Job Rejected) sent to partner ${partner.name}`);
+    } catch (error) {
+      console.error(`❌ Failed to send WhatsApp rejection notification:`, error);
+    }
   }
 
   async sendJobCardReworkRequested(jobCard: JobCard): Promise<void> {
