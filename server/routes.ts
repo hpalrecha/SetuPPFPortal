@@ -5891,6 +5891,134 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========================================
+  // EMAIL TEST ENDPOINT
+  // ========================================
+  
+  /**
+   * Test endpoint to send sample emails of all notification types
+   * POST /api/test/send-all-emails
+   */
+  app.post("/api/test/send-all-emails", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ error: "Email address required" });
+      }
+
+      const results: any[] = [];
+
+      // 1. Job Card Completion
+      try {
+        await emailService.sendJobCardCompletionNotification(email, {
+          jobCardId: "JC-TEST-001",
+          workOrderNumber: "WO-2025-001",
+          vehicleDetails: "BMW X5 - KA01AB1234",
+          completedAt: new Date(),
+          partnerName: "Premium Auto Care"
+        });
+        results.push({ type: "Job Card Completion", status: "sent" });
+      } catch (error: any) {
+        results.push({ type: "Job Card Completion", status: "failed", error: error.message });
+      }
+
+      // 2. Job Card Approval
+      try {
+        await emailService.sendJobCardApprovalNotification(email, {
+          jobCardId: "JC-TEST-002",
+          workOrderNumber: "WO-2025-002",
+          vehicleDetails: "Audi Q7 - KA02CD5678",
+          approvedAt: new Date(),
+          approvedBy: "Admin User",
+          payoutAmount: "45000"
+        });
+        results.push({ type: "Job Card Approval", status: "sent" });
+      } catch (error: any) {
+        results.push({ type: "Job Card Approval", status: "failed", error: error.message });
+      }
+
+      // 3. Password Reset
+      try {
+        await emailService.sendPasswordResetEmail(email, "test-reset-token-123", "Test User");
+        results.push({ type: "Password Reset", status: "sent" });
+      } catch (error: any) {
+        results.push({ type: "Password Reset", status: "failed", error: error.message });
+      }
+
+      // 4. OTP Email
+      try {
+        await emailService.sendOTPEmail(email, "123456", "verification");
+        results.push({ type: "OTP Verification", status: "sent" });
+      } catch (error: any) {
+        results.push({ type: "OTP Verification", status: "failed", error: error.message });
+      }
+
+      // 5. Work Order Created
+      try {
+        await emailService.sendWorkOrderCreatedNotification(email, {
+          workOrderId: "wo-test-123",
+          workOrderNumber: "WO-2025-003",
+          vehicleDetails: "Mercedes GLC - KA03EF9012",
+          serviceDetails: "Full Body PPF + Ceramic Coating",
+          customerName: "John Doe",
+          estimatedPrice: "85000"
+        });
+        results.push({ type: "Work Order Created", status: "sent" });
+      } catch (error: any) {
+        results.push({ type: "Work Order Created", status: "failed", error: error.message });
+      }
+
+      // 6. Work Order Updated
+      try {
+        await emailService.sendWorkOrderUpdatedNotification(email, {
+          workOrderId: "wo-test-124",
+          workOrderNumber: "WO-2025-004",
+          status: "In Progress",
+          updateDetails: "Job card assigned to partner and work has started"
+        });
+        results.push({ type: "Work Order Updated", status: "sent" });
+      } catch (error: any) {
+        results.push({ type: "Work Order Updated", status: "failed", error: error.message });
+      }
+
+      // 7. Work Order Completed
+      try {
+        await emailService.sendWorkOrderCompletedNotification(email, {
+          workOrderId: "wo-test-125",
+          workOrderNumber: "WO-2025-005",
+          vehicleDetails: "Range Rover Sport - KA04GH3456",
+          completedAt: new Date()
+        });
+        results.push({ type: "Work Order Completed", status: "sent" });
+      } catch (error: any) {
+        results.push({ type: "Work Order Completed", status: "failed", error: error.message });
+      }
+
+      // 8. Job Card Created
+      try {
+        await emailService.sendJobCardCreatedNotification(email, {
+          jobCardId: "JC-TEST-003",
+          workOrderNumber: "WO-2025-006",
+          vehicleDetails: "Porsche Cayenne - KA05IJ7890",
+          assignedTo: "Elite Detailing Studio"
+        });
+        results.push({ type: "Job Card Created", status: "sent" });
+      } catch (error: any) {
+        results.push({ type: "Job Card Created", status: "failed", error: error.message });
+      }
+
+      res.json({
+        success: true,
+        message: `Sent ${results.filter(r => r.status === 'sent').length} out of ${results.length} emails to ${email}`,
+        results
+      });
+    } catch (error: any) {
+      console.error("Test email error:", error);
+      res.status(500).json({ error: error.message || "Failed to send test emails" });
+    }
+  });
+
+  // ========================================
   // PULSE WEBHOOK INTEGRATION
   // ========================================
   
