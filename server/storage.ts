@@ -76,7 +76,7 @@ import {
   type InsertWhatsappTemplate
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql, count, avg, sum, lte, gte, or, isNull, isNotNull, asc, inArray, ne, like } from "drizzle-orm";
+import { eq, and, desc, sql, count, avg, sum, lte, gte, or, isNull, isNotNull, asc, inArray, ne, like, notInArray } from "drizzle-orm";
 
 export interface IStorage {
   // User management
@@ -2329,6 +2329,11 @@ export class DatabaseStorage implements IStorage {
     if (filters?.oemId) conditions.push(eq(workOrders.oemId, filters.oemId));
     if (filters?.dealershipId) conditions.push(eq(workOrders.dealershipId, filters.dealershipId));
     if (filters?.showroomId) conditions.push(eq(workOrders.showroomId, filters.showroomId));
+
+    // CRITICAL FIX: Exclude payouts for job cards that are in final/completed statuses
+    // These job cards are past the payout settlement stage and should not appear in pending payouts
+    const excludedJobCardStatuses = ['WARRANTY_REGISTRATION', 'INVOICE_RAISED', 'PAYMENT_PENDING', 'CLOSED'];
+    conditions.push(notInArray(jobCards.status, excludedJobCardStatuses));
 
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
