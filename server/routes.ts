@@ -2130,17 +2130,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const partnerName = partner?.displayName || 'Partner';
             const serviceName = service?.name || 'Service';
             const showroomName = showroom?.name || 'Showroom';
+            const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000'}/job-cards/${jobCard.id}`;
             
             // Send to partner if phone available
             if (partner?.phone) {
               await whatsappService.sendJobCardCreated(
-                partner.phone,
+                whatsappService.formatPhoneNumber(partner.phone),
                 partnerName,
+                jobCard.id.slice(0, 8),
                 vehicleDetails,
                 showroomName,
                 serviceName,
-                jobCard.id
+                jobCardLink
               );
+              console.log(`✅ WhatsApp (Job Created) sent to partner ${partnerName}`);
             }
           } catch (whatsappError) {
             console.error('WhatsApp notification failed:', whatsappError);
@@ -2438,19 +2441,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
           
           const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} - ${workOrder.color || 'N/A'}`;
-          const approvedBy = req.user!.name || req.user!.email;
+          const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000'}/job-cards/${updatedJobCard.id}`;
           
           if (partner?.phone) {
             await whatsappService.sendJobCardApproved(
-              partner.phone,
+              whatsappService.formatPhoneNumber(partner.phone),
               partner.displayName,
+              updatedJobCard.id.slice(0, 8),
               vehicleDetails,
-              approvedBy,
-              updatedJobCard.id
+              payoutAmount,
+              jobCardLink
             );
+            console.log(`✅ WhatsApp (Job Approved) sent to partner ${partner.displayName}`);
           }
         } catch (whatsappError) {
-          console.error('WhatsApp notification failed:', whatsappError);
+          console.error('❌ WhatsApp notification failed:', whatsappError);
         }
 
         res.json({ message: "Job card approved successfully", jobCard: updatedJobCard });
@@ -2680,29 +2685,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Job card not found" });
       }
 
-      // 📱 WhatsApp Notification: Job Card Scheduled
-      try {
-        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
-        const partner = await storage.getPartner(jobCard.partnerId);
-        const vehicleModel = workOrder ? await storage.getVehicleModel(workOrder.vehicleModelId) : null;
-        const showroom = workOrder ? await storage.getShowroom(workOrder.showroomId || '') : null;
-        
-        const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} - ${workOrder?.color || 'N/A'}`;
-        const showroomName = showroom?.name || 'Showroom';
-        
-        if (partner?.phone) {
-          await whatsappService.sendJobCardScheduled(
-            partner.phone,
-            partner.displayName,
-            scheduledAt.toLocaleDateString('en-IN'),
-            vehicleDetails,
-            showroomName,
-            jobCard.id
-          );
-        }
-      } catch (whatsappError) {
-        console.error('WhatsApp notification failed:', whatsappError);
-      }
+      // WhatsApp notification for scheduled not needed (no Meta-approved template)
+      console.log(`ℹ️ Job card ${jobCard.id} scheduled for ${scheduledAt.toLocaleDateString('en-IN')}`);
 
       res.json(jobCard);
     } catch (error) {
@@ -2725,32 +2709,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Job card not found" });
       }
 
-      // 📱 WhatsApp Notification: Job Card Started
-      try {
-        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
-        const partner = await storage.getPartner(jobCard.partnerId);
-        
-        if (workOrder) {
-          const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
-          const service = await storage.getService(workOrder.serviceId);
-          const showroom = await storage.getShowroom(workOrder.showroomId || '');
-          
-          const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} - ${workOrder.color || 'N/A'}`;
-          const serviceName = service?.name || 'Service';
-          
-          if (showroom?.contactPersonPhone) {
-            await whatsappService.sendJobCardStarted(
-              showroom.contactPersonPhone,
-              partner?.displayName || 'Partner',
-              vehicleDetails,
-              serviceName,
-              jobCard.id
-            );
-          }
-        }
-      } catch (whatsappError) {
-        console.error('WhatsApp notification failed:', whatsappError);
-      }
+      // WhatsApp notification for started not needed (no Meta-approved template)
+      console.log(`ℹ️ Job card ${jobCard.id} started`);
 
       res.json(jobCard);
     } catch (error) {
