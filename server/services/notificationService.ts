@@ -17,6 +17,17 @@ interface NotificationChannel {
 }
 
 export class NotificationService {
+  /**
+   * Get the base URL for the application
+   * Uses REPLIT_DEV_DOMAIN when deployed, falls back to localhost for local dev
+   */
+  private getBaseUrl(): string {
+    if (process.env.REPLIT_DEV_DOMAIN) {
+      return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+    }
+    return process.env.FRONTEND_URL || 'http://localhost:5000';
+  }
+
   async sendNotification(
     userId: string,
     channel: 'EMAIL' | 'SMS' | 'PUSH' | 'WHATSAPP',
@@ -270,7 +281,7 @@ export class NotificationService {
       storage.getService(workOrder.serviceId)
     ]);
 
-    const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCard.id}`;
+    const jobCardLink = `${this.getBaseUrl()}/job-cards/${jobCard.id}`;
     const vehicleInfo = `${vehicleModel?.modelName || 'Unknown'} - ${workOrder.regNo || workOrder.customerName}`;
     const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} ${workOrder.regNo ? '- ' + workOrder.regNo : ''}`;
 
@@ -358,7 +369,7 @@ export class NotificationService {
 
     // Send WhatsApp notification to order placer
     try {
-      const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCard.id}`;
+      const jobCardLink = `${this.getBaseUrl()}/job-cards/${jobCard.id}`;
       const vehicleInfo = `${vehicleModel?.modelName || 'Unknown'} - ${workOrder.regNo || workOrder.customerName}`;
       
       await whatsappService.sendJobCardCompleted(
@@ -475,7 +486,7 @@ export class NotificationService {
 
     // Send WhatsApp notification to order placer
     try {
-      const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCard.id}`;
+      const jobCardLink = `${this.getBaseUrl()}/job-cards/${jobCard.id}`;
       const vehicleInfo = `${vehicleModel?.modelName || 'Unknown'} - ${workOrder.regNo || workOrder.customerName}`;
       
       await whatsappService.sendJobCardPendingApproval(
@@ -511,7 +522,7 @@ export class NotificationService {
 
     // Send WhatsApp notification to partner
     try {
-      const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCard.id}`;
+      const jobCardLink = `${this.getBaseUrl()}/job-cards/${jobCard.id}`;
       const vehicleInfo = `${vehicleModel?.modelName || 'Unknown'} - ${workOrder.regNo || workOrder.customerName}`;
       
       // Calculate payout amount from billing value (if available)
@@ -550,7 +561,7 @@ export class NotificationService {
 
     // Send WhatsApp notification to partner
     try {
-      const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCard.id}`;
+      const jobCardLink = `${this.getBaseUrl()}/job-cards/${jobCard.id}`;
       const vehicleInfo = `${vehicleModel?.modelName || 'Unknown'} - ${workOrder.regNo || workOrder.customerName}`;
       
       // Use rework reason as rejection reason (or partnerRemarks for general feedback)
