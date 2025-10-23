@@ -310,16 +310,28 @@ export class NotificationService {
         }
       }
 
-      // Send proper job card created email template with logo and button
+      // Get OEM and Dealership names
+      const [oem, dealership] = await Promise.all([
+        storage.getOem(workOrder.oemId),
+        storage.getDealership(workOrder.dealershipId)
+      ]);
+
+      // Send proper job card created email template with all details, logo and button
       for (const email of emailList) {
         await emailService.sendJobCardCreatedNotification(email, {
           jobCardId: jobCard.id.slice(0, 8),
           workOrderNumber: `WO-${workOrder.id.slice(0, 8)}`,
           vehicleDetails: vehicleDetails,
-          assignedTo: partner.displayName
+          assignedTo: partner.displayName,
+          serviceName: service?.name || undefined,
+          customerName: workOrder.customerName,
+          showroomName: showroom?.name || undefined,
+          dealershipName: dealership?.name || undefined,
+          oemName: oem?.name || undefined,
+          jobCardLink: jobCardLink
         });
       }
-      console.log(`📧 Email (Job Created) with logo and button sent to ${emailList.length} recipients: ${emailList.join(', ')}`);
+      console.log(`📧 Email (Job Created) with logo, button, and full details sent to ${emailList.length} recipients: ${emailList.join(', ')}`);
     } catch (error) {
       console.error(`❌ Failed to send email notification for job card creation:`, error);
     }

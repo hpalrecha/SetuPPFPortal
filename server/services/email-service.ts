@@ -661,6 +661,12 @@ export class EmailService {
       workOrderNumber: string;
       vehicleDetails: string;
       assignedTo?: string;
+      serviceName?: string;
+      customerName?: string;
+      showroomName?: string;
+      dealershipName?: string;
+      oemName?: string;
+      jobCardLink?: string;
     }
   ): Promise<boolean> {
     const html = `
@@ -671,9 +677,44 @@ export class EmailService {
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; }
           .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-          .header { background: #8b5cf6; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+          .header { 
+            background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+            color: white; 
+            padding: 30px; 
+            border-radius: 8px 8px 0 0; 
+            text-align: center;
+          }
           .content { padding: 30px; }
+          .alert-box { 
+            background: #fef3c7; 
+            border-left: 4px solid #f59e0b; 
+            padding: 15px; 
+            margin: 20px 0;
+            border-radius: 4px;
+          }
           .details { background: #f8fafc; padding: 20px; border-radius: 6px; margin: 20px 0; }
+          .details p { margin: 8px 0; }
+          .section-title { 
+            color: #4b5563; 
+            font-size: 14px; 
+            font-weight: bold; 
+            text-transform: uppercase; 
+            margin: 20px 0 10px 0;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 5px;
+          }
+          .button {
+            display: inline-block;
+            background: #4db848;
+            color: white !important;
+            padding: 14px 32px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+            margin: 20px 0;
+            text-align: center;
+          }
+          .button:hover { background: #3d9538; }
           .footer { background: #f1f5f9; padding: 20px; border-radius: 0 0 8px 8px; text-align: center; color: #64748b; }
         </style>
       </head>
@@ -681,16 +722,46 @@ export class EmailService {
         <div class="container">
           ${this.getLogoHtml()}
           <div class="header">
-            <h1 style="margin: 0;">🔧 New Job Card Created</h1>
+            <h1 style="margin: 0; font-size: 26px;">🔧 New Job Card Assigned</h1>
           </div>
           <div class="content">
-            <p>A new job card has been created:</p>
+            <div class="alert-box">
+              <strong>⚠️ ACTION REQUIRED:</strong> A new PPF installation job has been assigned to you. Please acknowledge this job card within 2 hours and schedule the installation.
+            </div>
+
+            <div class="section-title">📋 Job Card Details</div>
             <div class="details">
               <p><strong>Job Card ID:</strong> ${jobCardData.jobCardId}</p>
               <p><strong>Work Order:</strong> ${jobCardData.workOrderNumber}</p>
+              <p><strong>Status:</strong> <span style="color: #f59e0b;">⏳ Awaiting Acknowledgment</span></p>
+            </div>
+
+            <div class="section-title">🚗 Vehicle & Service Information</div>
+            <div class="details">
               <p><strong>Vehicle:</strong> ${jobCardData.vehicleDetails}</p>
+              ${jobCardData.serviceName ? `<p><strong>Service:</strong> ${jobCardData.serviceName}</p>` : ''}
+              ${jobCardData.customerName ? `<p><strong>Customer:</strong> ${jobCardData.customerName}</p>` : ''}
+            </div>
+
+            <div class="section-title">🏢 Organization Details</div>
+            <div class="details">
+              ${jobCardData.oemName ? `<p><strong>OEM/Brand:</strong> ${jobCardData.oemName}</p>` : ''}
+              ${jobCardData.dealershipName ? `<p><strong>Dealership:</strong> ${jobCardData.dealershipName}</p>` : ''}
+              ${jobCardData.showroomName ? `<p><strong>Showroom:</strong> ${jobCardData.showroomName}</p>` : ''}
               ${jobCardData.assignedTo ? `<p><strong>Assigned To:</strong> ${jobCardData.assignedTo}</p>` : ''}
             </div>
+
+            ${jobCardData.jobCardLink ? `
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${jobCardData.jobCardLink}" class="button">
+                  📱 View Job Card & Acknowledge
+                </a>
+              </div>
+            ` : ''}
+
+            <p style="margin-top: 30px; font-size: 14px; color: #64748b;">
+              Please log in to Pulse VAS to view complete job details, upload photos, and update the job status.
+            </p>
           </div>
           <div class="footer">
             <p>Pulse VAS - Professional Paint Protection Film Services</p>
@@ -702,7 +773,7 @@ export class EmailService {
 
     return this.sendEmail({
       to: recipientEmail,
-      subject: `New Job Card Created - ${jobCardData.workOrderNumber}`,
+      subject: `🔔 New Job Card Assigned - ${jobCardData.workOrderNumber}`,
       html
     });
   }
