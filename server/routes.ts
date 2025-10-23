@@ -1835,6 +1835,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         const updatedJobCard = await storage.updateJobCard(id, { assignedInstallerId });
+        
+        // Send WhatsApp & Email notification to the assigned installer
+        notificationService.sendJobCardAssignedToInstaller(updatedJobCard, assignedInstallerId).catch(error => {
+          console.error('Failed to send installer assignment notification:', error);
+        });
+        
         res.json(updatedJobCard);
       } catch (error) {
         console.error("Assign job card error:", error);

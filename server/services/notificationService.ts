@@ -601,6 +601,70 @@ export class NotificationService {
     );
   }
 
+  // 6. Job Card Assigned to Installer Team Member - Send WhatsApp & Email
+  async sendJobCardAssignedToInstaller(jobCard: JobCard, installerId: string): Promise<void> {
+    const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+    if (!workOrder) return;
+
+    // Get installer user, partner, and other details
+    const [installer, partner, showroom, vehicleModel, service, oem, dealership] = await Promise.all([
+      storage.getUser(installerId),
+      storage.getPartner(jobCard.partnerId),
+      storage.getShowroom(workOrder.showroomId),
+      storage.getVehicleModel(workOrder.vehicleModelId),
+      storage.getService(workOrder.serviceId),
+      storage.getOem(workOrder.oemId),
+      storage.getDealership(workOrder.dealershipId)
+    ]);
+
+    if (!installer || !partner) {
+      console.warn(`⚠️ Installer or partner not found`);
+      return;
+    }
+
+    const jobCardLink = `${this.getBaseUrl()}/job-cards/${jobCard.id}`;
+    const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} ${workOrder.regNo ? '- ' + workOrder.regNo : ''}`;
+
+    // 📱 Send WhatsApp notification to installer (if phone available)
+    if (installer.phone) {
+      try {
+        await whatsappService.sendJobCardCreated(
+          whatsappService.formatPhoneNumber(installer.phone),
+          installer.name,
+          jobCard.id.slice(0, 8),
+          vehicleDetails,
+          showroom?.name || 'Showroom',
+          service?.name || 'PPF Installation',
+          jobCardLink
+        );
+        console.log(`✅ WhatsApp (Job Assigned to Installer) sent to ${installer.name}`);
+      } catch (error) {
+        console.error(`❌ Failed to send WhatsApp notification to installer:`, error);
+      }
+    }
+
+    // ✉️ Send Email notification to installer
+    if (installer.email) {
+      try {
+        await emailService.sendJobCardCreatedNotification(installer.email, {
+          jobCardId: jobCard.id.slice(0, 8),
+          workOrderNumber: `WO-${workOrder.id.slice(0, 8)}`,
+          vehicleDetails: vehicleDetails,
+          assignedTo: installer.name,
+          serviceName: service?.name || undefined,
+          customerName: workOrder.customerName,
+          showroomName: showroom?.name || undefined,
+          dealershipName: dealership?.name || undefined,
+          oemName: oem?.name || undefined,
+          jobCardLink: jobCardLink
+        });
+        console.log(`📧 Email (Job Assigned to Installer) sent to ${installer.email}`);
+      } catch (error) {
+        console.error(`❌ Failed to send email notification to installer:`, error);
+      }
+    }
+  }
+
   // SLA Alerts
   async sendSLAAlert(
     type: 'ACK_OVERDUE' | 'SCHEDULE_OVERDUE' | 'COMPLETION_OVERDUE' | 'APPROVAL_OVERDUE', 
