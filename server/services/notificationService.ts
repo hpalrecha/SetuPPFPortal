@@ -350,27 +350,49 @@ export class NotificationService {
 
   // 2. Job Card Completed (Status: APPROVED) - Send WhatsApp to Order Placer
   async sendJobCardCompleted(jobCard: JobCard): Promise<void> {
+    console.log(`🔔 sendJobCardCompleted called for job card ${jobCard.id}`);
+    
     const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
-    if (!workOrder) return;
+    if (!workOrder) {
+      console.warn(`⚠️ No work order found for job card ${jobCard.id}`);
+      return;
+    }
+
+    console.log(`📋 Work order found: ${workOrder.id}, created by: ${workOrder.createdByUserId}`);
 
     // Get the user who placed the order
     const orderPlacer = await storage.getUser(workOrder.createdByUserId);
-    if (!orderPlacer || !orderPlacer.phone) {
-      console.warn(`⚠️ No phone for order placer ${workOrder.createdByUserId}`);
+    if (!orderPlacer) {
+      console.warn(`⚠️ Order placer user not found: ${workOrder.createdByUserId}`);
       return;
     }
+    
+    if (!orderPlacer.phone) {
+      console.warn(`⚠️ No phone for order placer ${orderPlacer.name} (${orderPlacer.email})`);
+      return;
+    }
+
+    console.log(`👤 Order placer: ${orderPlacer.name}, phone: ${orderPlacer.phone}`);
 
     // Get related entities
     const [partner, vehicleModel] = await Promise.all([
       storage.getPartner(jobCard.partnerId),
       storage.getVehicleModel(workOrder.vehicleModelId)
     ]);
-    if (!partner) return;
+    
+    if (!partner) {
+      console.warn(`⚠️ Partner not found: ${jobCard.partnerId}`);
+      return;
+    }
+
+    console.log(`🏢 Partner: ${partner.displayName}`);
 
     // Send WhatsApp notification to order placer
     try {
       const jobCardLink = `${this.getBaseUrl()}/job-cards/${jobCard.id}`;
       const vehicleInfo = `${vehicleModel?.modelName || 'Unknown'} - ${workOrder.regNo || workOrder.customerName}`;
+      
+      console.log(`📱 Attempting to send WhatsApp to ${orderPlacer.phone}...`);
       
       await whatsappService.sendJobCardCompleted(
         whatsappService.formatPhoneNumber(orderPlacer.phone),
