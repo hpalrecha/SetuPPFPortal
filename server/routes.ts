@@ -5298,84 +5298,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Test brand-specific email addresses
-  app.post("/api/test-brand-emails", async (req, res) => {
-    try {
-      const recipientEmail = req.body.to || "jaggi13js@gmail.com";
-      
-      // Test email from 3M brand
-      const email3M = await emailService.sendEmail({
-        to: recipientEmail,
-        subject: "Test Email from 3M Brand",
-        from: emailService.getFromEmailByBrand("3M"),
-        html: `
-          <div style="font-family: Arial, sans-serif; padding: 20px;">
-            <h2 style="color: #2563eb;">Test Email from 3M Brand</h2>
-            <p>This is a test email sent from the <strong>3M brand</strong> email address.</p>
-            <p><strong>From:</strong> ppfinstallation@justsigns.co.in</p>
-            <p><strong>Brand:</strong> 3M</p>
-            <hr style="margin: 20px 0;">
-            <p style="color: #64748b; font-size: 14px;">This is a test of the dynamic "From Email" feature based on product brand.</p>
-          </div>
-        `
-      });
-
-      // Test email from STEK brand
-      const emailSTEK = await emailService.sendEmail({
-        to: recipientEmail,
-        subject: "Test Email from STEK Brand",
-        from: emailService.getFromEmailByBrand("STEK"),
-        html: `
-          <div style="font-family: Arial, sans-serif; padding: 20px;">
-            <h2 style="color: #10b981;">Test Email from STEK Brand</h2>
-            <p>This is a test email sent from the <strong>STEK brand</strong> email address.</p>
-            <p><strong>From:</strong> noreply@stek-india.in</p>
-            <p><strong>Brand:</strong> STEK</p>
-            <hr style="margin: 20px 0;">
-            <p style="color: #64748b; font-size: 14px;">This is a test of the dynamic "From Email" feature based on product brand.</p>
-          </div>
-        `
-      });
-
-      // Test email from P91 brand
-      const emailP91 = await emailService.sendEmail({
-        to: recipientEmail,
-        subject: "Test Email from P91 Brand",
-        from: emailService.getFromEmailByBrand("P91"),
-        html: `
-          <div style="font-family: Arial, sans-serif; padding: 20px;">
-            <h2 style="color: #f59e0b;">Test Email from P91 Brand</h2>
-            <p>This is a test email sent from the <strong>P91 brand</strong> email address.</p>
-            <p><strong>From:</strong> noreply@p91india.com</p>
-            <p><strong>Brand:</strong> P91</p>
-            <hr style="margin: 20px 0;">
-            <p style="color: #64748b; font-size: 14px;">This is a test of the dynamic "From Email" feature based on product brand.</p>
-          </div>
-        `
-      });
-
-      const results = {
-        recipientEmail,
-        results: {
-          "3M": email3M ? "✅ Sent" : "❌ Failed",
-          "STEK": emailSTEK ? "✅ Sent" : "❌ Failed",
-          "P91": emailP91 ? "✅ Sent" : "❌ Failed"
-        },
-        fromEmails: {
-          "3M": "ppfinstallation@justsigns.co.in",
-          "STEK": "noreply@stek-india.in",
-          "P91": "noreply@p91india.com"
-        },
-        note: "Check the email inbox to verify the 'From' addresses are correct for each brand."
-      };
-
-      console.log("📧 Brand-specific test emails sent:", results);
-      res.json(results);
-    } catch (error) {
-      console.error("Test brand emails error:", error);
-      res.status(500).json({ error: "Failed to send test brand emails" });
-    }
-  });
+  // NOTE: Brand-specific email addresses removed - all emails now use unified noreply@p91india.com
+  // This endpoint is deprecated as per the unified notification system requirements
 
   // 🔥 CREATE COMMISSION FOR SPECIFIC WORK ORDER - Robust commission creation
   app.post("/api/work-orders/:workOrderId/commission", 

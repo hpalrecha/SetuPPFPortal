@@ -34,8 +34,15 @@ export class EmailService {
 
   private getLogoHtml(): string {
     return `
-      <div style="text-align: center; padding: 20px 0;">
-        <img src="${this.baseUrl}/attached_assets/P91%20PULSE%20logo-01_1761139835394.png" alt="Pulse VAS" style="height: 50px; width: auto;" />
+      <div style="text-align: center; padding: 30px 20px; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);">
+        <div style="display: inline-block; padding: 15px 30px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          <h1 style="margin: 0; font-size: 32px; font-weight: 700; color: #4db848; font-family: 'Oxanium', Arial, sans-serif; letter-spacing: 1px;">
+            PULSE VAS
+          </h1>
+          <p style="margin: 5px 0 0 0; font-size: 12px; color: #64748b; font-family: Arial, sans-serif; letter-spacing: 0.5px;">
+            Professional Paint Protection Film Services
+          </p>
+        </div>
       </div>
     `;
   }
