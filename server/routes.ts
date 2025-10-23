@@ -2410,19 +2410,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ? `${vehicleModel.modelName}${workOrder.regNo ? ` (${workOrder.regNo})` : ''}`
             : `Vehicle ${workOrder.regNo || workOrder.customerName}`;
           
+          // Send professional email to stakeholders using the same template
           for (const stakeholder of stakeholders) {
             if (stakeholder.email) {
-              await emailService.sendEmail({
-                to: stakeholder.email,
-                subject: `Job Card Approved - ${workOrder.workOrderNumber || workOrder.id.slice(0, 8)}`,
-                html: `
-                  <p>Job Card has been approved for ${vehicleDetails}.</p>
-                  <p><strong>Approved by:</strong> ${req.user!.name || req.user!.email}</p>
-                  <p><strong>Partner:</strong> ${partner?.displayName || 'N/A'}</p>
-                  <p><strong>Payout Amount:</strong> ₹${payoutAmount}</p>
-                `,
-                text: `Job Card approved for ${vehicleDetails}. Approved by: ${req.user!.name || req.user!.email}`
-              });
+              await emailService.sendJobCardApprovalNotification(
+                stakeholder.email,
+                {
+                  jobCardId: updatedJobCard.id,
+                  workOrderNumber: workOrder.workOrderNumber || workOrder.id.slice(0, 8),
+                  vehicleDetails: vehicleDetails,
+                  approvedAt: updatedJobCard.approvedAt || new Date(),
+                  approvedBy: req.user!.name || req.user!.email,
+                  payoutAmount: payoutAmount
+                }
+              );
             }
           }
           console.log(`📧 Sent job card approval emails to ${stakeholders.length} stakeholders`);
