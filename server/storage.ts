@@ -2330,11 +2330,6 @@ export class DatabaseStorage implements IStorage {
     if (filters?.dealershipId) conditions.push(eq(workOrders.dealershipId, filters.dealershipId));
     if (filters?.showroomId) conditions.push(eq(workOrders.showroomId, filters.showroomId));
 
-    // CRITICAL FIX: Exclude payouts for job cards that are approved and moved to invoice/final stages
-    // Once a job card is approved and goes to PENDING_SALES_INVOICE or beyond, payout is considered settled
-    const excludedJobCardStatuses = ['PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED'];
-    conditions.push(notInArray(jobCards.status, excludedJobCardStatuses));
-
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }

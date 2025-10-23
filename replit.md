@@ -3,7 +3,7 @@
 Pulse VAS is a multi-tenant web application designed for managing Paint Protection Film (PPF) installation orders within the automotive industry. It connects Vehicle OEMs, dealerships, showrooms, and installation partners, offering a complete workflow management system with features like real-time tracking, automated pricing, and commission management. The platform supports various user roles, providing role-specific dashboards and permissions to streamline work order lifecycles, track job cards, manage partner allocations, and handle complex billing and commission structures.
 
 ## Recent Changes (October 23, 2025)
-- **Payout Settlement Fix**: Resolved issue where approved job cards were incorrectly appearing in the payout settlement section after moving to invoice stages. The `getPayouts` query now excludes payouts for job cards in post-approval statuses (PENDING_SALES_INVOICE, INVOICE_RAISED, WARRANTY_REGISTRATION, PAYMENT_PENDING, CLOSED). Once a job card is approved and moves to pending invoice, it's considered settled and won't show in payout settlement.
+- **Payout Settlement Logic**: Payout settlement now displays based on **payout status** (pending_review, due, paid) rather than job card status. Approved job cards remain visible in payout settlement even after moving to PENDING_SALES_INVOICE, WARRANTY_REGISTRATION, or other post-approval stages. Payouts are removed from the pending list only when their payout status changes to "paid".
 - **Super Admin User Script**: Created secure script (`scripts/create-super-admin.ts`) to generate SQL for creating super admin users with properly bcrypt-hashed passwords for production database deployment.
 
 # User Preferences
