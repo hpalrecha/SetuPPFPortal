@@ -1,5 +1,7 @@
 import nodemailer from 'nodemailer';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import fs from 'fs';
+import path from 'path';
 
 export interface EmailOptions {
   to: string | string[];
@@ -21,6 +23,7 @@ export class EmailService {
   private smtpConfigured = false;
   private senderEmail: string;
   private baseUrl: string;
+  private logoBase64: string = '';
 
   constructor() {
     // Always use noreply@p91india.com as the sender email
@@ -29,22 +32,44 @@ export class EmailService {
     this.baseUrl = process.env.REPLIT_DEV_DOMAIN 
       ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
       : (process.env.FRONTEND_URL || 'http://localhost:5000');
+    this.loadLogo();
     this.initialize();
   }
 
+  private loadLogo(): void {
+    try {
+      const logoPath = path.join(process.cwd(), 'attached_assets', 'P91 PULSE logo-01_1761139835394.png');
+      const logoBuffer = fs.readFileSync(logoPath);
+      this.logoBase64 = logoBuffer.toString('base64');
+      console.log('✅ Logo loaded successfully for email templates');
+    } catch (error) {
+      console.error('❌ Failed to load logo:', error);
+      this.logoBase64 = '';
+    }
+  }
+
   private getLogoHtml(): string {
-    return `
-      <div style="text-align: center; padding: 30px 20px; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);">
-        <div style="display: inline-block; padding: 15px 30px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          <h1 style="margin: 0; font-size: 32px; font-weight: 700; color: #4db848; font-family: 'Oxanium', Arial, sans-serif; letter-spacing: 1px;">
-            PULSE VAS
-          </h1>
-          <p style="margin: 5px 0 0 0; font-size: 12px; color: #64748b; font-family: Arial, sans-serif; letter-spacing: 0.5px;">
-            Professional Paint Protection Film Services
-          </p>
+    if (this.logoBase64) {
+      return `
+        <div style="text-align: center; padding: 30px 20px; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);">
+          <img src="data:image/png;base64,${this.logoBase64}" alt="Pulse VAS" style="height: 60px; width: auto; max-width: 250px;" />
         </div>
-      </div>
-    `;
+      `;
+    } else {
+      // Fallback to text-based logo
+      return `
+        <div style="text-align: center; padding: 30px 20px; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);">
+          <div style="display: inline-block; padding: 15px 30px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <h1 style="margin: 0; font-size: 32px; font-weight: 700; color: #4db848; font-family: 'Oxanium', Arial, sans-serif; letter-spacing: 1px;">
+              PULSE VAS
+            </h1>
+            <p style="margin: 5px 0 0 0; font-size: 12px; color: #64748b; font-family: Arial, sans-serif; letter-spacing: 0.5px;">
+              Professional Paint Protection Film Services
+            </p>
+          </div>
+        </div>
+      `;
+    }
   }
 
   private initialize() {
