@@ -19,12 +19,20 @@ interface NotificationChannel {
 export class NotificationService {
   /**
    * Get the base URL for the application
-   * Uses REPLIT_DEV_DOMAIN when deployed, falls back to localhost for local dev
+   * Priority: Custom domain > Replit domain > localhost
    */
   private getBaseUrl(): string {
+    // 1. Use custom production domain if set
+    if (process.env.PRODUCTION_URL) {
+      return process.env.PRODUCTION_URL;
+    }
+    
+    // 2. Use Replit deployment domain
     if (process.env.REPLIT_DEV_DOMAIN) {
       return `https://${process.env.REPLIT_DEV_DOMAIN}`;
     }
+    
+    // 3. Fall back to localhost for local development
     return process.env.FRONTEND_URL || 'http://localhost:5000';
   }
 
