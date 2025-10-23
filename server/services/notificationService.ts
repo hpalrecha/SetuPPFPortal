@@ -721,6 +721,15 @@ export class NotificationService {
   async notifyStakeholders(eventType: string, workOrder: WorkOrder): Promise<void> {
     // Send email notifications to relevant stakeholders based on event type
     try {
+      // Fetch vehicle model and service names first
+      const [vehicleModel, service] = await Promise.all([
+        storage.getVehicleModel(workOrder.vehicleModelId),
+        storage.getService(workOrder.serviceId)
+      ]);
+
+      const vehicleName = vehicleModel?.modelName || 'Vehicle';
+      const serviceName = service?.name || 'Service';
+
       let stakeholders: User[] = [];
       let payload: NotificationPayload | null = null;
 
@@ -737,7 +746,7 @@ export class NotificationService {
           );
           payload = {
             title: 'New Work Order Created',
-            message: `Work Order #${workOrder.woNumber || workOrder.id.slice(0, 8)} has been created for ${workOrder.vehicleModel}. Customer: ${workOrder.customerName}. Service: ${workOrder.serviceName}.`,
+            message: `Work Order #${workOrder.id.slice(0, 8)} has been created for ${vehicleName}. Customer: ${workOrder.customerName}. Service: ${serviceName}.`,
             type: 'INFO',
             data: { workOrderId: workOrder.id, type: 'work_order_created' }
           };
@@ -755,7 +764,7 @@ export class NotificationService {
           );
           payload = {
             title: 'Work Order Completed',
-            message: `Work Order #${workOrder.woNumber || workOrder.id.slice(0, 8)} for ${workOrder.vehicleModel} has been completed.`,
+            message: `Work Order #${workOrder.id.slice(0, 8)} for ${vehicleName} has been completed.`,
             type: 'SUCCESS',
             data: { workOrderId: workOrder.id, type: 'work_order_completed' }
           };
@@ -779,7 +788,7 @@ export class NotificationService {
           }
           payload = {
             title: 'Work Order Assigned to Partner',
-            message: `Work Order #${workOrder.woNumber || workOrder.id.slice(0, 8)} has been assigned to a partner for installation.`,
+            message: `Work Order #${workOrder.id.slice(0, 8)} has been assigned to a partner for installation.`,
             type: 'INFO',
             data: { workOrderId: workOrder.id, type: 'work_order_assigned' }
           };
