@@ -2868,28 +2868,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Failed to send completion email to stakeholders:", emailError);
       }
 
-      // 📱 WhatsApp Notification: Job Card Completed
+      // 📱 WhatsApp Notification: Job Card Completed - Send to order placer
       try {
-        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
-        if (workOrder) {
-          const partner = await storage.getPartner(jobCard.partnerId);
-          const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
-          const service = await storage.getService(workOrder.serviceId);
-          const showroom = await storage.getShowroom(workOrder.showroomId || '');
-          
-          const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} - ${workOrder.color || 'N/A'}`;
-          const serviceName = service?.name || 'Service';
-          
-          if (showroom?.contactPersonPhone) {
-            await whatsappService.sendJobCardCompleted(
-              showroom.contactPersonPhone,
-              partner?.displayName || 'Partner',
-              vehicleDetails,
-              serviceName,
-              jobCard.id
-            );
-          }
-        }
+        await notificationService.sendJobCardCompleted(jobCard);
       } catch (whatsappError) {
         console.error('WhatsApp notification failed:', whatsappError);
       }
