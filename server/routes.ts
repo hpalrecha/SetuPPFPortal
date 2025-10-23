@@ -2404,18 +2404,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           
+          // Get vehicle model details for email
+          const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
+          const vehicleDetails = vehicleModel 
+            ? `${vehicleModel.modelName}${workOrder.regNo ? ` (${workOrder.regNo})` : ''}`
+            : `Vehicle ${workOrder.regNo || workOrder.customerName}`;
+          
           for (const stakeholder of stakeholders) {
             if (stakeholder.email) {
               await emailService.sendEmail({
                 to: stakeholder.email,
                 subject: `Job Card Approved - ${workOrder.workOrderNumber || workOrder.id.slice(0, 8)}`,
                 html: `
-                  <p>Job Card has been approved for ${workOrder.vehicleModel}.</p>
+                  <p>Job Card has been approved for ${vehicleDetails}.</p>
                   <p><strong>Approved by:</strong> ${req.user!.name || req.user!.email}</p>
                   <p><strong>Partner:</strong> ${partner?.displayName || 'N/A'}</p>
                   <p><strong>Payout Amount:</strong> ₹${payoutAmount}</p>
                 `,
-                text: `Job Card approved for ${workOrder.vehicleModel}. Approved by: ${req.user!.name || req.user!.email}`
+                text: `Job Card approved for ${vehicleDetails}. Approved by: ${req.user!.name || req.user!.email}`
               });
             }
           }
