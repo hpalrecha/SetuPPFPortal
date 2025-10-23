@@ -2840,6 +2840,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           );
           
+          // Get vehicle model details
+          const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
+          const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000'}/job-cards/${jobCard.id}`;
+          
           for (const stakeholder of stakeholders) {
             if (stakeholder.email) {
               await emailService.sendJobCardCompletionNotification(
@@ -2847,9 +2851,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 {
                   jobCardId: jobCard.id,
                   workOrderNumber: workOrder.workOrderNumber || workOrder.id.slice(0, 8),
-                  vehicleDetails: `${workOrder.vehicleModel || 'Vehicle'} ${workOrder.vehicleVariant || ''}`.trim(),
+                  vehicleDetails: {
+                    modelName: vehicleModel?.modelName || 'Unknown Vehicle',
+                    regNo: workOrder.regNo || 'N/A'
+                  },
                   completedAt: jobCard.completedAt || new Date(),
-                  partnerName: (await storage.getPartner(jobCard.partnerId))?.displayName || 'Partner'
+                  partnerName: (await storage.getPartner(jobCard.partnerId))?.displayName || 'Partner',
+                  jobCardLink
                 }
               );
             }

@@ -125,15 +125,22 @@ export class JobCardService {
       const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
       if (workOrder) {
         const showroom = await storage.getShowroom(workOrder.showroomId);
+        const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
+        const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000'}/job-cards/${updatedJobCard.id}`;
+        
         if (showroom?.email) {
           await emailService.sendJobCardCompletionNotification(
             showroom.email,
             {
               jobCardId: updatedJobCard.id,
               workOrderNumber: workOrder.workOrderNumber || workOrder.id.slice(0, 8),
-              vehicleDetails: `${workOrder.vehicleModel || 'Vehicle'} ${workOrder.vehicleVariant || ''}`.trim(),
+              vehicleDetails: {
+                modelName: vehicleModel?.modelName || 'Unknown Vehicle',
+                regNo: workOrder.regNo || 'N/A'
+              },
               completedAt: updatedJobCard.completedAt || new Date(),
-              partnerName: (await storage.getPartner(jobCard.partnerId))?.displayName || 'Partner'
+              partnerName: (await storage.getPartner(jobCard.partnerId))?.displayName || 'Partner',
+              jobCardLink
             }
           );
         }

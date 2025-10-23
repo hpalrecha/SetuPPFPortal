@@ -232,11 +232,18 @@ export class EmailService {
     jobCardData: {
       jobCardId: string;
       workOrderNumber: string;
-      vehicleDetails: string;
+      vehicleDetails: any;
       completedAt: Date;
       partnerName: string;
+      jobCardLink?: string;
     }
   ): Promise<boolean> {
+    const vehicleInfo = typeof jobCardData.vehicleDetails === 'string' 
+      ? jobCardData.vehicleDetails 
+      : `${jobCardData.vehicleDetails?.modelName || 'Unknown Vehicle'} - ${jobCardData.vehicleDetails?.regNo || 'N/A'}`;
+    
+    const reviewLink = jobCardData.jobCardLink || `${this.getBaseUrl()}/job-cards/${jobCardData.jobCardId}`;
+    
     const html = `
       <!DOCTYPE html>
       <html>
@@ -247,10 +254,11 @@ export class EmailService {
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; }
           .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-          .header { background: #2563eb; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+          .header { background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); color: white; padding: 30px 20px; border-radius: 8px 8px 0 0; text-align: center; }
           .content { padding: 30px; }
-          .status-badge { background: #10b981; color: white; padding: 5px 15px; border-radius: 20px; font-size: 14px; font-weight: bold; }
+          .status-badge { background: #10b981; color: white; padding: 5px 15px; border-radius: 20px; font-size: 14px; font-weight: bold; display: inline-block; }
           .details { background: #f8fafc; padding: 20px; border-radius: 6px; margin: 20px 0; }
+          .button { background: #4db848; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 20px 0; font-weight: bold; font-size: 16px; }
           .footer { background: #f1f5f9; padding: 20px; border-radius: 0 0 8px 8px; text-align: center; color: #64748b; }
         </style>
       </head>
@@ -258,23 +266,36 @@ export class EmailService {
         <div class="container">
           ${this.getLogoHtml()}
           <div class="header">
-            <h1 style="margin: 0;">Job Card Completed</h1>
+            <h1 style="margin: 0; font-size: 28px;">Job Card Completed</h1>
           </div>
           <div class="content">
             <p>Dear Customer,</p>
-            <p>Your job card has been successfully completed and is ready for review.</p>
+            <p>Great news! The installation work has been successfully completed by our partner and is now <strong>awaiting your review and approval</strong>.</p>
             
             <div class="details">
-              <h3>Job Details:</h3>
+              <h3 style="margin-top: 0;">Job Details:</h3>
               <p><strong>Job Card ID:</strong> ${jobCardData.jobCardId}</p>
               <p><strong>Work Order:</strong> ${jobCardData.workOrderNumber}</p>
-              <p><strong>Vehicle:</strong> ${jobCardData.vehicleDetails}</p>
+              <p><strong>Vehicle:</strong> ${vehicleInfo}</p>
               <p><strong>Completed By:</strong> ${jobCardData.partnerName}</p>
               <p><strong>Completed At:</strong> ${jobCardData.completedAt.toLocaleString()}</p>
               <p><strong>Status:</strong> <span class="status-badge">COMPLETED</span></p>
             </div>
             
-            <p>The work has been completed and is now pending approval. You will receive another notification once the work is approved.</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${reviewLink}" class="button">Review & Approve Job Card</a>
+            </div>
+            
+            <p><strong>Next Steps:</strong></p>
+            <ul>
+              <li>Click the button above to review the completed work</li>
+              <li>Inspect the installation quality and details</li>
+              <li>Approve or reject the job card based on your inspection</li>
+            </ul>
+            
+            <p style="color: #64748b; font-size: 14px; margin-top: 20px;">
+              <strong>Note:</strong> The partner will be notified once you approve or reject this job card.
+            </p>
             
             <p>Thank you for choosing our services!</p>
           </div>
