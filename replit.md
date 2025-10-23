@@ -61,6 +61,13 @@ The application utilizes the P91 Brand Theme, featuring a Brand Green primary co
 ## API Integration
 - **RESTful APIs**: Standard HTTP communication.
 - **Webhook System**: Outbound webhooks.
-- **WhatsApp Business API (Meta WABA)**: For Job Card lifecycle notifications (Created, Scheduled, Started, Completed, Approved).
-- **Email Service (Hybrid AWS SES SDK + SMTP)**: For Work Order, Job Card, and Authentication notifications. Supports dynamic "From" emails based on brand and dynamic URL generation.
+- **WhatsApp Business API (Meta WABA)**: For Job Card lifecycle notifications with 5 Meta-approved templates:
+  - `job_card_created` (English IND) - Notifies assigned partner when job card is created
+  - `job_card_pending_approval` (English IND) - Notifies order placer when job is pending approval
+  - `job_card_approved` (English) - Notifies assigned partner when job is approved
+  - `job_card_rejected` (English) - Notifies assigned partner when job is rejected
+  - `job_card_completed` (English) - Notifies order placer when job is completed & approved
+  - All templates include job card links for easy access
+  - Configured with Phone Number ID: 633152823218797, Business Account ID: 681013564674244
+- **Email Service (Hybrid AWS SES SDK + SMTP)**: For Work Order, Job Card, and Authentication notifications. Supports dynamic "From" emails based on brand and dynamic URL generation. All 8 email templates updated with embedded Pulse VAS logo (base64, 69KB PNG) and professional gradient backgrounds.
 - **Pulse Integration Webhook**: Inbound webhook for user lifecycle management (activate/deactivate).
