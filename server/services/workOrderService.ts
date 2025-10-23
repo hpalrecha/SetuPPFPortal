@@ -180,8 +180,12 @@ export class WorkOrderService {
       }
     }
 
-    // Send notification
-    await notificationService.sendWorkOrderCreated(workOrder);
+    // 🔥 Send notification in background (non-blocking)
+    setImmediate(() => {
+      notificationService.sendWorkOrderCreated(workOrder).catch(err => {
+        console.error('❌ Failed to send work order created notification:', err);
+      });
+    });
 
     return workOrder;
   }
@@ -282,8 +286,12 @@ export class WorkOrderService {
       await this.autoAssignPartner(workOrderId);
     }
 
-    // Send notification
-    await notificationService.sendWorkOrderSubmitted(updatedWorkOrder);
+    // 🔥 Send notification in background (non-blocking)
+    setImmediate(() => {
+      notificationService.sendWorkOrderSubmitted(updatedWorkOrder).catch(err => {
+        console.error('❌ Failed to send work order submitted notification:', err);
+      });
+    });
 
     return updatedWorkOrder;
   }

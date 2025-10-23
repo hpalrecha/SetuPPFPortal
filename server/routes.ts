@@ -2118,39 +2118,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const jobCard = await storage.createJobCard(jobCardData);
 
-        // 📱 WhatsApp Notification: Job Card Created
-        if (workOrder && jobCard) {
-          try {
-            const partner = await storage.getPartner(jobCard.partnerId);
-            const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
-            const service = await storage.getService(workOrder.serviceId);
-            const showroom = await storage.getShowroom(workOrder.showroomId || '');
-            
-            const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} - ${workOrder.color || 'N/A'}`;
-            const partnerName = partner?.displayName || 'Partner';
-            const serviceName = service?.name || 'Service';
-            const showroomName = showroom?.name || 'Showroom';
-            const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000'}/job-cards/${jobCard.id}`;
-            
-            // Send to partner if phone available
-            if (partner?.phone) {
-              await whatsappService.sendJobCardCreated(
-                whatsappService.formatPhoneNumber(partner.phone),
-                partnerName,
-                jobCard.id.slice(0, 8),
-                vehicleDetails,
-                showroomName,
-                serviceName,
-                jobCardLink
-              );
-              console.log(`✅ WhatsApp (Job Created) sent to partner ${partnerName}`);
-            }
-          } catch (whatsappError) {
-            console.error('WhatsApp notification failed:', whatsappError);
-          }
-        }
-
+        // ⚡ Respond immediately
         res.status(201).json(jobCard);
+
+        // 🔥 Send WhatsApp notification in background (non-blocking)
+        if (workOrder && jobCard) {
+          setImmediate(async () => {
+            try {
+              const partner = await storage.getPartner(jobCard.partnerId);
+              const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
+              const service = await storage.getService(workOrder.serviceId);
+              const showroom = await storage.getShowroom(workOrder.showroomId || '');
+              
+              const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} - ${workOrder.color || 'N/A'}`;
+              const partnerName = partner?.displayName || 'Partner';
+              const serviceName = service?.name || 'Service';
+              const showroomName = showroom?.name || 'Showroom';
+              const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000'}/job-cards/${jobCard.id}`;
+              
+              // Send to partner if phone available
+              if (partner?.phone) {
+                await whatsappService.sendJobCardCreated(
+                  whatsappService.formatPhoneNumber(partner.phone),
+                  partnerName,
+                  jobCard.id.slice(0, 8),
+                  vehicleDetails,
+                  showroomName,
+                  serviceName,
+                  jobCardLink
+                );
+                console.log(`✅ WhatsApp (Job Created) sent to partner ${partnerName}`);
+              }
+            } catch (whatsappError) {
+              console.error('WhatsApp notification failed:', whatsappError);
+            }
+          });
+        }
       } catch (error) {
         console.error("Create job card error:", error);
         if (error instanceof z.ZodError) {
@@ -2290,175 +2293,180 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Don't fail the approval if payout update fails
         }
 
-        // 💰 Calculate OEM Royalty automatically on job card approval
-        let finalPrice = 0;
-        try {
-          // Get dealership pricing for royalty calculation base
-          const { pricingService } = await import('./services/pricingService');
-          const dealershipPricing = await pricingService.resolvePricing(
-            jobCard.partnerId,
-            'SHOWROOM',
-            workOrder.showroomId,
-            workOrder.vehicleModelId,
-            workOrder.serviceId
-          );
-          
-          finalPrice = dealershipPricing?.priceAmount || workOrder.estimatedPrice || 0;
-          
-          const royaltyCalculation = await storage.calculateRoyaltyForWorkOrder(
-            workOrder.id,
-            Number(finalPrice),
-            workOrder.oemId
-          );
-          
-          if (royaltyCalculation) {
-            console.log(`✅ OEM Royalty calculated: ₹${royaltyCalculation.royaltyAmount} (${royaltyCalculation.royaltyPercentage}%)`);
-          } else {
-            console.log(`ℹ️ No royalty rule found for OEM ${workOrder.oemId}`);
-          }
-        } catch (royaltyError) {
-          console.error('❌ Error calculating OEM royalty:', royaltyError);
-          // Don't fail approval if royalty calculation fails
-        }
+        // ⚡ RESPOND IMMEDIATELY - Don't wait for notifications!
+        res.json({ message: "Job card approved successfully", jobCard: updatedJobCard });
 
-        // 💰 Calculate and update Sales Commission on job card approval
-        try {
-          if (workOrder.salesPersonId) {
-            const { commissionService } = await import('./services/commissionService');
-            
-            // Calculate commission amount using final dealership price
-            const commission = await commissionService.calculateCommission(
-              workOrder.showroomId,
-              workOrder.salesPersonId,
-              workOrder.serviceId,
-              Number(finalPrice)
-            );
-            
-            const commissionAmount = commission.amount;
-            console.log(`💰 Commission calculated: ₹${commissionAmount} for sales person ${workOrder.salesPersonId}`);
-            
-            // Update existing commission instead of creating duplicate
-            if (commissionAmount > 0) {
-              const existingCommissions = await storage.getCommissions({ workOrderId: workOrder.id });
+        // 🔥 FIRE ALL SLOW OPERATIONS IN BACKGROUND (non-blocking)
+        setImmediate(async () => {
+          try {
+            // 💰 Calculate OEM Royalty automatically on job card approval
+            let finalPrice = 0;
+            try {
+              // Get dealership pricing for royalty calculation base
+              const { pricingService } = await import('./services/pricingService');
+              const dealershipPricing = await pricingService.resolvePricing(
+                jobCard.partnerId,
+                'SHOWROOM',
+                workOrder.showroomId,
+                workOrder.vehicleModelId,
+                workOrder.serviceId
+              );
               
-              if (existingCommissions.commissions.length > 0) {
-                // Update existing commission with final amounts
-                await storage.updateCommission(existingCommissions.commissions[0].id, {
-                  computedAmount: commissionAmount,
-                  status: 'COMPUTED'
-                });
-                console.log(`✅ Updated existing commission to COMPUTED status with final amount: ₹${commissionAmount}`);
+              finalPrice = dealershipPricing?.priceAmount || workOrder.estimatedPrice || 0;
+              
+              const royaltyCalculation = await storage.calculateRoyaltyForWorkOrder(
+                workOrder.id,
+                Number(finalPrice),
+                workOrder.oemId
+              );
+              
+              if (royaltyCalculation) {
+                console.log(`✅ OEM Royalty calculated: ₹${royaltyCalculation.royaltyAmount} (${royaltyCalculation.royaltyPercentage}%)`);
               } else {
-                // Fallback: create commission if somehow none exists
-                if (commission.rule) {
-                  await storage.createCommission({
-                    workOrderId: workOrder.id,
-                    showroomId: workOrder.showroomId,
-                    salesPersonId: workOrder.salesPersonId,
-                    basis: commission.rule.type,
-                    value: Number(commission.rule.valueNumeric),
-                    computedAmount: commissionAmount,
-                    status: 'COMPUTED'
-                  });
-                  console.log(`⚠️ No existing commission found, created new COMPUTED commission: ₹${commissionAmount}`);
-                }
+                console.log(`ℹ️ No royalty rule found for OEM ${workOrder.oemId}`);
               }
+            } catch (royaltyError) {
+              console.error('❌ Error calculating OEM royalty:', royaltyError);
             }
-          } else {
-            console.log(`ℹ️ No sales person assigned, skipping commission calculation`);
-          }
-        } catch (commissionError) {
-          console.error('❌ Error calculating/updating commission:', commissionError);
-          // Don't fail approval if commission update fails
-        }
 
-        // Send email notification to partner about approval
-        try {
-          const partner = await storage.getPartner(jobCard.partnerId);
-          if (partner?.email) {
-            await emailService.sendJobCardApprovalNotification(
-              partner.email,
-              {
-                jobCardId: updatedJobCard.id,
-                workOrderNumber: workOrder.workOrderNumber || workOrder.id.slice(0, 8),
-                vehicleDetails: `${workOrder.vehicleModel || 'Vehicle'} ${workOrder.vehicleVariant || ''}`.trim(),
-                approvedAt: updatedJobCard.approvedAt || new Date(),
-                approvedBy: req.user!.name || req.user!.email,
-                payoutAmount: payoutAmount
+            // 💰 Calculate and update Sales Commission on job card approval
+            try {
+              if (workOrder.salesPersonId) {
+                const { commissionService } = await import('./services/commissionService');
+                
+                // Calculate commission amount using final dealership price
+                const commission = await commissionService.calculateCommission(
+                  workOrder.showroomId,
+                  workOrder.salesPersonId,
+                  workOrder.serviceId,
+                  Number(finalPrice)
+                );
+                
+                const commissionAmount = commission.amount;
+                console.log(`💰 Commission calculated: ₹${commissionAmount} for sales person ${workOrder.salesPersonId}`);
+                
+                // Update existing commission instead of creating duplicate
+                if (commissionAmount > 0) {
+                  const existingCommissions = await storage.getCommissions({ workOrderId: workOrder.id });
+                  
+                  if (existingCommissions.commissions.length > 0) {
+                    // Update existing commission with final amounts
+                    await storage.updateCommission(existingCommissions.commissions[0].id, {
+                      computedAmount: commissionAmount,
+                      status: 'COMPUTED'
+                    });
+                    console.log(`✅ Updated existing commission to COMPUTED status with final amount: ₹${commissionAmount}`);
+                  } else {
+                    // Fallback: create commission if somehow none exists
+                    if (commission.rule) {
+                      await storage.createCommission({
+                        workOrderId: workOrder.id,
+                        showroomId: workOrder.showroomId,
+                        salesPersonId: workOrder.salesPersonId,
+                        basis: commission.rule.type,
+                        value: Number(commission.rule.valueNumeric),
+                        computedAmount: commissionAmount,
+                        status: 'COMPUTED'
+                      });
+                      console.log(`⚠️ No existing commission found, created new COMPUTED commission: ₹${commissionAmount}`);
+                    }
+                  }
+                }
+              } else {
+                console.log(`ℹ️ No sales person assigned, skipping commission calculation`);
               }
-            );
-          }
-          
-          // Also notify stakeholders (Sales Person, Showroom Manager)
-          const { notificationService } = await import('./services/notificationService');
-          const stakeholders = await notificationService['getUsersByRole'](
-            ['SALES_PERSON', 'SHOWROOM_MANAGER'],
-            {
-              oemId: workOrder.oemId,
-              showroomId: workOrder.showroomId
+            } catch (commissionError) {
+              console.error('❌ Error calculating/updating commission:', commissionError);
             }
-          );
-          
-          // Add sales person if assigned
-          if (workOrder.salesPersonId) {
-            const salesPerson = await storage.getUser(workOrder.salesPersonId);
-            if (salesPerson && salesPerson.email && !stakeholders.find((s: any) => s.id === salesPerson.id)) {
-              stakeholders.push(salesPerson);
-            }
-          }
-          
-          // Get vehicle model details for email
-          const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
-          const vehicleDetails = vehicleModel 
-            ? `${vehicleModel.modelName}${workOrder.regNo ? ` (${workOrder.regNo})` : ''}`
-            : `Vehicle ${workOrder.regNo || workOrder.customerName}`;
-          
-          // Send professional email to stakeholders using the same template
-          for (const stakeholder of stakeholders) {
-            if (stakeholder.email) {
-              await emailService.sendJobCardApprovalNotification(
-                stakeholder.email,
+
+            // 📧 Send email notifications in background
+            try {
+              const partner = await storage.getPartner(jobCard.partnerId);
+              if (partner?.email) {
+                await emailService.sendJobCardApprovalNotification(
+                  partner.email,
+                  {
+                    jobCardId: updatedJobCard.id,
+                    workOrderNumber: workOrder.workOrderNumber || workOrder.id.slice(0, 8),
+                    vehicleDetails: `${workOrder.vehicleModel || 'Vehicle'} ${workOrder.vehicleVariant || ''}`.trim(),
+                    approvedAt: updatedJobCard.approvedAt || new Date(),
+                    approvedBy: req.user!.name || req.user!.email,
+                    payoutAmount: payoutAmount
+                  }
+                );
+              }
+              
+              // Also notify stakeholders (Sales Person, Showroom Manager)
+              const { notificationService } = await import('./services/notificationService');
+              const stakeholders = await notificationService['getUsersByRole'](
+                ['SALES_PERSON', 'SHOWROOM_MANAGER'],
                 {
-                  jobCardId: updatedJobCard.id,
-                  workOrderNumber: workOrder.workOrderNumber || workOrder.id.slice(0, 8),
-                  vehicleDetails: vehicleDetails,
-                  approvedAt: updatedJobCard.approvedAt || new Date(),
-                  approvedBy: req.user!.name || req.user!.email,
-                  payoutAmount: payoutAmount
+                  oemId: workOrder.oemId,
+                  showroomId: workOrder.showroomId
                 }
               );
+              
+              // Add sales person if assigned
+              if (workOrder.salesPersonId) {
+                const salesPerson = await storage.getUser(workOrder.salesPersonId);
+                if (salesPerson && salesPerson.email && !stakeholders.find((s: any) => s.id === salesPerson.id)) {
+                  stakeholders.push(salesPerson);
+                }
+              }
+              
+              // Get vehicle model details for email
+              const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
+              const vehicleDetails = vehicleModel 
+                ? `${vehicleModel.modelName}${workOrder.regNo ? ` (${workOrder.regNo})` : ''}`
+                : `Vehicle ${workOrder.regNo || workOrder.customerName}`;
+              
+              // Send professional email to stakeholders using the same template
+              for (const stakeholder of stakeholders) {
+                if (stakeholder.email) {
+                  await emailService.sendJobCardApprovalNotification(
+                    stakeholder.email,
+                    {
+                      jobCardId: updatedJobCard.id,
+                      workOrderNumber: workOrder.workOrderNumber || workOrder.id.slice(0, 8),
+                      vehicleDetails: vehicleDetails,
+                      approvedAt: updatedJobCard.approvedAt || new Date(),
+                      approvedBy: req.user!.name || req.user!.email,
+                      payoutAmount: payoutAmount
+                    }
+                  );
+                }
+              }
+              console.log(`📧 Sent job card approval emails to ${stakeholders.length} stakeholders`);
+            } catch (emailError) {
+              console.error("Failed to send approval email:", emailError);
             }
-          }
-          console.log(`📧 Sent job card approval emails to ${stakeholders.length} stakeholders`);
-        } catch (emailError) {
-          console.error("Failed to send approval email:", emailError);
-          // Don't fail the approval if email fails
-        }
 
-        // 📱 WhatsApp Notification: Job Card Approved
-        try {
-          const partner = await storage.getPartner(jobCard.partnerId);
-          const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
-          
-          const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} - ${workOrder.color || 'N/A'}`;
-          const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000'}/job-cards/${updatedJobCard.id}`;
-          
-          if (partner?.phone) {
-            await whatsappService.sendJobCardApproved(
-              whatsappService.formatPhoneNumber(partner.phone),
-              partner.displayName,
-              updatedJobCard.id.slice(0, 8),
-              vehicleDetails,
-              payoutAmount,
-              jobCardLink
-            );
-            console.log(`✅ WhatsApp (Job Approved) sent to partner ${partner.displayName}`);
+            // 📱 WhatsApp Notification: Job Card Approved
+            try {
+              const partner = await storage.getPartner(jobCard.partnerId);
+              const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
+              
+              const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} - ${workOrder.color || 'N/A'}`;
+              const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000'}/job-cards/${updatedJobCard.id}`;
+              
+              if (partner?.phone) {
+                await whatsappService.sendJobCardApproved(
+                  whatsappService.formatPhoneNumber(partner.phone),
+                  partner.displayName,
+                  updatedJobCard.id.slice(0, 8),
+                  vehicleDetails,
+                  payoutAmount,
+                  jobCardLink
+                );
+                console.log(`✅ WhatsApp (Job Approved) sent to partner ${partner.displayName}`);
+              }
+            } catch (whatsappError) {
+              console.error('❌ WhatsApp notification failed:', whatsappError);
+            }
+          } catch (bgError) {
+            console.error('❌ Background task error:', bgError);
           }
-        } catch (whatsappError) {
-          console.error('❌ WhatsApp notification failed:', whatsappError);
-        }
-
-        res.json({ message: "Job card approved successfully", jobCard: updatedJobCard });
+        });
       } catch (error) {
         console.error("Job card approval error:", error);
         res.status(500).json({ error: "Failed to approve job card" });
