@@ -391,7 +391,10 @@ Please acknowledge receipt and provide estimated completion time.
       await this.updateCommissionWithPricing(workOrderId, Number(pricing.priceAmount));
     }
 
-    // Send notifications
+    // Send job card creation notification (WhatsApp + Email to Partner)
+    await notificationService.sendJobCardCreated(jobCard);
+
+    // Send work order assignment notifications
     await notificationService.sendWorkOrderAssigned(updatedWorkOrder, partnerId);
     await notificationService.notifyStakeholders('work_order_assigned', updatedWorkOrder);
 

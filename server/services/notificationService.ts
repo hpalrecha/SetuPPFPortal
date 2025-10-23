@@ -251,15 +251,15 @@ export class NotificationService {
   }
 
   // Job Card Notifications
-  // 1. Job Card Created - Send WhatsApp to Assigned Partner
+  // 1. Job Card Created - Send WhatsApp & Email to Assigned Partner
   async sendJobCardCreated(jobCard: JobCard): Promise<void> {
     const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
     if (!workOrder) return;
 
     // Get partner information
     const partner = await storage.getPartner(jobCard.partnerId);
-    if (!partner || !partner.phone) {
-      console.warn(`⚠️ No contact phone for partner ${jobCard.partnerId}`);
+    if (!partner) {
+      console.warn(`⚠️ Partner ${jobCard.partnerId} not found`);
       return;
     }
 
@@ -270,24 +270,48 @@ export class NotificationService {
       storage.getService(workOrder.serviceId)
     ]);
 
-    // Send WhatsApp notification to partner
+    const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCard.id}`;
+    const vehicleInfo = `${vehicleModel?.modelName || 'Unknown'} - ${workOrder.regNo || workOrder.customerName}`;
+    const vehicleDetails = `${vehicleModel?.modelName || 'Vehicle'} ${workOrder.regNo ? '- ' + workOrder.regNo : ''}`;
+
+    // 📱 Send WhatsApp notification to partner (if phone available)
+    if (partner.phone) {
+      try {
+        await whatsappService.sendJobCardCreated(
+          whatsappService.formatPhoneNumber(partner.phone),
+          partner.displayName,
+          jobCard.id.slice(0, 8),
+          vehicleInfo,
+          showroom?.name || 'Unknown Location',
+          service?.name || 'Unknown Service',
+          jobCardLink
+        );
+        console.log(`✅ WhatsApp (Job Created) sent to partner ${partner.displayName}`);
+      } catch (error) {
+        console.error(`❌ Failed to send WhatsApp notification for job card creation:`, error);
+      }
+    }
+
+    // ✉️ Send Email notification to partner admin users
     try {
-      const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${jobCard.id}`;
-      const vehicleInfo = `${vehicleModel?.modelName || 'Unknown'} - ${workOrder.regNo || workOrder.customerName}`;
-      
-      await whatsappService.sendJobCardCreated(
-        whatsappService.formatPhoneNumber(partner.phone),
-        partner.displayName,
-        jobCard.id.slice(0, 8),
-        vehicleInfo,
-        showroom?.name || 'Unknown Location',
-        service?.name || 'Unknown Service',
-        jobCardLink
-      );
-      
-      console.log(`✅ WhatsApp (Job Created) sent to partner ${partner.displayName}`);
+      const partnerAdmins = await this.getPartnerMembers(jobCard.partnerId);
+      if (partnerAdmins.length > 0) {
+        const payload: NotificationPayload = {
+          title: 'New Job Card Created',
+          message: `Job Card #${jobCard.id.slice(0, 8)} has been created for ${vehicleDetails}. Customer: ${workOrder.customerName}. Service: ${service?.name || 'Service'}.`,
+          type: 'INFO',
+          data: { jobCardId: jobCard.id, workOrderId: workOrder.id, type: 'job_card_created' }
+        };
+
+        await this.sendBulkNotification(
+          partnerAdmins.map(admin => admin.userId),
+          'EMAIL',
+          payload
+        );
+        console.log(`📧 Email (Job Created) sent to ${partnerAdmins.length} partner admins`);
+      }
     } catch (error) {
-      console.error(`❌ Failed to send WhatsApp notification for job card creation:`, error);
+      console.error(`❌ Failed to send email notification for job card creation:`, error);
     }
   }
 
