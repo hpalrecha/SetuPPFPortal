@@ -220,7 +220,7 @@ export class WhatsAppService {
       type: 'template',
       template: {
         name: 'job_card_created',
-        language: { code: 'en' },
+        language: { code: 'en_IN' },
         components: [
           {
             type: 'body',
@@ -254,7 +254,7 @@ export class WhatsAppService {
       type: 'template',
       template: {
         name: 'job_card_pending_approval',
-        language: { code: 'en' },
+        language: { code: 'en_IN' },
         components: [
           {
             type: 'body',

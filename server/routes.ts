@@ -5943,6 +5943,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========================================
+  // WHATSAPP TEST ENDPOINT
+  // ========================================
+  
+  /**
+   * Test endpoint to send sample WhatsApp notifications
+   * POST /api/test/send-whatsapp
+   */
+  app.post("/api/test/send-whatsapp", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
+    try {
+      const { phone, templateType = 'job_card_created' } = req.body;
+      
+      if (!phone) {
+        return res.status(400).json({ error: "Phone number required" });
+      }
+
+      const testJobCardId = "test-jc-001";
+      const testJobCardLink = `${process.env.REPLIT_DEV_DOMAIN || 'https://yourapp.replit.app'}/job-cards/${testJobCardId}`;
+
+      let result = false;
+      let templateUsed = templateType;
+
+      switch (templateType) {
+        case 'job_card_created':
+          result = await whatsappService.sendJobCardCreated(
+            phone,
+            "Test Partner Studio",
+            testJobCardId,
+            "BMW X5 - KA01AB1234",
+            "Premium Showroom Delhi",
+            "Full Body PPF",
+            testJobCardLink
+          );
+          break;
+
+        case 'job_card_pending_approval':
+          result = await whatsappService.sendJobCardPendingApproval(
+            phone,
+            "Test User",
+            testJobCardId,
+            "Audi Q7 - KA02CD5678",
+            "Elite Auto Care",
+            testJobCardLink
+          );
+          break;
+
+        case 'job_card_approved':
+          result = await whatsappService.sendJobCardApproved(
+            phone,
+            "Test Partner Studio",
+            testJobCardId,
+            "Mercedes GLC - KA03EF9012",
+            "45000",
+            testJobCardLink
+          );
+          break;
+
+        case 'job_card_rejected':
+          result = await whatsappService.sendJobCardRejected(
+            phone,
+            "Test Partner Studio",
+            testJobCardId,
+            "Range Rover Sport - KA04GH3456",
+            "Quality issues - please redo the installation",
+            testJobCardLink
+          );
+          break;
+
+        case 'job_card_completed':
+          result = await whatsappService.sendJobCardCompleted(
+            phone,
+            "Test User",
+            testJobCardId,
+            "Porsche Cayenne - KA05IJ7890",
+            "Premium Auto Detailing",
+            testJobCardLink
+          );
+          break;
+
+        default:
+          return res.status(400).json({ error: `Unknown template type: ${templateType}` });
+      }
+
+      if (result) {
+        res.json({
+          success: true,
+          message: `WhatsApp notification sent to ${phone}`,
+          template: templateUsed,
+          status: whatsappService.getStatus()
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          error: "Failed to send WhatsApp notification",
+          status: whatsappService.getStatus()
+        });
+      }
+    } catch (error: any) {
+      console.error("Test WhatsApp error:", error);
+      res.status(500).json({ error: error.message || "Failed to send test WhatsApp" });
+    }
+  });
+
+  // ========================================
   // PULSE WEBHOOK INTEGRATION
   // ========================================
   
