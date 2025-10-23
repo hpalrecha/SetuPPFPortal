@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { X, Check, RotateCcw, CheckCircle, Camera, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, CalendarDaysIcon, WrenchIcon } from "lucide-react";
+import { X, CheckCircle, XCircle, Camera, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, CalendarDaysIcon, WrenchIcon, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { ImageModal } from "@/components/ui/image-modal";
@@ -19,7 +18,6 @@ interface ApprovalModalProps {
 export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [comments, setComments] = useState("");
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
@@ -36,9 +34,7 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
 
   const approveMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", `/api/job-cards/${jobCardId}/approve`, {
-        remarks: comments
-      });
+      const response = await apiRequest("POST", `/api/job-cards/${jobCardId}/approve`, {});
       return response.json();
     },
     onSuccess: () => {
@@ -63,36 +59,10 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
     }
   });
 
-  const rejectMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", `/api/job-cards/${jobCardId}/reject`, {
-        reason: comments
-      });
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ predicate: (query) => 
-        query.queryKey[0] === "/api/job-cards" 
-      });
-      toast({
-        title: "Job Card Rejected",
-        description: "The job card has been rejected."
-      });
-      handleClose();
-    },
-    onError: () => {
-      toast({
-        title: "Rejection Failed",
-        description: "Failed to reject job card. Please try again.",
-        variant: "destructive"
-      });
-    }
-  });
-
-  const reworkMutation = useMutation({
-    mutationFn: async () => {
+  const requestReworkMutation = useMutation({
+    mutationFn: async ({ jobCardId, reason }: { jobCardId: string; reason: string }) => {
       const response = await apiRequest("POST", `/api/job-cards/${jobCardId}/request-rework`, {
-        reason: comments
+        reason
       });
       return response.json();
     },
@@ -115,36 +85,7 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
     }
   });
 
-  const handleApprove = () => {
-    approveMutation.mutate();
-  };
-
-  const handleReject = () => {
-    if (!comments.trim()) {
-      toast({
-        title: "Comments Required",
-        description: "Please provide comments for rejection.",
-        variant: "destructive"
-      });
-      return;
-    }
-    rejectMutation.mutate();
-  };
-
-  const handleRework = () => {
-    if (!comments.trim()) {
-      toast({
-        title: "Comments Required",
-        description: "Please provide specific issues for rework.",
-        variant: "destructive"
-      });
-      return;
-    }
-    reworkMutation.mutate();
-  };
-
   const handleClose = () => {
-    setComments("");
     onClose();
   };
 
@@ -517,55 +458,52 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
                 </CardContent>
               </Card>
 
-              {/* Approval Actions */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Approval Decision</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="comments">Comments</Label>
-                    <Textarea
-                      id="comments"
-                      rows={3}
-                      placeholder="Add comments (optional for approval, required for rejection/rework)"
-                      value={comments}
-                      onChange={(e) => setComments(e.target.value)}
-                      data-testid="textarea-comments"
-                    />
+              {/* Admin Approval Section - Same as Admin Portal */}
+              <Card className="border-2 border-dashed border-blue-200 bg-blue-50/50">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-blue-600" />
+                    <CardTitle className="text-base text-blue-900">Admin Approval Required</CardTitle>
                   </div>
-                  
+                </CardHeader>
+                <CardContent>
                   <div className="flex flex-col sm:flex-row gap-3">
-                    <Button 
-                      className="flex-1" 
-                      onClick={handleApprove}
+                    <Button
+                      onClick={() => approveMutation.mutate()}
                       disabled={approveMutation.isPending}
+                      className="bg-green-600 hover:bg-green-700 text-white"
                       data-testid="button-approve"
                     >
-                      <Check className="mr-2 h-4 w-4" />
-                      {approveMutation.isPending ? "Approving..." : "Approve"}
+                      {approveMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                      )}
+                      Approve Job Card
                     </Button>
-                    <Button 
-                      variant="secondary" 
-                      className="flex-1" 
-                      onClick={handleRework}
-                      disabled={reworkMutation.isPending}
-                      data-testid="button-rework"
-                    >
-                      <RotateCcw className="mr-2 h-4 w-4" />
-                      {reworkMutation.isPending ? "Requesting..." : "Request Rework"}
-                    </Button>
-                    <Button 
-                      variant="destructive" 
-                      className="flex-1" 
-                      onClick={handleReject}
-                      disabled={rejectMutation.isPending}
+                    <Button
+                      onClick={() => {
+                        const reason = prompt('Please provide a reason for requesting rework:');
+                        if (reason && jobCardId) {
+                          requestReworkMutation.mutate({ jobCardId, reason });
+                        }
+                      }}
+                      disabled={requestReworkMutation.isPending}
+                      variant="outline"
+                      className="border-red-300 text-red-600 hover:bg-red-50"
                       data-testid="button-reject"
                     >
-                      <X className="mr-2 h-4 w-4" />
-                      {rejectMutation.isPending ? "Rejecting..." : "Reject"}
+                      {requestReworkMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <XCircle className="h-4 w-4 mr-2" />
+                      )}
+                      Found Issue / Request Rework
                     </Button>
                   </div>
+                  <p className="text-xs text-muted-foreground mt-3">
+                    As an admin, you can approve this completed job card or request rework if issues are found.
+                  </p>
                 </CardContent>
               </Card>
             </div>
