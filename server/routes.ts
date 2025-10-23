@@ -23,6 +23,7 @@ import { storage } from "./storage";
 import { authService } from "./auth";
 import { emailService } from "./services/email-service";
 import { whatsappService } from "./services/whatsapp-service";
+import { notificationService } from "./services/notificationService";
 import { authenticate, requireRole, requireOEMAccess, auditLog } from "./middleware";
 import { ObjectStorageService } from "./objectStorage";
 import multer from "multer";
