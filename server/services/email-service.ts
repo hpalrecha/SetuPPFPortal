@@ -20,11 +20,24 @@ export class EmailService {
   private sesConfigured = false;
   private smtpConfigured = false;
   private senderEmail: string;
+  private baseUrl: string;
 
   constructor() {
     // Always use noreply@p91india.com as the sender email
     this.senderEmail = 'noreply@p91india.com';
+    // Set base URL for logo and assets
+    this.baseUrl = process.env.REPLIT_DEV_DOMAIN 
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+      : (process.env.FRONTEND_URL || 'http://localhost:5000');
     this.initialize();
+  }
+
+  private getLogoHtml(): string {
+    return `
+      <div style="text-align: center; padding: 20px 0;">
+        <img src="${this.baseUrl}/attached_assets/P91%20PULSE%20logo-01_1761139835394.png" alt="Pulse VAS" style="height: 50px; width: auto;" />
+      </div>
+    `;
   }
 
   private initialize() {
@@ -211,6 +224,7 @@ export class EmailService {
       </head>
       <body>
         <div class="container">
+          ${this.getLogoHtml()}
           <div class="header">
             <h1 style="margin: 0;">Job Card Completed</h1>
           </div>
@@ -278,6 +292,7 @@ export class EmailService {
       </head>
       <body>
         <div class="container">
+          ${this.getLogoHtml()}
           <div class="header">
             <h1 style="margin: 0;">Job Card Approved! 🎉</h1>
           </div>
@@ -350,6 +365,7 @@ export class EmailService {
       </head>
       <body>
         <div class="container">
+          ${this.getLogoHtml()}
           <div class="header">
             <h1 style="margin: 0;">🔒 Password Reset Request</h1>
           </div>
@@ -417,6 +433,7 @@ export class EmailService {
       </head>
       <body>
         <div class="container">
+          ${this.getLogoHtml()}
           <div class="header">
             <h1 style="margin: 0;">🔐 Your OTP Code</h1>
           </div>
@@ -473,6 +490,7 @@ export class EmailService {
       </head>
       <body>
         <div class="container">
+          ${this.getLogoHtml()}
           <div class="header">
             <h1 style="margin: 0;">📝 New Work Order Created</h1>
           </div>
@@ -526,6 +544,7 @@ export class EmailService {
       </head>
       <body>
         <div class="container">
+          ${this.getLogoHtml()}
           <div class="header">
             <h1 style="margin: 0;">🔄 Work Order Updated</h1>
           </div>
@@ -576,6 +595,7 @@ export class EmailService {
       </head>
       <body>
         <div class="container">
+          ${this.getLogoHtml()}
           <div class="header">
             <h1 style="margin: 0;">✅ Work Order Completed</h1>
           </div>
@@ -627,6 +647,7 @@ export class EmailService {
       </head>
       <body>
         <div class="container">
+          ${this.getLogoHtml()}
           <div class="header">
             <h1 style="margin: 0;">🔧 New Job Card Created</h1>
           </div>
