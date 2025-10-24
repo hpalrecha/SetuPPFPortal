@@ -18,7 +18,7 @@ import { insertServiceSchema, serviceGroupValues, availabilityScopeValues } from
 // Transform shared schema to UI-compatible types using shared enums
 const serviceSchema = insertServiceSchema.extend({
   description: z.string().optional(),
-  serviceGroup: z.enum(serviceGroupValues).optional(),
+  serviceCategoryId: z.string().optional(), // NEW: Use serviceCategoryId instead of legacy serviceGroup
   productBrand: z.string().optional(),
   availabilityScope: z.enum(availabilityScopeValues),
   oemId: z.string().optional(),
@@ -49,7 +49,7 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
       name: '',
       code: '',
       description: '',
-      serviceGroup: undefined,
+      serviceCategoryId: undefined, // Use serviceCategoryId
       productBrand: '',
       availabilityScope: 'GLOBAL',
       oemId: '',
@@ -311,14 +311,14 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
 
             <FormField
               control={form.control}
-              name="serviceGroup"
+              name="serviceCategoryId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Service Category</FormLabel>
                   <Select
                     onValueChange={field.onChange}
                     value={field.value}
-                    data-testid="select-service-group"
+                    data-testid="select-service-category"
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -327,7 +327,7 @@ export function CreateServiceModal({ open, onOpenChange, onSuccess }: CreateServ
                     </FormControl>
                     <SelectContent>
                       {serviceCategories.map((category: any) => (
-                        <SelectItem key={category.id} value={category.code}>
+                        <SelectItem key={category.id} value={category.id}>
                           {category.name}
                         </SelectItem>
                       ))}

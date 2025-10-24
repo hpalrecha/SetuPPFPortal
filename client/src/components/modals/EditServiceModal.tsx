@@ -25,7 +25,7 @@ import { MultiSelect } from '@/components/ui/multi-select';
 // Transform shared schema to UI-compatible types using shared enums
 const serviceSchema = insertServiceSchema.extend({
   description: z.string().optional(),
-  serviceGroup: z.enum(serviceGroupValues).optional(),
+  serviceCategoryId: z.string().optional(), // NEW: Use serviceCategoryId instead of legacy serviceGroup
   productBrand: z.string().optional(),
   availabilityScope: z.enum(availabilityScopeValues),
   oemId: z.string().optional(),
@@ -58,7 +58,7 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
       name: '',
       code: '',
       description: '',
-      serviceGroup: undefined,
+      serviceCategoryId: undefined, // Use serviceCategoryId
       productBrand: '',
       availabilityScope: 'GLOBAL',
       oemId: '',
@@ -100,7 +100,7 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
         name: service.name || '',
         code: service.code || '',
         description: service.description || '',
-        serviceGroup: service.serviceGroup || undefined,
+        serviceCategoryId: service.serviceCategoryId || undefined, // Use serviceCategoryId
         productBrand: service.productBrand || '',
         availabilityScope: service.availabilityScope || 'GLOBAL',
         oemId: service.oemId || '',
@@ -367,14 +367,14 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
 
             <FormField
               control={form.control}
-              name="serviceGroup"
+              name="serviceCategoryId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Service Category</FormLabel>
                   <Select
                     onValueChange={field.onChange}
                     value={field.value}
-                    data-testid="select-edit-service-group"
+                    data-testid="select-edit-service-category"
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -383,7 +383,7 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
                     </FormControl>
                     <SelectContent>
                       {serviceCategories.map((category: any) => (
-                        <SelectItem key={category.id} value={category.code}>
+                        <SelectItem key={category.id} value={category.id}>
                           {category.name}
                         </SelectItem>
                       ))}
