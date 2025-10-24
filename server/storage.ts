@@ -2630,7 +2630,10 @@ export class DatabaseStorage implements IStorage {
           .where(
             and(
               eq(pricingRules.pricingType, "DETAILER_PRICING"),
-              eq(pricingRules.partnerId, partnerId),
+              or(
+                eq(pricingRules.partnerId, partnerId),
+                eq(pricingRules.detailerId, partnerId) // Also check detailerId since detailers are partners
+              ),
               eq(pricingRules.serviceCategoryId, serviceCategoryId),
               eq(pricingRules.vehicleModelId, vehicleModelId),
               eq(pricingRules.status, "ACTIVE")
@@ -2653,7 +2656,10 @@ export class DatabaseStorage implements IStorage {
         .where(
           and(
             eq(pricingRules.pricingType, "DETAILER_PRICING"),
-            eq(pricingRules.partnerId, partnerId),
+            or(
+              eq(pricingRules.partnerId, partnerId),
+              eq(pricingRules.detailerId, partnerId) // Also check detailerId since detailers are partners
+            ),
             eq(pricingRules.serviceCategoryId, serviceCategoryId),
             isNull(pricingRules.vehicleModelId), // Rule without vehicle restriction
             eq(pricingRules.status, "ACTIVE")
@@ -2678,6 +2684,7 @@ export class DatabaseStorage implements IStorage {
             eq(pricingRules.serviceCategoryId, serviceCategoryId),
             isNull(pricingRules.vehicleModelId),
             isNull(pricingRules.partnerId),
+            isNull(pricingRules.detailerId), // Both must be null for global rule
             eq(pricingRules.status, "ACTIVE")
           )
         )
