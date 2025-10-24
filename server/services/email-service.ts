@@ -81,23 +81,10 @@ export class EmailService {
       SES_SMTP_PASSWORD
     } = process.env;
 
-    // Initialize AWS SES SDK (Primary method)
-    if (AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) {
-      try {
-        this.sesClient = new SESClient({
-          region: AWS_REGION,
-          credentials: {
-            accessKeyId: AWS_ACCESS_KEY_ID,
-            secretAccessKey: AWS_SECRET_ACCESS_KEY
-          }
-        });
-        this.sesConfigured = true;
-        console.log('✅ AWS SES SDK configured successfully (Primary)');
-      } catch (error) {
-        console.error('❌ Failed to configure AWS SES SDK:', error);
-        this.sesConfigured = false;
-      }
-    }
+    // DISABLED: AWS SES SDK (credentials invalid - causes 10-15s timeout)
+    // Using SMTP fallback directly for better performance
+    this.sesConfigured = false;
+    console.log('⚠️ AWS SES SDK disabled - using SMTP directly for performance');
 
     // Initialize SMTP as fallback
     if (SES_SMTP_USERNAME && SES_SMTP_PASSWORD) {
