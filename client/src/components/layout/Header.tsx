@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Bell, User, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,10 +27,20 @@ interface HeaderProps {
 export function Header({ onToggleSidebar }: HeaderProps) {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
+  const [unreadCount, setUnreadCount] = useState(1);
+  const [notificationOpen, setNotificationOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
     setLocation("/login");
+  };
+
+  const handleNotificationOpen = (open: boolean) => {
+    setNotificationOpen(open);
+    if (open && unreadCount > 0) {
+      // Mark notifications as read when opened
+      setTimeout(() => setUnreadCount(0), 300);
+    }
   };
 
   return (
@@ -74,7 +85,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 
         <div className="flex items-center space-x-2 sm:space-x-4">
           {/* Notifications */}
-          <Popover>
+          <Popover open={notificationOpen} onOpenChange={handleNotificationOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant="ghost"
@@ -83,18 +94,22 @@ export function Header({ onToggleSidebar }: HeaderProps) {
                 data-testid="button-notifications"
               >
                 <Bell className="w-5 h-5 text-muted-foreground" />
-                <Badge
-                  variant="destructive"
-                  className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 sm:w-3 sm:h-3 p-0 flex items-center justify-center text-xs"
-                >
-                  1
-                </Badge>
+                {unreadCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 sm:w-3 sm:h-3 p-0 flex items-center justify-center text-xs"
+                  >
+                    {unreadCount}
+                  </Badge>
+                )}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-80 p-0" align="end">
               <div className="flex items-center justify-between p-4 border-b">
                 <h3 className="font-semibold text-sm">Notifications</h3>
-                <Badge variant="secondary" className="text-xs">1 New</Badge>
+                {unreadCount > 0 && (
+                  <Badge variant="secondary" className="text-xs">{unreadCount} New</Badge>
+                )}
               </div>
               <div className="max-h-[400px] overflow-y-auto">
                 {/* Sample notification */}
