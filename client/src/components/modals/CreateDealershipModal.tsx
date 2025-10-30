@@ -36,6 +36,9 @@ const dealershipSchema = z.object({
   name: z.string().min(1, "Dealership name is required"),
   oemIds: z.array(z.string()).min(1, "At least one OEM must be selected"),
   adminOemId: z.string().optional(), // OEM for admin user
+  oeDealerCode: z.string().optional(),
+  parentCode: z.string().optional(),
+  oemRegion: z.string().optional(),
   contactPersonName: z.string().min(1, "Contact person name is required"),
   contactEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
   contactPhone: z.string().min(1, "Contact phone is required"),
@@ -115,6 +118,9 @@ export function CreateDealershipModal({
       name: dealership?.name || "",
       oemIds: dealership?.oemIds || [],
       adminOemId: "",
+      oeDealerCode: dealership?.oeDealerCode || "",
+      parentCode: dealership?.parentCode || "",
+      oemRegion: dealership?.oemRegion || "",
       contactPersonName: dealership?.contactPersonName || "",
       contactEmail: dealership?.contactEmail || "",
       contactPhone: dealership?.contactPhone || "",
@@ -152,6 +158,9 @@ export function CreateDealershipModal({
         name: dealership.name || "",
         oemIds: dealership.oemIds || [],
         adminOemId: "",
+        oeDealerCode: dealership.oeDealerCode || "",
+        parentCode: dealership.parentCode || "",
+        oemRegion: dealership.oemRegion || "",
         contactPersonName: dealership.contactPersonName || "",
         contactEmail: dealership.contactEmail || "",
         contactPhone: dealership.contactPhone || "",
@@ -184,6 +193,9 @@ export function CreateDealershipModal({
         name: "",
         oemIds: [],
         adminOemId: "",
+        oeDealerCode: "",
+        parentCode: "",
+        oemRegion: "",
         contactPersonName: "",
         contactEmail: "",
         contactPhone: "",
@@ -397,6 +409,62 @@ export function CreateDealershipModal({
                           </div>
                         ))}
                       </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="oeDealerCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>OE Dealer Code (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter OE dealer code"
+                          {...field}
+                          data-testid="input-oe-dealer-code"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="parentCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Parent Code (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter parent code"
+                          {...field}
+                          data-testid="input-parent-code"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="oemRegion"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>OEM Region (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter OEM region"
+                          {...field}
+                          data-testid="input-oem-region"
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

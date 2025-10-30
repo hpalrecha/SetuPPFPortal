@@ -36,6 +36,9 @@ const showroomSchema = z.object({
   name: z.string().min(1, "Showroom name is required"),
   dealershipId: z.string().min(1, "Dealership is required"),
   oemId: z.string().min(1, "OEM is required"),
+  oeDealerCode: z.string().optional(),
+  parentCode: z.string().optional(),
+  oemRegion: z.string().optional(),
   managerName: z.string().min(1, "Manager name is required"),
   contactEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
   contactPhone: z.string().min(1, "Contact phone is required"),
@@ -126,6 +129,9 @@ export function CreateShowroomModal({
       name: showroom?.name || "",
       dealershipId: showroom?.dealershipId || "",
       oemId: showroom?.oemId || "",
+      oeDealerCode: showroom?.oeDealerCode || "",
+      parentCode: showroom?.parentCode || "",
+      oemRegion: showroom?.oemRegion || "",
       managerName: showroom?.managerName || "",
       contactEmail: showroom?.contactEmail || "",
       contactPhone: showroom?.contactPhone || "",
@@ -192,6 +198,9 @@ export function CreateShowroomModal({
         name: showroom.name || "",
         dealershipId: showroom.dealershipId || "",
         oemId: showroom.oemId || "",
+        oeDealerCode: showroom.oeDealerCode || "",
+        parentCode: showroom.parentCode || "",
+        oemRegion: showroom.oemRegion || "",
         managerName: showroom.managerName || "",
         contactEmail: showroom.contactEmail || "",
         contactPhone: showroom.contactPhone || "",
@@ -229,6 +238,9 @@ export function CreateShowroomModal({
         name: "",
         dealershipId: "",
         oemId: "",
+        oeDealerCode: "",
+        parentCode: "",
+        oemRegion: "",
         managerName: "",
         contactEmail: "",
         contactPhone: "",
@@ -484,6 +496,62 @@ export function CreateShowroomModal({
                   />
                 </div>
               )}
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="oeDealerCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>OE Dealer Code (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter OE dealer code"
+                          {...field}
+                          data-testid="input-oe-dealer-code"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="parentCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Parent Code (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter parent code"
+                          {...field}
+                          data-testid="input-parent-code"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="oemRegion"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>OEM Region (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter OEM region"
+                          {...field}
+                          data-testid="input-oem-region"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               {/* Billing Configuration Toggle */}
               <div className="mt-4">
