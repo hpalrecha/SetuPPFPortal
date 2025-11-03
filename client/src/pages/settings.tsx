@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -153,9 +153,9 @@ export default function SettingsPage() {
     enabled: user?.role === 'SHOWROOM_MANAGER' && !!user?.showroomId,
   });
 
-  // Update profile data when dealership/showroom data is loaded
-  if (myDealership && user?.role === 'DEALERSHIP_ADMIN') {
-    if (profileData.contactPersonName === "") {
+  // Update profile data when dealership data is loaded
+  useEffect(() => {
+    if (myDealership && user?.role === 'DEALERSHIP_ADMIN') {
       setProfileData(prev => ({
         ...prev,
         contactPersonName: myDealership.contactPersonName || "",
@@ -169,10 +169,11 @@ export default function SettingsPage() {
         billToPincode: myDealership.billToPincode || ""
       }));
     }
-  }
+  }, [myDealership, user?.role]);
 
-  if (myShowroom && user?.role === 'SHOWROOM_MANAGER') {
-    if (profileData.contactPersonName === "") {
+  // Update profile data when showroom data is loaded
+  useEffect(() => {
+    if (myShowroom && user?.role === 'SHOWROOM_MANAGER') {
       setProfileData(prev => ({
         ...prev,
         contactPersonName: myShowroom.contactPersonName || "",
@@ -186,7 +187,7 @@ export default function SettingsPage() {
         billToPincode: myShowroom.billToPincode || ""
       }));
     }
-  }
+  }, [myShowroom, user?.role]);
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();

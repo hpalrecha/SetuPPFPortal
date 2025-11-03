@@ -777,9 +777,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/dealerships/:id", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN']), async (req, res) => {
+  app.get("/api/dealerships/:id", authenticate, async (req, res) => {
     try {
       const { id } = req.params;
+      const user = req.user!;
+      
+      // Allow SUPER_ADMIN, OEM_ADMIN, and DEALERSHIP_ADMIN (for their own dealership only)
+      if (!['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'].includes(user.role)) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+      
+      // If DEALERSHIP_ADMIN, ensure they're fetching their own dealership
+      if (user.role === 'DEALERSHIP_ADMIN' && user.dealershipId !== id) {
+        return res.status(403).json({ error: 'You can only view your own dealership' });
+      }
+      
       const dealership = await storage.getDealership(id);
       
       if (!dealership) {
@@ -1324,6 +1336,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   );
+
+  app.get("/api/showrooms/:id", authenticate, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user!;
+      
+      // Allow SUPER_ADMIN, OEM_ADMIN, DEALERSHIP_ADMIN, and SHOWROOM_MANAGER (for their own showroom only)
+      if (!['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER'].includes(user.role)) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+      
+      // If SHOWROOM_MANAGER, ensure they're fetching their own showroom
+      if (user.role === 'SHOWROOM_MANAGER' && user.showroomId !== id) {
+        return res.status(403).json({ error: 'You can only view your own showroom' });
+      }
+      
+      const showroom = await storage.getShowroom(id);
+      
+      if (!showroom) {
+        return res.status(404).json({ error: "Showroom not found" });
+      }
+      
+      res.json(showroom);
+    } catch (error) {
+      console.error("Get showroom error:", error);
+      res.status(500).json({ error: "Failed to fetch showroom" });
+    }
+  });
 
   app.put("/api/showrooms/:id", 
     authenticate, 
