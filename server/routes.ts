@@ -5094,6 +5094,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (salesPersonId) filters.salesPersonId = salesPersonId as string;
       
       // Apply user context filtering based on role
+      // DEALERSHIP_ADMIN should only see rules for their dealership
+      if (req.user!.role === 'DEALERSHIP_ADMIN' && req.user!.dealershipId && !filters.dealershipId) {
+        filters.dealershipId = req.user!.dealershipId;
+      }
+      
+      // SHOWROOM_MANAGER should only see rules for their showroom
       if (req.user!.showroomId && !filters.showroomId) {
         filters.showroomId = req.user!.showroomId;
       }
