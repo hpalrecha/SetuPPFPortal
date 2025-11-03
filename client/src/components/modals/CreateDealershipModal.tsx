@@ -509,6 +509,7 @@ export function CreateDealershipModal({
                           type="email"
                           placeholder="Enter contact email"
                           {...field}
+                          value={field.value || ""}
                           data-testid="input-contact-email"
                         />
                       </FormControl>
@@ -527,6 +528,7 @@ export function CreateDealershipModal({
                         <Input
                           placeholder="Enter contact phone"
                           {...field}
+                          value={field.value || ""}
                           data-testid="input-contact-phone"
                         />
                       </FormControl>

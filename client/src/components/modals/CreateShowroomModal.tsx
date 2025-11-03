@@ -618,6 +618,7 @@ export function CreateShowroomModal({
                           type="email"
                           placeholder="Enter contact email"
                           {...field}
+                          value={field.value || ""}
                           data-testid="input-contact-email"
                         />
                       </FormControl>
@@ -636,6 +637,7 @@ export function CreateShowroomModal({
                         <Input
                           placeholder="Enter contact phone"
                           {...field}
+                          value={field.value || ""}
                           data-testid="input-contact-phone"
                         />
                       </FormControl>
