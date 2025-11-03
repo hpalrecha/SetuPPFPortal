@@ -852,7 +852,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Find or default to Hyundai OEM
             let oemId = 'd5da06c1-bc99-48e0-a907-e8fe279a9f93'; // Default Hyundai ID
             if (oemName && oemName.trim()) {
-              const allOems = await storage.getOEMs();
+              const allOems = await storage.getOems();
               const foundOem = allOems.find(oem => 
                 oem.name.toLowerCase() === oemName.toLowerCase()
               );
