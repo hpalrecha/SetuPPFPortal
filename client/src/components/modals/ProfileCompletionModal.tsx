@@ -107,7 +107,10 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
     mutationFn: async (otp: string) => {
       return apiRequest("POST", "/api/auth/verify-email-otp", { otp });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Invalidate auth query to refresh user data
+      await queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      
       toast({
         title: "Email Verified",
         description: "Your email has been verified successfully",
@@ -149,7 +152,10 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
     mutationFn: async (otp: string) => {
       return apiRequest("POST", "/api/auth/verify-sms-otp", { otp });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Invalidate auth query to refresh user data
+      await queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      
       toast({
         title: "Phone Verified",
         description: "Your phone number has been verified successfully",

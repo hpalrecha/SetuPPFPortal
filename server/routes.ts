@@ -106,12 +106,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ message: "Logged out successfully" });
   });
 
-  app.get("/api/auth/me", authenticate, (req, res) => {
-    // Disable caching to ensure fresh user data after profile updates
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    res.json({ user: req.user });
+  app.get("/api/auth/me", authenticate, async (req, res) => {
+    try {
+      // Fetch fresh user data from database instead of relying on stale JWT data
+      const freshUser = await storage.getUser(req.user!.id);
+      
+      if (!freshUser || !freshUser.isActive) {
+        return res.status(401).json({ error: 'User not found or inactive' });
+      }
+
+      // Build fresh auth user object with latest data
+      const authUser: AuthUser = {
+        id: freshUser.id,
+        email: freshUser.email,
+        role: freshUser.role,
+        name: freshUser.name,
+        oemId: freshUser.oemId || undefined,
+        dealershipId: freshUser.dealershipId || undefined,
+        showroomId: freshUser.showroomId || undefined,
+        partnerId: freshUser.partnerId || undefined,
+        allowedOemIds: freshUser.allowedOemIds || undefined,
+        profileCompleted: freshUser.profileCompleted,
+        emailVerified: freshUser.emailVerified,
+        phoneVerified: freshUser.phoneVerified,
+        phone: freshUser.phone || undefined,
+      };
+
+      // Disable caching to ensure fresh user data after profile updates
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.json({ user: authUser });
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      res.status(500).json({ error: 'Failed to fetch user data' });
+    }
   });
 
   // OTP Verification Routes
