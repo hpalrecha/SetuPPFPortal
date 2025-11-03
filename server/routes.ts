@@ -2143,6 +2143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/dashboard/charts/monthly-trends", authenticate, async (req, res) => {
     try {
       let oemId: string;
+      let dealershipId: string | undefined;
       let showroomId: string | undefined;
       
       if (req.user!.role === 'SUPER_ADMIN') {
@@ -2152,10 +2153,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
         oemId = req.user!.oemId;
+        dealershipId = req.user!.dealershipId;
         showroomId = req.user!.showroomId;
       }
       
-      const data = await storage.getMonthlyTrends(oemId, showroomId);
+      const data = await storage.getMonthlyTrends(oemId, showroomId, dealershipId);
       res.json(data);
     } catch (error) {
       console.error("Monthly trends error:", error);

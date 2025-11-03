@@ -386,7 +386,7 @@ export interface IStorage {
     color: string;
   }[]>;
   
-  getMonthlyTrends(oemId: string, showroomId?: string): Promise<{
+  getMonthlyTrends(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
     month: string;
     completedOrders: number;
     avgTAT: number;
@@ -3606,13 +3606,16 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getMonthlyTrends(oemId: string, showroomId?: string): Promise<{
+  async getMonthlyTrends(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
     month: string;
     completedOrders: number;
     avgTAT: number;
     customerSatisfaction: number;
   }[]> {
     const conditions = [eq(workOrders.oemId, oemId)];
+    if (dealershipId) {
+      conditions.push(eq(workOrders.dealershipId, dealershipId));
+    }
     if (showroomId) {
       conditions.push(eq(workOrders.showroomId, showroomId));
     }
