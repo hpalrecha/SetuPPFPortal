@@ -1,19 +1,17 @@
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
-import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 
 /**
- * Bulk create showrooms from Excel/CSV file
+ * Bulk create showrooms from CSV file
  * 
- * Excel/CSV Format:
- * | username | dealership_code |
- * |----------|-----------------|
- * | showroom1| DEAL_DEALER1    |
- * | showroom2| DEAL_DEALER1    |
+ * CSV Format:
+ * username,dealership_code
+ * showroom1,DEAL_DEALER1
+ * showroom2,DEAL_DEALER1
  * 
- * Usage: npx tsx scripts/bulk-create-showrooms.ts <file.xlsx>
- * Example: npx tsx scripts/bulk-create-showrooms.ts showrooms.xlsx
+ * Usage: npx tsx scripts/bulk-create-showrooms.ts <file.csv>
+ * Example: npx tsx scripts/bulk-create-showrooms.ts showrooms.csv
  * 
  * Note: You must provide dealership_code from the dealerships table
  */
@@ -23,18 +21,35 @@ interface ShowroomRow {
   dealership_code: string;
 }
 
+function parseCSV(content: string): ShowroomRow[] {
+  const lines = content.split('\n');
+  const rows: ShowroomRow[] = [];
+  
+  // Skip header (first line)
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    
+    const [username, dealership_code] = line.split(',').map(s => s.trim());
+    if (username && dealership_code) {
+      rows.push({ username, dealership_code });
+    }
+  }
+  
+  return rows;
+}
+
 async function generateBulkShowroomSQL() {
   const filePath = process.argv[2];
   
   if (!filePath) {
     console.error('\n❌ Error: File path is required');
-    console.log('\nUsage: npx tsx scripts/bulk-create-showrooms.ts <file.xlsx>');
-    console.log('Example: npx tsx scripts/bulk-create-showrooms.ts showrooms.xlsx\n');
-    console.log('Excel/CSV Format:');
-    console.log('| username  | dealership_code |');
-    console.log('|-----------|-----------------|');
-    console.log('| showroom1 | DEAL_DEALER1    |');
-    console.log('| showroom2 | DEAL_DEALER1    |\n');
+    console.log('\nUsage: npx tsx scripts/bulk-create-showrooms.ts <file.csv>');
+    console.log('Example: npx tsx scripts/bulk-create-showrooms.ts showrooms.csv\n');
+    console.log('CSV Format:');
+    console.log('username,dealership_code');
+    console.log('showroom1,DEAL_DEALER1');
+    console.log('showroom2,DEAL_DEALER1\n');
     process.exit(1);
   }
 
@@ -45,11 +60,9 @@ async function generateBulkShowroomSQL() {
 
   console.log('\n📁 Reading file:', filePath);
   
-  // Read Excel/CSV file
-  const workbook = XLSX.readFile(filePath);
-  const sheetName = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<ShowroomRow>(worksheet);
+  // Read CSV file
+  const csvContent = fs.readFileSync(filePath, 'utf-8');
+  const rows = parseCSV(csvContent);
 
   if (rows.length === 0) {
     console.error('\n❌ Error: No data found in file\n');

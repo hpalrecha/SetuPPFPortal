@@ -1,27 +1,43 @@
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
-import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 import * as path from 'path';
 
 /**
- * Bulk create dealerships from Excel/CSV file
+ * Bulk create dealerships from CSV file
  * 
- * Excel/CSV Format:
- * | username | oem_name (optional) |
- * |----------|---------------------|
- * | dealer1  | Hyundai India Ltd   |
- * | dealer2  |                     |
+ * CSV Format:
+ * username,oem_name
+ * dealer1,Hyundai India Ltd
+ * dealer2,
  * 
  * If oem_name is not provided, defaults to Hyundai India Ltd
  * 
- * Usage: npx tsx scripts/bulk-create-dealerships.ts <file.xlsx>
- * Example: npx tsx scripts/bulk-create-dealerships.ts dealerships.xlsx
+ * Usage: npx tsx scripts/bulk-create-dealerships.ts <file.csv>
+ * Example: npx tsx scripts/bulk-create-dealerships.ts dealerships.csv
  */
 
 interface DealershipRow {
   username: string;
   oem_name?: string;
+}
+
+function parseCSV(content: string): DealershipRow[] {
+  const lines = content.split('\n');
+  const rows: DealershipRow[] = [];
+  
+  // Skip header (first line)
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    
+    const [username, oem_name] = line.split(',').map(s => s.trim());
+    if (username) {
+      rows.push({ username, oem_name: oem_name || undefined });
+    }
+  }
+  
+  return rows;
 }
 
 // Default OEM (Hyundai)
@@ -35,13 +51,12 @@ async function generateBulkDealershipSQL() {
   
   if (!filePath) {
     console.error('\n❌ Error: File path is required');
-    console.log('\nUsage: npx tsx scripts/bulk-create-dealerships.ts <file.xlsx>');
-    console.log('Example: npx tsx scripts/bulk-create-dealerships.ts dealerships.xlsx\n');
-    console.log('Excel/CSV Format:');
-    console.log('| username | oem_name (optional) |');
-    console.log('|----------|---------------------|');
-    console.log('| dealer1  | Hyundai India Ltd   |');
-    console.log('| dealer2  |                     |\n');
+    console.log('\nUsage: npx tsx scripts/bulk-create-dealerships.ts <file.csv>');
+    console.log('Example: npx tsx scripts/bulk-create-dealerships.ts dealerships.csv\n');
+    console.log('CSV Format:');
+    console.log('username,oem_name');
+    console.log('dealer1,Hyundai India Ltd');
+    console.log('dealer2,\n');
     process.exit(1);
   }
 
@@ -52,11 +67,9 @@ async function generateBulkDealershipSQL() {
 
   console.log('\n📁 Reading file:', filePath);
   
-  // Read Excel/CSV file
-  const workbook = XLSX.readFile(filePath);
-  const sheetName = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<DealershipRow>(worksheet);
+  // Read CSV file
+  const csvContent = fs.readFileSync(filePath, 'utf-8');
+  const rows = parseCSV(csvContent);
 
   if (rows.length === 0) {
     console.error('\n❌ Error: No data found in file\n');
