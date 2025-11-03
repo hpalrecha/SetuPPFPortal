@@ -49,12 +49,12 @@ function ProtectedRoute({
     return <OemSelector />;
   }
 
-  // Admin roles that should skip profile completion
-  const adminRoles = ['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'];
-  const isAdmin = user && adminRoles.includes(user.role);
+  // Profile completion is ONLY required for dealership and showroom users
+  const requiresProfileCompletion = ['DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'SALES_PERSON'];
+  const needsProfile = user && requiresProfileCompletion.includes(user.role);
 
-  // Check if profile needs completion (only for non-admin users)
-  if (user && !user.profileCompleted && !isAdmin) {
+  // Check if profile needs completion (only for dealership/showroom users)
+  if (user && !user.profileCompleted && needsProfile) {
     return (
       <>
         <ProfileCompletionModal
