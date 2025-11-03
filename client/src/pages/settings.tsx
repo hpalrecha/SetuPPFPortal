@@ -22,8 +22,17 @@ export default function SettingsPage() {
   const [profileData, setProfileData] = useState({
     name: user?.name || "",
     email: user?.email || "",
-    phone: "",
-    role: user?.role || ""
+    phone: user?.phone || "",
+    role: user?.role || "",
+    contactPersonName: "",
+    address: "",
+    city: "",
+    state: "",
+    pincode: "",
+    billToAddress: "",
+    billToCity: "",
+    billToState: "",
+    billToPincode: ""
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -111,6 +120,73 @@ export default function SettingsPage() {
     },
     enabled: user?.role === 'SUPER_ADMIN',
   });
+
+  // Fetch current user's dealership details if they're a DEALERSHIP_ADMIN
+  const { data: myDealership } = useQuery({
+    queryKey: ["/api/dealerships", user?.dealershipId],
+    queryFn: async () => {
+      const response = await fetch(`/api/dealerships/${user?.dealershipId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch dealership');
+      return response.json();
+    },
+    enabled: user?.role === 'DEALERSHIP_ADMIN' && !!user?.dealershipId,
+  });
+
+  // Fetch current user's showroom details if they're a SHOWROOM_MANAGER
+  const { data: myShowroom } = useQuery({
+    queryKey: ["/api/showrooms", user?.showroomId],
+    queryFn: async () => {
+      const response = await fetch(`/api/showrooms/${user?.showroomId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch showroom');
+      return response.json();
+    },
+    enabled: user?.role === 'SHOWROOM_MANAGER' && !!user?.showroomId,
+  });
+
+  // Update profile data when dealership/showroom data is loaded
+  if (myDealership && user?.role === 'DEALERSHIP_ADMIN') {
+    if (profileData.contactPersonName === "") {
+      setProfileData(prev => ({
+        ...prev,
+        contactPersonName: myDealership.contactPersonName || "",
+        address: myDealership.address || "",
+        city: myDealership.city || "",
+        state: myDealership.state || "",
+        pincode: myDealership.pincode || "",
+        billToAddress: myDealership.billToAddress || "",
+        billToCity: myDealership.billToCity || "",
+        billToState: myDealership.billToState || "",
+        billToPincode: myDealership.billToPincode || ""
+      }));
+    }
+  }
+
+  if (myShowroom && user?.role === 'SHOWROOM_MANAGER') {
+    if (profileData.contactPersonName === "") {
+      setProfileData(prev => ({
+        ...prev,
+        contactPersonName: myShowroom.contactPersonName || "",
+        address: myShowroom.address || "",
+        city: myShowroom.city || "",
+        state: myShowroom.state || "",
+        pincode: myShowroom.pincode || "",
+        billToAddress: myShowroom.billToAddress || "",
+        billToCity: myShowroom.billToCity || "",
+        billToState: myShowroom.billToState || "",
+        billToPincode: myShowroom.billToPincode || ""
+      }));
+    }
+  }
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -428,6 +504,112 @@ export default function SettingsPage() {
                     />
                   </div>
                 </div>
+
+                {/* Additional details for dealership/showroom users */}
+                {(user?.role === 'DEALERSHIP_ADMIN' || user?.role === 'SHOWROOM_MANAGER') && (
+                  <>
+                    <div className="pt-4 border-t">
+                      <h3 className="text-sm font-medium mb-4">Organization Details</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="contactPersonName">Contact Person Name</Label>
+                          <Input
+                            id="contactPersonName"
+                            value={profileData.contactPersonName}
+                            onChange={(e) => setProfileData(prev => ({ ...prev, contactPersonName: e.target.value }))}
+                            data-testid="input-contact-person-name"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="address">Address</Label>
+                          <Input
+                            id="address"
+                            value={profileData.address}
+                            onChange={(e) => setProfileData(prev => ({ ...prev, address: e.target.value }))}
+                            data-testid="input-address"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="city">City</Label>
+                          <Input
+                            id="city"
+                            value={profileData.city}
+                            onChange={(e) => setProfileData(prev => ({ ...prev, city: e.target.value }))}
+                            data-testid="input-city"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="state">State</Label>
+                          <Input
+                            id="state"
+                            value={profileData.state}
+                            onChange={(e) => setProfileData(prev => ({ ...prev, state: e.target.value }))}
+                            data-testid="input-state"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="pincode">Pincode</Label>
+                          <Input
+                            id="pincode"
+                            value={profileData.pincode}
+                            onChange={(e) => setProfileData(prev => ({ ...prev, pincode: e.target.value }))}
+                            data-testid="input-pincode"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Billing Address Section */}
+                    {(profileData.billToAddress || profileData.billToCity || profileData.billToState || profileData.billToPincode) && (
+                      <div className="pt-4 border-t">
+                        <h3 className="text-sm font-medium mb-4">Billing Address</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="billToAddress">Billing Address</Label>
+                            <Input
+                              id="billToAddress"
+                              value={profileData.billToAddress}
+                              onChange={(e) => setProfileData(prev => ({ ...prev, billToAddress: e.target.value }))}
+                              data-testid="input-bill-to-address"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="billToCity">Billing City</Label>
+                            <Input
+                              id="billToCity"
+                              value={profileData.billToCity}
+                              onChange={(e) => setProfileData(prev => ({ ...prev, billToCity: e.target.value }))}
+                              data-testid="input-bill-to-city"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="billToState">Billing State</Label>
+                            <Input
+                              id="billToState"
+                              value={profileData.billToState}
+                              onChange={(e) => setProfileData(prev => ({ ...prev, billToState: e.target.value }))}
+                              data-testid="input-bill-to-state"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="billToPincode">Billing Pincode</Label>
+                            <Input
+                              id="billToPincode"
+                              value={profileData.billToPincode}
+                              onChange={(e) => setProfileData(prev => ({ ...prev, billToPincode: e.target.value }))}
+                              data-testid="input-bill-to-pincode"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
                 <Button 
                   type="submit" 
                   disabled={isLoading}
