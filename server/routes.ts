@@ -20,7 +20,7 @@ import {
   commissionRules
 } from "@shared/schema";
 import { storage } from "./storage";
-import { authService } from "./auth";
+import { authService, AuthUser } from "./auth";
 import { emailService } from "./services/email-service";
 import { whatsappService } from "./services/whatsapp-service";
 import smsService from "./services/sms-service";
@@ -121,6 +121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: freshUser.email,
         role: freshUser.role,
         name: freshUser.name,
+        username: freshUser.username,
         oemId: freshUser.oemId || undefined,
         dealershipId: freshUser.dealershipId || undefined,
         showroomId: freshUser.showroomId || undefined,
