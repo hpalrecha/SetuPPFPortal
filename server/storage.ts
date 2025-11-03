@@ -474,7 +474,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
+    // Case-insensitive username lookup
+    const [user] = await db.select().from(users).where(sql`LOWER(${users.username}) = LOWER(${username})`);
     return user || undefined;
   }
 
@@ -484,9 +485,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
+    // Normalize username to lowercase for consistency
+    const normalizedUser = {
+      ...insertUser,
+      username: insertUser.username.toLowerCase()
+    };
     const [user] = await db
       .insert(users)
-      .values(insertUser)
+      .values(normalizedUser)
       .returning();
     return user;
   }
