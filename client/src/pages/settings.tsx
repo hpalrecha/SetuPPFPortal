@@ -194,12 +194,66 @@ export default function SettingsPage() {
     setIsLoading(true);
     
     try {
-      // TODO: Implement profile update API call
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+      // Update dealership/showroom organization details
+      if (user?.role === 'DEALERSHIP_ADMIN' && user?.dealershipId) {
+        const updateData = {
+          contactPersonName: profileData.contactPersonName,
+          address: profileData.address,
+          city: profileData.city,
+          state: profileData.state,
+          pincode: profileData.pincode,
+          billToAddress: profileData.billToAddress || null,
+          billToCity: profileData.billToCity || null,
+          billToState: profileData.billToState || null,
+          billToPincode: profileData.billToPincode || null,
+        };
+
+        const response = await fetch(`/api/dealerships/${user.dealershipId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify(updateData),
+        });
+
+        if (!response.ok) throw new Error('Failed to update dealership');
+        
+        // Invalidate the query to refetch fresh data
+        queryClient.invalidateQueries({ queryKey: ["/api/dealerships", user.dealershipId] });
+      } else if (user?.role === 'SHOWROOM_MANAGER' && user?.showroomId) {
+        const updateData = {
+          contactPersonName: profileData.contactPersonName,
+          address: profileData.address,
+          city: profileData.city,
+          state: profileData.state,
+          pincode: profileData.pincode,
+          billToAddress: profileData.billToAddress || null,
+          billToCity: profileData.billToCity || null,
+          billToState: profileData.billToState || null,
+          billToPincode: profileData.billToPincode || null,
+        };
+
+        const response = await fetch(`/api/showrooms/${user.showroomId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify(updateData),
+        });
+
+        if (!response.ok) throw new Error('Failed to update showroom');
+        
+        // Invalidate the query to refetch fresh data
+        queryClient.invalidateQueries({ queryKey: ["/api/showrooms", user.showroomId] });
+      }
       
       toast({
         title: "Profile Updated",
-        description: "Your profile has been updated successfully."
+        description: "Your organization details have been updated successfully."
       });
     } catch (error) {
       toast({
