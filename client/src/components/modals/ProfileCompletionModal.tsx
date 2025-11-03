@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle2, Mail, Phone, Loader2 } from "lucide-react";
 
 interface ProfileCompletionModalProps {
@@ -13,6 +14,17 @@ interface ProfileCompletionModalProps {
   onComplete: () => void;
   user: any;
 }
+
+const INDIAN_STATES = [
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand",
+  "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur",
+  "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
+  "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
+  "Uttar Pradesh", "Uttarakhand", "West Bengal",
+  "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu",
+  "Delhi", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry"
+];
 
 export function ProfileCompletionModal({ open, onComplete, user }: ProfileCompletionModalProps) {
   const [step, setStep] = useState(1);
@@ -155,13 +167,17 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
       
       return apiRequest("POST", "/api/auth/complete-profile", profileData);
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({
         title: "Profile Completed",
         description: "Your profile has been completed successfully",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      onComplete();
+      // Wait for the user data to be refetched
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      // Small delay to ensure the data is fully refreshed
+      setTimeout(() => {
+        onComplete();
+      }, 100);
     },
     onError: (error: any) => {
       toast({
@@ -494,14 +510,18 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
 
                 <div>
                   <Label htmlFor="state">State *</Label>
-                  <Input
-                    id="state"
-                    type="text"
-                    placeholder="Enter state"
-                    value={state}
-                    onChange={(e) => setState(e.target.value)}
-                    data-testid="input-state"
-                  />
+                  <Select value={state} onValueChange={setState}>
+                    <SelectTrigger data-testid="select-state">
+                      <SelectValue placeholder="Select state" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INDIAN_STATES.map((stateName) => (
+                        <SelectItem key={stateName} value={stateName}>
+                          {stateName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
