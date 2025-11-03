@@ -795,6 +795,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Bulk Upload Dealerships from CSV
+  app.post("/api/dealerships/bulk-upload",
+    authenticate,
+    requireRole(['SUPER_ADMIN']),
+    upload.single('file'),
+    async (req, res) => {
+      try {
+        if (!req.file) {
+          return res.status(400).json({ error: "No file uploaded" });
+        }
+
+        const fileBuffer = req.file.buffer;
+        const csvContent = fileBuffer.toString('utf-8');
+        const lines = csvContent.split('\n').filter(line => line.trim());
+        
+        if (lines.length < 2) {
+          return res.status(400).json({ error: "CSV file is empty or has no data rows" });
+        }
+
+        // Skip header row
+        const dataLines = lines.slice(1);
+        
+        const results = {
+          success: 0,
+          failed: 0,
+          errors: [] as string[]
+        };
+
+        // Process each row
+        for (let i = 0; i < dataLines.length; i++) {
+          const line = dataLines[i].trim();
+          if (!line) continue;
+
+          try {
+            const [username, oemName] = line.split(',').map(s => s.trim());
+            
+            if (!username) {
+              results.errors.push(`Row ${i + 2}: Username is required`);
+              results.failed++;
+              continue;
+            }
+
+            // Normalize username to lowercase
+            const normalizedUsername = username.toLowerCase();
+
+            // Check if username already exists
+            const existingUser = await storage.getUserByUsername(normalizedUsername);
+            if (existingUser) {
+              results.errors.push(`Row ${i + 2}: Username '${username}' already exists`);
+              results.failed++;
+              continue;
+            }
+
+            // Find or default to Hyundai OEM
+            let oemId = 'd5da06c1-bc99-48e0-a907-e8fe279a9f93'; // Default Hyundai ID
+            if (oemName && oemName.trim()) {
+              const allOems = await storage.getOEMs();
+              const foundOem = allOems.find(oem => 
+                oem.name.toLowerCase() === oemName.toLowerCase()
+              );
+              if (foundOem) {
+                oemId = foundOem.id;
+              } else {
+                results.errors.push(`Row ${i + 2}: OEM '${oemName}' not found, using default Hyundai`);
+              }
+            }
+
+            // Generate auto password: username@123
+            const autoPassword = `${normalizedUsername}@123`;
+            const passwordHash = await bcrypt.hash(autoPassword, 10);
+
+            // Create dealership with username as name
+            const dealership = await storage.createDealership({
+              name: username, // Use original case for display name
+              contactPersonName: username,
+              contactPhone: '',
+              city: '',
+              state: '',
+              pincode: ''
+            });
+
+            // Map dealership to OEM
+            await storage.setDealershipOems(dealership.id, [oemId]);
+
+            // Create DEALERSHIP_ADMIN user with username login
+            const userData = {
+              name: username,
+              email: '', // Empty, will be set during profile completion
+              phone: '',
+              passwordHash,
+              username: normalizedUsername,
+              role: 'DEALERSHIP_ADMIN' as const,
+              oemId,
+              dealershipId: dealership.id,
+              isActive: true,
+              profileCompleted: false
+            };
+
+            await storage.createUser(userData);
+            
+            results.success++;
+          } catch (error: any) {
+            console.error(`Error processing row ${i + 2}:`, error);
+            results.errors.push(`Row ${i + 2}: ${error.message || 'Unknown error'}`);
+            results.failed++;
+          }
+        }
+
+        res.json(results);
+      } catch (error: any) {
+        console.error("Bulk upload error:", error);
+        res.status(500).json({ error: "Failed to process bulk upload" });
+      }
+    }
+  );
+
   app.put("/api/dealerships/:id", 
     authenticate, 
     requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
