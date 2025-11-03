@@ -32,7 +32,8 @@ export default function SettingsPage() {
     billToAddress: "",
     billToCity: "",
     billToState: "",
-    billToPincode: ""
+    billToPincode: "",
+    gstNumber: ""
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -156,6 +157,9 @@ export default function SettingsPage() {
   // Update profile data when dealership data is loaded
   useEffect(() => {
     if (myDealership && user?.role === 'DEALERSHIP_ADMIN') {
+      // Parse billToAddress JSONB if it exists
+      const billToAddressData = myDealership.billToAddress || {};
+      
       setProfileData(prev => ({
         ...prev,
         contactPersonName: myDealership.contactPersonName || "",
@@ -163,10 +167,11 @@ export default function SettingsPage() {
         city: myDealership.city || "",
         state: myDealership.state || "",
         pincode: myDealership.pincode || "",
-        billToAddress: myDealership.billToAddress || "",
-        billToCity: myDealership.billToCity || "",
-        billToState: myDealership.billToState || "",
-        billToPincode: myDealership.billToPincode || ""
+        billToAddress: typeof billToAddressData === 'object' ? billToAddressData.address || "" : billToAddressData || "",
+        billToCity: typeof billToAddressData === 'object' ? billToAddressData.city || "" : "",
+        billToState: typeof billToAddressData === 'object' ? billToAddressData.state || "" : "",
+        billToPincode: typeof billToAddressData === 'object' ? billToAddressData.pincode || "" : "",
+        gstNumber: typeof billToAddressData === 'object' ? billToAddressData.gstNumber || "" : ""
       }));
     }
   }, [myDealership, user?.role]);
@@ -174,6 +179,9 @@ export default function SettingsPage() {
   // Update profile data when showroom data is loaded
   useEffect(() => {
     if (myShowroom && user?.role === 'SHOWROOM_MANAGER') {
+      // Parse billToAddress JSONB if it exists
+      const billToAddressData = myShowroom.billToAddress || {};
+      
       setProfileData(prev => ({
         ...prev,
         contactPersonName: myShowroom.contactPersonName || "",
@@ -181,10 +189,11 @@ export default function SettingsPage() {
         city: myShowroom.city || "",
         state: myShowroom.state || "",
         pincode: myShowroom.pincode || "",
-        billToAddress: myShowroom.billToAddress || "",
-        billToCity: myShowroom.billToCity || "",
-        billToState: myShowroom.billToState || "",
-        billToPincode: myShowroom.billToPincode || ""
+        billToAddress: typeof billToAddressData === 'object' ? billToAddressData.address || "" : billToAddressData || "",
+        billToCity: typeof billToAddressData === 'object' ? billToAddressData.city || "" : "",
+        billToState: typeof billToAddressData === 'object' ? billToAddressData.state || "" : "",
+        billToPincode: typeof billToAddressData === 'object' ? billToAddressData.pincode || "" : "",
+        gstNumber: typeof billToAddressData === 'object' ? billToAddressData.gstNumber || "" : ""
       }));
     }
   }, [myShowroom, user?.role]);
@@ -202,10 +211,13 @@ export default function SettingsPage() {
           city: profileData.city,
           state: profileData.state,
           pincode: profileData.pincode,
-          billToAddress: profileData.billToAddress || null,
-          billToCity: profileData.billToCity || null,
-          billToState: profileData.billToState || null,
-          billToPincode: profileData.billToPincode || null,
+          billToAddress: {
+            address: profileData.billToAddress || "",
+            city: profileData.billToCity || "",
+            state: profileData.billToState || "",
+            pincode: profileData.billToPincode || "",
+            gstNumber: profileData.gstNumber || ""
+          },
         };
 
         const response = await fetch(`/api/dealerships/${user.dealershipId}`, {
@@ -229,10 +241,13 @@ export default function SettingsPage() {
           city: profileData.city,
           state: profileData.state,
           pincode: profileData.pincode,
-          billToAddress: profileData.billToAddress || null,
-          billToCity: profileData.billToCity || null,
-          billToState: profileData.billToState || null,
-          billToPincode: profileData.billToPincode || null,
+          billToAddress: {
+            address: profileData.billToAddress || "",
+            city: profileData.billToCity || "",
+            state: profileData.billToState || "",
+            pincode: profileData.billToPincode || "",
+            gstNumber: profileData.gstNumber || ""
+          },
         };
 
         const response = await fetch(`/api/showrooms/${user.showroomId}`, {
@@ -638,52 +653,64 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    {/* Billing Address Section */}
-                    {(profileData.billToAddress || profileData.billToCity || profileData.billToState || profileData.billToPincode) && (
-                      <div className="pt-4 border-t">
-                        <h3 className="text-sm font-medium mb-4">Billing Address</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="billToAddress">Billing Address</Label>
-                            <Input
-                              id="billToAddress"
-                              value={profileData.billToAddress}
-                              onChange={(e) => setProfileData(prev => ({ ...prev, billToAddress: e.target.value }))}
-                              data-testid="input-bill-to-address"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="billToCity">Billing City</Label>
-                            <Input
-                              id="billToCity"
-                              value={profileData.billToCity}
-                              onChange={(e) => setProfileData(prev => ({ ...prev, billToCity: e.target.value }))}
-                              data-testid="input-bill-to-city"
-                            />
-                          </div>
+                    {/* Billing Address Section - Always visible for dealership/showroom users */}
+                    <div className="pt-4 border-t">
+                      <h3 className="text-sm font-medium mb-4">Billing Address</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="billToAddress">Billing Address</Label>
+                          <Input
+                            id="billToAddress"
+                            value={profileData.billToAddress}
+                            onChange={(e) => setProfileData(prev => ({ ...prev, billToAddress: e.target.value }))}
+                            placeholder="Enter billing address"
+                            data-testid="input-bill-to-address"
+                          />
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="billToState">Billing State</Label>
-                            <Input
-                              id="billToState"
-                              value={profileData.billToState}
-                              onChange={(e) => setProfileData(prev => ({ ...prev, billToState: e.target.value }))}
-                              data-testid="input-bill-to-state"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="billToPincode">Billing Pincode</Label>
-                            <Input
-                              id="billToPincode"
-                              value={profileData.billToPincode}
-                              onChange={(e) => setProfileData(prev => ({ ...prev, billToPincode: e.target.value }))}
-                              data-testid="input-bill-to-pincode"
-                            />
-                          </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="billToCity">Billing City</Label>
+                          <Input
+                            id="billToCity"
+                            value={profileData.billToCity}
+                            onChange={(e) => setProfileData(prev => ({ ...prev, billToCity: e.target.value }))}
+                            placeholder="Enter billing city"
+                            data-testid="input-bill-to-city"
+                          />
                         </div>
                       </div>
-                    )}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="billToState">Billing State</Label>
+                          <Input
+                            id="billToState"
+                            value={profileData.billToState}
+                            onChange={(e) => setProfileData(prev => ({ ...prev, billToState: e.target.value }))}
+                            placeholder="Enter billing state"
+                            data-testid="input-bill-to-state"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="billToPincode">Billing Pincode</Label>
+                          <Input
+                            id="billToPincode"
+                            value={profileData.billToPincode}
+                            onChange={(e) => setProfileData(prev => ({ ...prev, billToPincode: e.target.value }))}
+                            placeholder="Enter billing pincode"
+                            data-testid="input-bill-to-pincode"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="gstNumber">GST Number</Label>
+                          <Input
+                            id="gstNumber"
+                            value={profileData.gstNumber}
+                            onChange={(e) => setProfileData(prev => ({ ...prev, gstNumber: e.target.value }))}
+                            placeholder="Enter GST number"
+                            data-testid="input-gst-number"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </>
                 )}
 
