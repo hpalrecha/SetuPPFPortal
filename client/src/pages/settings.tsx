@@ -167,11 +167,11 @@ export default function SettingsPage() {
         city: myDealership.city || "",
         state: myDealership.state || "",
         pincode: myDealership.pincode || "",
-        billToAddress: typeof billToAddressData === 'object' ? billToAddressData.address || "" : billToAddressData || "",
+        billToAddress: typeof billToAddressData === 'object' ? billToAddressData.addressLine1 || "" : billToAddressData || "",
         billToCity: typeof billToAddressData === 'object' ? billToAddressData.city || "" : "",
         billToState: typeof billToAddressData === 'object' ? billToAddressData.state || "" : "",
         billToPincode: typeof billToAddressData === 'object' ? billToAddressData.pincode || "" : "",
-        gstNumber: typeof billToAddressData === 'object' ? billToAddressData.gstNumber || "" : ""
+        gstNumber: typeof billToAddressData === 'object' ? billToAddressData.gstin || "" : ""
       }));
     }
   }, [myDealership, user?.role]);
@@ -189,11 +189,11 @@ export default function SettingsPage() {
         city: myShowroom.city || "",
         state: myShowroom.state || "",
         pincode: myShowroom.pincode || "",
-        billToAddress: typeof billToAddressData === 'object' ? billToAddressData.address || "" : billToAddressData || "",
+        billToAddress: typeof billToAddressData === 'object' ? billToAddressData.addressLine1 || "" : billToAddressData || "",
         billToCity: typeof billToAddressData === 'object' ? billToAddressData.city || "" : "",
         billToState: typeof billToAddressData === 'object' ? billToAddressData.state || "" : "",
         billToPincode: typeof billToAddressData === 'object' ? billToAddressData.pincode || "" : "",
-        gstNumber: typeof billToAddressData === 'object' ? billToAddressData.gstNumber || "" : ""
+        gstNumber: typeof billToAddressData === 'object' ? billToAddressData.gstin || "" : ""
       }));
     }
   }, [myShowroom, user?.role]);
@@ -212,11 +212,11 @@ export default function SettingsPage() {
           state: profileData.state,
           pincode: profileData.pincode,
           billToAddress: {
-            address: profileData.billToAddress || "",
+            addressLine1: profileData.billToAddress || "",
             city: profileData.billToCity || "",
             state: profileData.billToState || "",
             pincode: profileData.billToPincode || "",
-            gstNumber: profileData.gstNumber || ""
+            gstin: profileData.gstNumber || ""
           },
         };
 
@@ -242,11 +242,11 @@ export default function SettingsPage() {
           state: profileData.state,
           pincode: profileData.pincode,
           billToAddress: {
-            address: profileData.billToAddress || "",
+            addressLine1: profileData.billToAddress || "",
             city: profileData.billToCity || "",
             state: profileData.billToState || "",
             pincode: profileData.billToPincode || "",
-            gstNumber: profileData.gstNumber || ""
+            gstin: profileData.gstNumber || ""
           },
         };
 

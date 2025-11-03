@@ -203,20 +203,20 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
         // Always include billing address - either different or same as main address
         if (hasDifferentBillingAddress) {
           profileData.billToAddress = {
-            address: billToAddress,
+            addressLine1: billToAddress,
             city: billToCity,
             state: billToState,
             pincode: billToPincode,
-            gstNumber: gstNumber
+            gstin: gstNumber
           };
         } else {
           // Copy main address to billing address
           profileData.billToAddress = {
-            address: address,
+            addressLine1: address,
             city: city,
             state: state,
             pincode: pincode,
-            gstNumber: gstNumber
+            gstin: gstNumber
           };
         }
       }
