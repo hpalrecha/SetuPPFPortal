@@ -352,7 +352,7 @@ export interface IStorage {
   }>;
 
   // Dashboard chart data
-  getOrdersRevenueTrend(oemId: string, showroomId?: string): Promise<{
+  getOrdersRevenueTrend(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
     month: string;
     orders: number;
     revenue: number;
@@ -3399,12 +3399,15 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getOrdersRevenueTrend(oemId: string, showroomId?: string): Promise<{
+  async getOrdersRevenueTrend(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
     month: string;
     orders: number;
     revenue: number;
   }[]> {
     const conditions = [eq(workOrders.oemId, oemId)];
+    if (dealershipId) {
+      conditions.push(eq(workOrders.dealershipId, dealershipId));
+    }
     if (showroomId) {
       conditions.push(eq(workOrders.showroomId, showroomId));
     }

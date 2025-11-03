@@ -270,11 +270,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground mt-2">
-                <span className="text-green-600 flex items-center">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  12%
-                </span>
-                from last month
+                Current active orders
               </p>
             </CardContent>
           </Card>
@@ -316,11 +312,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground mt-2">
-                <span className="text-green-600 flex items-center">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  8%
-                </span>
-                from last month
+                Revenue generated this month
               </p>
             </CardContent>
           </Card>
@@ -342,11 +334,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground mt-2">
-                <span className="text-red-600 flex items-center">
-                  <TrendingDown className="h-3 w-3 mr-1" />
-                  0.3d
-                </span>
-                from last month
+                Average turnaround time
               </p>
             </CardContent>
           </Card>

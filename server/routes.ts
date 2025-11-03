@@ -2026,6 +2026,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       let oemId: string;
       let showroomId: string | undefined;
+      let dealershipId: string | undefined;
       
       // Handle different user roles
       if (req.user!.role === 'SUPER_ADMIN') {
@@ -2035,10 +2036,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
         oemId = req.user!.oemId;
+        dealershipId = req.user!.dealershipId;
         showroomId = req.user!.showroomId;
       }
       
-      const data = await storage.getOrdersRevenueTrend(oemId, showroomId);
+      const data = await storage.getOrdersRevenueTrend(oemId, showroomId, dealershipId);
       res.json(data);
     } catch (error) {
       console.error("Orders trend error:", error);
