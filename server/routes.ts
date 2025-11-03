@@ -887,7 +887,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Create DEALERSHIP_ADMIN user with username login
             const userData = {
               name: username,
-              email: '', // Empty, will be set during profile completion
+              email: `${normalizedUsername}@placeholder.local`, // Temporary email, will be updated during profile completion
               phone: '',
               passwordHash,
               username: normalizedUsername,
@@ -1217,7 +1217,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Create SHOWROOM_MANAGER user with username login
             const userData = {
               name: username,
-              email: '', // Empty, will be set during profile completion
+              email: `${normalizedUsername}@placeholder.local`, // Temporary email, will be updated during profile completion
               phone: '',
               passwordHash,
               username: normalizedUsername,
