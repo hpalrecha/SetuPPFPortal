@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle2, Mail, Phone, Loader2 } from "lucide-react";
+import { GA4Events } from "@/lib/ga4";
 
 interface ProfileCompletionModalProps {
   open: boolean;
@@ -120,6 +121,8 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
       // Invalidate auth query to refresh user data
       await queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
       
+      GA4Events.verifyEmail();
+      
       toast({
         title: "Email Verified",
         description: "Your email has been verified successfully",
@@ -164,6 +167,8 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
     onSuccess: async () => {
       // Invalidate auth query to refresh user data
       await queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      
+      GA4Events.verifyPhone();
       
       toast({
         title: "Phone Verified",
@@ -224,6 +229,8 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
       return apiRequest("POST", "/api/auth/complete-profile", profileData);
     },
     onSuccess: async () => {
+      GA4Events.completeProfile(user?.role || 'unknown');
+      
       toast({
         title: "Profile Completed",
         description: "Your profile has been completed successfully",

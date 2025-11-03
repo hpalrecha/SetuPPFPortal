@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { GA4Events } from "@/lib/ga4";
 import logoGreen from "@assets/P91 PULSE logo-01_1761139835394.png";
 
 const loginSchema = z.object({
@@ -37,6 +38,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(data.email, data.password);
+      GA4Events.login('username');
       setLocation("/dashboard");
     } catch (error) {
       toast({
