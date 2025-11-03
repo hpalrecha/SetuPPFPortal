@@ -101,6 +101,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
+      // Auto-sync user contact info to organization if not already set
+      if (result.user) {
+        const user = result.user;
+        
+        // For DEALERSHIP_ADMIN, sync to dealership contact fields
+        if (user.role === 'DEALERSHIP_ADMIN' && user.dealershipId) {
+          const dealership = await storage.getDealership(user.dealershipId);
+          if (dealership && (!dealership.contactEmail || !dealership.contactPhone)) {
+            await storage.updateDealership(user.dealershipId, {
+              contactEmail: dealership.contactEmail || user.email,
+              contactPhone: dealership.contactPhone || user.phone || '',
+            });
+          }
+        }
+        
+        // For SHOWROOM_MANAGER, sync to showroom contact fields
+        if (user.role === 'SHOWROOM_MANAGER' && user.showroomId) {
+          const showroom = await storage.getShowroom(user.showroomId);
+          if (showroom && (!showroom.contactEmail || !showroom.contactPhone)) {
+            await storage.updateShowroom(user.showroomId, {
+              contactEmail: showroom.contactEmail || user.email,
+              contactPhone: showroom.contactPhone || user.phone || '',
+            });
+          }
+        }
+      }
+
       res.json(result);
     } catch (error) {
       console.error("Login error:", error);
