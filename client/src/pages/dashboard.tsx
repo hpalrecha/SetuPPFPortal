@@ -120,6 +120,37 @@ export default function DashboardPage() {
     enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'])
   });
 
+  // Fetch dealership/showroom name for welcome message
+  const { data: myDealership } = useQuery({
+    queryKey: ["/api/dealerships", user?.dealershipId],
+    queryFn: async () => {
+      const response = await fetch(`/api/dealerships/${user?.dealershipId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) return null;
+      return response.json();
+    },
+    enabled: user?.role === 'DEALERSHIP_ADMIN' && !!user?.dealershipId,
+  });
+
+  const { data: myShowroom } = useQuery({
+    queryKey: ["/api/showrooms", user?.showroomId],
+    queryFn: async () => {
+      const response = await fetch(`/api/showrooms/${user?.showroomId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) return null;
+      return response.json();
+    },
+    enabled: (user?.role === 'SHOWROOM_MANAGER' || user?.role === 'SALES_PERSON') && !!user?.showroomId,
+  });
+
   const { data: servicePopularity = [] } = useQuery<{
     name: string;
     value: number;
@@ -173,8 +204,13 @@ export default function DashboardPage() {
       {/* Dashboard Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div className="flex-1 min-w-0">
-          <h2 className="text-xl sm:text-2xl font-semibold text-foreground truncate">Dashboard</h2>
+          <h2 className="text-xl sm:text-2xl font-semibold text-foreground truncate">
+            {myDealership ? `Welcome, ${myDealership.name}` : 
+             myShowroom ? `Welcome, ${myShowroom.name}` : 
+             'Dashboard'}
+          </h2>
           <p className="text-sm sm:text-base text-muted-foreground mt-1">
+            {myDealership ? 'Dealership Portal - ' : myShowroom ? 'Showroom Portal - ' : ''}
             Overview of your PPF installation operations
             {viewAsRole && (
               <span className="text-orange-600 font-medium"> (Viewing as {viewAsRole.replace('_', ' ')})</span>
