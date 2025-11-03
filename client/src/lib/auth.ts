@@ -16,6 +16,10 @@ export interface AuthUser {
   partnerId?: string;
   name: string;
   allowedOemIds?: string[];
+  profileCompleted?: boolean;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+  phone?: string;
 }
 
 export interface LoginResponse {
