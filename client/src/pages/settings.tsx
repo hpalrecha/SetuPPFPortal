@@ -207,6 +207,8 @@ export default function SettingsPage() {
       if (user?.role === 'DEALERSHIP_ADMIN' && user?.dealershipId) {
         const updateData = {
           contactPersonName: profileData.contactPersonName,
+          contactEmail: profileData.email, // Save user's email to dealership contactEmail
+          contactPhone: profileData.phone, // Save user's phone to dealership contactPhone
           address: profileData.address,
           city: profileData.city,
           state: profileData.state,
@@ -237,6 +239,8 @@ export default function SettingsPage() {
       } else if (user?.role === 'SHOWROOM_MANAGER' && user?.showroomId) {
         const updateData = {
           contactPersonName: profileData.contactPersonName,
+          contactEmail: profileData.email, // Save user's email to showroom contactEmail
+          contactPhone: profileData.phone, // Save user's phone to showroom contactPhone
           address: profileData.address,
           city: profileData.city,
           state: profileData.state,
