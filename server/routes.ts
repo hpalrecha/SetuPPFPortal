@@ -934,10 +934,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!line) continue;
 
           try {
-            const [username, oemName] = line.split(',').map(s => s.trim());
+            const [username, dealershipName, oemName] = line.split(',').map(s => s.trim());
             
             if (!username) {
               results.errors.push(`Row ${i + 2}: Username is required`);
+              results.failed++;
+              continue;
+            }
+
+            if (!dealershipName) {
+              results.errors.push(`Row ${i + 2}: Dealership name is required`);
               results.failed++;
               continue;
             }
@@ -974,11 +980,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Generate dealership code
             const dealershipCode = `DEAL_${normalizedUsername.toUpperCase()}`;
 
-            // Create dealership with username as name
+            // Create dealership with proper name
             const dealership = await storage.createDealership({
-              name: username, // Use original case for display name
+              name: dealershipName, // Use dealership name from CSV
               code: dealershipCode,
-              contactPersonName: username,
+              contactPersonName: dealershipName,
               contactPhone: '',
               city: '',
               state: '',
@@ -990,7 +996,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Create DEALERSHIP_ADMIN user with username login
             const userData = {
-              name: username,
+              name: dealershipName, // Use dealership name for user's name
               email: `${normalizedUsername}@placeholder.local`, // Temporary email, will be updated during profile completion
               phone: '',
               passwordHash,
@@ -1268,15 +1274,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
 
         // Process each row
+        // CSV Format: username,showroomName,dealershipCode,managerName,email,phone,address,city,state,pincode
         for (let i = 0; i < dataLines.length; i++) {
           const line = dataLines[i].trim();
           if (!line) continue;
 
           try {
-            const [username, dealershipCode] = line.split(',').map(s => s.trim());
+            const [username, showroomName, dealershipCode, managerName, email, phone, address, city, state, pincode] = line.split(',').map(s => s?.trim() || '');
             
             if (!username) {
               results.errors.push(`Row ${i + 2}: Username is required`);
+              results.failed++;
+              continue;
+            }
+
+            if (!showroomName) {
+              results.errors.push(`Row ${i + 2}: Showroom name is required`);
               results.failed++;
               continue;
             }
@@ -1317,24 +1330,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Generate showroom code
             const showroomCode = `SHOW_${normalizedUsername.toUpperCase()}`;
 
-            // Create showroom with username as name
+            // Create showroom with all provided fields
             const showroom = await storage.createShowroom({
-              name: username, // Use original case for display name
+              name: showroomName,
               code: showroomCode,
               dealershipId,
               oemId,
-              contactPersonName: username,
-              contactPhone: '',
-              city: '',
-              state: '',
-              pincode: ''
+              managerName: managerName || showroomName,
+              contactEmail: email || null,
+              contactPhone: phone || '',
+              address: address || '',
+              city: city || '',
+              state: state || '',
+              pincode: pincode || ''
             });
 
             // Create SHOWROOM_MANAGER user with username login
             const userData = {
-              name: username,
-              email: `${normalizedUsername}@placeholder.local`, // Temporary email, will be updated during profile completion
-              phone: '',
+              name: showroomName, // Use showroom name for user's name
+              email: email || `${normalizedUsername}@placeholder.local`, // Use provided email or placeholder
+              phone: phone || '',
               passwordHash,
               username: normalizedUsername,
               role: 'SHOWROOM_MANAGER' as const,
