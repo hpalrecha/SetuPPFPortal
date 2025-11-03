@@ -31,6 +31,7 @@ export interface AuthUser {
   id: string;
   username: string;
   email?: string;
+  phone?: string;
   role: string;
   oemId?: string;
   dealershipId?: string;
@@ -98,6 +99,7 @@ export class AuthService {
       id: user.id,
       username: user.username,
       email: user.email || undefined,
+      phone: user.phone || undefined,
       role: user.role,
       oemId: user.oemId || undefined,
       dealershipId: user.dealershipId || undefined,
