@@ -312,7 +312,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/complete-profile", authenticate, async (req, res) => {
     try {
       const userId = req.user!.id;
-      const { email, phone } = req.body;
+      const { email, phone, contactPersonName, address, city, state, pincode } = req.body;
       
       const user = await storage.getUser(userId);
       if (!user) {
@@ -334,6 +334,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: email || user.email,
         phone: phone || user.phone
       });
+
+      // Update dealership/showroom details if applicable
+      if (user.role === 'DEALERSHIP_ADMIN' && user.dealershipId) {
+        await storage.updateDealership(user.dealershipId, {
+          contactPersonName,
+          address,
+          city,
+          state,
+          pincode
+        });
+      } else if (user.role === 'SHOWROOM_MANAGER' && user.showroomId) {
+        await storage.updateShowroom(user.showroomId, {
+          contactPersonName,
+          address,
+          city,
+          state,
+          pincode
+        });
+      }
       
       res.json({ message: "Profile completed successfully" });
     } catch (error) {

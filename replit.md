@@ -2,7 +2,16 @@
 
 Pulse VAS is a multi-tenant web application designed for managing Paint Protection Film (PPF) installation orders within the automotive industry. It connects Vehicle OEMs, dealerships, showrooms, and installation partners, offering a complete workflow management system with features like real-time tracking, automated pricing, and commission management. The platform supports various user roles, providing role-specific dashboards and permissions to streamline work order lifecycles, track job cards, manage partner allocations, and handle complex billing and commission structures.
 
-## Recent Changes (October 23, 2025)
+## Recent Changes (November 3, 2025)
+- **Extended Profile Completion**: Profile completion modal now has 4 steps for dealership/showroom users (DEALERSHIP_ADMIN, SHOWROOM_MANAGER, SALES_PERSON):
+  - Step 1: Email verification with OTP
+  - Step 2: Phone verification with SMS OTP (via ComBirds SMS)
+  - Step 3: Additional Details collection (Contact Person Name, Address, City, State, Pincode)
+  - Step 4: Confirmation and profile completion
+  - Additional details are saved to dealership/showroom records
+  - Admin and partner users skip Step 3 and go directly to confirmation after phone verification
+
+## Previous Changes (October 23, 2025)
 - **Payout Settlement Logic**: Payout settlement now displays based on **payout status** (pending_review, due, paid) rather than job card status. Approved job cards remain visible in payout settlement even after moving to PENDING_SALES_INVOICE, WARRANTY_REGISTRATION, or other post-approval stages. Payouts are removed from the pending list only when their payout status changes to "paid".
 - **Super Admin User Script**: Created secure script (`scripts/create-super-admin.ts`) to generate SQL for creating super admin users with properly bcrypt-hashed passwords for production database deployment.
 

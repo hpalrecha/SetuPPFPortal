@@ -22,8 +22,19 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
   const [smsOtp, setSmsOtp] = useState("");
   const [emailSent, setEmailSent] = useState(false);
   const [smsSent, setSmsSent] = useState(false);
+  
+  // Additional details for dealership/showroom users
+  const [contactPersonName, setContactPersonName] = useState("");
+  const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [pincode, setPincode] = useState("");
+  
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Check if user needs additional details (dealership or showroom users)
+  const needsAdditionalDetails = user?.role === 'DEALERSHIP_ADMIN' || user?.role === 'SHOWROOM_MANAGER';
 
   const updateProfileDataMutation = useMutation({
     mutationFn: async (data: { email?: string; phone?: string }) => {
@@ -115,7 +126,8 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
         title: "Phone Verified",
         description: "Your phone number has been verified successfully",
       });
-      setStep(3);
+      // Go to additional details step for dealership/showroom users, otherwise go to complete
+      setStep(needsAdditionalDetails ? 3 : 4);
       setSmsOtp("");
       setSmsSent(false);
     },
@@ -130,7 +142,18 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
 
   const completeProfileMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("POST", "/api/auth/complete-profile", { email, phone });
+      const profileData: any = { email, phone };
+      
+      // Include additional details for dealership/showroom users
+      if (needsAdditionalDetails) {
+        profileData.contactPersonName = contactPersonName;
+        profileData.address = address;
+        profileData.city = city;
+        profileData.state = state;
+        profileData.pincode = pincode;
+      }
+      
+      return apiRequest("POST", "/api/auth/complete-profile", profileData);
     },
     onSuccess: () => {
       toast({
@@ -237,8 +260,17 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
               {step > 2 ? <CheckCircle2 className="h-5 w-5" /> : <Phone className="h-5 w-5" />}
               <span className="text-sm font-medium">Phone</span>
             </div>
+            {needsAdditionalDetails && (
+              <>
+                <div className="flex-1 h-px bg-border mx-2" />
+                <div className={`flex items-center gap-2 ${step >= 3 ? 'text-primary' : 'text-muted-foreground'}`}>
+                  {step > 3 ? <CheckCircle2 className="h-5 w-5" /> : <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12h.01"/><path d="M16 6V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><path d="M22 13a18.15 18.15 0 0 1-20 0"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>}
+                  <span className="text-sm font-medium">Details</span>
+                </div>
+              </>
+            )}
             <div className="flex-1 h-px bg-border mx-2" />
-            <div className={`flex items-center gap-2 ${step >= 3 ? 'text-primary' : 'text-muted-foreground'}`}>
+            <div className={`flex items-center gap-2 ${step >= (needsAdditionalDetails ? 4 : 3) ? 'text-primary' : 'text-muted-foreground'}`}>
               <CheckCircle2 className="h-5 w-5" />
               <span className="text-sm font-medium">Complete</span>
             </div>
@@ -420,8 +452,95 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
             </div>
           )}
 
-          {/* Step 3: Complete Profile */}
-          {step === 3 && (
+          {/* Step 3: Additional Details (for dealership/showroom users) */}
+          {step === 3 && needsAdditionalDetails && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="contactPersonName">Contact Person Name *</Label>
+                <Input
+                  id="contactPersonName"
+                  type="text"
+                  placeholder="Enter contact person name"
+                  value={contactPersonName}
+                  onChange={(e) => setContactPersonName(e.target.value)}
+                  data-testid="input-contact-person-name"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="address">Address *</Label>
+                <Input
+                  id="address"
+                  type="text"
+                  placeholder="Enter street address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  data-testid="input-address"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="city">City *</Label>
+                  <Input
+                    id="city"
+                    type="text"
+                    placeholder="Enter city"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    data-testid="input-city"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="state">State *</Label>
+                  <Input
+                    id="state"
+                    type="text"
+                    placeholder="Enter state"
+                    value={state}
+                    onChange={(e) => setState(e.target.value)}
+                    data-testid="input-state"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="pincode">Pincode *</Label>
+                <Input
+                  id="pincode"
+                  type="text"
+                  placeholder="Enter pincode"
+                  maxLength={6}
+                  value={pincode}
+                  onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
+                  data-testid="input-pincode"
+                />
+              </div>
+
+              <Button
+                onClick={() => {
+                  // Validate required fields
+                  if (!contactPersonName || !address || !city || !state || !pincode) {
+                    toast({
+                      title: "Required Fields Missing",
+                      description: "Please fill in all required fields",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  setStep(4);
+                }}
+                className="w-full"
+                data-testid="button-continue-to-complete"
+              >
+                Continue
+              </Button>
+            </div>
+          )}
+
+          {/* Step 4: Complete Profile */}
+          {step === 4 && (
             <div className="space-y-4">
               <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
                 <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
@@ -442,6 +561,18 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
                   <span className="text-sm font-medium">Phone:</span>
                   <span className="text-sm text-muted-foreground">{phone}</span>
                 </div>
+                {needsAdditionalDetails && (
+                  <>
+                    <div className="flex items-center justify-between py-2 border-b">
+                      <span className="text-sm font-medium">Contact Person:</span>
+                      <span className="text-sm text-muted-foreground">{contactPersonName}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-2 border-b">
+                      <span className="text-sm font-medium">Location:</span>
+                      <span className="text-sm text-muted-foreground">{city}, {state} - {pincode}</span>
+                    </div>
+                  </>
+                )}
               </div>
 
               <Button
