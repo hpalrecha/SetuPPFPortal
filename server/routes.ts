@@ -328,6 +328,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Check if email is already used by another user (excluding placeholder emails)
+      if (email && !email.includes('@placeholder.local')) {
+        const existingEmailUser = await storage.getUserByEmail(email);
+        if (existingEmailUser && existingEmailUser.id !== userId) {
+          return res.status(400).json({ error: "This email is already registered with another account" });
+        }
+      }
+
+      // Check if phone is already used by another user
+      if (phone) {
+        const existingPhoneUser = await storage.getUserByPhone(phone);
+        if (existingPhoneUser && existingPhoneUser.id !== userId) {
+          return res.status(400).json({ error: "This phone number is already registered with another account" });
+        }
+      }
+
       // Update profile as completed
       await storage.updateUser(userId, { 
         profileCompleted: true,
