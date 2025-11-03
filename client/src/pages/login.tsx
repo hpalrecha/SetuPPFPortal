@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import logoGreen from "@assets/P91 PULSE logo-01_1761139835394.png";
 
 const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().min(1, "Email or username is required"),
   password: z.string().min(1, "Password is required")
 });
 
@@ -73,11 +73,11 @@ export default function LoginPage() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email or Username</Label>
                 <Input
                   id="email"
-                  type="email"
-                  placeholder="Enter your email"
+                  type="text"
+                  placeholder="Enter your email or username"
                   {...form.register("email")}
                   data-testid="input-email"
                 />
