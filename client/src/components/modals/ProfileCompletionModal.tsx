@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -63,6 +63,12 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Update step when user verification status changes
+  useEffect(() => {
+    const correctStep = getInitialStep();
+    setStep(correctStep);
+  }, [user?.emailVerified, user?.phoneVerified, needsAdditionalDetails]);
 
   const updateProfileDataMutation = useMutation({
     mutationFn: async (data: { email?: string; phone?: string }) => {
