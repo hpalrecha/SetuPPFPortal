@@ -867,9 +867,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const autoPassword = `${normalizedUsername}@123`;
             const passwordHash = await bcrypt.hash(autoPassword, 10);
 
+            // Generate dealership code
+            const dealershipCode = `DEAL_${normalizedUsername.toUpperCase()}`;
+
             // Create dealership with username as name
             const dealership = await storage.createDealership({
               name: username, // Use original case for display name
+              code: dealershipCode,
               contactPersonName: username,
               contactPhone: '',
               city: '',
@@ -1194,9 +1198,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const autoPassword = `${normalizedUsername}@123`;
             const passwordHash = await bcrypt.hash(autoPassword, 10);
 
+            // Generate showroom code
+            const showroomCode = `SHOW_${normalizedUsername.toUpperCase()}`;
+
             // Create showroom with username as name
             const showroom = await storage.createShowroom({
               name: username, // Use original case for display name
+              code: showroomCode,
               dealershipId,
               oemId,
               contactPersonName: username,
