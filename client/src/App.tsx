@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "./hooks/use-auth";
 import { OemProvider } from "./hooks/use-oem-context";
 import { ProfileCompletionModal } from "./components/modals/ProfileCompletionModal";
+import { trackPageView, setUserProperties } from "./lib/ga4";
+import { useEffect } from "react";
 import LoginPage from "./pages/login";
 import DashboardPage from "./pages/dashboard";
 import WorkOrdersPage from "./pages/work-orders";
@@ -36,6 +38,28 @@ import ForgotPasswordPage from "@/pages/forgot-password";
 import ResetPasswordPage from "@/pages/reset-password";
 import { OemSelector } from "@/components/OemSelector";
 import { useOemContext } from "./hooks/use-oem-context";
+
+// Google Analytics Page Tracker
+function PageTracker() {
+  const [location] = useLocation();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    // Track page view on route change
+    trackPageView(location);
+
+    // Set user properties for analytics
+    if (user) {
+      setUserProperties({
+        user_role: user.role,
+        user_id: user.id,
+        organization_type: user.oemId ? 'oem' : user.dealershipId ? 'dealership' : user.showroomId ? 'showroom' : user.partnerId ? 'partner' : 'unknown',
+      });
+    }
+  }, [location, user]);
+
+  return null;
+}
 
 function ProtectedRoute({
   component: Component,
@@ -201,6 +225,7 @@ function App() {
       <TooltipProvider>
         <AuthProvider>
           <OemProvider>
+            <PageTracker />
             <Toaster />
             <Router />
           </OemProvider>
