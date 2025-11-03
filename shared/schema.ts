@@ -73,6 +73,8 @@ export const pricingTypeEnum = pgEnum('pricing_type', [
 
 export const scopeEnum = pgEnum('scope', ['DEALERSHIP', 'SHOWROOM']);
 
+export const otpVerificationsTypeEnum = pgEnum('otp_verification_type', ['EMAIL', 'SMS']);
+
 // Vehicle Type Enum
 export const vehicleTypeEnum = pgEnum("vehicle_type", ["HATCHBACK", "SEDAN", "SUV", "CROSSOVER", "LUXURY_SEDAN", "LUXURY_SUV", "COUPE", "CONVERTIBLE", "MPV", "PICKUP_TRUCK", "VAN", "ELECTRIC", "HYBRID"]);
 
@@ -169,7 +171,8 @@ export const showrooms = pgTable("showrooms", {
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: text("email").notNull().unique(),
+  username: text("username").notNull().unique(),
+  email: text("email").unique(),
   phone: text("phone"),
   passwordHash: text("password_hash").notNull(),
   role: userRoleEnum("role").notNull(),
@@ -179,10 +182,24 @@ export const users = pgTable("users", {
   partnerId: uuid("partner_id"),
   isActive: boolean("is_active").default(true),
   name: text("name").notNull(),
+  emailVerified: boolean("email_verified").default(false),
+  phoneVerified: boolean("phone_verified").default(false),
+  profileCompleted: boolean("profile_completed").default(false),
   resetToken: text("reset_token"),
   resetTokenExpiry: timestamp("reset_token_expiry"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
+});
+
+export const otpVerifications = pgTable("otp_verifications", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  type: otpVerificationsTypeEnum("type").notNull(),
+  code: text("code").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  verified: boolean("verified").default(false),
+  attempts: integer("attempts").default(0),
+  createdAt: timestamp("created_at").defaultNow()
 });
 
 export const salesPersons = pgTable("sales_persons", {
@@ -715,6 +732,11 @@ export const insertUserSchema = createInsertSchema(users).omit({ id: true, creat
 export const selectUserSchema = createSelectSchema(users);
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = z.infer<typeof selectUserSchema>;
+
+export const insertOtpVerificationSchema = createInsertSchema(otpVerifications).omit({ id: true, createdAt: true });
+export const selectOtpVerificationSchema = createSelectSchema(otpVerifications);
+export type InsertOtpVerification = z.infer<typeof insertOtpVerificationSchema>;
+export type OtpVerification = z.infer<typeof selectOtpVerificationSchema>;
 
 export const insertServiceCategorySchema = createInsertSchema(serviceCategories).omit({ id: true, createdAt: true, updatedAt: true });
 export const selectServiceCategorySchema = createSelectSchema(serviceCategories);
