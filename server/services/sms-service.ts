@@ -1,49 +1,64 @@
-class MessageBirdService {
+class ComBirdsSMSService {
   private apiKey: string;
-  private originator: string;
+  private userId: string;
+  private password: string;
+  private header: string;
 
   constructor() {
     this.apiKey = process.env.COMBIRDS_OTP_API_KEY || '';
-    this.originator = process.env.MESSAGEBIRD_ORIGINATOR || 'PulseVAS';
+    this.userId = process.env.COMBIRDS_USER_ID || '';
+    this.password = process.env.COMBIRDS_PASSWORD || '';
+    this.header = process.env.COMBIRDS_HEADER || '';
     
-    if (!this.apiKey) {
-      console.warn('⚠️  COMBIRDS OTP API key not configured. SMS functionality will not work.');
+    if (!this.apiKey || !this.userId || !this.password) {
+      console.warn('⚠️  COMBIRDS credentials not fully configured. SMS functionality will not work.');
+      console.warn('   Required: COMBIRDS_OTP_API_KEY, COMBIRDS_USER_ID, COMBIRDS_PASSWORD');
     } else {
       console.log('✅ COMBIRDS SMS service configured successfully');
+      console.log(`   User ID: ${this.userId}`);
     }
   }
 
   async sendSMS(phoneNumber: string, message: string): Promise<boolean> {
-    if (!this.apiKey) {
-      console.error('MessageBird API key not configured');
+    if (!this.apiKey || !this.userId || !this.password) {
+      console.error('COMBIRDS credentials not configured');
       return false;
     }
 
     try {
-      const response = await fetch('https://rest.messagebird.com/messages', {
+      // ComBirds OTP API endpoint (adjust based on actual API documentation)
+      const response = await fetch('https://api.combirds.com/v1/sms/send', {
         method: 'POST',
         headers: {
-          'Authorization': `AccessKey ${this.apiKey}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': this.header || `Bearer ${this.apiKey}`,
+          'X-User-ID': this.userId,
         },
         body: JSON.stringify({
-          originator: this.originator,
-          recipients: [phoneNumber],
-          body: message
+          userId: this.userId,
+          password: this.password,
+          apiKey: this.apiKey,
+          to: phoneNumber,
+          message: message,
+          senderId: 'PULVAS'
         })
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('MessageBird SMS send error:', errorData);
+        const errorText = await response.text();
+        console.error('COMBIRDS SMS send error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
         return false;
       }
 
       const data = await response.json();
-      console.log(`✅ SMS sent successfully to ${phoneNumber}:`, data.id);
+      console.log(`✅ SMS sent successfully to ${phoneNumber} via COMBIRDS:`, data);
       return true;
     } catch (error) {
-      console.error('Error sending SMS via MessageBird:', error);
+      console.error('Error sending SMS via COMBIRDS:', error);
       return false;
     }
   }
@@ -54,8 +69,8 @@ class MessageBirdService {
   }
 
   isConfigured(): boolean {
-    return !!this.apiKey;
+    return !!(this.apiKey && this.userId && this.password);
   }
 }
 
-export default new MessageBirdService();
+export default new ComBirdsSMSService();
