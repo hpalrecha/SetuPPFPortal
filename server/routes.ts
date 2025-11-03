@@ -2093,6 +2093,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/dashboard/charts/territory-performance", authenticate, async (req, res) => {
     try {
       let oemId: string;
+      let dealershipId: string | undefined;
+      let showroomId: string | undefined;
       
       if (req.user!.role === 'SUPER_ADMIN') {
         const availableOems = await storage.getOems();
@@ -2101,9 +2103,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
         oemId = req.user!.oemId;
+        dealershipId = req.user!.dealershipId;
+        showroomId = req.user!.showroomId;
       }
       
-      const data = await storage.getTerritoryPerformance(oemId);
+      const data = await storage.getTerritoryPerformance(oemId, dealershipId, showroomId);
       res.json(data);
     } catch (error) {
       console.error("Territory performance error:", error);
@@ -2114,6 +2118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/dashboard/charts/service-popularity", authenticate, async (req, res) => {
     try {
       let oemId: string;
+      let dealershipId: string | undefined;
       let showroomId: string | undefined;
       
       if (req.user!.role === 'SUPER_ADMIN') {
@@ -2123,10 +2128,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
         oemId = req.user!.oemId;
+        dealershipId = req.user!.dealershipId;
         showroomId = req.user!.showroomId;
       }
       
-      const data = await storage.getServicePopularity(oemId, showroomId);
+      const data = await storage.getServicePopularity(oemId, showroomId, dealershipId);
       res.json(data);
     } catch (error) {
       console.error("Service popularity error:", error);

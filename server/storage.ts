@@ -372,7 +372,7 @@ export interface IStorage {
     avgValue: number;
   }[]>;
   
-  getTerritoryPerformance(oemId: string): Promise<{
+  getTerritoryPerformance(oemId: string, dealershipId?: string, showroomId?: string): Promise<{
     territory: string;
     orders: number;
     upsells: number;
@@ -380,7 +380,7 @@ export interface IStorage {
     revenue: number;
   }[]>;
   
-  getServicePopularity(oemId: string, showroomId?: string): Promise<{
+  getServicePopularity(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
     name: string;
     value: number;
     color: string;
@@ -3524,7 +3524,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getTerritoryPerformance(oemId: string): Promise<{
+  async getTerritoryPerformance(oemId: string, dealershipId?: string, showroomId?: string): Promise<{
     territory: string;
     orders: number;
     upsells: number;
@@ -3532,6 +3532,19 @@ export class DatabaseStorage implements IStorage {
     revenue: number;
   }[]> {
     // Get performance by city/territory
+    const conditions = [
+      eq(workOrders.oemId, oemId),
+      isNotNull(dealerships.city),
+      sql`work_orders.created_at >= CURRENT_DATE - INTERVAL '3 months'`
+    ];
+    
+    if (dealershipId) {
+      conditions.push(eq(workOrders.dealershipId, dealershipId));
+    }
+    if (showroomId) {
+      conditions.push(eq(workOrders.showroomId, showroomId));
+    }
+    
     const territoryData = await db
       .select({
         territory: dealerships.city,
@@ -3542,11 +3555,7 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(dealerships, eq(workOrders.dealershipId, dealerships.id))
       .leftJoin(jobCards, eq(workOrders.id, jobCards.workOrderId))
       .leftJoin(payouts, eq(jobCards.id, payouts.jobCardId))
-      .where(and(
-        eq(workOrders.oemId, oemId),
-        isNotNull(dealerships.city),
-        sql`work_orders.created_at >= CURRENT_DATE - INTERVAL '3 months'`
-      ))
+      .where(and(...conditions))
       .groupBy(dealerships.city)
       .orderBy(desc(count()))
       .limit(5);
@@ -3560,12 +3569,15 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getServicePopularity(oemId: string, showroomId?: string): Promise<{
+  async getServicePopularity(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
     name: string;
     value: number;
     color: string;
   }[]> {
     const conditions = [eq(workOrders.oemId, oemId)];
+    if (dealershipId) {
+      conditions.push(eq(workOrders.dealershipId, dealershipId));
+    }
     if (showroomId) {
       conditions.push(eq(workOrders.showroomId, showroomId));
     }
