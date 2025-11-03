@@ -152,6 +152,7 @@ export interface IStorage {
   // Work Order management
   getWorkOrders(filters?: { 
     oemId?: string; 
+    dealershipId?: string;
     showroomId?: string; 
     partnerId?: string; 
     status?: string;
@@ -1036,6 +1037,7 @@ export class DatabaseStorage implements IStorage {
 
   async getWorkOrders(filters?: { 
     oemId?: string; 
+    dealershipId?: string;
     showroomId?: string; 
     partnerId?: string; 
     status?: string;
@@ -1048,6 +1050,7 @@ export class DatabaseStorage implements IStorage {
     
     const conditions = [];
     if (filters?.oemId) conditions.push(eq(workOrders.oemId, filters.oemId));
+    if (filters?.dealershipId) conditions.push(eq(workOrders.dealershipId, filters.dealershipId));
     if (filters?.showroomId) conditions.push(eq(workOrders.showroomId, filters.showroomId));
     if (filters?.partnerId) conditions.push(eq(workOrders.assignedPartnerId, filters.partnerId));
     if (filters?.status) conditions.push(eq(workOrders.status, filters.status as any));
