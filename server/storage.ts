@@ -32,8 +32,11 @@ import {
   oemRoyaltyCalculations,
   auditLogs,
   knowledgeHub,
+  otpVerifications,
   type User, 
   type InsertUser,
+  type OtpVerification,
+  type InsertOtpVerification,
   type Oem,
   type InsertOem,
   type Dealership,
@@ -82,6 +85,7 @@ export interface IStorage {
   // User management
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
   getUsers(filters?: { oemId?: string; dealershipId?: string; showroomId?: string; role?: string }): Promise<User[]>;
   getSalesPersons(showroomId?: string): Promise<User[]>;
   getSalesPersonMetrics(salesPersonId: string): Promise<{
@@ -95,6 +99,12 @@ export interface IStorage {
   updateUserPasswordByOEM(oemId: string, hashedPassword: string): Promise<boolean>;
   updateUserPasswordByShowroom(showroomId: string, hashedPassword: string): Promise<boolean>;
   deleteUser(id: string): Promise<boolean>;
+
+  // OTP Verification management
+  createOtpVerification(otp: any): Promise<any>;
+  getOtpVerification(userId: string, type: string): Promise<any | undefined>;
+  updateOtpVerification(id: string, updates: any): Promise<any | undefined>;
+  deleteOtpVerification(id: string): Promise<boolean>;
 
   // Service Categories management
   getServiceCategories(): Promise<ServiceCategory[]>;
@@ -463,6 +473,11 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
+  }
+
   async getUserByResetToken(token: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.resetToken, token));
     return user || undefined;
@@ -584,6 +599,44 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(users)
       .where(eq(users.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async createOtpVerification(otp: InsertOtpVerification): Promise<OtpVerification> {
+    const [verification] = await db
+      .insert(otpVerifications)
+      .values(otp)
+      .returning();
+    return verification;
+  }
+
+  async getOtpVerification(userId: string, type: string): Promise<OtpVerification | undefined> {
+    const [verification] = await db
+      .select()
+      .from(otpVerifications)
+      .where(and(
+        eq(otpVerifications.userId, userId),
+        eq(otpVerifications.type, type as any),
+        eq(otpVerifications.verified, false)
+      ))
+      .orderBy(desc(otpVerifications.createdAt))
+      .limit(1);
+    return verification || undefined;
+  }
+
+  async updateOtpVerification(id: string, updates: Partial<InsertOtpVerification>): Promise<OtpVerification | undefined> {
+    const [verification] = await db
+      .update(otpVerifications)
+      .set(updates)
+      .where(eq(otpVerifications.id, id))
+      .returning();
+    return verification || undefined;
+  }
+
+  async deleteOtpVerification(id: string): Promise<boolean> {
+    const result = await db
+      .delete(otpVerifications)
+      .where(eq(otpVerifications.id, id));
     return (result.rowCount ?? 0) > 0;
   }
 
