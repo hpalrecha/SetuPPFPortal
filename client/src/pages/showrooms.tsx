@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit, Trash2, MapPin, Phone, Users, Handshake, Search, Filter } from "lucide-react";
+import { Plus, Edit, Trash2, MapPin, Phone, Users, Handshake, Search, Filter, Upload } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { CreateShowroomModal } from "@/components/modals/CreateShowroomModal";
+import { BulkUploadShowroomsModal } from "@/components/modals/BulkUploadShowroomsModal";
 
 export default function ShowroomsPage() {
   const { user } = useAuth();
@@ -16,6 +17,7 @@ export default function ShowroomsPage() {
   const queryClient = useQueryClient();
   
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
   const [editingShowroom, setEditingShowroom] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedOEM, setSelectedOEM] = useState<string>("all");
@@ -198,15 +200,25 @@ export default function ShowroomsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold text-foreground">Showroom Management</h2>
           <p className="text-muted-foreground mt-1">Manage individual showroom locations</p>
         </div>
-        <Button onClick={handleAddShowroom} data-testid="button-add-showroom">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Showroom
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowBulkUploadModal(true)} 
+            data-testid="button-bulk-upload-showrooms"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Bulk Upload
+          </Button>
+          <Button onClick={handleAddShowroom} data-testid="button-add-showroom">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Showroom
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -375,6 +387,13 @@ export default function ShowroomsPage() {
         onOpenChange={setShowCreateModal}
         onSuccess={handleModalSuccess}
         showroom={editingShowroom}
+      />
+
+      {/* Bulk Upload Showrooms Modal */}
+      <BulkUploadShowroomsModal
+        open={showBulkUploadModal}
+        onOpenChange={setShowBulkUploadModal}
+        onSuccess={handleModalSuccess}
       />
     </div>
   );

@@ -1118,6 +1118,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Bulk Upload Showrooms from CSV
+  app.post("/api/showrooms/bulk-upload",
+    authenticate,
+    requireRole(['SUPER_ADMIN']),
+    upload.single('file'),
+    async (req, res) => {
+      try {
+        if (!req.file) {
+          return res.status(400).json({ error: "No file uploaded" });
+        }
+
+        const fileBuffer = req.file.buffer;
+        const csvContent = fileBuffer.toString('utf-8');
+        const lines = csvContent.split('\n').filter(line => line.trim());
+        
+        if (lines.length < 2) {
+          return res.status(400).json({ error: "CSV file is empty or has no data rows" });
+        }
+
+        // Skip header row
+        const dataLines = lines.slice(1);
+        
+        const results = {
+          success: 0,
+          failed: 0,
+          errors: [] as string[]
+        };
+
+        // Process each row
+        for (let i = 0; i < dataLines.length; i++) {
+          const line = dataLines[i].trim();
+          if (!line) continue;
+
+          try {
+            const [username, dealershipCode] = line.split(',').map(s => s.trim());
+            
+            if (!username) {
+              results.errors.push(`Row ${i + 2}: Username is required`);
+              results.failed++;
+              continue;
+            }
+
+            if (!dealershipCode) {
+              results.errors.push(`Row ${i + 2}: Dealership code is required`);
+              results.failed++;
+              continue;
+            }
+
+            // Normalize username to lowercase
+            const normalizedUsername = username.toLowerCase();
+            const normalizedDealershipCode = dealershipCode.toLowerCase();
+
+            // Check if username already exists
+            const existingUser = await storage.getUserByUsername(normalizedUsername);
+            if (existingUser) {
+              results.errors.push(`Row ${i + 2}: Username '${username}' already exists`);
+              results.failed++;
+              continue;
+            }
+
+            // Find dealership by username
+            const dealershipUser = await storage.getUserByUsername(normalizedDealershipCode);
+            if (!dealershipUser || !dealershipUser.dealershipId) {
+              results.errors.push(`Row ${i + 2}: Dealership '${dealershipCode}' not found`);
+              results.failed++;
+              continue;
+            }
+
+            const dealershipId = dealershipUser.dealershipId;
+            const oemId = dealershipUser.oemId;
+
+            // Generate auto password: username@123
+            const autoPassword = `${normalizedUsername}@123`;
+            const passwordHash = await bcrypt.hash(autoPassword, 10);
+
+            // Create showroom with username as name
+            const showroom = await storage.createShowroom({
+              name: username, // Use original case for display name
+              dealershipId,
+              oemId,
+              contactPersonName: username,
+              contactPhone: '',
+              city: '',
+              state: '',
+              pincode: ''
+            });
+
+            // Create SHOWROOM_MANAGER user with username login
+            const userData = {
+              name: username,
+              email: '', // Empty, will be set during profile completion
+              phone: '',
+              passwordHash,
+              username: normalizedUsername,
+              role: 'SHOWROOM_MANAGER' as const,
+              oemId,
+              dealershipId,
+              showroomId: showroom.id,
+              isActive: true,
+              profileCompleted: false
+            };
+
+            await storage.createUser(userData);
+            
+            results.success++;
+          } catch (error: any) {
+            console.error(`Error processing row ${i + 2}:`, error);
+            results.errors.push(`Row ${i + 2}: ${error.message || 'Unknown error'}`);
+            results.failed++;
+          }
+        }
+
+        res.json(results);
+      } catch (error: any) {
+        console.error("Bulk upload error:", error);
+        res.status(500).json({ error: "Failed to process bulk upload" });
+      }
+    }
+  );
+
   app.put("/api/showrooms/:id", 
     authenticate, 
     requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
