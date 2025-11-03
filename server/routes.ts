@@ -1007,12 +1007,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.put("/api/dealerships/:id", 
-    authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    authenticate,
     auditLog('dealership', 'update'),
     async (req, res) => {
       try {
         const { id } = req.params;
+        const user = req.user!;
+        
+        // Check permissions: SUPER_ADMIN and OEM_ADMIN can update any dealership
+        // DEALERSHIP_ADMIN can only update their own dealership and only certain fields
+        if (!['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'].includes(user.role)) {
+          return res.status(403).json({ error: 'Insufficient permissions' });
+        }
+        
+        // If DEALERSHIP_ADMIN, ensure they're updating their own dealership
+        if (user.role === 'DEALERSHIP_ADMIN' && user.dealershipId !== id) {
+          return res.status(403).json({ error: 'You can only update your own dealership' });
+        }
+        
         const { resetPasswordData, oemIds, adminOemId, ...dealershipData } = req.body;
         
         // Update dealership data
@@ -1366,12 +1378,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.put("/api/showrooms/:id", 
-    authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    authenticate,
     auditLog('showroom', 'update'),
     async (req, res) => {
       try {
         const { id } = req.params;
+        const user = req.user!;
+        
+        // Check permissions: SUPER_ADMIN, OEM_ADMIN, DEALERSHIP_ADMIN can update any showroom
+        // SHOWROOM_MANAGER can only update their own showroom and only certain fields
+        if (!['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER'].includes(user.role)) {
+          return res.status(403).json({ error: 'Insufficient permissions' });
+        }
+        
+        // If SHOWROOM_MANAGER, ensure they're updating their own showroom
+        if (user.role === 'SHOWROOM_MANAGER' && user.showroomId !== id) {
+          return res.status(403).json({ error: 'You can only update your own showroom' });
+        }
+        
         console.log('UPDATE SHOWROOM - Request body:', JSON.stringify(req.body, null, 2));
         const { resetPasswordData, adminUserData, createUser, createAdminUserData, ...showroomData } = req.body;
         console.log('UPDATE SHOWROOM - createUser:', createUser, 'adminUserData:', adminUserData, 'createAdminUserData:', createAdminUserData);
