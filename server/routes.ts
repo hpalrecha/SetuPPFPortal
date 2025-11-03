@@ -23,9 +23,11 @@ import { storage } from "./storage";
 import { authService } from "./auth";
 import { emailService } from "./services/email-service";
 import { whatsappService } from "./services/whatsapp-service";
+import smsService from "./services/sms-service";
 import { notificationService } from "./services/notificationService";
 import { authenticate, requireRole, requireOEMAccess, auditLog } from "./middleware";
 import { ObjectStorageService } from "./objectStorage";
+import { generateOTP, hashOTP, verifyOTP, getOTPExpiry } from "./utils/otp";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import bcrypt from "bcryptjs";
@@ -105,6 +107,201 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/auth/me", authenticate, (req, res) => {
     res.json({ user: req.user });
+  });
+
+  // OTP Verification Routes
+  app.post("/api/auth/send-email-otp", authenticate, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (!user.email) {
+        return res.status(400).json({ error: "Email not set for this user. Please provide an email first." });
+      }
+
+      // Generate OTP
+      const otp = generateOTP(6);
+      const hashedOtp = await hashOTP(otp);
+      
+      // Delete any existing OTP verifications for this user and type
+      const existing = await storage.getOtpVerification(userId, 'EMAIL');
+      if (existing) {
+        await storage.deleteOtpVerification(existing.id);
+      }
+
+      // Create OTP verification record
+      await storage.createOtpVerification({
+        userId,
+        type: 'EMAIL',
+        code: hashedOtp,
+        expiresAt: getOTPExpiry(10),
+        verified: false,
+        attempts: 0
+      });
+
+      // Send OTP via email
+      const emailSent = await emailService.sendOTPEmail(user.email, otp, 'verification');
+      
+      if (!emailSent) {
+        return res.status(500).json({ error: "Failed to send OTP email" });
+      }
+
+      res.json({ message: "OTP sent successfully to your email" });
+    } catch (error) {
+      console.error("Send email OTP error:", error);
+      res.status(500).json({ error: "Failed to send OTP" });
+    }
+  });
+
+  app.post("/api/auth/verify-email-otp", authenticate, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const { otp } = req.body;
+
+      if (!otp) {
+        return res.status(400).json({ error: "OTP is required" });
+      }
+
+      // Get OTP verification record
+      const verification = await storage.getOtpVerification(userId, 'EMAIL');
+      
+      if (!verification) {
+        return res.status(404).json({ error: "No OTP verification found. Please request a new OTP." });
+      }
+
+      // Check if expired
+      if (new Date() > verification.expiresAt) {
+        await storage.deleteOtpVerification(verification.id);
+        return res.status(400).json({ error: "OTP has expired. Please request a new one." });
+      }
+
+      // Check attempts
+      if (verification.attempts >= 3) {
+        await storage.deleteOtpVerification(verification.id);
+        return res.status(400).json({ error: "Too many failed attempts. Please request a new OTP." });
+      }
+
+      // Verify OTP
+      const isValid = await verifyOTP(otp, verification.code);
+      
+      if (!isValid) {
+        // Increment attempts
+        await storage.updateOtpVerification(verification.id, {
+          attempts: verification.attempts + 1
+        });
+        return res.status(400).json({ error: "Invalid OTP" });
+      }
+
+      // Mark as verified and update user
+      await storage.updateOtpVerification(verification.id, { verified: true });
+      await storage.updateUser(userId, { emailVerified: true });
+      
+      res.json({ message: "Email verified successfully" });
+    } catch (error) {
+      console.error("Verify email OTP error:", error);
+      res.status(500).json({ error: "Failed to verify OTP" });
+    }
+  });
+
+  app.post("/api/auth/send-sms-otp", authenticate, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (!user.phone) {
+        return res.status(400).json({ error: "Phone number not set for this user. Please provide a phone number first." });
+      }
+
+      // Generate OTP
+      const otp = generateOTP(6);
+      const hashedOtp = await hashOTP(otp);
+      
+      // Delete any existing OTP verifications for this user and type
+      const existing = await storage.getOtpVerification(userId, 'SMS');
+      if (existing) {
+        await storage.deleteOtpVerification(existing.id);
+      }
+
+      // Create OTP verification record
+      await storage.createOtpVerification({
+        userId,
+        type: 'SMS',
+        code: hashedOtp,
+        expiresAt: getOTPExpiry(10),
+        verified: false,
+        attempts: 0
+      });
+
+      // Send OTP via SMS
+      const smsSent = await smsService.sendOTP(user.phone, otp);
+      
+      if (!smsSent) {
+        return res.status(500).json({ error: "Failed to send OTP SMS. MessageBird service may not be configured." });
+      }
+
+      res.json({ message: "OTP sent successfully to your phone" });
+    } catch (error) {
+      console.error("Send SMS OTP error:", error);
+      res.status(500).json({ error: "Failed to send OTP" });
+    }
+  });
+
+  app.post("/api/auth/verify-sms-otp", authenticate, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const { otp } = req.body;
+
+      if (!otp) {
+        return res.status(400).json({ error: "OTP is required" });
+      }
+
+      // Get OTP verification record
+      const verification = await storage.getOtpVerification(userId, 'SMS');
+      
+      if (!verification) {
+        return res.status(404).json({ error: "No OTP verification found. Please request a new OTP." });
+      }
+
+      // Check if expired
+      if (new Date() > verification.expiresAt) {
+        await storage.deleteOtpVerification(verification.id);
+        return res.status(400).json({ error: "OTP has expired. Please request a new one." });
+      }
+
+      // Check attempts
+      if (verification.attempts >= 3) {
+        await storage.deleteOtpVerification(verification.id);
+        return res.status(400).json({ error: "Too many failed attempts. Please request a new OTP." });
+      }
+
+      // Verify OTP
+      const isValid = await verifyOTP(otp, verification.code);
+      
+      if (!isValid) {
+        // Increment attempts
+        await storage.updateOtpVerification(verification.id, {
+          attempts: verification.attempts + 1
+        });
+        return res.status(400).json({ error: "Invalid OTP" });
+      }
+
+      // Mark as verified and update user
+      await storage.updateOtpVerification(verification.id, { verified: true });
+      await storage.updateUser(userId, { phoneVerified: true });
+      
+      res.json({ message: "Phone number verified successfully" });
+    } catch (error) {
+      console.error("Verify SMS OTP error:", error);
+      res.status(500).json({ error: "Failed to verify OTP" });
+    }
   });
 
   // User Routes
