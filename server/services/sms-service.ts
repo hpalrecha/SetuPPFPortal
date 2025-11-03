@@ -3,13 +3,13 @@ class MessageBirdService {
   private originator: string;
 
   constructor() {
-    this.apiKey = process.env.MESSAGEBIRD_API_KEY || '';
+    this.apiKey = process.env.COMBIRDS_OTP_API_KEY || '';
     this.originator = process.env.MESSAGEBIRD_ORIGINATOR || 'PulseVAS';
     
     if (!this.apiKey) {
-      console.warn('⚠️  MessageBird API key not configured. SMS functionality will not work.');
+      console.warn('⚠️  COMBIRDS OTP API key not configured. SMS functionality will not work.');
     } else {
-      console.log('✅ MessageBird SMS service configured successfully');
+      console.log('✅ COMBIRDS SMS service configured successfully');
     }
   }
 
