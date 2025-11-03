@@ -1384,7 +1384,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Showroom not found" });
       }
       
-      res.json(showroom);
+      // Fetch admin user for this showroom to get username
+      const adminUsers = await storage.getUsers({ 
+        showroomId: id, 
+        role: 'SHOWROOM_MANAGER' 
+      });
+      const adminUsername = adminUsers[0]?.username || null;
+      
+      res.json({ ...showroom, adminUsername });
     } catch (error) {
       console.error("Get showroom error:", error);
       res.status(500).json({ error: "Failed to fetch showroom" });

@@ -421,6 +421,19 @@ export function CreateShowroomModal({
                   )}
                 />
 
+                {/* Display username if editing and admin user exists */}
+                {isEditing && showroom?.adminUsername && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Username (Login ID)</label>
+                    <Input
+                      value={showroom.adminUsername}
+                      disabled
+                      className="bg-muted cursor-not-allowed"
+                      data-testid="input-admin-username"
+                    />
+                  </div>
+                )}
+
                 <FormField
                   control={form.control}
                   name="dealershipId"
