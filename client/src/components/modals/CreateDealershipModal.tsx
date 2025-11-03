@@ -364,6 +364,19 @@ export function CreateDealershipModal({
                   )}
                 />
 
+                {/* Display username if editing and admin user exists */}
+                {isEditing && dealership?.adminUsername && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Username (Login ID)</label>
+                    <Input
+                      value={dealership.adminUsername}
+                      disabled
+                      className="bg-muted cursor-not-allowed"
+                      data-testid="input-admin-username"
+                    />
+                  </div>
+                )}
+
                 <FormField
                   control={form.control}
                   name="oemIds"

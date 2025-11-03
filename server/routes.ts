@@ -807,7 +807,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fetch associated OEM IDs
       const oemIds = await storage.getDealershipOems(id);
       
-      res.json({ ...dealership, oemIds });
+      // Fetch admin user for this dealership to get username
+      const adminUsers = await storage.getUsers({ 
+        dealershipId: id, 
+        role: 'DEALERSHIP_ADMIN' 
+      });
+      const adminUsername = adminUsers[0]?.username || null;
+      
+      res.json({ ...dealership, oemIds, adminUsername });
     } catch (error) {
       console.error("Get dealership error:", error);
       res.status(500).json({ error: "Failed to fetch dealership" });
