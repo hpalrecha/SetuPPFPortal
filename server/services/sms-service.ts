@@ -1,46 +1,40 @@
 class ComBirdsSMSService {
   private apiKey: string;
-  private userId: string;
-  private password: string;
-  private header: string;
+  private senderId: string;
+  private otpTemplateId: string;
 
   constructor() {
     this.apiKey = process.env.COMBIRDS_OTP_API_KEY || '';
-    this.userId = process.env.COMBIRDS_USER_ID || '';
-    this.password = process.env.COMBIRDS_PASSWORD || '';
-    this.header = process.env.COMBIRDS_HEADER || '';
+    this.senderId = process.env.COMBIRDS_HEADER || 'EDUMRC';
+    this.otpTemplateId = '1707168926925165526'; // OTP Template ID from ComBirds
     
-    if (!this.apiKey || !this.userId || !this.password) {
-      console.warn('⚠️  COMBIRDS credentials not fully configured. SMS functionality will not work.');
-      console.warn('   Required: COMBIRDS_OTP_API_KEY, COMBIRDS_USER_ID, COMBIRDS_PASSWORD');
+    if (!this.apiKey) {
+      console.warn('⚠️  COMBIRDS_OTP_API_KEY not configured. SMS functionality will not work.');
     } else {
       console.log('✅ COMBIRDS SMS service configured successfully');
-      console.log(`   User ID: ${this.userId}`);
+      console.log(`   Sender ID: ${this.senderId}`);
     }
   }
 
-  async sendSMS(phoneNumber: string, message: string): Promise<boolean> {
-    if (!this.apiKey || !this.userId || !this.password) {
-      console.error('COMBIRDS credentials not configured');
+  async sendSMS(phoneNumber: string, message: string, templateId?: string): Promise<boolean> {
+    if (!this.apiKey) {
+      console.error('COMBIRDS API key not configured');
       return false;
     }
 
     try {
-      // ComBirds OTP API endpoint (adjust based on actual API documentation)
-      const response = await fetch('https://api.combirds.com/v1/sms/send', {
+      // ComBirds API endpoint
+      const response = await fetch('https://smsapi.edumarcsms.com/api/v1/sendsms', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': this.header || `Bearer ${this.apiKey}`,
-          'X-User-ID': this.userId,
+          'apikey': this.apiKey
         },
         body: JSON.stringify({
-          userId: this.userId,
-          password: this.password,
-          apiKey: this.apiKey,
-          to: phoneNumber,
+          number: [phoneNumber],
           message: message,
-          senderId: 'PULVAS'
+          senderId: this.senderId,
+          templateId: templateId || this.otpTemplateId
         })
       });
 
@@ -64,12 +58,16 @@ class ComBirdsSMSService {
   }
 
   async sendOTP(phoneNumber: string, otp: string): Promise<boolean> {
-    const message = `Your Pulse VAS verification code is: ${otp}\n\nThis code will expire in 10 minutes. Do not share this code with anyone.`;
-    return this.sendSMS(phoneNumber, message);
+    // ComBirds OTP Template: "Your {#var#} OTP for verification is: {#var#}. OTP is confidential, refrain from sharing it with anyone. By Edumarc Technologies"
+    // We need to replace {#var#} placeholders with actual values
+    const message = `Your Pulse VAS OTP for verification is: ${otp}. OTP is confidential, refrain from sharing it with anyone. By Edumarc Technologies`;
+    
+    // Use the OTP template ID
+    return this.sendSMS(phoneNumber, message, this.otpTemplateId);
   }
 
   isConfigured(): boolean {
-    return !!(this.apiKey && this.userId && this.password);
+    return !!this.apiKey;
   }
 }
 
