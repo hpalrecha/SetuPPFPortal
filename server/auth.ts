@@ -29,13 +29,17 @@ const JWT_EXPIRES_IN = '7d';
 
 export interface AuthUser {
   id: string;
-  email: string;
+  username: string;
+  email?: string;
   role: string;
   oemId?: string;
   dealershipId?: string;
   showroomId?: string;
   partnerId?: string;
   name: string;
+  emailVerified: boolean;
+  phoneVerified: boolean;
+  profileCompleted: boolean;
   allowedOemIds?: string[];
 }
 
@@ -52,7 +56,11 @@ export interface LoginResponse {
 
 export class AuthService {
   async login(credentials: LoginRequest): Promise<LoginResponse | null> {
-    const user = await storage.getUserByEmail(credentials.email);
+    // Try to find user by email first, then by username
+    let user = await storage.getUserByEmail(credentials.email);
+    if (!user) {
+      user = await storage.getUserByUsername(credentials.email);
+    }
     
     if (!user || !user.isActive) {
       return null;
@@ -88,13 +96,17 @@ export class AuthService {
 
     const authUser: AuthUser = {
       id: user.id,
-      email: user.email,
+      username: user.username,
+      email: user.email || undefined,
       role: user.role,
       oemId: user.oemId || undefined,
       dealershipId: user.dealershipId || undefined,
       showroomId: user.showroomId || undefined,
       partnerId: user.partnerId || undefined,
       name: user.name,
+      emailVerified: user.emailVerified || false,
+      phoneVerified: user.phoneVerified || false,
+      profileCompleted: user.profileCompleted || false,
       allowedOemIds
     };
 

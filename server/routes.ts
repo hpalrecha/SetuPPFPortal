@@ -304,6 +304,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/auth/complete-profile", authenticate, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const { email, phone } = req.body;
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Validate that email and phone are verified before allowing profile completion
+      if (!user.emailVerified || !user.phoneVerified) {
+        return res.status(400).json({ 
+          error: "Please verify your email and phone number before completing your profile",
+          emailVerified: user.emailVerified,
+          phoneVerified: user.phoneVerified
+        });
+      }
+
+      // Update profile as completed
+      await storage.updateUser(userId, { 
+        profileCompleted: true,
+        email: email || user.email,
+        phone: phone || user.phone
+      });
+      
+      res.json({ message: "Profile completed successfully" });
+    } catch (error) {
+      console.error("Complete profile error:", error);
+      res.status(500).json({ error: "Failed to complete profile" });
+    }
+  });
+
+  app.post("/api/auth/update-profile-data", authenticate, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const { email, phone } = req.body;
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Update email and/or phone (will need to verify after)
+      const updates: any = {};
+      if (email && email !== user.email) {
+        updates.email = email;
+        updates.emailVerified = false; // Reset verification if email changes
+      }
+      if (phone && phone !== user.phone) {
+        updates.phone = phone;
+        updates.phoneVerified = false; // Reset verification if phone changes
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await storage.updateUser(userId, updates);
+      }
+      
+      res.json({ message: "Profile data updated successfully" });
+    } catch (error) {
+      console.error("Update profile data error:", error);
+      res.status(500).json({ error: "Failed to update profile data" });
+    }
+  });
+
   // User Routes
   app.get("/api/users", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']), async (req, res) => {
     try {
