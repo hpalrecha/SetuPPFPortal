@@ -27,10 +27,7 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
 
   const updateProfileDataMutation = useMutation({
     mutationFn: async (data: { email?: string; phone?: string }) => {
-      return apiRequest("/api/auth/update-profile-data", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      return apiRequest("POST", "/api/auth/update-profile-data", data);
     },
     onSuccess: () => {
       toast({
@@ -49,9 +46,7 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
 
   const sendEmailOtpMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("/api/auth/send-email-otp", {
-        method: "POST",
-      });
+      return apiRequest("POST", "/api/auth/send-email-otp");
     },
     onSuccess: () => {
       setEmailSent(true);
@@ -71,10 +66,7 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
 
   const verifyEmailOtpMutation = useMutation({
     mutationFn: async (otp: string) => {
-      return apiRequest("/api/auth/verify-email-otp", {
-        method: "POST",
-        body: JSON.stringify({ otp }),
-      });
+      return apiRequest("POST", "/api/auth/verify-email-otp", { otp });
     },
     onSuccess: () => {
       toast({
@@ -96,9 +88,7 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
 
   const sendSmsOtpMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("/api/auth/send-sms-otp", {
-        method: "POST",
-      });
+      return apiRequest("POST", "/api/auth/send-sms-otp");
     },
     onSuccess: () => {
       setSmsSent(true);
@@ -118,10 +108,7 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
 
   const verifySmsOtpMutation = useMutation({
     mutationFn: async (otp: string) => {
-      return apiRequest("/api/auth/verify-sms-otp", {
-        method: "POST",
-        body: JSON.stringify({ otp }),
-      });
+      return apiRequest("POST", "/api/auth/verify-sms-otp", { otp });
     },
     onSuccess: () => {
       toast({
@@ -143,10 +130,7 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
 
   const completeProfileMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("/api/auth/complete-profile", {
-        method: "POST",
-        body: JSON.stringify({ email, phone }),
-      });
+      return apiRequest("POST", "/api/auth/complete-profile", { email, phone });
     },
     onSuccess: () => {
       toast({
