@@ -297,7 +297,7 @@ export function CreateDealershipModal({
       };
 
       // Remove user fields from the main request body but keep createAdminUserData and resetPasswordData
-      const { userName, userEmail, userPhone, userPassword, resetPassword, newPassword, createAdminUser, adminName, adminEmail, adminPhone, adminPassword, billToAddressLine1, billToCity, billToState, billToPincode, billToGstin, ...dealershipData } = requestBody;
+      const { userFullName, username, resetPassword, newPassword, createAdminUser, adminName, adminEmail, adminPhone, adminPassword, billToAddressLine1, billToCity, billToState, billToPincode, billToGstin, ...dealershipData } = requestBody;
       
       const response = await fetch(endpoint, {
         method,
