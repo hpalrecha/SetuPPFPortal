@@ -32,7 +32,7 @@ import multer from "multer";
 import * as XLSX from "xlsx";
 import bcrypt from "bcryptjs";
 
-// Configure multer for file uploads (Excel for imports)
+// Configure multer for file uploads (Excel and CSV for imports)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -40,10 +40,11 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-        file.mimetype === 'application/vnd.ms-excel') {
+        file.mimetype === 'application/vnd.ms-excel' ||
+        file.mimetype === 'text/csv') {
       cb(null, true);
     } else {
-      cb(new Error('Only Excel files are allowed'));
+      cb(new Error('Only Excel and CSV files are allowed'));
     }
   }
 });
