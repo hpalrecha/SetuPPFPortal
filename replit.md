@@ -3,6 +3,15 @@
 Pulse VAS is a multi-tenant web application designed for managing Paint Protection Film (PPF) installation orders within the automotive industry. It connects Vehicle OEMs, dealerships, showrooms, and installation partners, offering a complete workflow management system with features like real-time tracking, automated pricing, and commission management. The platform supports various user roles, providing role-specific dashboards and permissions to streamline work order lifecycles, track job cards, manage partner allocations, and handle complex billing and commission structures.
 
 ## Recent Changes (November 3, 2025)
+- **Username Field Fix**: Fixed all user creation endpoints to properly include username field:
+  - Added auto-generation helper function that creates usernames from email addresses (format: email prefix, lowercase, alphanumeric only)
+  - Updated all backend user creation routes (OEM admin, dealership admin, showroom manager, partner admin, partner staff, sales person)
+  - Username is auto-generated from email when not explicitly provided
+  - All LSP errors related to missing username field resolved
+- **Contact Information Field Fix**: Fixed dealership bulk upload to properly initialize contactEmail field:
+  - Dealership bulk upload now sets contactEmail to empty string instead of leaving it null
+  - Allows contact email to be edited and saved properly in existing dealerships
+  - Showroom bulk upload already handled this correctly
 - **Google Analytics 4 Integration**: Implemented GA4 tracking (Measurement ID: G-2ELXYG64RE) for comprehensive user analytics:
   - Automatic page view tracking on all route changes using wouter router integration
   - Custom event tracking for key user actions: login, email/phone verification, profile completion

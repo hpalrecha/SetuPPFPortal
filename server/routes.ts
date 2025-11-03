@@ -996,6 +996,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               name: dealershipName, // Use dealership name from CSV
               code: dealershipCode,
               contactPersonName: dealershipName,
+              contactEmail: '', // Initialize as empty string to allow editing later
               contactPhone: '',
               city: '',
               state: '',
