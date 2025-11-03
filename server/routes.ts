@@ -874,6 +874,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             const adminData = {
               name: adminUserData.name,
+              username: adminUserData.username, // Save username for login
               email: adminUserData.email,
               phone: adminUserData.phone || '',
               passwordHash: hashedPassword,
@@ -884,7 +885,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             };
             
             const createdUser = await storage.createUser(adminData);
-            console.log(`Created dealership admin user: ${createdUser.email} for ${dealership.name}`);
+            console.log(`Created dealership admin user: ${createdUser.username} (${createdUser.email}) for ${dealership.name}`);
           } catch (userError) {
             console.error("Failed to create dealership admin user:", userError);
             // Don't fail the whole request if user creation fails
