@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle2, Mail, Phone, Loader2 } from "lucide-react";
 
@@ -41,6 +42,13 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [pincode, setPincode] = useState("");
+  
+  // Billing address (optional)
+  const [hasDifferentBillingAddress, setHasDifferentBillingAddress] = useState(false);
+  const [billToAddress, setBillToAddress] = useState("");
+  const [billToCity, setBillToCity] = useState("");
+  const [billToState, setBillToState] = useState("");
+  const [billToPincode, setBillToPincode] = useState("");
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -163,6 +171,11 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
         profileData.city = city;
         profileData.state = state;
         profileData.pincode = pincode;
+        
+        // Include billing address if different
+        if (hasDifferentBillingAddress) {
+          profileData.billToAddress = `${billToAddress}, ${billToCity}, ${billToState} - ${billToPincode}`;
+        }
       }
       
       return apiRequest("POST", "/api/auth/complete-profile", profileData);
@@ -538,6 +551,80 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
                 />
               </div>
 
+              {/* Billing Address Section */}
+              <div className="pt-4 border-t">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Checkbox
+                    id="differentBilling"
+                    checked={hasDifferentBillingAddress}
+                    onCheckedChange={(checked) => setHasDifferentBillingAddress(checked as boolean)}
+                    data-testid="checkbox-different-billing"
+                  />
+                  <Label htmlFor="differentBilling" className="cursor-pointer">
+                    Billing address is different from above
+                  </Label>
+                </div>
+
+                {hasDifferentBillingAddress && (
+                  <div className="space-y-4 pl-6 border-l-2 border-primary/20">
+                    <div>
+                      <Label htmlFor="billToAddress">Billing Address *</Label>
+                      <Input
+                        id="billToAddress"
+                        type="text"
+                        placeholder="Enter billing address"
+                        value={billToAddress}
+                        onChange={(e) => setBillToAddress(e.target.value)}
+                        data-testid="input-bill-to-address"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="billToCity">Billing City *</Label>
+                        <Input
+                          id="billToCity"
+                          type="text"
+                          placeholder="Enter city"
+                          value={billToCity}
+                          onChange={(e) => setBillToCity(e.target.value)}
+                          data-testid="input-bill-to-city"
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="billToState">Billing State *</Label>
+                        <Select value={billToState} onValueChange={setBillToState}>
+                          <SelectTrigger data-testid="select-bill-to-state">
+                            <SelectValue placeholder="Select state" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {INDIAN_STATES.map((stateName) => (
+                              <SelectItem key={stateName} value={stateName}>
+                                {stateName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="billToPincode">Billing Pincode *</Label>
+                      <Input
+                        id="billToPincode"
+                        type="text"
+                        placeholder="Enter pincode"
+                        maxLength={6}
+                        value={billToPincode}
+                        onChange={(e) => setBillToPincode(e.target.value.replace(/\D/g, ''))}
+                        data-testid="input-bill-to-pincode"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <Button
                 onClick={() => {
                   // Validate required fields
@@ -549,6 +636,17 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
                     });
                     return;
                   }
+                  
+                  // Validate billing address if different
+                  if (hasDifferentBillingAddress && (!billToAddress || !billToCity || !billToState || !billToPincode)) {
+                    toast({
+                      title: "Billing Address Required",
+                      description: "Please fill in all billing address fields",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  
                   setStep(4);
                 }}
                 className="w-full"
@@ -591,6 +689,12 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
                       <span className="text-sm font-medium">Location:</span>
                       <span className="text-sm text-muted-foreground">{city}, {state} - {pincode}</span>
                     </div>
+                    {hasDifferentBillingAddress && (
+                      <div className="flex items-center justify-between py-2 border-b">
+                        <span className="text-sm font-medium">Billing Address:</span>
+                        <span className="text-sm text-muted-foreground">{billToCity}, {billToState} - {billToPincode}</span>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

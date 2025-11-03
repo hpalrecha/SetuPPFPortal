@@ -312,7 +312,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/complete-profile", authenticate, async (req, res) => {
     try {
       const userId = req.user!.id;
-      const { email, phone, contactPersonName, address, city, state, pincode } = req.body;
+      const { email, phone, contactPersonName, address, city, state, pincode, billToAddress } = req.body;
       
       const user = await storage.getUser(userId);
       if (!user) {
@@ -337,21 +337,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Update dealership/showroom details if applicable
       if (user.role === 'DEALERSHIP_ADMIN' && user.dealershipId) {
-        await storage.updateDealership(user.dealershipId, {
+        const updateData: any = {
           contactPersonName,
           address,
           city,
           state,
           pincode
-        });
+        };
+        
+        // Add billing address if provided
+        if (billToAddress) {
+          updateData.billToAddress = billToAddress;
+        }
+        
+        await storage.updateDealership(user.dealershipId, updateData);
       } else if (user.role === 'SHOWROOM_MANAGER' && user.showroomId) {
-        await storage.updateShowroom(user.showroomId, {
+        const updateData: any = {
           contactPersonName,
           address,
           city,
           state,
           pincode
-        });
+        };
+        
+        // Add billing address if provided
+        if (billToAddress) {
+          updateData.billToAddress = billToAddress;
+        }
+        
+        await storage.updateShowroom(user.showroomId, updateData);
       }
       
       res.json({ message: "Profile completed successfully" });
