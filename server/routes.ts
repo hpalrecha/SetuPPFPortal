@@ -32,6 +32,12 @@ import multer from "multer";
 import * as XLSX from "xlsx";
 import bcrypt from "bcryptjs";
 
+// Helper function to generate username from email
+function generateUsernameFromEmail(email: string): string {
+  // Extract the part before @ and convert to lowercase
+  return email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 // Configure multer for file uploads (Excel and CSV for imports)
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -652,8 +658,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
             const hashedPassword = await bcrypt.hash(adminUserData.password, 10);
             
+            // Auto-generate username from email
+            const username = generateUsernameFromEmail(adminUserData.email);
+            
             const adminData = {
               name: adminUserData.name,
+              username,
               email: adminUserData.email,
               phone: adminUserData.phone || '',
               passwordHash: hashedPassword,
@@ -663,7 +673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             };
             
             const createdUser = await storage.createUser(adminData);
-            console.log(`Created admin user for OEM: ${oem.name} - Email: ${createdUser.email}`);
+            console.log(`Created admin user for OEM: ${oem.name} - Username: ${createdUser.username}, Email: ${createdUser.email}`);
           } catch (userError) {
             console.error("Failed to create admin user:", userError);
             // Don't fail the whole request if user creation fails
@@ -1099,8 +1109,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               return res.status(400).json({ error: "Cannot create admin user: No OEM mappings found" });
             }
             
+            // Auto-generate username from email
+            const username = generateUsernameFromEmail(req.body.createAdminUserData.email);
+            
             const adminData = {
               name: req.body.createAdminUserData.name,
+              username,
               email: req.body.createAdminUserData.email,
               phone: req.body.createAdminUserData.phone || '',
               passwordHash: hashedPassword,
@@ -1111,7 +1125,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             };
             
             const createdUser = await storage.createUser(adminData);
-            console.log(`Created dealership admin user: ${createdUser.email} for ${dealership.name}`);
+            console.log(`Created dealership admin user: ${createdUser.username} (${createdUser.email}) for ${dealership.name}`);
           } catch (userError) {
             console.error("Failed to create dealership admin user:", userError);
             // Don't fail the dealership update if user creation fails
@@ -1514,8 +1528,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const bcrypt = await import('bcryptjs');
             const hashedPassword = await bcrypt.hash(adminUserData.password, 10);
             
+            // Auto-generate username from email
+            const username = generateUsernameFromEmail(adminUserData.email);
+            
             const managerData = {
               name: adminUserData.name,
+              username,
               email: adminUserData.email,
               phone: adminUserData.phone || '',
               passwordHash: hashedPassword,
@@ -1527,7 +1545,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             };
             
             const createdUser = await storage.createUser(managerData);
-            console.log(`Created showroom manager user: ${createdUser.email} for ${showroom.name}`);
+            console.log(`Created showroom manager user: ${createdUser.username} (${createdUser.email}) for ${showroom.name}`);
           } catch (userError) {
             console.error("Failed to create showroom manager user:", userError);
             // Don't fail the showroom update if user creation fails
@@ -1560,8 +1578,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const bcrypt = await import('bcryptjs');
             const hashedPassword = await bcrypt.hash(createAdminUserData.password, 10);
             
+            // Auto-generate username from email
+            const username = generateUsernameFromEmail(createAdminUserData.email);
+            
             const managerData = {
               name: createAdminUserData.name,
+              username,
               email: createAdminUserData.email,
               phone: createAdminUserData.phone || '',
               passwordHash: hashedPassword,
@@ -1573,7 +1595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             };
             
             const createdUser = await storage.createUser(managerData);
-            console.log(`Created showroom manager user: ${createdUser.email} for ${showroom.name}`);
+            console.log(`Created showroom manager user: ${createdUser.username} (${createdUser.email}) for ${showroom.name}`);
           } catch (userError) {
             console.error("Failed to create showroom manager user:", userError);
             // Don't fail the showroom update if user creation fails
@@ -3853,8 +3875,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const defaultPassword = partner.phone ? partner.phone.slice(-6) : "partner@123";
             const passwordHash = await bcrypt.hash(defaultPassword, 10);
             
+            // Auto-generate username from email
+            const username = generateUsernameFromEmail(partner.email);
+            
             await storage.createUser({
               email: partner.email,
+              username,
               phone: partner.phone || undefined,
               passwordHash,
               name: partner.displayName || partner.contactPersonName || 'Partner User',
@@ -3863,7 +3889,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               isActive: true
             });
             
-            console.log(`✅ Auto-created user account for partner: ${partner.email} (password: ${defaultPassword})`);
+            console.log(`✅ Auto-created user account for partner: ${username} (${partner.email}) - password: ${defaultPassword}`);
           } catch (userError) {
             console.error("Failed to auto-create partner user account:", userError);
             // Don't fail the partner creation if user creation fails
@@ -4082,12 +4108,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const validatedData = staffSchema.parse(req.body);
         
         // Hash the password securely before storing
-
         const hashedPassword = await bcrypt.hash(validatedData.password, 12);
+        
+        // Auto-generate username from email
+        const username = generateUsernameFromEmail(validatedData.email);
         
         // Prepare data for storage with hashed password
         const staffDataForStorage = {
           name: validatedData.name,
+          username,
           email: validatedData.email,
           phone: validatedData.phone,
           passwordHash: hashedPassword
@@ -4448,8 +4477,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const defaultPassword = phone ? phone.slice(-6) : "sales@123";
         const passwordHash = await bcrypt.hash(defaultPassword, 10);
         
+        // Auto-generate username from email
+        const username = generateUsernameFromEmail(req.body.email);
+        
         const salesPersonData = {
           name: req.body.name,
+          username,
           email: req.body.email,
           phone: phone,
           passwordHash,
@@ -4459,7 +4492,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
         
         const salesPerson = await storage.createUser(salesPersonData);
-        console.log(`✅ Created sales person user account: ${salesPerson.email} (password: ${defaultPassword})`);
+        console.log(`✅ Created sales person user account: ${salesPerson.username} (${salesPerson.email}) - password: ${defaultPassword}`);
         res.status(201).json(salesPerson);
       } catch (error) {
         console.error("Create sales person error:", error);
