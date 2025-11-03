@@ -59,8 +59,8 @@ function ProtectedRoute({
       <>
         <ProfileCompletionModal
           open={true}
-          onComplete={() => {
-            refetch();
+          onComplete={async () => {
+            await refetch();
           }}
           user={user}
         />
