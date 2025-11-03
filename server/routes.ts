@@ -341,7 +341,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/complete-profile", authenticate, async (req, res) => {
     try {
       const userId = req.user!.id;
-      const { email, phone, contactPersonName, address, city, state, pincode, billToAddress } = req.body;
+      const { email, phone, contactPersonName, address, city, state, pincode, gstNumber, billToAddress } = req.body;
       
       const user = await storage.getUser(userId);
       if (!user) {
@@ -390,9 +390,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           pincode
         };
         
-        // Add billing address if provided
-        if (billToAddress) {
-          updateData.billToAddress = billToAddress;
+        // Add billing address if provided (includes GST in the JSON)
+        if (billToAddress || gstNumber) {
+          updateData.billToAddress = {
+            ...(typeof billToAddress === 'object' ? billToAddress : {}),
+            gstNumber: gstNumber || null
+          };
         }
         
         await storage.updateDealership(user.dealershipId, updateData);
@@ -405,9 +408,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           pincode
         };
         
-        // Add billing address if provided
-        if (billToAddress) {
-          updateData.billToAddress = billToAddress;
+        // Add billing address if provided (includes GST in the JSON)
+        if (billToAddress || gstNumber) {
+          updateData.billToAddress = {
+            ...(typeof billToAddress === 'object' ? billToAddress : {}),
+            gstNumber: gstNumber || null
+          };
         }
         
         await storage.updateShowroom(user.showroomId, updateData);

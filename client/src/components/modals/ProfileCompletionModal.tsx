@@ -54,6 +54,9 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
   const [state, setState] = useState("");
   const [pincode, setPincode] = useState("");
   
+  // GST number
+  const [gstNumber, setGstNumber] = useState("");
+  
   // Billing address (optional)
   const [hasDifferentBillingAddress, setHasDifferentBillingAddress] = useState(false);
   const [billToAddress, setBillToAddress] = useState("");
@@ -192,9 +195,19 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
         profileData.state = state;
         profileData.pincode = pincode;
         
+        // Include GST number if provided
+        if (gstNumber) {
+          profileData.gstNumber = gstNumber;
+        }
+        
         // Include billing address if different
         if (hasDifferentBillingAddress) {
-          profileData.billToAddress = `${billToAddress}, ${billToCity}, ${billToState} - ${billToPincode}`;
+          profileData.billToAddress = {
+            address: billToAddress,
+            city: billToCity,
+            state: billToState,
+            pincode: billToPincode
+          };
         }
       }
       
@@ -568,6 +581,19 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
                   value={pincode}
                   onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
                   data-testid="input-pincode"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="gstNumber">GST Number (Optional)</Label>
+                <Input
+                  id="gstNumber"
+                  type="text"
+                  placeholder="Enter GST number"
+                  maxLength={15}
+                  value={gstNumber}
+                  onChange={(e) => setGstNumber(e.target.value.toUpperCase())}
+                  data-testid="input-gst-number"
                 />
               </div>
 
