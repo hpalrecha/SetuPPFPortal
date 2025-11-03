@@ -518,14 +518,36 @@ export default function SettingsPage() {
               <form onSubmit={handleProfileUpdate} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
+                    <Label htmlFor="name">
+                      {user?.role === 'DEALERSHIP_ADMIN' ? 'Organization Name' : 
+                       user?.role === 'SHOWROOM_MANAGER' || user?.role === 'SALES_PERSON' ? 'Showroom Name' : 
+                       'Full Name'}
+                    </Label>
                     <Input
                       id="name"
-                      value={profileData.name}
+                      value={user?.role === 'DEALERSHIP_ADMIN' ? (myDealership?.name || profileData.name) :
+                             (user?.role === 'SHOWROOM_MANAGER' || user?.role === 'SALES_PERSON') ? (myShowroom?.name || profileData.name) :
+                             profileData.name}
+                      disabled={user?.role === 'DEALERSHIP_ADMIN' || user?.role === 'SHOWROOM_MANAGER' || user?.role === 'SALES_PERSON'}
+                      className={user?.role === 'DEALERSHIP_ADMIN' || user?.role === 'SHOWROOM_MANAGER' || user?.role === 'SALES_PERSON' ? 'bg-muted cursor-not-allowed' : ''}
                       onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
                       data-testid="input-name"
                     />
                   </div>
+                  
+                  {(user?.role === 'DEALERSHIP_ADMIN' || user?.role === 'SHOWROOM_MANAGER' || user?.role === 'SALES_PERSON') && (
+                    <div className="space-y-2">
+                      <Label htmlFor="username">Username (Login ID)</Label>
+                      <Input
+                        id="username"
+                        value={user?.username || ''}
+                        disabled
+                        className="bg-muted cursor-not-allowed"
+                        data-testid="input-username"
+                      />
+                    </div>
+                  )}
+                  
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <Input
