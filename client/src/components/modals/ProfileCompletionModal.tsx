@@ -28,7 +28,18 @@ const INDIAN_STATES = [
 ];
 
 export function ProfileCompletionModal({ open, onComplete, user }: ProfileCompletionModalProps) {
-  const [step, setStep] = useState(1);
+  // Check if user needs additional details (dealership or showroom users)
+  const needsAdditionalDetails = user?.role === 'DEALERSHIP_ADMIN' || user?.role === 'SHOWROOM_MANAGER';
+  
+  // Determine initial step based on verification status
+  const getInitialStep = () => {
+    if (!user?.emailVerified) return 1; // Start with email verification
+    if (!user?.phoneVerified) return 2; // Email verified, start with phone verification
+    if (needsAdditionalDetails) return 3; // Both verified, go to additional details
+    return 4; // Both verified, no additional details needed, go to confirmation
+  };
+  
+  const [step, setStep] = useState(getInitialStep());
   const [email, setEmail] = useState(user?.email || "");
   const [phone, setPhone] = useState(user?.phone || "");
   const [emailOtp, setEmailOtp] = useState("");
@@ -52,9 +63,6 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
-  // Check if user needs additional details (dealership or showroom users)
-  const needsAdditionalDetails = user?.role === 'DEALERSHIP_ADMIN' || user?.role === 'SHOWROOM_MANAGER';
 
   const updateProfileDataMutation = useMutation({
     mutationFn: async (data: { email?: string; phone?: string }) => {
@@ -281,12 +289,12 @@ export function ProfileCompletionModal({ open, onComplete, user }: ProfileComple
           {/* Progress Steps */}
           <div className="flex justify-between items-center">
             <div className={`flex items-center gap-2 ${step >= 1 ? 'text-primary' : 'text-muted-foreground'}`}>
-              {step > 1 ? <CheckCircle2 className="h-5 w-5" /> : <Mail className="h-5 w-5" />}
+              {(step > 1 || user?.emailVerified) ? <CheckCircle2 className="h-5 w-5" /> : <Mail className="h-5 w-5" />}
               <span className="text-sm font-medium">Email</span>
             </div>
             <div className="flex-1 h-px bg-border mx-2" />
             <div className={`flex items-center gap-2 ${step >= 2 ? 'text-primary' : 'text-muted-foreground'}`}>
-              {step > 2 ? <CheckCircle2 className="h-5 w-5" /> : <Phone className="h-5 w-5" />}
+              {(step > 2 || user?.phoneVerified) ? <CheckCircle2 className="h-5 w-5" /> : <Phone className="h-5 w-5" />}
               <span className="text-sm font-medium">Phone</span>
             </div>
             {needsAdditionalDetails && (
