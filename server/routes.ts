@@ -1274,13 +1274,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
 
         // Process each row
-        // CSV Format: username,showroomName,dealershipCode,managerName,email,phone,address,city,state,pincode
+        // CSV Format: username,showroomName,dealershipCode,managerName,email,phone,address,city,state,pincode,oeDealerCode,parentCode,oemRegion,billDirectlyToShowroom,billToAddress,billToCity,billToState,billToPincode,billToGstin,shipToAddress,shipToCity,shipToState,shipToPincode,shipToGstin
         for (let i = 0; i < dataLines.length; i++) {
           const line = dataLines[i].trim();
           if (!line) continue;
 
           try {
-            const [username, showroomName, dealershipCode, managerName, email, phone, address, city, state, pincode] = line.split(',').map(s => s?.trim() || '');
+            const [username, showroomName, dealershipCode, managerName, email, phone, address, city, state, pincode, oeDealerCode, parentCode, oemRegion, billDirectlyToShowroom, billToAddress, billToCity, billToState, billToPincode, billToGstin, shipToAddress, shipToCity, shipToState, shipToPincode, shipToGstin] = line.split(',').map(s => s?.trim() || '');
             
             if (!username) {
               results.errors.push(`Row ${i + 2}: Username is required`);
@@ -1330,19 +1330,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Generate showroom code
             const showroomCode = `SHOW_${normalizedUsername.toUpperCase()}`;
 
+            // Parse billDirectlyToShowroom
+            const billDirectly = billDirectlyToShowroom?.toLowerCase() === 'true';
+
+            // Prepare billToAddress object
+            const billToAddressObj = (billToAddress || billToCity || billToState || billToPincode || billToGstin) ? {
+              addressLine1: billToAddress || '',
+              city: billToCity || '',
+              state: billToState || '',
+              pincode: billToPincode || '',
+              gstin: billToGstin || ''
+            } : null;
+
+            // Prepare shipToAddress object
+            const shipToAddressObj = (shipToAddress || shipToCity || shipToState || shipToPincode || shipToGstin) ? {
+              addressLine1: shipToAddress || '',
+              city: shipToCity || '',
+              state: shipToState || '',
+              pincode: shipToPincode || '',
+              gstin: shipToGstin || ''
+            } : null;
+
             // Create showroom with all provided fields
             const showroom = await storage.createShowroom({
               name: showroomName,
               code: showroomCode,
               dealershipId,
               oemId,
+              oeDealerCode: oeDealerCode || null,
+              parentCode: parentCode || null,
+              oemRegion: oemRegion || null,
               managerName: managerName || showroomName,
               contactEmail: email || null,
               contactPhone: phone || '',
               address: address || '',
               city: city || '',
               state: state || '',
-              pincode: pincode || ''
+              pincode: pincode || '',
+              billToAddress: billToAddressObj,
+              shipToAddress: shipToAddressObj,
+              billDirectlyToShowroom: billDirectly
             });
 
             // Create SHOWROOM_MANAGER user with username login

@@ -43,7 +43,7 @@ export function BulkUploadShowroomsModal({
   };
 
   const handleDownloadTemplate = () => {
-    const csvContent = "username,showroom_name,dealership_code,manager_name,email,phone,address,city,state,pincode\njayanagarshr,Jayanagar Showroom,aakarhyundai,Ramesh Kumar,ramesh@showroom.com,9876543210,15 MG Road,Bangalore,Karnataka,560041\nkoramangalashr,Koramangala Showroom,aakarhyundai,Suresh Singh,suresh@showroom.com,9876543211,HSR Layout,Bangalore,Karnataka,560102\nmumbaishr,Mumbai Central,mumbaidlr,,,,,,,";
+    const csvContent = "username,showroom_name,dealership_code,manager_name,email,phone,address,city,state,pincode,oe_dealer_code,parent_code,oem_region,bill_directly_to_showroom,bill_to_address,bill_to_city,bill_to_state,bill_to_pincode,bill_to_gstin,ship_to_address,ship_to_city,ship_to_state,ship_to_pincode,ship_to_gstin\njayanagarshr,Jayanagar Showroom,aakarhyundai,Ramesh Kumar,ramesh@showroom.com,9876543210,15 MG Road,Bangalore,Karnataka,560041,DEAL001,PARENT001,South,false,15 MG Road,Bangalore,Karnataka,560041,29ABCDE1234F1Z5,15 MG Road,Bangalore,Karnataka,560041,29ABCDE1234F1Z5\nkoramangalashr,Koramangala Showroom,aakarhyundai,Suresh Singh,suresh@showroom.com,9876543211,HSR Layout,Bangalore,Karnataka,560102,DEAL002,PARENT002,South,true,HSR Layout,Bangalore,Karnataka,560102,29FGHIJ5678K2L6,HSR Layout,Bangalore,Karnataka,560102,29FGHIJ5678K2L6\nmumbaishr,Mumbai Central,mumbaidlr,,,,,,,,,,false,,,,,,,,,";
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -122,12 +122,11 @@ export function BulkUploadShowroomsModal({
           <div className="space-y-4">
             <h3 className="text-sm font-medium">Instructions:</h3>
             <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-              <li>Download the CSV template using the button below</li>
-              <li>Required fields: <strong>username</strong> (for login), <strong>showroom name</strong>, and <strong>dealership code</strong> (parent dealership username)</li>
-              <li>Optional fields: manager name, email, phone, address, city, state, pincode</li>
+              <li>Download the CSV template with 24 columns</li>
+              <li><strong>Required:</strong> username, showroom_name, dealership_code</li>
+              <li><strong>Optional:</strong> manager_name, email, phone, address, city, state, pincode, oe_dealer_code, parent_code, oem_region, bill_directly_to_showroom (true/false), bill_to_address, bill_to_city, bill_to_state, bill_to_pincode, bill_to_gstin, ship_to_address, ship_to_city, ship_to_state, ship_to_pincode, ship_to_gstin</li>
               <li>Upload the completed CSV file</li>
               <li>Passwords will be auto-generated as: <code className="bg-muted px-1 rounded">username@123</code></li>
-              <li>Users must complete their profile (email/phone verification) on first login</li>
             </ol>
 
             <Button
