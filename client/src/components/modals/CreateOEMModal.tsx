@@ -44,26 +44,23 @@ const oemSchema = z.object({
   
   // User creation fields
   createUser: z.boolean().default(false),
-  userName: z.string().optional(),
-  userEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
-  userPhone: z.string().optional(),
-  userPassword: z.string().optional(),
+  userFullName: z.string().optional(),
+  username: z.string().optional(),
   
   // Password reset fields for editing
   resetPassword: z.boolean().default(false),
   newPassword: z.string().optional(),
 }).refine((data) => {
   if (data.createUser) {
-    return data.userName && data.userName.length > 0 && 
-           data.userEmail && data.userEmail.length > 0 &&
-           data.userPassword && data.userPassword.length >= 6;
+    return data.userFullName && data.userFullName.length > 0 && 
+           data.username && data.username.length > 0;
   }
   if (data.resetPassword) {
     return data.newPassword && data.newPassword.length >= 6;
   }
   return true;
 }, {
-  message: "When creating a user, name, email, and password (min 6 chars) are required. When resetting password, new password (min 6 chars) is required",
+  message: "When creating a user, full name and username are required. When resetting password, new password (min 6 chars) is required",
   path: ["createUser"]
 });
 
@@ -102,10 +99,8 @@ export function CreateOEMModal({
       billToGstin: oem?.billToAddress?.gstin || "",
       billJobsDirectlyToOem: oem?.billJobsDirectlyToOem || false,
       createUser: false,
-      userName: "",
-      userEmail: "",
-      userPhone: "",
-      userPassword: "",
+      userFullName: "",
+      username: "",
       resetPassword: false,
       newPassword: "",
     },
@@ -135,10 +130,8 @@ export function CreateOEMModal({
         billToGstin: oem.billToAddress?.gstin || "",
         billJobsDirectlyToOem: oem.billJobsDirectlyToOem || false,
         createUser: false,
-        userName: "",
-        userEmail: "",
-        userPhone: "",
-        userPassword: "",
+        userFullName: "",
+        username: "",
         resetPassword: false,
         newPassword: "",
       });
@@ -158,10 +151,8 @@ export function CreateOEMModal({
         billToGstin: "",
         billJobsDirectlyToOem: false,
         createUser: false,
-        userName: "",
-        userEmail: "",
-        userPhone: "",
-        userPassword: "",
+        userFullName: "",
+        username: "",
         resetPassword: false,
         newPassword: "",
       });
@@ -218,10 +209,9 @@ export function CreateOEMModal({
       // Create user if requested and we're creating a new OEM
       if (data.createUser && !isEditing && createdOem.id) {
         const userData = {
-          name: data.userName,
-          email: data.userEmail,
-          phone: data.userPhone,
-          password: data.userPassword,
+          name: data.userFullName,
+          username: data.username,
+          password: `${data.username}@123`,
           role: "OEM_ADMIN",
           oemId: createdOem.id,
         };
@@ -533,18 +523,21 @@ export function CreateOEMModal({
                 {form.watch("createUser") && (
                   <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
                     <h4 className="text-sm font-medium">Admin User Details</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Password will be auto-generated as <code className="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded">username@123</code>
+                    </p>
                     
                     <FormField
                       control={form.control}
-                      name="userName"
+                      name="userFullName"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Full Name *</FormLabel>
                           <FormControl>
                             <Input
-                              placeholder="Enter admin name"
+                              placeholder="Enter admin full name"
                               {...field}
-                              data-testid="input-user-name"
+                              data-testid="input-user-full-name"
                             />
                           </FormControl>
                           <FormMessage />
@@ -552,57 +545,17 @@ export function CreateOEMModal({
                       )}
                     />
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="userEmail"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Email *</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="email"
-                                placeholder="Enter admin email"
-                                {...field}
-                                data-testid="input-user-email"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="userPhone"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Phone (Optional)</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Enter admin phone"
-                                {...field}
-                                data-testid="input-user-phone"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
                     <FormField
                       control={form.control}
-                      name="userPassword"
+                      name="username"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Password *</FormLabel>
+                          <FormLabel>Username *</FormLabel>
                           <FormControl>
                             <Input
-                              type="password"
-                              placeholder="Enter password (min 6 characters)"
+                              placeholder="Enter username (e.g., john.smith)"
                               {...field}
-                              data-testid="input-user-password"
+                              data-testid="input-username"
                             />
                           </FormControl>
                           <FormMessage />
