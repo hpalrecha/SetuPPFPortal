@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit, Trash2, Store, MapPin, Phone, Handshake, Search, Filter } from "lucide-react";
+import { Plus, Edit, Trash2, Store, MapPin, Phone, Handshake, Search, Filter, Upload } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { CreateDealershipModal } from "@/components/modals/CreateDealershipModal";
+import { BulkUploadDealershipsModal } from "@/components/modals/BulkUploadDealershipsModal";
 
 export default function DealershipsPage() {
   const { user } = useAuth();
@@ -16,6 +17,7 @@ export default function DealershipsPage() {
   const queryClient = useQueryClient();
   
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
   const [editingDealership, setEditingDealership] = useState<any>(null);
   const [isLoadingDealership, setIsLoadingDealership] = useState(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -211,15 +213,25 @@ export default function DealershipsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold text-foreground">Dealership Management</h2>
           <p className="text-muted-foreground mt-1">Manage vehicle dealerships across regions</p>
         </div>
-        <Button onClick={handleAddDealership} data-testid="button-add-dealership">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Dealership
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowBulkUploadModal(true)} 
+            data-testid="button-bulk-upload-dealerships"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Bulk Upload
+          </Button>
+          <Button onClick={handleAddDealership} data-testid="button-add-dealership">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Dealership
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -368,6 +380,13 @@ export default function DealershipsPage() {
         onOpenChange={setShowCreateModal}
         onSuccess={handleModalSuccess}
         dealership={editingDealership}
+      />
+
+      {/* Bulk Upload Dealerships Modal */}
+      <BulkUploadDealershipsModal
+        open={showBulkUploadModal}
+        onOpenChange={setShowBulkUploadModal}
+        onSuccess={handleModalSuccess}
       />
     </div>
   );
