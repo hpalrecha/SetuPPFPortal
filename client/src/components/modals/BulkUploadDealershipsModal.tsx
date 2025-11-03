@@ -43,7 +43,7 @@ export function BulkUploadDealershipsModal({
   };
 
   const handleDownloadTemplate = () => {
-    const csvContent = "username,oem_name\nmumbai_dealer,Hyundai India Ltd\ndelhi_dealer,Hyundai India Ltd\nbangalore_dealer,";
+    const csvContent = "username,dealership_name,oem_name\naakarhyundai,Aakar Hyundai Bangalore,Hyundai\nmumbaidlr,Mumbai Hyundai Showroom,Hyundai\ndelhidlr,Delhi Hyundai Motors,";
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -123,8 +123,8 @@ export function BulkUploadDealershipsModal({
             <h3 className="text-sm font-medium">Instructions:</h3>
             <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
               <li>Download the CSV template using the button below</li>
-              <li>Fill in the dealership usernames and OEM names (optional)</li>
-              <li>If OEM name is empty, it will default to "Hyundai India Ltd"</li>
+              <li>Fill in: <strong>username</strong> (for login), <strong>dealership name</strong> (display name), and <strong>OEM name</strong> (optional)</li>
+              <li>If OEM name is empty, it will default to "Hyundai"</li>
               <li>Upload the completed CSV file</li>
               <li>Passwords will be auto-generated as: <code className="bg-muted px-1 rounded">username@123</code></li>
               <li>Users must complete their profile (email/phone verification) on first login</li>

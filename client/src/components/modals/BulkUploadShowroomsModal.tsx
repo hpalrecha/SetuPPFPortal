@@ -43,7 +43,7 @@ export function BulkUploadShowroomsModal({
   };
 
   const handleDownloadTemplate = () => {
-    const csvContent = "username,dealership_code\nadelaide_showroom,mumbai_dealer\nsydney_showroom,delhi_dealer\nmelbourne_showroom,";
+    const csvContent = "username,showroom_name,dealership_code,manager_name,email,phone,address,city,state,pincode\njayanagarshr,Jayanagar Showroom,aakarhyundai,Ramesh Kumar,ramesh@showroom.com,9876543210,15 MG Road,Bangalore,Karnataka,560041\nkoramangalashr,Koramangala Showroom,aakarhyundai,Suresh Singh,suresh@showroom.com,9876543211,HSR Layout,Bangalore,Karnataka,560102\nmumbaishr,Mumbai Central,mumbaidlr,,,,,,,";
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -123,8 +123,8 @@ export function BulkUploadShowroomsModal({
             <h3 className="text-sm font-medium">Instructions:</h3>
             <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
               <li>Download the CSV template using the button below</li>
-              <li>Fill in the showroom usernames and dealership codes (required)</li>
-              <li>Dealership code is the username of the parent dealership</li>
+              <li>Required fields: <strong>username</strong> (for login), <strong>showroom name</strong>, and <strong>dealership code</strong> (parent dealership username)</li>
+              <li>Optional fields: manager name, email, phone, address, city, state, pincode</li>
               <li>Upload the completed CSV file</li>
               <li>Passwords will be auto-generated as: <code className="bg-muted px-1 rounded">username@123</code></li>
               <li>Users must complete their profile (email/phone verification) on first login</li>
