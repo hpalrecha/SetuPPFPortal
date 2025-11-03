@@ -66,10 +66,8 @@ const showroomSchema = z.object({
   
   // Admin user creation fields (for new showrooms)
   createUser: z.boolean().default(false),
-  userName: z.string().optional(),
-  userEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
-  userPhone: z.string().optional(),
-  userPassword: z.string().optional(),
+  userFullName: z.string().optional(),
+  username: z.string().optional(),
   
   // Password reset fields for editing
   resetPassword: z.boolean().default(false),
@@ -83,9 +81,8 @@ const showroomSchema = z.object({
   adminPassword: z.string().optional(),
 }).refine((data) => {
   if (data.createUser) {
-    return data.userName && data.userName.length > 0 && 
-           data.userEmail && data.userEmail.length > 0 &&
-           data.userPassword && data.userPassword.length >= 6;
+    return data.userFullName && data.userFullName.length > 0 && 
+           data.username && data.username.length > 0;
   }
   if (data.resetPassword) {
     return data.newPassword && data.newPassword.length >= 6;
@@ -97,7 +94,7 @@ const showroomSchema = z.object({
   }
   return true;
 }, {
-  message: "When creating a user, name, email, and password (min 6 chars) are required. When resetting password, new password (min 6 chars) is required. When creating admin user, name, email, and password (min 6 chars) are required",
+  message: "When creating a user, full name and username are required. When resetting password, new password (min 6 chars) is required. When creating admin user, name, email, and password (min 6 chars) are required",
   path: ["createUser"]
 });
 
@@ -151,10 +148,8 @@ export function CreateShowroomModal({
       shipToGstin: showroom?.shipToAddress?.gstin || "",
       billDirectlyToShowroom: showroom?.billDirectlyToShowroom || false,
       createUser: false,
-      userName: "",
-      userEmail: "",
-      userPhone: "",
-      userPassword: "",
+      userFullName: "",
+      username: "",
       resetPassword: false,
       newPassword: "",
       createAdminUser: false,
@@ -220,10 +215,8 @@ export function CreateShowroomModal({
         shipToGstin: showroom.shipToAddress?.gstin || "",
         billDirectlyToShowroom: showroom.billDirectlyToShowroom || false,
         createUser: false,
-        userName: "",
-        userEmail: "",
-        userPhone: "",
-        userPassword: "",
+        userFullName: "",
+        username: "",
         resetPassword: false,
         newPassword: "",
         createAdminUser: false,
@@ -260,10 +253,8 @@ export function CreateShowroomModal({
         shipToGstin: "",
         billDirectlyToShowroom: false,
         createUser: false,
-        userName: "",
-        userEmail: "",
-        userPhone: "",
-        userPassword: "",
+        userFullName: "",
+        username: "",
         resetPassword: false,
         newPassword: "",
         createAdminUser: false,
@@ -342,10 +333,9 @@ export function CreateShowroomModal({
         shipToAddress,
         ...(data.createUser && !isEditing ? {
           adminUserData: {
-            name: data.userName,
-            email: data.userEmail,
-            phone: data.userPhone,
-            password: data.userPassword
+            name: data.userFullName,
+            username: data.username,
+            password: `${data.username}@123`
           }
         } : {}),
         ...(data.resetPassword && isEditing ? {
@@ -996,79 +986,47 @@ export function CreateShowroomModal({
                 />
 
                 {form.watch("createUser") && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-7">
-                    <FormField
-                      control={form.control}
-                      name="userName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Manager Name</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Enter manager name"
-                              {...field}
-                              data-testid="input-manager-name"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  <div className="space-y-4 pl-7">
+                    <p className="text-xs text-muted-foreground">
+                      Password will be auto-generated as <code className="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded">username@123</code>
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="userFullName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Full Name *</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Enter manager full name"
+                                {...field}
+                                data-testid="input-manager-full-name"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <FormField
-                      control={form.control}
-                      name="userEmail"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Manager Email</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Enter manager email"
-                              {...field}
-                              data-testid="input-manager-email"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="userPhone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Manager Phone</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Enter manager phone"
-                              {...field}
-                              data-testid="input-manager-phone"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="userPassword"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Manager Password</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="password"
-                              placeholder="Enter password (min 6 chars)"
-                              {...field}
-                              data-testid="input-manager-password"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      <FormField
+                        control={form.control}
+                        name="username"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Username *</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Enter username (e.g., john.smith)"
+                                {...field}
+                                data-testid="input-username"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
