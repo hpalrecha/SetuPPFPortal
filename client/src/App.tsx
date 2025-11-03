@@ -49,8 +49,12 @@ function ProtectedRoute({
     return <OemSelector />;
   }
 
-  // Check if profile needs completion
-  if (user && !user.profileCompleted) {
+  // Admin roles that should skip profile completion
+  const adminRoles = ['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'];
+  const isAdmin = user && adminRoles.includes(user.role);
+
+  // Check if profile needs completion (only for non-admin users)
+  if (user && !user.profileCompleted && !isAdmin) {
     return (
       <>
         <ProfileCompletionModal
