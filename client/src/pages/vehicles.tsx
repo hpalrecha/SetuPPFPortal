@@ -70,6 +70,7 @@ export default function VehiclesPage() {
   const [showBrandDialog, setShowBrandDialog] = useState(false);
   const [showModelDialog, setShowModelDialog] = useState(false);
   const [showVariantDialog, setShowVariantDialog] = useState(false);
+  const [editingVariant, setEditingVariant] = useState<any>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [selectedBrandId, setSelectedBrandId] = useState('');
   const [selectedModelId, setSelectedModelId] = useState('');
@@ -183,11 +184,27 @@ export default function VehiclesPage() {
     onSuccess: () => {
       toast({ title: 'Success', description: 'Variant created successfully' });
       setShowVariantDialog(false);
+      setEditingVariant(null);
       variantForm.reset();
       refetchVehicleData();
     },
     onError: (error: any) => {
       toast({ title: 'Error', description: error.message || 'Failed to create variant', variant: 'destructive' });
+    }
+  });
+
+  const updateVariantMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: z.infer<typeof variantFormSchema> }) => 
+      apiRequest('PUT', `/api/vehicle-variants/${id}`, data),
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Variant updated successfully' });
+      setShowVariantDialog(false);
+      setEditingVariant(null);
+      variantForm.reset();
+      refetchVehicleData();
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message || 'Failed to update variant', variant: 'destructive' });
     }
   });
 
@@ -482,8 +499,8 @@ export default function VehiclesPage() {
                             ) : (
                               <div className="space-y-1">
                                 {model.variants.map((variant) => (
-                                  <div key={variant.id} className="text-xs bg-white dark:bg-gray-700 rounded px-2 py-1 flex items-center justify-between">
-                                    <div>
+                                  <div key={variant.id} className="text-xs bg-white dark:bg-gray-700 rounded px-2 py-1 flex items-center justify-between gap-2">
+                                    <div className="flex-1">
                                       <span className="font-medium">{variant.name}</span>
                                       {variant.fuelType && (
                                         <span className="text-gray-500 ml-2">• {variant.fuelType}</span>
@@ -491,17 +508,42 @@ export default function VehiclesPage() {
                                       {variant.transmission && (
                                         <span className="text-gray-500 ml-1">• {variant.transmission}</span>
                                       )}
+                                      {variant.ppfQtyConsumption && parseFloat(variant.ppfQtyConsumption) > 0 && (
+                                        <span className="text-blue-600 dark:text-blue-400 ml-2 font-semibold">• {variant.ppfQtyConsumption} SFT</span>
+                                      )}
                                     </div>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => deleteVariantMutation.mutate(variant.id)}
-                                      disabled={deleteVariantMutation.isPending}
-                                      className="h-4 w-4 p-0 text-red-600 hover:text-red-700"
-                                      data-testid={`button-delete-variant-${variant.name}`}
-                                    >
-                                      <Trash2 className="h-2 w-2" />
-                                    </Button>
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          setEditingVariant(variant);
+                                          variantForm.reset({
+                                            variantName: variant.name,
+                                            modelId: model.id,
+                                            fuelType: variant.fuelType || '',
+                                            transmission: variant.transmission || '',
+                                            engineCapacity: variant.engineCapacity || '',
+                                            ppfQtyConsumption: variant.ppfQtyConsumption || '0.00'
+                                          });
+                                          setShowVariantDialog(true);
+                                        }}
+                                        className="h-4 w-4 p-0 text-blue-600 hover:text-blue-700"
+                                        data-testid={`button-edit-variant-${variant.name}`}
+                                      >
+                                        <Edit className="h-2 w-2" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => deleteVariantMutation.mutate(variant.id)}
+                                        disabled={deleteVariantMutation.isPending}
+                                        className="h-4 w-4 p-0 text-red-600 hover:text-red-700"
+                                        data-testid={`button-delete-variant-${variant.name}`}
+                                      >
+                                        <Trash2 className="h-2 w-2" />
+                                      </Button>
+                                    </div>
                                   </div>
                                 ))}
                               </div>
@@ -744,17 +786,29 @@ export default function VehiclesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Variant Dialog */}
-      <Dialog open={showVariantDialog} onOpenChange={setShowVariantDialog}>
+      {/* Add/Edit Variant Dialog */}
+      <Dialog open={showVariantDialog} onOpenChange={(open) => {
+        setShowVariantDialog(open);
+        if (!open) {
+          setEditingVariant(null);
+          variantForm.reset();
+        }
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New Variant</DialogTitle>
+            <DialogTitle>{editingVariant ? 'Edit Variant' : 'Add New Variant'}</DialogTitle>
             <DialogDescription>
-              Create a new vehicle variant
+              {editingVariant ? 'Update vehicle variant details' : 'Create a new vehicle variant'}
             </DialogDescription>
           </DialogHeader>
           <Form {...variantForm}>
-            <form onSubmit={variantForm.handleSubmit(data => createVariantMutation.mutate(data))} className="space-y-4">
+            <form onSubmit={variantForm.handleSubmit(data => {
+              if (editingVariant) {
+                updateVariantMutation.mutate({ id: editingVariant.id, data });
+              } else {
+                createVariantMutation.mutate(data);
+              }
+            })} className="space-y-4">
               <FormField
                 control={variantForm.control}
                 name="variantName"
@@ -832,11 +886,18 @@ export default function VehiclesPage() {
                 )}
               />
               <div className="flex justify-end gap-3">
-                <Button type="button" variant="outline" onClick={() => setShowVariantDialog(false)} data-testid="button-cancel-variant">
+                <Button type="button" variant="outline" onClick={() => {
+                  setShowVariantDialog(false);
+                  setEditingVariant(null);
+                  variantForm.reset();
+                }} data-testid="button-cancel-variant">
                   Cancel
                 </Button>
-                <Button type="submit" disabled={createVariantMutation.isPending} data-testid="button-save-variant">
-                  {createVariantMutation.isPending ? 'Creating...' : 'Create Variant'}
+                <Button type="submit" disabled={createVariantMutation.isPending || updateVariantMutation.isPending} data-testid="button-save-variant">
+                  {editingVariant 
+                    ? (updateVariantMutation.isPending ? 'Updating...' : 'Update Variant')
+                    : (createVariantMutation.isPending ? 'Creating...' : 'Create Variant')
+                  }
                 </Button>
               </div>
             </form>
