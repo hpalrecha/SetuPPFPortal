@@ -185,8 +185,12 @@ export class PulseWebhookService {
     // Create new user
     const tempPassword = this.generateTempPassword();
     const passwordHash = await bcrypt.hash(tempPassword, 10);
+    
+    // Generate username from email
+    const username = payload.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
 
     const newUser = await storage.createUser({
+      username,
       email: payload.user.email,
       name: userName,
       phone: payload.user.mobile,
@@ -197,7 +201,9 @@ export class PulseWebhookService {
     });
 
     // Send welcome email with password reset link
-    await this.sendWelcomeEmail(newUser.email, newUser.name, newUser.id);
+    if (newUser.email) {
+      await this.sendWelcomeEmail(newUser.email, newUser.name, newUser.id);
+    }
 
     // Audit log
     await storage.createAuditLog({
