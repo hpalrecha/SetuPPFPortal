@@ -2,7 +2,20 @@
 
 Pulse VAS is a multi-tenant web application designed for managing Paint Protection Film (PPF) installation orders within the automotive industry. It connects Vehicle OEMs, dealerships, showrooms, and installation partners, offering a complete workflow management system with features like real-time tracking, automated pricing, and commission management. The platform supports various user roles, providing role-specific dashboards and permissions to streamline work order lifecycles, track job cards, manage partner allocations, and handle complex billing and commission structures.
 
-## Recent Changes (November 3, 2025)
+## Recent Changes (November 4, 2025)
+- **Pulse Webhook Enhancement**: Enhanced webhook to properly capture all partner contact details:
+  - Fixed partner entity creation to include email, phone, contact person name, address, city, state, pincode, GSTIN, and PAN
+  - Extended webhook payload interface to support optional partner contact fields
+  - Partner lookup now checks both displayName and email for existing partners
+  - Added comprehensive logging to track received payload and partner creation/update details
+  - User name now uses contactPersonName from payload if provided (fallback to email-derived name)
+- **State/City Filtering**: Added state and city filters to dealership and showroom list pages:
+  - Backend endpoints: /api/dealerships/filter-options and /api/showrooms/filter-options
+  - State filter: Dropdown with counts for each state
+  - City filter: Searchable combobox with counts for each city
+  - Server-side filtering for optimal performance
+
+## Previous Changes (November 3, 2025)
 - **Username Field Fix**: Fixed all user creation endpoints to properly include username field:
   - Added auto-generation helper function that creates usernames from email addresses (format: email prefix, lowercase, alphanumeric only)
   - Updated all backend user creation routes (OEM admin, dealership admin, showroom manager, partner admin, partner staff, sales person)
@@ -98,4 +111,32 @@ The application utilizes the P91 Brand Theme, featuring a Brand Green primary co
   - All templates include job card links for easy access
   - Configured with Phone Number ID: 633152823218797, Business Account ID: 681013564674244
 - **Email Service (Hybrid AWS SES SDK + SMTP)**: For Work Order, Job Card, and Authentication notifications. Supports dynamic "From" emails based on brand and dynamic URL generation. All 8 email templates updated with embedded Pulse VAS logo (base64, 69KB PNG) and professional gradient backgrounds.
-- **Pulse Integration Webhook**: Inbound webhook for user lifecycle management (activate/deactivate).
+- **Pulse Integration Webhook**: Inbound webhook (`POST /api/webhooks/pulse/user-access`) for partner and user lifecycle management:
+  - **Actions**: `activate` (create/enable partner & user) and `deactivate` (disable user)
+  - **Security**: HMAC-SHA256 signature verification with secret, timestamp validation (5-minute window)
+  - **Partner Creation**: Creates partner entity with full contact details (email, phone, contact person, address, city, state, pincode, GSTIN, PAN)
+  - **User Creation**: Creates PARTNER_ADMIN user with auto-generated password and sends welcome email with password reset link
+  - **Lookup**: Finds existing partners by displayName or email to avoid duplicates
+  - **Payload Structure**:
+    ```json
+    {
+      "action": "activate" | "deactivate",
+      "user": {
+        "name": "Partner Business Name",
+        "contactPersonName": "John Doe",
+        "email": "partner@example.com",
+        "mobile": "+919876543210",
+        "role": "STUDIO" | "INSTALLER",
+        "address": "123 Main St",
+        "city": "Bangalore",
+        "state": "Karnataka",
+        "pincode": "560001",
+        "gstin": "29ABCDE1234F1Z5",
+        "pan": "ABCDE1234F"
+      },
+      "timestamp": "2025-11-04T12:00:00Z"
+    }
+    ```
+  - **Required Fields**: action, user.name, user.email, user.role
+  - **Optional Fields**: contactPersonName, mobile, address, city, state, pincode, gstin, pan
+  - **Audit Logging**: Comprehensive logging for all partner and user operations

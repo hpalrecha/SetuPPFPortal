@@ -8,9 +8,16 @@ interface PulseWebhookPayload {
   action: 'activate' | 'deactivate';
   user: {
     name: string; // Partner business name (from Pulse)
-    email: string; // User email
-    mobile?: string; // User phone
+    contactPersonName?: string; // Contact person name (optional)
+    email: string; // Partner/User email
+    mobile?: string; // Partner/User phone
     role: 'STUDIO' | 'INSTALLER'; // Partner type (from Pulse)
+    address?: string; // Partner address (optional)
+    city?: string; // Partner city (optional)
+    state?: string; // Partner state (optional)
+    pincode?: string; // Partner pincode (optional)
+    gstin?: string; // Partner GSTIN (optional)
+    pan?: string; // Partner PAN (optional)
   };
   timestamp: string;
 }
@@ -54,11 +61,14 @@ export class PulseWebhookService {
     partnerId?: string;
   }> {
     try {
+      // Log received payload for debugging
+      console.log('📥 Pulse webhook payload received:', JSON.stringify(payload, null, 2));
+      
       // Validate payload
       this.validatePayload(payload);
 
-      // Create or update partner first (using user.name as partner name and user.role as partner type)
-      const partnerId = await this.ensurePartner(payload.user.name, payload.user.role, actorId);
+      // Create or update partner first (pass full user data for contact details)
+      const partnerId = await this.ensurePartner(payload.user, actorId);
 
       if (payload.action === 'activate') {
         return await this.activateUser(payload, partnerId, actorId);
@@ -80,28 +90,51 @@ export class PulseWebhookService {
    * Ensure partner exists (create if new, update if exists)
    * Looks up partner by displayName to find existing partners
    */
-  private async ensurePartner(partnerName: string, partnerType: 'STUDIO' | 'INSTALLER', actorId?: string): Promise<string> {
+  private async ensurePartner(userData: PulseWebhookPayload['user'], actorId?: string): Promise<string> {
     try {
-      // Try to find existing partner by name
+      // Try to find existing partner by name OR email
       const allPartners = await storage.getPartners({});
-      const existingPartner = allPartners.find(p => p.displayName === partnerName);
+      const existingPartner = allPartners.find(p => 
+        p.displayName === userData.name || 
+        (userData.email && p.email === userData.email)
+      );
+
+      // Prepare partner data with all contact details
+      const partnerData: any = {
+        type: userData.role,
+        active: true,
+        email: userData.email,
+        phone: userData.mobile,
+        contactPersonName: userData.contactPersonName,
+        address: userData.address,
+        city: userData.city,
+        state: userData.state,
+        pincode: userData.pincode,
+        gstin: userData.gstin,
+        pan: userData.pan
+      };
+
+      // Remove undefined fields
+      Object.keys(partnerData).forEach(key => 
+        partnerData[key] === undefined && delete partnerData[key]
+      );
 
       if (existingPartner) {
-        // Partner exists - update to ensure it's active
-        await storage.updatePartner(existingPartner.id, {
-          type: partnerType, // Update type in case it changed
-          active: true
-        });
+        // Partner exists - update with all details
+        await storage.updatePartner(existingPartner.id, partnerData);
 
-        console.log(`✅ Partner updated: ${partnerName} (${existingPartner.id})`);
+        console.log(`✅ Partner updated: ${userData.name} (${existingPartner.id})`, {
+          email: userData.email,
+          phone: userData.mobile,
+          contactPerson: userData.contactPersonName
+        });
         return existingPartner.id;
       }
 
-      // Create new partner (UUID will be auto-generated)
+      // Create new partner with all contact details
       const newPartner = await storage.createPartner({
-        displayName: partnerName,
-        type: partnerType,
-        active: true,
+        displayName: userData.name,
+        ...partnerData,
         canViewJobCardPrice: false
       });
 
@@ -112,13 +145,22 @@ export class PulseWebhookService {
         entityId: newPartner.id,
         action: 'CREATED_BY_PULSE',
         diffJson: {
-          displayName: partnerName,
-          type: partnerType,
+          displayName: userData.name,
+          email: userData.email,
+          phone: userData.mobile,
+          contactPersonName: userData.contactPersonName,
+          type: userData.role,
           source: 'pulse_webhook'
         }
       });
 
-      console.log(`✅ Partner created: ${partnerName} (${newPartner.id})`);
+      console.log(`✅ Partner created: ${userData.name} (${newPartner.id})`, {
+        email: userData.email,
+        phone: userData.mobile,
+        contactPerson: userData.contactPersonName,
+        address: userData.address,
+        city: userData.city
+      });
       return newPartner.id;
     } catch (error: any) {
       console.error('❌ Failed to ensure partner:', error);
@@ -138,8 +180,9 @@ export class PulseWebhookService {
     // Check if user already exists
     const existingUser = await storage.getUserByEmail(payload.user.email);
 
-    // Extract user name from email (before @)
-    const userName = payload.user.email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    // Use contact person name if provided, otherwise extract from email
+    const userName = payload.user.contactPersonName || 
+      payload.user.email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
     if (existingUser) {
       // User exists - activate if inactive
