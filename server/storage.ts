@@ -129,7 +129,8 @@ export interface IStorage {
   deleteOem(id: string): Promise<boolean>;
 
   // Dealership management
-  getDealerships(oemId?: string): Promise<any[]>;
+  getDealerships(filters?: { oemId?: string; state?: string; city?: string }): Promise<any[]>;
+  getDealershipFilterOptions(): Promise<{ states: Array<{ value: string; count: number }>; cities: Array<{ value: string; count: number }> }>;
   getDealership(id: string): Promise<any | undefined>;
   createDealership(dealership: any): Promise<any>;
   updateDealership(id: string, updates: any): Promise<any | undefined>;
@@ -143,7 +144,8 @@ export interface IStorage {
   checkDealershipOemMapping(dealershipId: string, oemId: string): Promise<boolean>; // Check if mapping exists
 
   // Showroom management
-  getShowrooms(dealershipId?: string, oemId?: string): Promise<any[]>;
+  getShowrooms(filters?: { dealershipId?: string; oemId?: string; state?: string; city?: string }): Promise<any[]>;
+  getShowroomFilterOptions(): Promise<{ states: Array<{ value: string; count: number }>; cities: Array<{ value: string; count: number }> }>;
   getShowroom(id: string): Promise<any | undefined>;
   createShowroom(showroom: any): Promise<any>;
   updateShowroom(id: string, updates: any): Promise<any | undefined>;
@@ -839,14 +841,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Dealership Management
-  async getDealerships(oemId?: string): Promise<any[]> {
-    if (oemId) {
+  async getDealerships(filters?: { oemId?: string; state?: string; city?: string }): Promise<any[]> {
+    const conditions = [];
+    
+    // Build filter conditions
+    if (filters?.state) {
+      conditions.push(eq(dealerships.state, filters.state));
+    }
+    if (filters?.city) {
+      conditions.push(eq(dealerships.city, filters.city));
+    }
+    
+    if (filters?.oemId) {
       // Get dealerships mapped to this OEM
       const mappings = await db
         .select({ dealershipId: dealershipOemMapping.dealershipId })
         .from(dealershipOemMapping)
         .where(and(
-          eq(dealershipOemMapping.oemId, oemId),
+          eq(dealershipOemMapping.oemId, filters.oemId),
           eq(dealershipOemMapping.status, 'active')
         ));
       
@@ -855,12 +867,46 @@ export class DatabaseStorage implements IStorage {
       }
       
       const dealershipIds = mappings.map(m => m.dealershipId);
+      conditions.push(inArray(dealerships.id, dealershipIds));
+    }
+    
+    if (conditions.length > 0) {
       return await db
         .select()
         .from(dealerships)
-        .where(inArray(dealerships.id, dealershipIds));
+        .where(and(...conditions));
     }
+    
     return await db.select().from(dealerships);
+  }
+
+  async getDealershipFilterOptions(): Promise<{ states: Array<{ value: string; count: number }>; cities: Array<{ value: string; count: number }> }> {
+    // Get unique states with counts
+    const statesResult = await db
+      .select({
+        value: dealerships.state,
+        count: sql<number>`count(*)::int`
+      })
+      .from(dealerships)
+      .where(sql`${dealerships.state} IS NOT NULL AND ${dealerships.state} != ''`)
+      .groupBy(dealerships.state)
+      .orderBy(dealerships.state);
+    
+    // Get unique cities with counts
+    const citiesResult = await db
+      .select({
+        value: dealerships.city,
+        count: sql<number>`count(*)::int`
+      })
+      .from(dealerships)
+      .where(sql`${dealerships.city} IS NOT NULL AND ${dealerships.city} != ''`)
+      .groupBy(dealerships.city)
+      .orderBy(dealerships.city);
+    
+    return {
+      states: statesResult,
+      cities: citiesResult
+    };
   }
 
   async getDealership(id: string): Promise<any | undefined> {
@@ -958,20 +1004,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Showroom Management
-  async getShowrooms(dealershipId?: string, oemId?: string): Promise<any[]> {
-    let showroomsList;
+  async getShowrooms(filters?: { dealershipId?: string; oemId?: string; state?: string; city?: string }): Promise<any[]> {
+    const conditions = [];
     
-    if (dealershipId && oemId) {
-      // Filter by both dealership and OEM
-      showroomsList = await db.select().from(showrooms).where(and(
-        eq(showrooms.dealershipId, dealershipId),
-        eq(showrooms.oemId, oemId)
-      ));
-    } else if (dealershipId) {
-      showroomsList = await db.select().from(showrooms).where(eq(showrooms.dealershipId, dealershipId));
-    } else if (oemId) {
-      // Get showrooms directly by OEM ID
-      showroomsList = await db.select().from(showrooms).where(eq(showrooms.oemId, oemId));
+    // Build filter conditions
+    if (filters?.dealershipId) {
+      conditions.push(eq(showrooms.dealershipId, filters.dealershipId));
+    }
+    if (filters?.oemId) {
+      conditions.push(eq(showrooms.oemId, filters.oemId));
+    }
+    if (filters?.state) {
+      conditions.push(eq(showrooms.state, filters.state));
+    }
+    if (filters?.city) {
+      conditions.push(eq(showrooms.city, filters.city));
+    }
+    
+    let showroomsList;
+    if (conditions.length > 0) {
+      showroomsList = await db.select().from(showrooms).where(and(...conditions));
     } else {
       showroomsList = await db.select().from(showrooms);
     }
@@ -1001,6 +1053,35 @@ export class DatabaseStorage implements IStorage {
     );
     
     return showroomsWithCounts;
+  }
+
+  async getShowroomFilterOptions(): Promise<{ states: Array<{ value: string; count: number }>; cities: Array<{ value: string; count: number }> }> {
+    // Get unique states with counts
+    const statesResult = await db
+      .select({
+        value: showrooms.state,
+        count: sql<number>`count(*)::int`
+      })
+      .from(showrooms)
+      .where(sql`${showrooms.state} IS NOT NULL AND ${showrooms.state} != ''`)
+      .groupBy(showrooms.state)
+      .orderBy(showrooms.state);
+    
+    // Get unique cities with counts
+    const citiesResult = await db
+      .select({
+        value: showrooms.city,
+        count: sql<number>`count(*)::int`
+      })
+      .from(showrooms)
+      .where(sql`${showrooms.city} IS NOT NULL AND ${showrooms.city} != ''`)
+      .groupBy(showrooms.city)
+      .orderBy(showrooms.city);
+    
+    return {
+      states: statesResult,
+      cities: citiesResult
+    };
   }
 
   async getShowroom(id: string): Promise<any | undefined> {

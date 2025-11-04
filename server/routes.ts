@@ -827,15 +827,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Dealership Routes
+  app.get("/api/dealerships/filter-options", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN']), async (req, res) => {
+    try {
+      const filterOptions = await storage.getDealershipFilterOptions();
+      res.json(filterOptions);
+    } catch (error) {
+      console.error("Get dealership filter options error:", error);
+      res.status(500).json({ error: "Failed to fetch filter options" });
+    }
+  });
+
   app.get("/api/dealerships", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN']), async (req, res) => {
     try {
-      const { oemId } = req.query;
-      const dealerships = await storage.getDealerships(oemId as string);
+      const { oemId, state, city } = req.query;
+      const dealerships = await storage.getDealerships({
+        oemId: oemId as string,
+        state: state as string,
+        city: city as string
+      });
       
       // Add counts and OEM IDs for each dealership
       const dealershipsWithCounts = await Promise.all(
         dealerships.map(async (dealership) => {
-          const showrooms = await storage.getShowrooms(dealership.id);
+          const showrooms = await storage.getShowrooms({ dealershipId: dealership.id });
           const showroomsCount = showrooms.length;
           
           // Count sales staff for this dealership (users with SALES_PERSON role)
@@ -1282,10 +1296,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Showroom Routes
+  app.get("/api/showrooms/filter-options", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']), async (req, res) => {
+    try {
+      const filterOptions = await storage.getShowroomFilterOptions();
+      res.json(filterOptions);
+    } catch (error) {
+      console.error("Get showroom filter options error:", error);
+      res.status(500).json({ error: "Failed to fetch filter options" });
+    }
+  });
+
   app.get("/api/showrooms", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']), async (req, res) => {
     try {
-      const { dealershipId, oemId } = req.query;
-      const showrooms = await storage.getShowrooms(dealershipId as string, oemId as string);
+      const { dealershipId, oemId, state, city } = req.query;
+      const showrooms = await storage.getShowrooms({
+        dealershipId: dealershipId as string,
+        oemId: oemId as string,
+        state: state as string,
+        city: city as string
+      });
       res.json(showrooms);
     } catch (error) {
       console.error("Get showrooms error:", error);
