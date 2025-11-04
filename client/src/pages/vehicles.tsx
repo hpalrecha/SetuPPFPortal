@@ -28,13 +28,13 @@ type VehicleData = {
   models: {
     id: string;
     name: string;
+    ppfQtyConsumption?: string;
     variants: {
       id: string;
       name: string;
       fuelType?: string;
       transmission?: string;
       engineCapacity?: string;
-      ppfQtyConsumption?: string;
     }[];
   }[];
 };
@@ -48,7 +48,8 @@ const brandFormSchema = z.object({
 const modelFormSchema = z.object({
   modelName: z.string().min(1, 'Model name is required'),
   oemId: z.string().min(1, 'OEM is required'),
-  vehicleType: z.string().optional() // Vehicle type selection
+  vehicleType: z.string().optional(), // Vehicle type selection
+  ppfQtyConsumption: z.string().optional()
 });
 
 const variantFormSchema = z.object({
@@ -56,8 +57,7 @@ const variantFormSchema = z.object({
   modelId: z.string().min(1, 'Model is required'),
   fuelType: z.string().optional(),
   transmission: z.string().optional(),
-  engineCapacity: z.string().optional(),
-  ppfQtyConsumption: z.string().optional()
+  engineCapacity: z.string().optional()
 });
 
 
@@ -96,12 +96,12 @@ export default function VehiclesPage() {
 
   const modelForm = useForm<z.infer<typeof modelFormSchema>>({
     resolver: zodResolver(modelFormSchema),
-    defaultValues: { modelName: '', oemId: selectedOemId, vehicleType: '' }
+    defaultValues: { modelName: '', oemId: selectedOemId, vehicleType: '', ppfQtyConsumption: '0.00' }
   });
 
   const variantForm = useForm<z.infer<typeof variantFormSchema>>({
     resolver: zodResolver(variantFormSchema),
-    defaultValues: { variantName: '', modelId: '', fuelType: '', transmission: '', engineCapacity: '', ppfQtyConsumption: '0.00' }
+    defaultValues: { variantName: '', modelId: '', fuelType: '', transmission: '', engineCapacity: '' }
   });
 
 
@@ -464,9 +464,16 @@ export default function VehiclesPage() {
                         {brand.models.map((model) => (
                           <div key={model.id} className="bg-gray-50 dark:bg-gray-800 rounded p-3">
                             <div className="flex items-center justify-between mb-2">
-                              <h4 className="font-medium text-gray-900 dark:text-gray-100">
-                                {model.name}
-                              </h4>
+                              <div className="flex-1">
+                                <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                                  {model.name}
+                                </h4>
+                                {model.ppfQtyConsumption && parseFloat(model.ppfQtyConsumption) > 0 && (
+                                  <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold">
+                                    PPF: {model.ppfQtyConsumption} SFT
+                                  </span>
+                                )}
+                              </div>
                               <div className="flex items-center gap-1">
                                 <Button
                                   size="sm"
@@ -508,9 +515,6 @@ export default function VehiclesPage() {
                                       {variant.transmission && (
                                         <span className="text-gray-500 ml-1">• {variant.transmission}</span>
                                       )}
-                                      {variant.ppfQtyConsumption && parseFloat(variant.ppfQtyConsumption) > 0 && (
-                                        <span className="text-blue-600 dark:text-blue-400 ml-2 font-semibold">• {variant.ppfQtyConsumption} SFT</span>
-                                      )}
                                     </div>
                                     <div className="flex items-center gap-1">
                                       <Button
@@ -523,8 +527,7 @@ export default function VehiclesPage() {
                                             modelId: model.id,
                                             fuelType: variant.fuelType || '',
                                             transmission: variant.transmission || '',
-                                            engineCapacity: variant.engineCapacity || '',
-                                            ppfQtyConsumption: variant.ppfQtyConsumption || '0.00'
+                                            engineCapacity: variant.engineCapacity || ''
                                           });
                                           setShowVariantDialog(true);
                                         }}
@@ -773,6 +776,26 @@ export default function VehiclesPage() {
                 )}
               />
               
+              <FormField
+                control={modelForm.control}
+                name="ppfQtyConsumption"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Estimated PPF Consumption (SFT)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        placeholder="0.00" 
+                        {...field} 
+                        data-testid="input-ppf-consumption" 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
               <div className="flex justify-end gap-3">
                 <Button type="button" variant="outline" onClick={() => setShowModelDialog(false)} data-testid="button-cancel-model">
                   Cancel
@@ -856,30 +879,6 @@ export default function VehiclesPage() {
                     <FormLabel>Engine Capacity (Optional)</FormLabel>
                     <FormControl>
                       <Input placeholder="e.g., 1.2L, 1500cc" {...field} data-testid="input-engine-capacity" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={variantForm.control}
-                name="ppfQtyConsumption"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>PPF Quantity Consumption (Optional)</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Input 
-                          type="number" 
-                          step="0.01"
-                          placeholder="Enter total PPF used (in sq.ft)" 
-                          {...field} 
-                          data-testid="input-ppf-qty-consumption" 
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                          sq.ft
-                        </span>
-                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>

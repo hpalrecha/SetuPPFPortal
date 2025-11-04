@@ -297,6 +297,7 @@ export const vehicleModels = pgTable("vehicle_models", {
   oemId: uuid("oem_id").references(() => oems.id).notNull(),
   modelName: text("model_name").notNull(),
   vehicleType: vehicleTypeEnum("vehicle_type"), // Vehicle category (Hatchback, Sedan, SUV, etc.)
+  ppfQtyConsumption: decimal("ppf_qty_consumption", { precision: 10, scale: 2 }).default("0.00"), // PPF material consumption in sq.ft
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
@@ -309,7 +310,6 @@ export const vehicleVariants = pgTable("vehicle_variants", {
   fuelType: text("fuel_type"), // PETROL, DIESEL, ELECTRIC, HYBRID
   transmission: text("transmission"), // MANUAL, AUTOMATIC, CVT
   engineCapacity: text("engine_capacity"), // 1.2L, 1.5L, etc.
-  ppfQtyConsumption: decimal("ppf_qty_consumption", { precision: 10, scale: 2 }).default("0.00"), // PPF material consumption in sq.ft
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
