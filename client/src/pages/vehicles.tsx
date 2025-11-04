@@ -28,6 +28,7 @@ type VehicleData = {
   models: {
     id: string;
     name: string;
+    vehicleType?: string;
     ppfQtyConsumption?: string;
     variants: {
       id: string;
@@ -70,6 +71,7 @@ export default function VehiclesPage() {
   const [showBrandDialog, setShowBrandDialog] = useState(false);
   const [showModelDialog, setShowModelDialog] = useState(false);
   const [showVariantDialog, setShowVariantDialog] = useState(false);
+  const [editingModel, setEditingModel] = useState<any>(null);
   const [editingVariant, setEditingVariant] = useState<any>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [selectedBrandId, setSelectedBrandId] = useState('');
@@ -170,11 +172,27 @@ export default function VehiclesPage() {
     onSuccess: () => {
       toast({ title: 'Success', description: 'Model created successfully' });
       setShowModelDialog(false);
+      setEditingModel(null);
       modelForm.reset();
       refetchVehicleData();
     },
     onError: (error: any) => {
       toast({ title: 'Error', description: error.message || 'Failed to create model', variant: 'destructive' });
+    }
+  });
+
+  const updateModelMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: z.infer<typeof modelFormSchema> }) => 
+      apiRequest('PUT', `/api/vehicle-models/${id}`, data),
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Model updated successfully' });
+      setShowModelDialog(false);
+      setEditingModel(null);
+      modelForm.reset();
+      refetchVehicleData();
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message || 'Failed to update model', variant: 'destructive' });
     }
   });
 
@@ -492,6 +510,24 @@ export default function VehiclesPage() {
                                 <Button
                                   size="sm"
                                   variant="outline"
+                                  onClick={() => {
+                                    setEditingModel(model);
+                                    modelForm.reset({
+                                      modelName: model.name,
+                                      oemId: brand.id,
+                                      vehicleType: model.vehicleType || '',
+                                      ppfQtyConsumption: model.ppfQtyConsumption || '0.00'
+                                    });
+                                    setShowModelDialog(true);
+                                  }}
+                                  className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700"
+                                  data-testid={`button-edit-model-${model.name}`}
+                                >
+                                  <Edit className="h-2 w-2" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
                                   onClick={() => deleteModelMutation.mutate(model.id)}
                                   disabled={deleteModelMutation.isPending}
                                   className="h-6 px-2 text-xs text-red-600 hover:text-red-700"
@@ -718,17 +754,29 @@ export default function VehiclesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Model Dialog */}
-      <Dialog open={showModelDialog} onOpenChange={setShowModelDialog}>
+      {/* Add/Edit Model Dialog */}
+      <Dialog open={showModelDialog} onOpenChange={(open) => {
+        setShowModelDialog(open);
+        if (!open) {
+          setEditingModel(null);
+          modelForm.reset();
+        }
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New Model</DialogTitle>
+            <DialogTitle>{editingModel ? 'Edit Model' : 'Add New Model'}</DialogTitle>
             <DialogDescription>
-              Create a new vehicle model
+              {editingModel ? 'Update vehicle model details' : 'Create a new vehicle model'}
             </DialogDescription>
           </DialogHeader>
           <Form {...modelForm}>
-            <form onSubmit={modelForm.handleSubmit(data => createModelMutation.mutate(data))} className="space-y-4">
+            <form onSubmit={modelForm.handleSubmit(data => {
+              if (editingModel) {
+                updateModelMutation.mutate({ id: editingModel.id, data });
+              } else {
+                createModelMutation.mutate(data);
+              }
+            })} className="space-y-4">
               <FormField
                 control={modelForm.control}
                 name="modelName"
@@ -797,11 +845,18 @@ export default function VehiclesPage() {
               />
               
               <div className="flex justify-end gap-3">
-                <Button type="button" variant="outline" onClick={() => setShowModelDialog(false)} data-testid="button-cancel-model">
+                <Button type="button" variant="outline" onClick={() => {
+                  setShowModelDialog(false);
+                  setEditingModel(null);
+                  modelForm.reset();
+                }} data-testid="button-cancel-model">
                   Cancel
                 </Button>
-                <Button type="submit" disabled={createModelMutation.isPending} data-testid="button-save-model">
-                  {createModelMutation.isPending ? 'Creating...' : 'Create Model'}
+                <Button type="submit" disabled={createModelMutation.isPending || updateModelMutation.isPending} data-testid="button-save-model">
+                  {editingModel
+                    ? (updateModelMutation.isPending ? 'Updating...' : 'Update Model')
+                    : (createModelMutation.isPending ? 'Creating...' : 'Create Model')
+                  }
                 </Button>
               </div>
             </form>
