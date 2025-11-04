@@ -1607,6 +1607,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Showroom not found" });
         }
         
+        // Auto-sync contact info to showroom manager user if contactEmail or contactPhone were updated
+        if (showroomData.contactEmail || showroomData.contactPhone) {
+          try {
+            // Find the showroom manager user
+            const showroomManagers = await storage.getUsersByShowroom(id);
+            const showroomManager = showroomManagers.find(u => u.role === 'SHOWROOM_MANAGER');
+            
+            if (showroomManager) {
+              const updateData: any = {};
+              
+              // Sync contactEmail to user's email if provided
+              if (showroomData.contactEmail) {
+                updateData.email = showroomData.contactEmail;
+                updateData.emailVerified = true;
+              }
+              
+              // Sync contactPhone to user's phone if provided
+              if (showroomData.contactPhone) {
+                updateData.phone = showroomData.contactPhone;
+                updateData.phoneVerified = true;
+              }
+              
+              if (Object.keys(updateData).length > 0) {
+                await storage.updateUser(showroomManager.id, updateData);
+                console.log(`Auto-synced contact info to showroom manager user: ${showroomManager.username}`);
+              }
+            }
+          } catch (syncError) {
+            console.error("Failed to sync contact info to showroom manager:", syncError);
+            // Don't fail the showroom update if sync fails
+          }
+        }
+        
         // Create admin user if requested (for creating new showroom with manager)
         if (createUser && adminUserData) {
           try {
