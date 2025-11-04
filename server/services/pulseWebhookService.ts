@@ -44,14 +44,30 @@ export class PulseWebhookService {
       return false;
     }
 
-    const hmac = crypto.createHmac('sha256', this.webhookSecret);
-    hmac.update(payload);
-    const expectedSignature = hmac.digest('hex');
+    if (!signature) {
+      console.warn('⚠️ No signature provided in webhook request');
+      return false;
+    }
 
-    return crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(expectedSignature)
-    );
+    try {
+      const hmac = crypto.createHmac('sha256', this.webhookSecret);
+      hmac.update(payload);
+      const expectedSignature = hmac.digest('hex');
+
+      // Ensure both buffers are the same length before comparing
+      if (signature.length !== expectedSignature.length) {
+        console.warn('⚠️ Signature length mismatch');
+        return false;
+      }
+
+      return crypto.timingSafeEqual(
+        Buffer.from(signature),
+        Buffer.from(expectedSignature)
+      );
+    } catch (error) {
+      console.error('❌ Signature verification error:', error);
+      return false;
+    }
   }
 
   /**

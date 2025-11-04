@@ -6993,24 +6993,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log('Body:', JSON.stringify(req.body, null, 2));
     
     try {
+      const signature = req.headers['x-pulse-signature'] as string;
       const payload = req.body;
 
-      // TEMPORARILY DISABLED: Signature verification for testing
-      // TODO: Re-enable signature verification in production
-      console.log('⚠️ SIGNATURE VERIFICATION DISABLED - FOR TESTING ONLY');
-      
-      // const signature = req.headers['x-pulse-signature'] as string;
-      // console.log('🔐 Verifying signature...');
-      // const payloadString = JSON.stringify(payload);
-      // const isValid = pulseWebhookService.verifySignature(payloadString, signature || '');
-      // if (!isValid) {
-      //   console.error('❌ Invalid Pulse webhook signature');
-      //   return res.status(401).json({
-      //     success: false,
-      //     error: 'Invalid signature'
-      //   });
-      // }
-      // console.log('✅ Signature verified, processing webhook...');
+      // Verify signature if webhook secret is configured
+      if (process.env.PULSE_WEBHOOK_SECRET) {
+        console.log('🔐 Verifying signature...');
+        const payloadString = JSON.stringify(payload);
+        const isValid = pulseWebhookService.verifySignature(payloadString, signature || '');
+
+        if (!isValid) {
+          console.error('❌ Invalid Pulse webhook signature');
+          return res.status(401).json({
+            success: false,
+            error: 'Invalid signature'
+          });
+        }
+        console.log('✅ Signature verified');
+      } else {
+        console.log('⚠️ Webhook secret not configured - skipping signature verification');
+      }
 
       console.log('✅ Processing webhook...');
 
