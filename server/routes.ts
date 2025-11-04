@@ -31,6 +31,7 @@ import { generateOTP, hashOTP, verifyOTP, getOTPExpiry } from "./utils/otp";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import bcrypt from "bcryptjs";
+import { parse } from "csv-parse/sync";
 
 // Helper function to generate username from email
 function generateUsernameFromEmail(email: string): string {
@@ -1005,14 +1006,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const fileBuffer = req.file.buffer;
         const csvContent = fileBuffer.toString('utf-8');
-        const lines = csvContent.split('\n').filter(line => line.trim());
         
-        if (lines.length < 2) {
+        // Parse CSV with proper handling of quotes and commas
+        const records = parse(csvContent, {
+          columns: true,
+          skip_empty_lines: true,
+          trim: true,
+          relax_quotes: true
+        });
+        
+        if (records.length === 0) {
           return res.status(400).json({ error: "CSV file is empty or has no data rows" });
         }
-
-        // Skip header row
-        const dataLines = lines.slice(1);
         
         const results = {
           success: 0,
@@ -1021,12 +1026,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
 
         // Process each row
-        for (let i = 0; i < dataLines.length; i++) {
-          const line = dataLines[i].trim();
-          if (!line) continue;
+        for (let i = 0; i < records.length; i++) {
+          const record = records[i];
 
           try {
-            const [username, dealershipName, oemName] = line.split(',').map(s => s.trim());
+            const username = record.username?.trim();
+            const dealershipName = record.dealership_name?.trim();
+            const oemName = record.oem_name?.trim();
             
             if (!username) {
               results.errors.push(`Row ${i + 2}: Username is required`);
@@ -1418,14 +1424,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const fileBuffer = req.file.buffer;
         const csvContent = fileBuffer.toString('utf-8');
-        const lines = csvContent.split('\n').filter(line => line.trim());
         
-        if (lines.length < 2) {
+        // Parse CSV with proper handling of quotes and commas
+        const records = parse(csvContent, {
+          columns: true,
+          skip_empty_lines: true,
+          trim: true,
+          relax_quotes: true
+        });
+        
+        if (records.length === 0) {
           return res.status(400).json({ error: "CSV file is empty or has no data rows" });
         }
-
-        // Skip header row
-        const dataLines = lines.slice(1);
         
         const results = {
           success: 0,
@@ -1434,13 +1444,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
 
         // Process each row
-        // CSV Format: username,showroomName,dealershipCode,managerName,email,phone,address,city,state,pincode,oeDealerCode,parentCode,oemRegion,billDirectlyToShowroom,billToAddress,billToCity,billToState,billToPincode,billToGstin,shipToAddress,shipToCity,shipToState,shipToPincode,shipToGstin
-        for (let i = 0; i < dataLines.length; i++) {
-          const line = dataLines[i].trim();
-          if (!line) continue;
+        // CSV Format: username,showroom_name,dealership_code,manager_name,email,phone,address,city,state,pincode,oe_dealer_code,parent_code,oem_region,bill_directly_to_showroom,bill_to_address,bill_to_city,bill_to_state,bill_to_pincode,bill_to_gstin,ship_to_address,ship_to_city,ship_to_state,ship_to_pincode,ship_to_gstin
+        for (let i = 0; i < records.length; i++) {
+          const record = records[i];
 
           try {
-            const [username, showroomName, dealershipCode, managerName, email, phone, address, city, state, pincode, oeDealerCode, parentCode, oemRegion, billDirectlyToShowroom, billToAddress, billToCity, billToState, billToPincode, billToGstin, shipToAddress, shipToCity, shipToState, shipToPincode, shipToGstin] = line.split(',').map(s => s?.trim() || '');
+            const username = record.username?.trim() || '';
+            const showroomName = record.showroom_name?.trim() || '';
+            const dealershipCode = record.dealership_code?.trim() || '';
+            const managerName = record.manager_name?.trim() || '';
+            const email = record.email?.trim() || '';
+            const phone = record.phone?.trim() || '';
+            const address = record.address?.trim() || '';
+            const city = record.city?.trim() || '';
+            const state = record.state?.trim() || '';
+            const pincode = record.pincode?.trim() || '';
+            const oeDealerCode = record.oe_dealer_code?.trim() || '';
+            const parentCode = record.parent_code?.trim() || '';
+            const oemRegion = record.oem_region?.trim() || '';
+            const billDirectlyToShowroom = record.bill_directly_to_showroom?.trim() || '';
+            const billToAddress = record.bill_to_address?.trim() || '';
+            const billToCity = record.bill_to_city?.trim() || '';
+            const billToState = record.bill_to_state?.trim() || '';
+            const billToPincode = record.bill_to_pincode?.trim() || '';
+            const billToGstin = record.bill_to_gstin?.trim() || '';
+            const shipToAddress = record.ship_to_address?.trim() || '';
+            const shipToCity = record.ship_to_city?.trim() || '';
+            const shipToState = record.ship_to_state?.trim() || '';
+            const shipToPincode = record.ship_to_pincode?.trim() || '';
+            const shipToGstin = record.ship_to_gstin?.trim() || '';
             
             if (!username) {
               results.errors.push(`Row ${i + 2}: Username is required`);
