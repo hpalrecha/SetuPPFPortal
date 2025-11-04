@@ -1822,6 +1822,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         (brandData.models as any[]).push({
           id: model.id,
           name: model.modelName,
+          vehicleType: model.vehicleType || null,
+          ppfQtyConsumption: model.ppfQtyConsumption || null,
           variants: variants.map(v => ({
             id: v.id,
             name: v.variantName,
