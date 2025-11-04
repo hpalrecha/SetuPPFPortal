@@ -1133,6 +1133,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Dealership not found" });
         }
         
+        // Auto-sync contact info to dealership admin user if contactEmail or contactPhone were updated
+        if (dealershipData.contactEmail || dealershipData.contactPhone) {
+          try {
+            // Find the dealership admin user
+            const dealershipAdmins = await storage.getUsersByDealership(id);
+            const dealershipAdmin = dealershipAdmins.find(u => u.role === 'DEALERSHIP_ADMIN');
+            
+            if (dealershipAdmin) {
+              const updateData: any = {};
+              
+              // Sync contactEmail to user's email if provided
+              if (dealershipData.contactEmail) {
+                updateData.email = dealershipData.contactEmail;
+                updateData.emailVerified = true;
+              }
+              
+              // Sync contactPhone to user's phone if provided
+              if (dealershipData.contactPhone) {
+                updateData.phone = dealershipData.contactPhone;
+                updateData.phoneVerified = true;
+              }
+              
+              if (Object.keys(updateData).length > 0) {
+                await storage.updateUser(dealershipAdmin.id, updateData);
+                console.log(`Auto-synced contact info to dealership admin user: ${dealershipAdmin.username}`);
+              }
+            }
+          } catch (syncError) {
+            console.error("Failed to sync contact info to dealership admin:", syncError);
+            // Don't fail the dealership update if sync fails
+          }
+        }
+        
         // Update OEM mappings if oemIds provided
         if (oemIds && Array.isArray(oemIds)) {
           if (oemIds.length === 0) {
