@@ -101,29 +101,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
-      // Auto-sync user contact info to organization if not already set
+      // Smart bi-directional contact sync: Organization values are source of truth
       if (result.user) {
         const user = result.user;
         
-        // For DEALERSHIP_ADMIN, sync to dealership contact fields
+        // For DEALERSHIP_ADMIN, sync contact info bi-directionally
         if (user.role === 'DEALERSHIP_ADMIN' && user.dealershipId) {
           const dealership = await storage.getDealership(user.dealershipId);
-          if (dealership && (!dealership.contactEmail || !dealership.contactPhone)) {
-            await storage.updateDealership(user.dealershipId, {
-              contactEmail: dealership.contactEmail || user.email,
-              contactPhone: dealership.contactPhone || user.phone || '',
-            });
+          if (dealership) {
+            // PRIORITY 1: If organization has contact info, sync TO user and mark as verified
+            if (dealership.contactEmail || dealership.contactPhone) {
+              const userDb = await storage.getUser(user.id);
+              const needsSync = 
+                (dealership.contactEmail && userDb?.email !== dealership.contactEmail) ||
+                (dealership.contactPhone && userDb?.phone !== dealership.contactPhone) ||
+                !userDb?.emailVerified || !userDb?.phoneVerified;
+              
+              if (needsSync) {
+                await storage.updateUser(user.id, {
+                  email: dealership.contactEmail || userDb?.email || null,
+                  phone: dealership.contactPhone || userDb?.phone || null,
+                  emailVerified: !!dealership.contactEmail,
+                  phoneVerified: !!dealership.contactPhone,
+                });
+              }
+            } 
+            // PRIORITY 2: If organization doesn't have contact info, sync FROM user
+            else if (user.email || user.phone) {
+              await storage.updateDealership(user.dealershipId, {
+                contactEmail: user.email || null,
+                contactPhone: user.phone || '',
+              });
+            }
           }
         }
         
-        // For SHOWROOM_MANAGER, sync to showroom contact fields
+        // For SHOWROOM_MANAGER, sync contact info bi-directionally
         if (user.role === 'SHOWROOM_MANAGER' && user.showroomId) {
           const showroom = await storage.getShowroom(user.showroomId);
-          if (showroom && (!showroom.contactEmail || !showroom.contactPhone)) {
-            await storage.updateShowroom(user.showroomId, {
-              contactEmail: showroom.contactEmail || user.email,
-              contactPhone: showroom.contactPhone || user.phone || '',
-            });
+          if (showroom) {
+            // PRIORITY 1: If organization has contact info, sync TO user and mark as verified
+            if (showroom.contactEmail || showroom.contactPhone) {
+              const userDb = await storage.getUser(user.id);
+              const needsSync = 
+                (showroom.contactEmail && userDb?.email !== showroom.contactEmail) ||
+                (showroom.contactPhone && userDb?.phone !== showroom.contactPhone) ||
+                !userDb?.emailVerified || !userDb?.phoneVerified;
+              
+              if (needsSync) {
+                await storage.updateUser(user.id, {
+                  email: showroom.contactEmail || userDb?.email || null,
+                  phone: showroom.contactPhone || userDb?.phone || null,
+                  emailVerified: !!showroom.contactEmail,
+                  phoneVerified: !!showroom.contactPhone,
+                });
+              }
+            }
+            // PRIORITY 2: If organization doesn't have contact info, sync FROM user
+            else if (user.email || user.phone) {
+              await storage.updateShowroom(user.showroomId, {
+                contactEmail: user.email || null,
+                contactPhone: user.phone || '',
+              });
+            }
           }
         }
       }
