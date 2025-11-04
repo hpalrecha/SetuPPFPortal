@@ -5,11 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit, Trash2, MapPin, Phone, Users, Handshake, Search, Filter, Upload } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Plus, Edit, Trash2, MapPin, Phone, Users, Handshake, Search, Filter, Upload, Check, ChevronsUpDown } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { CreateShowroomModal } from "@/components/modals/CreateShowroomModal";
 import { BulkUploadShowroomsModal } from "@/components/modals/BulkUploadShowroomsModal";
+import { cn } from "@/lib/utils";
 
 export default function ShowroomsPage() {
   const { user } = useAuth();
@@ -22,14 +25,21 @@ export default function ShowroomsPage() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedOEM, setSelectedOEM] = useState<string>("all");
   const [selectedDealership, setSelectedDealership] = useState<string>("all");
+  const [selectedState, setSelectedState] = useState<string>("all");
+  const [selectedCity, setSelectedCity] = useState<string>("all");
+  const [openCityCombobox, setOpenCityCombobox] = useState(false);
   
   // Only Super Admin can access showroom management
   const canAccessShowrooms = user?.role === 'SUPER_ADMIN';
   
   const { data: showrooms = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/showrooms"],
+    queryKey: ["/api/showrooms", selectedState !== "all" ? selectedState : undefined, selectedCity !== "all" ? selectedCity : undefined],
     queryFn: async () => {
-      const response = await fetch('/api/showrooms', {
+      const params = new URLSearchParams();
+      if (selectedState !== "all") params.append('state', selectedState);
+      if (selectedCity !== "all") params.append('city', selectedCity);
+      
+      const response = await fetch(`/api/showrooms${params.toString() ? `?${params.toString()}` : ''}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -43,6 +53,22 @@ export default function ShowroomsPage() {
       return response.json();
     },
     refetchInterval: 30000,
+    enabled: canAccessShowrooms
+  });
+
+  // Fetch filter options (states and cities)
+  const { data: filterOptions } = useQuery<{ states: Array<{ value: string; count: number }>; cities: Array<{ value: string; count: number }> }>({
+    queryKey: ["/api/showrooms/filter-options"],
+    queryFn: async () => {
+      const response = await fetch('/api/showrooms/filter-options', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch filter options');
+      return response.json();
+    },
     enabled: canAccessShowrooms
   });
 
@@ -270,6 +296,84 @@ export default function ShowroomsPage() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div>
+            <Select value={selectedState} onValueChange={setSelectedState}>
+              <SelectTrigger className="w-48" data-testid="filter-state">
+                <SelectValue placeholder="Filter by State" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All States</SelectItem>
+                {filterOptions?.states.map((state) => (
+                  <SelectItem key={state.value} value={state.value}>
+                    {state.value} ({state.count})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Popover open={openCityCombobox} onOpenChange={setOpenCityCombobox}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openCityCombobox}
+                  className="w-48 justify-between"
+                  data-testid="filter-city"
+                >
+                  {selectedCity !== "all"
+                    ? filterOptions?.cities.find((city) => city.value === selectedCity)?.value
+                    : "Filter by City"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-0">
+                <Command>
+                  <CommandInput placeholder="Search city..." />
+                  <CommandList>
+                    <CommandEmpty>No city found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="all"
+                        onSelect={() => {
+                          setSelectedCity("all");
+                          setOpenCityCombobox(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            selectedCity === "all" ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        All Cities
+                      </CommandItem>
+                      {filterOptions?.cities.map((city) => (
+                        <CommandItem
+                          key={city.value}
+                          value={city.value}
+                          onSelect={(currentValue) => {
+                            setSelectedCity(currentValue);
+                            setOpenCityCombobox(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedCity === city.value ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {city.value} ({city.count})
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 

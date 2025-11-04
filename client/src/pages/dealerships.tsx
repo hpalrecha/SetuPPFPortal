@@ -54,7 +54,7 @@ export default function DealershipsPage() {
     },
     refetchInterval: 5000,
     staleTime: 0,
-    cacheTime: 0,
+    gcTime: 0,
     enabled: canAccessDealerships
   });
 
