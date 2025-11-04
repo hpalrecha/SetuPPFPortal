@@ -72,6 +72,89 @@ export class AuthService {
       return null;
     }
 
+    // Auto-sync organization contact info to user on login (for DEALERSHIP_ADMIN and SHOWROOM_MANAGER)
+    if ((user.role === 'DEALERSHIP_ADMIN' || user.role === 'SHOWROOM_MANAGER') && 
+        (user.dealershipId || user.showroomId)) {
+      try {
+        let shouldUpdateUser = false;
+        const userUpdates: any = {};
+        
+        if (user.role === 'DEALERSHIP_ADMIN' && user.dealershipId) {
+          const dealership = await storage.getDealership(user.dealershipId);
+          if (dealership) {
+            // Sync contact email
+            if (dealership.contactEmail && dealership.contactEmail !== user.email) {
+              userUpdates.email = dealership.contactEmail;
+              userUpdates.emailVerified = true;
+              shouldUpdateUser = true;
+            }
+            // Sync contact phone
+            if (dealership.contactPhone && dealership.contactPhone !== user.phone) {
+              userUpdates.phone = dealership.contactPhone;
+              userUpdates.phoneVerified = true;
+              shouldUpdateUser = true;
+            }
+            
+            // Check if all required fields are filled, mark profile as complete
+            const hasAllRequiredFields = 
+              dealership.contactEmail && 
+              dealership.contactPhone && 
+              dealership.contactPersonName && 
+              dealership.address && 
+              dealership.city && 
+              dealership.state && 
+              dealership.pincode;
+            
+            if (hasAllRequiredFields && !user.profileCompleted) {
+              userUpdates.profileCompleted = true;
+              shouldUpdateUser = true;
+            }
+          }
+        } else if (user.role === 'SHOWROOM_MANAGER' && user.showroomId) {
+          const showroom = await storage.getShowroom(user.showroomId);
+          if (showroom) {
+            // Sync contact email
+            if (showroom.contactEmail && showroom.contactEmail !== user.email) {
+              userUpdates.email = showroom.contactEmail;
+              userUpdates.emailVerified = true;
+              shouldUpdateUser = true;
+            }
+            // Sync contact phone
+            if (showroom.contactPhone && showroom.contactPhone !== user.phone) {
+              userUpdates.phone = showroom.contactPhone;
+              userUpdates.phoneVerified = true;
+              shouldUpdateUser = true;
+            }
+            
+            // Check if all required fields are filled, mark profile as complete
+            const hasAllRequiredFields = 
+              showroom.contactEmail && 
+              showroom.contactPhone && 
+              showroom.contactPersonName && 
+              showroom.address && 
+              showroom.city && 
+              showroom.state && 
+              showroom.pincode;
+            
+            if (hasAllRequiredFields && !user.profileCompleted) {
+              userUpdates.profileCompleted = true;
+              shouldUpdateUser = true;
+            }
+          }
+        }
+        
+        if (shouldUpdateUser) {
+          await storage.updateUser(user.id, userUpdates);
+          // Update the user object with synced values for the auth response
+          user = { ...user, ...userUpdates };
+          console.log(`Auto-synced organization contact info to user on login: ${user.username}`);
+        }
+      } catch (syncError) {
+        console.error("Failed to sync organization contact info on login:", syncError);
+        // Don't fail login if sync fails
+      }
+    }
+
     // Check OEM access for tenant isolation
     let allowedOemIds: string[] | undefined;
     
