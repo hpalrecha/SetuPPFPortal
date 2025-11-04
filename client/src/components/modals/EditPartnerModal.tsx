@@ -32,6 +32,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { ApiClient } from "@/lib/api";
+import { INDIAN_STATES } from "@shared/constants";
 
 const partnerSchema = z.object({
   displayName: z.string().min(1, "Partner name is required"),
@@ -443,13 +444,20 @@ export function EditPartnerModal({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>State</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Enter state"
-                          {...field}
-                          data-testid="input-state"
-                        />
-                      </FormControl>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-state">
+                            <SelectValue placeholder="Select state" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {INDIAN_STATES.map((stateName) => (
+                            <SelectItem key={stateName} value={stateName}>
+                              {stateName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -522,13 +530,20 @@ export function EditPartnerModal({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>State (Optional)</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Enter state"
-                          {...field}
-                          data-testid="input-billing-state"
-                        />
-                      </FormControl>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-billing-state">
+                            <SelectValue placeholder="Select state" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {INDIAN_STATES.map((stateName) => (
+                            <SelectItem key={stateName} value={stateName}>
+                              {stateName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
