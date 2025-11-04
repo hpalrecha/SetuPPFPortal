@@ -771,10 +771,17 @@ export default function VehiclesPage() {
           </DialogHeader>
           <Form {...modelForm}>
             <form onSubmit={modelForm.handleSubmit(data => {
+              // Transform empty strings to undefined for optional fields
+              const cleanedData = {
+                ...data,
+                vehicleType: data.vehicleType || undefined,
+                ppfQtyConsumption: data.ppfQtyConsumption || undefined
+              };
+              
               if (editingModel) {
-                updateModelMutation.mutate({ id: editingModel.id, data });
+                updateModelMutation.mutate({ id: editingModel.id, data: cleanedData });
               } else {
-                createModelMutation.mutate(data);
+                createModelMutation.mutate(cleanedData);
               }
             })} className="space-y-4">
               <FormField
