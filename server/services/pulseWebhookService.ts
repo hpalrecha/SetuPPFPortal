@@ -8,10 +8,13 @@ interface PulseWebhookPayload {
   action: 'activate' | 'deactivate';
   user: {
     name: string; // Partner business name (from Pulse)
+    username?: string; // Username (from Pulse - not used)
     contactPersonName?: string; // Contact person name (optional)
     email: string; // Partner/User email
-    mobile?: string; // Partner/User phone
+    phone?: string; // Partner/User phone (Pulse sends "phone")
+    mobile?: string; // Partner/User phone (alternative field name)
     role: 'STUDIO' | 'INSTALLER'; // Partner type (from Pulse)
+    partnerId?: string; // Partner ID from Pulse (not used)
     address?: string; // Partner address (optional)
     city?: string; // Partner city (optional)
     state?: string; // Partner state (optional)
@@ -100,11 +103,14 @@ export class PulseWebhookService {
       );
 
       // Prepare partner data with all contact details
+      // Handle both "phone" and "mobile" field names from different sources
+      const phoneNumber = userData.phone || userData.mobile;
+      
       const partnerData: any = {
         type: userData.role,
         active: true,
         email: userData.email,
-        phone: userData.mobile,
+        phone: phoneNumber,
         contactPersonName: userData.contactPersonName,
         address: userData.address,
         city: userData.city,
@@ -125,7 +131,7 @@ export class PulseWebhookService {
 
         console.log(`✅ Partner updated: ${userData.name} (${existingPartner.id})`, {
           email: userData.email,
-          phone: userData.mobile,
+          phone: phoneNumber,
           contactPerson: userData.contactPersonName
         });
         return existingPartner.id;
@@ -147,7 +153,7 @@ export class PulseWebhookService {
         diffJson: {
           displayName: userData.name,
           email: userData.email,
-          phone: userData.mobile,
+          phone: phoneNumber,
           contactPersonName: userData.contactPersonName,
           type: userData.role,
           source: 'pulse_webhook'
@@ -156,7 +162,7 @@ export class PulseWebhookService {
 
       console.log(`✅ Partner created: ${userData.name} (${newPartner.id})`, {
         email: userData.email,
-        phone: userData.mobile,
+        phone: phoneNumber,
         contactPerson: userData.contactPersonName,
         address: userData.address,
         city: userData.city
@@ -184,6 +190,9 @@ export class PulseWebhookService {
     const userName = payload.user.contactPersonName || 
       payload.user.email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
+    // Handle both "phone" and "mobile" field names
+    const phoneNumber = payload.user.phone || payload.user.mobile;
+
     if (existingUser) {
       // User exists - activate if inactive
       if (existingUser.isActive) {
@@ -198,7 +207,7 @@ export class PulseWebhookService {
       // Activate existing user
       await storage.updateUser(existingUser.id, {
         isActive: true,
-        phone: payload.user.mobile,
+        phone: phoneNumber,
         role: 'PARTNER_ADMIN', // Default role for Pulse users
         partnerId
       });
@@ -236,7 +245,7 @@ export class PulseWebhookService {
       username,
       email: payload.user.email,
       name: userName,
-      phone: payload.user.mobile,
+      phone: phoneNumber,
       role: 'PARTNER_ADMIN', // Default role for Pulse users
       partnerId,
       passwordHash,
