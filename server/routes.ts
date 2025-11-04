@@ -1013,7 +1013,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           skip_empty_lines: true,
           trim: true,
           relax_quotes: true
-        });
+        }) as Record<string, string>[];
         
         if (records.length === 0) {
           return res.status(400).json({ error: "CSV file is empty or has no data rows" });
@@ -1431,7 +1431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           skip_empty_lines: true,
           trim: true,
           relax_quotes: true
-        });
+        }) as Record<string, string>[];
         
         if (records.length === 0) {
           return res.status(400).json({ error: "CSV file is empty or has no data rows" });
