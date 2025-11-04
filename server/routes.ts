@@ -1621,37 +1621,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Showroom not found" });
         }
         
-        // Auto-sync contact info to showroom manager user if contactEmail or contactPhone were updated
-        if (showroomData.contactEmail || showroomData.contactPhone) {
-          try {
-            // Find the showroom manager user
-            const showroomManagers = await storage.getUsersByShowroom(id);
-            const showroomManager = showroomManagers.find(u => u.role === 'SHOWROOM_MANAGER');
+        // Auto-sync contact info to showroom manager user and mark profile as complete if all details are filled
+        try {
+          // Find the showroom manager user
+          const showroomManagers = await storage.getUsersByShowroom(id);
+          const showroomManager = showroomManagers.find(u => u.role === 'SHOWROOM_MANAGER');
+          
+          if (showroomManager) {
+            const updateData: any = {};
             
-            if (showroomManager) {
-              const updateData: any = {};
-              
-              // Sync contactEmail to user's email if provided
-              if (showroomData.contactEmail) {
-                updateData.email = showroomData.contactEmail;
-                updateData.emailVerified = true;
-              }
-              
-              // Sync contactPhone to user's phone if provided
-              if (showroomData.contactPhone) {
-                updateData.phone = showroomData.contactPhone;
-                updateData.phoneVerified = true;
-              }
-              
-              if (Object.keys(updateData).length > 0) {
-                await storage.updateUser(showroomManager.id, updateData);
-                console.log(`Auto-synced contact info to showroom manager user: ${showroomManager.username}`);
-              }
+            // Sync contactEmail to user's email if provided
+            if (showroomData.contactEmail !== undefined) {
+              updateData.email = showroomData.contactEmail;
+              updateData.emailVerified = !!showroomData.contactEmail;
             }
-          } catch (syncError) {
-            console.error("Failed to sync contact info to showroom manager:", syncError);
-            // Don't fail the showroom update if sync fails
+            
+            // Sync contactPhone to user's phone if provided
+            if (showroomData.contactPhone !== undefined) {
+              updateData.phone = showroomData.contactPhone;
+              updateData.phoneVerified = !!showroomData.contactPhone;
+            }
+            
+            // Check if all required fields are now filled in the showroom
+            const hasAllRequiredFields = 
+              showroom.contactEmail && 
+              showroom.contactPhone && 
+              showroom.contactPersonName && 
+              showroom.address && 
+              showroom.city && 
+              showroom.state && 
+              showroom.pincode;
+            
+            // If all required fields are filled, mark profile as complete
+            if (hasAllRequiredFields) {
+              updateData.profileCompleted = true;
+            }
+            
+            if (Object.keys(updateData).length > 0) {
+              await storage.updateUser(showroomManager.id, updateData);
+              console.log(`Auto-synced contact info to showroom manager user: ${showroomManager.username}`, 
+                hasAllRequiredFields ? '(Profile marked as complete)' : '');
+            }
           }
+        } catch (syncError) {
+          console.error("Failed to sync contact info to showroom manager:", syncError);
+          // Don't fail the showroom update if sync fails
         }
         
         // Create admin user if requested (for creating new showroom with manager)
