@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiClient } from "@/lib/api";
 import { CreateUserModal } from "@/components/modals/CreateUserModal";
+import { INDIAN_STATES } from "@shared/constants";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -685,13 +686,21 @@ export default function SettingsPage() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                         <div className="space-y-2">
                           <Label htmlFor="billToState">Billing State</Label>
-                          <Input
-                            id="billToState"
-                            value={profileData.billToState}
-                            onChange={(e) => setProfileData(prev => ({ ...prev, billToState: e.target.value }))}
-                            placeholder="Enter billing state"
-                            data-testid="input-bill-to-state"
-                          />
+                          <Select 
+                            value={profileData.billToState} 
+                            onValueChange={(value) => setProfileData(prev => ({ ...prev, billToState: value }))}
+                          >
+                            <SelectTrigger data-testid="select-bill-to-state">
+                              <SelectValue placeholder="Select state" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {INDIAN_STATES.map((stateName) => (
+                                <SelectItem key={stateName} value={stateName}>
+                                  {stateName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="billToPincode">Billing Pincode</Label>
