@@ -25,6 +25,14 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { INDIAN_STATES } from "@shared/constants";
 
 const oemSchema = z.object({
   name: z.string().min(1, "OEM name is required"),
@@ -418,13 +426,20 @@ export function CreateOEMModal({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>State</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="State"
-                        {...field}
-                        data-testid="input-bill-to-state"
-                      />
-                    </FormControl>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-bill-to-state">
+                          <SelectValue placeholder="Select state" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {INDIAN_STATES.map((stateName) => (
+                          <SelectItem key={stateName} value={stateName}>
+                            {stateName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
