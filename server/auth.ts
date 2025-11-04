@@ -144,9 +144,11 @@ export class AuthService {
         }
         
         if (shouldUpdateUser) {
-          await storage.updateUser(user.id, userUpdates);
+          const updatedUser = await storage.updateUser(user.id, userUpdates);
           // Update the user object with synced values for the auth response
-          user = { ...user, ...userUpdates };
+          if (updatedUser) {
+            user = updatedUser;
+          }
           console.log(`Auto-synced organization contact info to user on login: ${user.username}`);
         }
       } catch (syncError) {
@@ -282,7 +284,11 @@ export class AuthService {
   }): Promise<User> {
     const hashedPassword = await this.hashPassword(userData.password);
     
+    // Auto-generate username from email
+    const username = userData.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+    
     return storage.createUser({
+      username,
       email: userData.email,
       passwordHash: hashedPassword,
       name: userData.name,
