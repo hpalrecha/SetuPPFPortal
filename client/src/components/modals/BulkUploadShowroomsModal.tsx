@@ -78,17 +78,7 @@ export function BulkUploadShowroomsModal({
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('/api/showrooms/bulk-upload', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Upload failed');
-      }
-
+      const response = await apiRequest('POST', '/api/showrooms/bulk-upload', formData);
       const result = await response.json();
       setUploadResult(result);
 
