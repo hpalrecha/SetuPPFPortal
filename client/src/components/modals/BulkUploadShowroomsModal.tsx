@@ -29,10 +29,18 @@ export function BulkUploadShowroomsModal({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      if (selectedFile.type !== 'text/csv' && !selectedFile.name.endsWith('.csv')) {
+      const isValidFile = 
+        selectedFile.type === 'text/csv' || 
+        selectedFile.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        selectedFile.type === 'application/vnd.ms-excel' ||
+        selectedFile.name.endsWith('.csv') || 
+        selectedFile.name.endsWith('.xlsx') || 
+        selectedFile.name.endsWith('.xls');
+      
+      if (!isValidFile) {
         toast({
           title: "Invalid File",
-          description: "Please upload a CSV file",
+          description: "Please upload a CSV or Excel file (.csv, .xls, .xlsx)",
           variant: "destructive",
         });
         return;
@@ -57,7 +65,7 @@ export function BulkUploadShowroomsModal({
     if (!file) {
       toast({
         title: "No File Selected",
-        description: "Please select a CSV file to upload",
+        description: "Please select a CSV or Excel file to upload",
         variant: "destructive",
       });
       return;
@@ -96,7 +104,7 @@ export function BulkUploadShowroomsModal({
     } catch (error: any) {
       toast({
         title: "Upload Failed",
-        description: error.message || "Failed to upload CSV file",
+        description: error.message || "Failed to upload file",
         variant: "destructive",
       });
     } finally {
@@ -122,10 +130,10 @@ export function BulkUploadShowroomsModal({
           <div className="space-y-4">
             <h3 className="text-sm font-medium">Instructions:</h3>
             <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-              <li>Download the CSV template with 24 columns</li>
+              <li>Download the CSV template with 24 columns (or create an Excel file with same columns)</li>
               <li><strong>Required:</strong> username, showroom_name, dealership_code</li>
               <li><strong>Optional:</strong> manager_name, email, phone, address, city, state, pincode, oe_dealer_code, parent_code, oem_region, bill_directly_to_showroom (true/false), bill_to_address, bill_to_city, bill_to_state, bill_to_pincode, bill_to_gstin, ship_to_address, ship_to_city, ship_to_state, ship_to_pincode, ship_to_gstin</li>
-              <li>Upload the completed CSV file</li>
+              <li>Upload the completed CSV or Excel file (.csv, .xls, .xlsx)</li>
               <li>Passwords will be auto-generated as: <code className="bg-muted px-1 rounded">username@123</code></li>
             </ol>
 
@@ -144,7 +152,7 @@ export function BulkUploadShowroomsModal({
             <div className="border-2 border-dashed rounded-lg p-8 text-center">
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.xls,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
                 onChange={handleFileChange}
                 className="hidden"
                 id="csv-upload"
@@ -165,10 +173,10 @@ export function BulkUploadShowroomsModal({
                 ) : (
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-foreground">
-                      Click to upload CSV file
+                      Click to upload CSV or Excel file
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      or drag and drop
+                      or drag and drop (.csv, .xls, .xlsx)
                     </p>
                   </div>
                 )}
