@@ -78,25 +78,36 @@ export function BulkUploadShowroomsModal({
       const formData = new FormData();
       formData.append('file', file);
 
-      const result = await apiRequest('POST', '/api/showrooms/bulk-upload', formData, {
-        headers: {
-          // Don't set Content-Type, let browser set it with boundary
-        },
+      const response = await fetch('/api/showrooms/bulk-upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
       });
 
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Upload failed');
+      }
+
+      const result = await response.json();
       setUploadResult(result);
 
-      if (result.success > 0) {
+      if (result.success > 0 && result.failed === 0) {
         toast({
           title: "Upload Successful",
           description: `Successfully created ${result.success} showroom(s)`,
         });
         onSuccess();
-      }
-
-      if (result.failed > 0) {
+      } else if (result.success > 0 && result.failed > 0) {
         toast({
           title: "Partial Upload",
+          description: `${result.success} showroom(s) created, ${result.failed} failed. Check details below.`,
+          variant: "default",
+        });
+        onSuccess();
+      } else if (result.failed > 0) {
+        toast({
+          title: "Upload Failed",
           description: `${result.failed} showroom(s) failed to create. Check errors below.`,
           variant: "destructive",
         });
