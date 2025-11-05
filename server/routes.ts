@@ -1467,6 +1467,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "File is empty or has no data rows" });
         }
         
+        console.log(`📊 Bulk upload: Parsed ${records.length} showroom records`);
+        console.log('📋 First record sample:', records[0]);
+        console.log('📋 Column headers:', Object.keys(records[0] || {}));
+        
         const results = {
           success: 0,
           failed: 0,
@@ -1619,6 +1623,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        console.log(`✅ Bulk upload complete: ${results.success} success, ${results.failed} failed`);
+        if (results.errors.length > 0) {
+          console.log('❌ Errors:', results.errors);
+        }
+        
         res.json(results);
       } catch (error: any) {
         console.error("Bulk upload error:", error);
