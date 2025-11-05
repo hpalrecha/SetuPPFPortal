@@ -1539,16 +1539,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
               continue;
             }
 
-            // Find dealership by username
-            const dealershipUser = await storage.getUserByUsername(normalizedDealershipCode);
-            if (!dealershipUser || !dealershipUser.dealershipId) {
-              results.errors.push(`Row ${i + 2}: Dealership '${dealershipCode}' not found`);
+            // Find dealership by username (now stored in dealerships table)
+            const dealerships = await storage.getDealerships();
+            const dealership = dealerships.find(d => d.username === normalizedDealershipCode);
+            if (!dealership) {
+              results.errors.push(`Row ${i + 2}: Dealership with username '${dealershipCode}' not found`);
               results.failed++;
               continue;
             }
 
-            const dealershipId = dealershipUser.dealershipId;
-            const oemId = dealershipUser.oemId;
+            const dealershipId = dealership.id;
+            
+            // Get OEM from dealership mapping
+            const dealershipOems = await storage.getDealershipOems(dealershipId);
+            if (dealershipOems.length === 0) {
+              results.errors.push(`Row ${i + 2}: Dealership '${dealershipCode}' has no OEM mapping`);
+              results.failed++;
+              continue;
+            }
+            const oemId = dealershipOems[0];
 
             // Generate auto password: username@123
             const autoPassword = `${normalizedUsername}@123`;
