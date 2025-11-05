@@ -1097,6 +1097,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const dealership = await storage.createDealership({
               name: dealershipName, // Use dealership name from CSV
               code: dealershipCode,
+              username: normalizedUsername, // Store username in dealership table for easy lookup
               contactPersonName: dealershipName,
               contactEmail: '', // Initialize as empty string to allow editing later
               contactPhone: '',
