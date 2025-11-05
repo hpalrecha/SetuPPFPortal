@@ -3,11 +3,12 @@
 Pulse VAS is a multi-tenant web application designed for managing Paint Protection Film (PPF) installation orders within the automotive industry. It connects Vehicle OEMs, dealerships, showrooms, and installation partners, offering a complete workflow management system with features like real-time tracking, automated pricing, and commission management. The platform supports various user roles, providing role-specific dashboards and permissions to streamline work order lifecycles, track job cards, manage partner allocations, and handle complex billing and commission structures.
 
 ## Recent Changes (November 4, 2025)
-- **CSV Bulk Upload Fix**: Fixed CSV bulk upload to properly handle quoted fields with commas:
-  - Installed csv-parse library for robust CSV parsing
-  - Updated dealership bulk upload endpoint to use csv-parse with proper quote and comma handling
-  - Updated showroom bulk upload endpoint to use csv-parse with proper quote and comma handling
-  - CSV headers now use snake_case format (e.g., showroom_name, dealership_code, oe_dealer_code)
+- **CSV/Excel Bulk Upload Enhancement**: Enhanced bulk upload to support both CSV and Excel files:
+  - Installed csv-parse library for robust CSV parsing with proper quote and comma handling
+  - Updated dealership and showroom bulk upload endpoints to accept .csv, .xls, and .xlsx files
+  - Auto-detects file type and parses accordingly (CSV with csv-parse, Excel with XLSX library)
+  - CSV headers use snake_case format (e.g., showroom_name, dealership_code, oe_dealer_code)
+  - Excel files use same snake_case column headers in first row
   - Properly handles address fields with multiple commas (e.g., "VPO Gobindgarh,,,,Abohr,Punjab,152117")
 - **Pulse Webhook Enhancement**: Enhanced webhook to properly capture all partner contact details:
   - Fixed partner entity creation to include email, phone, contact person name, address, city, state, pincode, GSTIN, and PAN

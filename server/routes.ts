@@ -993,7 +993,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // Bulk Upload Dealerships from CSV
+  // Bulk Upload Dealerships from CSV/Excel
   app.post("/api/dealerships/bulk-upload",
     authenticate,
     requireRole(['SUPER_ADMIN']),
@@ -1005,18 +1005,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const fileBuffer = req.file.buffer;
-        const csvContent = fileBuffer.toString('utf-8');
+        let records: Record<string, string>[] = [];
         
-        // Parse CSV with proper handling of quotes and commas
-        const records = parse(csvContent, {
-          columns: true,
-          skip_empty_lines: true,
-          trim: true,
-          relax_quotes: true
-        }) as Record<string, string>[];
+        // Detect file type and parse accordingly
+        const isExcel = req.file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+                        req.file.mimetype === 'application/vnd.ms-excel' ||
+                        req.file.originalname.endsWith('.xlsx') ||
+                        req.file.originalname.endsWith('.xls');
+        
+        if (isExcel) {
+          // Parse Excel file
+          const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          records = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' }) as Record<string, string>[];
+        } else {
+          // Parse CSV with proper handling of quotes and commas
+          const csvContent = fileBuffer.toString('utf-8');
+          records = parse(csvContent, {
+            columns: true,
+            skip_empty_lines: true,
+            trim: true,
+            relax_quotes: true
+          }) as Record<string, string>[];
+        }
         
         if (records.length === 0) {
-          return res.status(400).json({ error: "CSV file is empty or has no data rows" });
+          return res.status(400).json({ error: "File is empty or has no data rows" });
         }
         
         const results = {
@@ -1411,7 +1426,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // Bulk Upload Showrooms from CSV
+  // Bulk Upload Showrooms from CSV/Excel
   app.post("/api/showrooms/bulk-upload",
     authenticate,
     requireRole(['SUPER_ADMIN']),
@@ -1423,18 +1438,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         const fileBuffer = req.file.buffer;
-        const csvContent = fileBuffer.toString('utf-8');
+        let records: Record<string, string>[] = [];
         
-        // Parse CSV with proper handling of quotes and commas
-        const records = parse(csvContent, {
-          columns: true,
-          skip_empty_lines: true,
-          trim: true,
-          relax_quotes: true
-        }) as Record<string, string>[];
+        // Detect file type and parse accordingly
+        const isExcel = req.file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+                        req.file.mimetype === 'application/vnd.ms-excel' ||
+                        req.file.originalname.endsWith('.xlsx') ||
+                        req.file.originalname.endsWith('.xls');
+        
+        if (isExcel) {
+          // Parse Excel file
+          const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          records = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' }) as Record<string, string>[];
+        } else {
+          // Parse CSV with proper handling of quotes and commas
+          const csvContent = fileBuffer.toString('utf-8');
+          records = parse(csvContent, {
+            columns: true,
+            skip_empty_lines: true,
+            trim: true,
+            relax_quotes: true
+          }) as Record<string, string>[];
+        }
         
         if (records.length === 0) {
-          return res.status(400).json({ error: "CSV file is empty or has no data rows" });
+          return res.status(400).json({ error: "File is empty or has no data rows" });
         }
         
         const results = {
