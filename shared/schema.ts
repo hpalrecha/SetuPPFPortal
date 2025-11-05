@@ -119,6 +119,7 @@ export const dealerships = pgTable("dealerships", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   code: text("code").notNull(),
+  username: text("username").unique(),
   oeDealerCode: text("oe_dealer_code"),
   parentCode: text("parent_code"),
   oemRegion: text("oem_region"),
