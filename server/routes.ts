@@ -4817,7 +4817,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Pricing Rules Routes - SUPER_ADMIN ONLY
   app.get("/api/pricing-rules", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
     try {
-      const { partnerId, scopeId, pricingType, dealershipId, detailerId, serviceCategoryId } = req.query;
+      const { partnerId, scopeId, pricingType, dealershipId, detailerId, serviceCategoryId, oemId } = req.query;
       
       const filters: any = {};
       if (partnerId) filters.partnerId = partnerId as string;
@@ -4826,6 +4826,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (dealershipId) filters.dealershipId = dealershipId as string;
       if (detailerId) filters.detailerId = detailerId as string;
       if (serviceCategoryId) filters.serviceCategoryId = serviceCategoryId as string;
+      if (oemId) filters.oemId = oemId as string;
 
       const rules = await storage.getPricingRules(filters);
       res.json(rules);

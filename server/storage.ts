@@ -235,6 +235,7 @@ export interface IStorage {
     pricingType?: string;
     dealershipId?: string;
     detailerId?: string;
+    oemId?: string;
   }): Promise<PricingRule[]>;
   createPricingRule(rule: InsertPricingRule): Promise<PricingRule>;
   updatePricingRule(id: string, updates: Partial<InsertPricingRule>): Promise<PricingRule | undefined>;
@@ -2106,6 +2107,7 @@ export class DatabaseStorage implements IStorage {
     dealershipId?: string;
     detailerId?: string;
     serviceCategoryId?: string;
+    oemId?: string;
   }): Promise<any[]> {
     let query = db.select({
       id: pricingRules.id,
@@ -2115,6 +2117,7 @@ export class DatabaseStorage implements IStorage {
       scopeId: pricingRules.scopeId,
       dealershipId: pricingRules.dealershipId,
       detailerId: pricingRules.detailerId,
+      oemId: pricingRules.oemId,
       vehicleModelId: pricingRules.vehicleModelId,
       vehicleVariantId: pricingRules.vehicleVariantId,
       serviceId: pricingRules.serviceId,
@@ -2128,6 +2131,7 @@ export class DatabaseStorage implements IStorage {
       updatedAt: pricingRules.updatedAt,
       // Join related data
       dealershipName: dealerships.name,
+      oemName: oems.name,
       vehicleModelName: vehicleModels.modelName,
       serviceName: services.name,
       serviceCategoryName: serviceCategories.name,
@@ -2135,6 +2139,7 @@ export class DatabaseStorage implements IStorage {
     })
     .from(pricingRules)
     .leftJoin(dealerships, eq(pricingRules.dealershipId, dealerships.id))
+    .leftJoin(oems, eq(pricingRules.oemId, oems.id))
     .leftJoin(vehicleModels, eq(pricingRules.vehicleModelId, vehicleModels.id))
     .leftJoin(services, eq(pricingRules.serviceId, services.id))
     .leftJoin(serviceCategories, eq(pricingRules.serviceCategoryId, serviceCategories.id))
@@ -2147,6 +2152,7 @@ export class DatabaseStorage implements IStorage {
     if (filters?.dealershipId) conditions.push(eq(pricingRules.dealershipId, filters.dealershipId));
     if (filters?.detailerId) conditions.push(eq(pricingRules.detailerId, filters.detailerId));
     if (filters?.serviceCategoryId) conditions.push(eq(pricingRules.serviceCategoryId, filters.serviceCategoryId));
+    if (filters?.oemId) conditions.push(eq(pricingRules.oemId, filters.oemId));
 
     return await query.where(and(...conditions));
   }
