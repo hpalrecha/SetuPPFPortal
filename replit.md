@@ -2,7 +2,18 @@
 
 Pulse VAS is a multi-tenant web application designed for managing Paint Protection Film (PPF) installation orders within the automotive industry. It connects Vehicle OEMs, dealerships, showrooms, and installation partners, offering a complete workflow management system with features like real-time tracking, automated pricing, and commission management. The platform supports various user roles, providing role-specific dashboards and permissions to streamline work order lifecycles, track job cards, manage partner allocations, and handle complex billing and commission structures.
 
-## Recent Changes (November 4, 2025)
+## Recent Changes (November 6, 2025)
+- **Pagination Implementation**: Added pagination to dealerships and showrooms pages to dramatically improve load performance:
+  - Backend: Updated getDealerships and getShowrooms storage methods to support limit/offset parameters
+  - Backend: API endpoints now return `{ dealerships/showrooms: [], total: number }` instead of just arrays
+  - Backend: Added database indexes on state, city, dealershipId, and oemId columns for faster queries
+  - Frontend: Added pagination controls (previous/next buttons, page selector, items per page dropdown)
+  - Frontend: Default page size is 20 items, configurable to 10, 20, 50, or 100 per page
+  - Frontend: Optimized React Query settings (reduced refetch intervals, added 30s staleTime for better caching)
+  - Performance: Pages now load only 20 records at a time instead of fetching all data upfront
+  - Showroom DELETE endpoint: Added missing DELETE `/api/showrooms/:id` endpoint with SUPER_ADMIN/OEM_ADMIN role restrictions
+
+## Previous Changes (November 4, 2025)
 - **CSV/Excel Bulk Upload Enhancement**: Enhanced bulk upload to support both CSV and Excel files:
   - Installed csv-parse library for robust CSV parsing with proper quote and comma handling
   - Updated dealership and showroom bulk upload endpoints to accept .csv, .xls, and .xlsx files
