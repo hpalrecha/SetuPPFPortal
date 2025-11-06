@@ -117,14 +117,15 @@ export class WorkOrderService {
   }
 
   async createWorkOrder(data: InsertWorkOrder, userId: string): Promise<WorkOrder> {
-    // 💰 Calculate estimated price from pricing rules
+    // 💰 Calculate estimated price from pricing rules (with OEM fallback)
     let estimatedPrice = 0;
     try {
       const pricingResult = await pricingService.calculateWorkOrderPrice(
         data.dealershipId,
         data.vehicleModelId,
         data.serviceId,
-        data.quantity || 1
+        data.quantity || 1,
+        data.oemId
       );
       
       if (pricingResult.ruleFound) {
@@ -306,12 +307,13 @@ export class WorkOrderService {
       throw new Error('Work order must be in PENDING, SUBMITTED or ASSIGNED status to assign');
     }
 
-    // Get DEALERSHIP_PRICING for job card billing value (what dealership pays)
+    // Get DEALERSHIP_PRICING for job card billing value (what dealership pays, with OEM fallback)
     const pricingResult = await pricingService.calculateWorkOrderPrice(
       workOrder.dealershipId,
       workOrder.vehicleModelId,
       workOrder.serviceId,
-      1
+      1,
+      workOrder.oemId
     );
     
     const pricing = pricingResult.ruleFound ? { priceAmount: pricingResult.price } : null;

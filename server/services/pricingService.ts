@@ -171,42 +171,45 @@ export class PricingService {
   }
 
   /**
-   * Calculate estimated price for a work order based on DEALERSHIP_PRICING rules
+   * Calculate estimated price for a work order based on DEALERSHIP_PRICING and OEM_PRICING rules
    * This is specifically for work order creation, not partner pricing
+   * Hierarchy: DEALERSHIP_PRICING → OEM_PRICING
    */
   async calculateWorkOrderPrice(
     dealershipId: string,
     vehicleModelId: string,
     serviceId: string,
-    quantity: number = 1
+    quantity: number = 1,
+    oemId?: string
   ): Promise<{ price: number; ruleFound: boolean; source?: string; rule?: any }> {
     try {
       console.log(`💰 Calculating work order price:`, {
         dealershipId,
+        oemId,
         vehicleModelId,
         serviceId,
         quantity
       });
 
-      // Look for DEALERSHIP_PRICING rule
+      // Priority 1: Look for DEALERSHIP_PRICING rule
       const dealershipRules = await storage.getPricingRules({
         pricingType: 'DEALERSHIP_PRICING',
         dealershipId
       });
 
       // Find rule that matches vehicle model and service
-      const matchingRule = dealershipRules.find(rule => 
+      const dealershipMatchingRule = dealershipRules.find(rule => 
         rule.vehicleModelId === vehicleModelId && 
         rule.serviceId === serviceId &&
         rule.status === 'ACTIVE'
       );
 
-      if (matchingRule) {
-        const totalPrice = Number(matchingRule.priceAmount) * quantity;
+      if (dealershipMatchingRule) {
+        const totalPrice = Number(dealershipMatchingRule.priceAmount) * quantity;
         
         console.log(`✅ Found dealership pricing rule:`, {
-          ruleId: matchingRule.id,
-          priceAmount: matchingRule.priceAmount,
+          ruleId: dealershipMatchingRule.id,
+          priceAmount: dealershipMatchingRule.priceAmount,
           quantity,
           totalPrice
         });
@@ -215,11 +218,48 @@ export class PricingService {
           price: totalPrice,
           ruleFound: true,
           source: 'DEALERSHIP_PRICING',
-          rule: matchingRule
+          rule: dealershipMatchingRule
         };
       }
 
-      console.log(`❌ No dealership pricing rule found for service ${serviceId} and vehicle ${vehicleModelId}`);
+      console.log(`⚠️ No dealership pricing rule found, checking OEM pricing...`);
+
+      // Priority 2: Fall back to OEM_PRICING rule if oemId is provided
+      if (oemId) {
+        const oemRules = await storage.getPricingRules({
+          pricingType: 'OEM_PRICING',
+          oemId
+        });
+
+        // Find rule that matches vehicle model and service
+        const oemMatchingRule = oemRules.find(rule => 
+          rule.vehicleModelId === vehicleModelId && 
+          rule.serviceId === serviceId &&
+          rule.status === 'ACTIVE'
+        );
+
+        if (oemMatchingRule) {
+          const totalPrice = Number(oemMatchingRule.priceAmount) * quantity;
+          
+          console.log(`✅ Found OEM pricing rule (fallback):`, {
+            ruleId: oemMatchingRule.id,
+            priceAmount: oemMatchingRule.priceAmount,
+            quantity,
+            totalPrice
+          });
+
+          return {
+            price: totalPrice,
+            ruleFound: true,
+            source: 'OEM_PRICING',
+            rule: oemMatchingRule
+          };
+        }
+
+        console.log(`❌ No OEM pricing rule found either`);
+      }
+
+      console.log(`❌ No pricing rule found for service ${serviceId} and vehicle ${vehicleModelId}`);
       
       return {
         price: 0,
