@@ -423,6 +423,42 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
               )}
             </div>
 
+            {/* Pre-Installation Required Notice */}
+            {needsPreInstallation && (
+              <Card className="border-2 border-indigo-200 bg-indigo-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base text-indigo-800 flex items-center gap-2">
+                    <Camera className="h-5 w-5" />
+                    Pre-Installation Photos Required
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-indigo-700">
+                    Before starting the installation work, you must upload 4 photos of the vehicle (Front, Back, Left Side, Right Side) to document its pre-installation condition.
+                    Click the "Pre-Installation Photos" button above to upload the required photos.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Pre-Installation Completed Notice */}
+            {hasPreInstallationPhotos && jobCard?.preInstallationCompletedAt && (
+              <Card className="border-2 border-green-200 bg-green-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base text-green-800 flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5" />
+                    Pre-Installation Inspection Completed
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-green-700">
+                    Pre-installation photos were uploaded on {format(new Date(jobCard.preInstallationCompletedAt), 'PPp')}. 
+                    You can now proceed to start the installation work.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Rework Information */}
             {needsRework && jobCard?.reworkReason && (
               <Card className="border-2 border-yellow-200 bg-yellow-50">
