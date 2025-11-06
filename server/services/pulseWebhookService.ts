@@ -370,10 +370,10 @@ export class PulseWebhookService {
         resetTokenExpiry
       });
 
-      // Get domain for reset link
-      const domain = process.env.REPLIT_DEV_DOMAIN 
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : 'http://localhost:5000';
+      // Get domain for reset link - use PRODUCTION_URL first
+      const domain = process.env.PRODUCTION_URL 
+        || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null)
+        || 'http://localhost:5000';
 
       const resetLink = `${domain}/reset-password?token=${resetToken}`;
 
