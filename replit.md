@@ -19,6 +19,7 @@ The application uses the P91 Brand Theme with a Brand Green primary color, Oxani
 ## Feature Specifications
 - **Work Order Management**: Full lifecycle management, including approvals.
 - **Job Card System**: Real-time status tracking, SLA monitoring, and notifications.
+  - **Pre-Installation Inspection** (Nov 2025): Mandatory photo documentation before starting work. Partners must upload 4 labeled photos (Front, Back, Left Side, Right Side) with optional remarks. Photos are stored in object storage with private ACLs. The "Start Work" button is only enabled after pre-installation inspection is completed.
 - **Partner Allocation**: Priority-based auto-assignment with manual overrides and billing controls.
 - **Pricing Engine**: Hierarchical pricing rules applied at Partner, Showroom, and Dealership levels.
 - **Commission System**: Automated calculations based on percentages/fixed amounts, with caps/floors.

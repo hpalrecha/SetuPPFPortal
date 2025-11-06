@@ -26,7 +26,7 @@ import { whatsappService } from "./services/whatsapp-service";
 import smsService from "./services/sms-service";
 import { notificationService } from "./services/notificationService";
 import { authenticate, requireRole, requireOEMAccess, auditLog } from "./middleware";
-import { ObjectStorageService } from "./objectStorage";
+import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { generateOTP, hashOTP, verifyOTP, getOTPExpiry } from "./utils/otp";
 import multer from "multer";
 import * as XLSX from "xlsx";
@@ -3894,19 +3894,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Normalize and set ACL for all photos
       const normalizedPhotoFront = await objectStorageService.trySetObjectEntityAclPolicy(
         photoFrontUrl,
-        { visibility: "private" }
+        { visibility: "private", owner: req.user!.id }
       );
       const normalizedPhotoBack = await objectStorageService.trySetObjectEntityAclPolicy(
         photoBackUrl,
-        { visibility: "private" }
+        { visibility: "private", owner: req.user!.id }
       );
       const normalizedPhotoLeft = await objectStorageService.trySetObjectEntityAclPolicy(
         photoLeftUrl,
-        { visibility: "private" }
+        { visibility: "private", owner: req.user!.id }
       );
       const normalizedPhotoRight = await objectStorageService.trySetObjectEntityAclPolicy(
         photoRightUrl,
-        { visibility: "private" }
+        { visibility: "private", owner: req.user!.id }
       );
 
       // Update job card with pre-installation data
@@ -6186,6 +6186,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Get upload URL error:", error);
       res.status(500).json({ error: "Failed to get upload URL" });
+    }
+  });
+
+  // Serve object files
+  app.get("/objects/*", authenticate, async (req, res) => {
+    try {
+      const objectPath = req.path;
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+      
+      // Download/serve the file
+      await objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ error: "Object not found" });
+      }
+      console.error("Object download error:", error);
+      res.status(500).json({ error: "Failed to download object" });
     }
   });
 
