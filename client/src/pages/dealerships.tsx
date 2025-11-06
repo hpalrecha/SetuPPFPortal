@@ -28,18 +28,22 @@ export default function DealershipsPage() {
   const [selectedState, setSelectedState] = useState<string>("all");
   const [selectedCity, setSelectedCity] = useState<string>("all");
   const [openCityCombobox, setOpenCityCombobox] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
   
   // Only Super Admin can access dealership management
   const canAccessDealerships = user?.role === 'SUPER_ADMIN';
   
-  const { data: dealerships = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/dealerships", selectedState !== "all" ? selectedState : undefined, selectedCity !== "all" ? selectedCity : undefined],
+  const { data: dealershipData, isLoading } = useQuery<{ dealerships: any[]; total: number }>({
+    queryKey: ["/api/dealerships", selectedState !== "all" ? selectedState : undefined, selectedCity !== "all" ? selectedCity : undefined, currentPage, itemsPerPage],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (selectedState !== "all") params.append('state', selectedState);
       if (selectedCity !== "all") params.append('city', selectedCity);
+      params.append('limit', itemsPerPage.toString());
+      params.append('offset', ((currentPage - 1) * itemsPerPage).toString());
       
-      const response = await fetch(`/api/dealerships${params.toString() ? `?${params.toString()}` : ''}`, {
+      const response = await fetch(`/api/dealerships?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -52,11 +56,13 @@ export default function DealershipsPage() {
       
       return response.json();
     },
-    refetchInterval: 5000,
-    staleTime: 0,
-    gcTime: 0,
+    staleTime: 30000,
     enabled: canAccessDealerships
   });
+
+  const dealerships = dealershipData?.dealerships || [];
+  const totalDealerships = dealershipData?.total || 0;
+  const totalPages = Math.ceil(totalDealerships / itemsPerPage);
 
   // Fetch filter options (states and cities)
   const { data: filterOptions } = useQuery<{ states: Array<{ value: string; count: number }>; cities: Array<{ value: string; count: number }> }>({
@@ -478,6 +484,54 @@ export default function DealershipsPage() {
           ))
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {totalDealerships > 0 && (
+        <div className="flex items-center justify-between px-4 py-4 border-t">
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-muted-foreground">
+              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalDealerships)} of {totalDealerships} dealerships
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Select value={itemsPerPage.toString()} onValueChange={(value) => {
+              setItemsPerPage(parseInt(value));
+              setCurrentPage(1);
+            }}>
+              <SelectTrigger className="w-[100px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10 / page</SelectItem>
+                <SelectItem value="20">20 / page</SelectItem>
+                <SelectItem value="50">50 / page</SelectItem>
+                <SelectItem value="100">100 / page</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              data-testid="button-prev-page"
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground px-2">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              data-testid="button-next-page"
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Create/Edit Dealership Modal */}
       <CreateDealershipModal 
