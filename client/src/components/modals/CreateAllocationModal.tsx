@@ -201,10 +201,10 @@ export function CreateAllocationModal({
   );
 
   // Fetch dealerships
-  const { data: dealerships = [], isLoading: dealershipsLoading } = useQuery({
+  const { data: dealershipsData, isLoading: dealershipsLoading } = useQuery({
     queryKey: ["/api/dealerships"],
     queryFn: async () => {
-      const response = await fetch('/api/dealerships', {
+      const response = await fetch('/api/dealerships?limit=1000', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -217,10 +217,10 @@ export function CreateAllocationModal({
   });
 
   // Fetch showrooms
-  const { data: showrooms = [], isLoading: showroomsLoading } = useQuery({
+  const { data: showroomsData, isLoading: showroomsLoading } = useQuery({
     queryKey: ["/api/showrooms"],
     queryFn: async () => {
-      const response = await fetch('/api/showrooms', {
+      const response = await fetch('/api/showrooms?limit=1000', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -231,6 +231,10 @@ export function CreateAllocationModal({
     },
     enabled: open,
   });
+
+  // Extract arrays from paginated response
+  const dealerships = dealershipsData?.dealerships || [];
+  const showrooms = showroomsData?.showrooms || [];
 
   // Reset form when allocation prop changes
   useEffect(() => {

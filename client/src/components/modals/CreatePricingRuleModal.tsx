@@ -97,10 +97,10 @@ export function CreatePricingRuleModal({
   });
 
   // Fetch dealerships
-  const { data: dealerships = [] } = useQuery({
+  const { data: dealershipsData } = useQuery({
     queryKey: ["/api/dealerships"],
     queryFn: async () => {
-      const response = await fetch('/api/dealerships', {
+      const response = await fetch('/api/dealerships?limit=1000', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -111,6 +111,9 @@ export function CreatePricingRuleModal({
     },
     enabled: open && pricingType === 'DEALERSHIP_PRICING',
   });
+
+  // Extract array from paginated response
+  const dealerships = dealershipsData?.dealerships || [];
 
   // Fetch all partners (both INSTALLER and STUDIO types)
   const { data: detailers = [] } = useQuery({
