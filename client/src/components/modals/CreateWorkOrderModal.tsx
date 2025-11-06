@@ -109,6 +109,7 @@ export function CreateWorkOrderModal({
       return response.json();
     },
     enabled: isSuperAdmin,
+    staleTime: 300000, // Cache for 5 minutes - OEMs rarely change
   });
 
   // Watch OEM selection to fetch dealerships
@@ -126,6 +127,7 @@ export function CreateWorkOrderModal({
       return response.json();
     },
     enabled: isSuperAdmin && !!selectedOemId,
+    staleTime: 300000, // Cache for 5 minutes - dealerships rarely change
   });
   const dealerships = dealershipData?.dealerships || [];
 
@@ -144,6 +146,7 @@ export function CreateWorkOrderModal({
       return response.json();
     },
     enabled: isSuperAdmin && !!selectedDealershipId && !!selectedOemId,
+    staleTime: 300000, // Cache for 5 minutes - showrooms rarely change
   });
   const showrooms = showroomData?.showrooms || [];
 
@@ -161,6 +164,7 @@ export function CreateWorkOrderModal({
       return response.json();
     },
     enabled: isDealershipAdmin && !!user?.dealershipId && !!user?.oemId,
+    staleTime: 300000, // Cache for 5 minutes - showrooms rarely change
   });
   const dealershipShowrooms = dealershipShowroomData?.showrooms || [];
 
@@ -181,6 +185,7 @@ export function CreateWorkOrderModal({
       return response.json();
     },
     enabled: !!finalOemId,
+    staleTime: 300000, // Cache for 5 minutes - vehicle data rarely changes
   });
 
   // Extract vehicle brands from vehicle data
@@ -209,6 +214,7 @@ export function CreateWorkOrderModal({
       return response.json();
     },
     enabled: !!finalOemId,
+    staleTime: 300000, // Cache for 5 minutes - services rarely change
   });
 
   // Fetch sales persons based on selected showroom
@@ -227,6 +233,7 @@ export function CreateWorkOrderModal({
       return response.json();
     },
     enabled: !!finalShowroomId,
+    staleTime: 300000, // Cache for 5 minutes - sales persons rarely change
   });
 
   const onSubmit = async (data: WorkOrderFormData) => {

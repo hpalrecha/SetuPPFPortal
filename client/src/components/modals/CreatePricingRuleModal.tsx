@@ -116,6 +116,7 @@ export function CreatePricingRuleModal({
       return response.json();
     },
     enabled: open && pricingType === 'DEALERSHIP_PRICING',
+    staleTime: 300000, // Cache for 5 minutes - dealerships rarely change
   });
 
   // Extract array from paginated response
@@ -135,6 +136,7 @@ export function CreatePricingRuleModal({
       return response.json();
     },
     enabled: open && pricingType === 'DETAILER_PRICING',
+    staleTime: 300000, // Cache for 5 minutes - partners rarely change
   });
 
   // Fetch OEMs for OEM_PRICING
@@ -167,7 +169,8 @@ export function CreatePricingRuleModal({
       if (!response.ok) throw new Error('Failed to fetch services');
       return response.json();
     },
-    enabled: open && pricingType === 'DEALERSHIP_PRICING',
+    enabled: open && (pricingType === 'DEALERSHIP_PRICING' || pricingType === 'OEM_PRICING'),
+    staleTime: 300000, // Cache for 5 minutes - services rarely change
   });
 
   // Fetch service categories from API (for DETAILER_PRICING)
@@ -184,6 +187,7 @@ export function CreatePricingRuleModal({
       return response.json();
     },
     enabled: open && pricingType === 'DETAILER_PRICING',
+    staleTime: 300000, // Cache for 5 minutes - service categories rarely change
   });
 
   // Get selected dealership's OEM ID for DEALERSHIP_PRICING or use selected OEM for OEM_PRICING
@@ -255,6 +259,7 @@ export function CreatePricingRuleModal({
       return data;
     },
     enabled: open && ((pricingType === 'DEALERSHIP_PRICING' || pricingType === 'OEM_PRICING') ? !!selectedOemId : true),
+    staleTime: 300000, // Cache for 5 minutes - vehicle models rarely change
   });
 
   const onSubmit = async (data: PricingRuleFormData) => {
