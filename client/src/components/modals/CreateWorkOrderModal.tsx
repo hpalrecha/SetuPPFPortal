@@ -113,10 +113,10 @@ export function CreateWorkOrderModal({
 
   // Watch OEM selection to fetch dealerships
   const selectedOemId = form.watch("oemId");
-  const { data: dealerships = [] } = useQuery({
+  const { data: dealershipData } = useQuery<{ dealerships: any[]; total: number }>({
     queryKey: ["/api/dealerships", selectedOemId],
     queryFn: async () => {
-      const response = await fetch(`/api/dealerships?oemId=${selectedOemId}`, {
+      const response = await fetch(`/api/dealerships?oemId=${selectedOemId}&limit=1000`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -127,13 +127,14 @@ export function CreateWorkOrderModal({
     },
     enabled: isSuperAdmin && !!selectedOemId,
   });
+  const dealerships = dealershipData?.dealerships || [];
 
   // Watch dealership selection to fetch showrooms  
   const selectedDealershipId = form.watch("dealershipId");
-  const { data: showrooms = [] } = useQuery({
+  const { data: showroomData } = useQuery<{ showrooms: any[]; total: number }>({
     queryKey: ["/api/showrooms", selectedDealershipId, selectedOemId],
     queryFn: async () => {
-      const response = await fetch(`/api/showrooms?dealershipId=${selectedDealershipId}&oemId=${selectedOemId}`, {
+      const response = await fetch(`/api/showrooms?dealershipId=${selectedDealershipId}&oemId=${selectedOemId}&limit=1000`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -144,12 +145,13 @@ export function CreateWorkOrderModal({
     },
     enabled: isSuperAdmin && !!selectedDealershipId && !!selectedOemId,
   });
+  const showrooms = showroomData?.showrooms || [];
 
   // Fetch showrooms for DEALERSHIP_ADMIN users
-  const { data: dealershipShowrooms = [] } = useQuery({
+  const { data: dealershipShowroomData } = useQuery<{ showrooms: any[]; total: number }>({
     queryKey: ["/api/showrooms", user?.dealershipId, user?.oemId],
     queryFn: async () => {
-      const response = await fetch(`/api/showrooms?dealershipId=${user?.dealershipId}&oemId=${user?.oemId}`, {
+      const response = await fetch(`/api/showrooms?dealershipId=${user?.dealershipId}&oemId=${user?.oemId}&limit=1000`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -160,6 +162,7 @@ export function CreateWorkOrderModal({
     },
     enabled: isDealershipAdmin && !!user?.dealershipId && !!user?.oemId,
   });
+  const dealershipShowrooms = dealershipShowroomData?.showrooms || [];
 
   // Get the OEM ID for vehicle data fetching
   const finalOemId = isSuperAdmin ? selectedOemId : user?.oemId;

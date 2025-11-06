@@ -131,12 +131,12 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
   // Watch scope and OEM selection to fetch dealerships
   const selectedOemId = form.watch('oemId');
   const watchedScope = form.watch('availabilityScope');
-  const { data: dealerships = [] } = useQuery({
+  const { data: dealershipData } = useQuery<{ dealerships: any[]; total: number }>({
     queryKey: ['/api/dealerships', selectedOemId, watchedScope],
     queryFn: async () => {
       const url = watchedScope === 'MULTIPLE_DEALERSHIPS' 
-        ? '/api/dealerships' 
-        : `/api/dealerships?oemId=${selectedOemId}`;
+        ? '/api/dealerships?limit=1000' 
+        : `/api/dealerships?oemId=${selectedOemId}&limit=1000`;
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
@@ -148,6 +148,7 @@ export function EditServiceModal({ open, onOpenChange, service, onSuccess }: Edi
     },
     enabled: isSuperAdmin && open && (watchedScope === 'MULTIPLE_DEALERSHIPS' || !!selectedOemId),
   });
+  const dealerships = dealershipData?.dealerships || [];
 
   const updateServiceMutation = useMutation({
     mutationFn: async (data: ServiceFormData) => {

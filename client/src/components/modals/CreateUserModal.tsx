@@ -73,16 +73,18 @@ export function CreateUserModal({
   });
 
   // Fetch Dealerships
-  const { data: dealerships = [] } = useQuery({
-    queryKey: ["/api/dealerships"],
+  const { data: dealershipData } = useQuery<{ dealerships: any[]; total: number }>({
+    queryKey: ["/api/dealerships?limit=1000"],
     enabled: open && ['DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'SALES_PERSON'].includes(selectedRole),
   });
+  const dealerships = dealershipData?.dealerships || [];
 
   // Fetch Showrooms
-  const { data: showrooms = [] } = useQuery({
-    queryKey: ["/api/showrooms"],
+  const { data: showroomData } = useQuery<{ showrooms: any[]; total: number }>({
+    queryKey: ["/api/showrooms?limit=1000"],
     enabled: open && ['SHOWROOM_MANAGER', 'SALES_PERSON'].includes(selectedRole),
   });
+  const showrooms = showroomData?.showrooms || [];
 
   // Fetch Partners
   const { data: partners = [] } = useQuery({

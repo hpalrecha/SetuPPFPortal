@@ -90,10 +90,10 @@ export function CreateSalesPersonModal({
   }, [salesPerson, open, form]);
 
   // Fetch showrooms
-  const { data: showrooms = [] } = useQuery({
+  const { data: showroomData } = useQuery<{ showrooms: any[]; total: number }>({
     queryKey: ["/api/showrooms"],
     queryFn: async () => {
-      const response = await fetch('/api/showrooms', {
+      const response = await fetch('/api/showrooms?limit=1000', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -104,6 +104,7 @@ export function CreateSalesPersonModal({
     },
     enabled: open,
   });
+  const showrooms = showroomData?.showrooms || [];
 
   const onSubmit = async (data: SalesPersonFormData) => {
     setIsLoading(true);

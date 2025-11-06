@@ -61,8 +61,10 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
 
   // Fetch data for dropdowns
   const { data: oems = [] } = useQuery<any[]>({ queryKey: ["/api/oems"] });
-  const { data: dealerships = [] } = useQuery<any[]>({ queryKey: ["/api/dealerships"] });
-  const { data: showrooms = [] } = useQuery<any[]>({ queryKey: ["/api/showrooms"] });
+  const { data: dealershipData } = useQuery<{ dealerships: any[]; total: number }>({ queryKey: ["/api/dealerships?limit=1000"] });
+  const dealerships = dealershipData?.dealerships || [];
+  const { data: showroomData } = useQuery<{ showrooms: any[]; total: number }>({ queryKey: ["/api/showrooms?limit=1000"] });
+  const showrooms = showroomData?.showrooms || [];
   const { data: salesPersons = [] } = useQuery<any[]>({ queryKey: ["/api/sales-persons"] });
   const { data: services = [] } = useQuery<any[]>({ queryKey: ["/api/services"] });
   const { data: serviceCategories = [] } = useQuery<any[]>({ queryKey: ["/api/service-categories"] });
