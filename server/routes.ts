@@ -697,16 +697,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get counts for each OEM (only for super admins)
       if (req.user?.role === 'SUPER_ADMIN') {
-        const oemsWithCounts = await Promise.all(oems.map(async (oem) => {
-          const dealerships = await storage.getDealerships(oem.id);
-          const showrooms = await storage.getShowrooms(undefined, oem.id);
-          
-          return {
-            ...oem,
-            dealershipsCount: dealerships.length,
-            showroomsCount: showrooms.length
-          };
+        // Optimize: Get all dealerships and showrooms in 2 queries instead of 2*N queries
+        const dealershipsResponse = await storage.getDealerships();
+        const showroomsResponse = await storage.getShowrooms();
+        
+        // Extract arrays from paginated response
+        const allDealerships = dealershipsResponse.dealerships || [];
+        const allShowrooms = showroomsResponse.showrooms || [];
+        
+        // Count by OEM ID in memory
+        const dealershipCountByOem = allDealerships.reduce((acc: Record<string, number>, d: any) => {
+          const oemIds = d.oemIds || (d.oemId ? [d.oemId] : []);
+          oemIds.forEach((oemId: string) => {
+            acc[oemId] = (acc[oemId] || 0) + 1;
+          });
+          return acc;
+        }, {} as Record<string, number>);
+        
+        const showroomCountByOem = allShowrooms.reduce((acc: Record<string, number>, s: any) => {
+          const oemIds = s.oemIds || (s.oemId ? [s.oemId] : []);
+          oemIds.forEach((oemId: string) => {
+            acc[oemId] = (acc[oemId] || 0) + 1;
+          });
+          return acc;
+        }, {} as Record<string, number>);
+        
+        const oemsWithCounts = oems.map(oem => ({
+          ...oem,
+          dealershipsCount: dealershipCountByOem[oem.id] || 0,
+          showroomsCount: showroomCountByOem[oem.id] || 0
         }));
+        
         res.json(oemsWithCounts);
       } else {
         // For partner users, return basic OEM info without counts

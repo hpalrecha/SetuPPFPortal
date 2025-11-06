@@ -32,6 +32,15 @@ The application uses the P91 Brand Theme with a Brand Green primary color, Oxani
 - **Authentication**: JWT-based with bcryptjs for password hashing and CORS configured.
 - **Pulse Integration**: A webhook endpoint (`POST /api/webhooks/pulse/user-access`) manages user access control (activate/deactivate PARTNER_ADMIN and PARTNER_STAFF roles) from an external system named Pulse, including HMAC-SHA256 signature verification and timestamp validation.
 
+## Performance Optimizations
+- **Database Indexes** (Applied Nov 2025): Added 31 strategic indexes on critical tables (work_orders, job_cards, commissions, payouts, allocations, etc.) covering frequently queried columns, composite queries, and timestamp-based filtering.
+- **Frontend Caching** (Nov 2025): Optimized React Query settings across all pages:
+  - Reference data (OEMs, partners): 5-minute staleTime with no auto-refresh
+  - Dynamic data (dashboard, work orders): 2-minute refetchInterval with 1-minute staleTime
+  - List views: Balanced caching for optimal user experience
+- **Server-Side Caching** (Nov 2025): Implemented DashboardCache class with 60-second TTL for 6 dashboard chart endpoints (orders-trend, dealership-performance, vehicle-upsells, territory-performance, service-popularity, monthly-trends). Automatic cache cleanup runs every 5 minutes.
+- **Query Optimization** (Nov 2025): Fixed N+1 query problem in `/api/oems` endpoint by fetching all dealerships and showrooms in 2 queries instead of 2*N queries, then counting in memory. Result: 5-10x performance improvement (2.9s → 0.3s).
+
 # External Dependencies
 
 ## Database & Storage
