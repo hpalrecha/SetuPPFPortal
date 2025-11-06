@@ -840,18 +840,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/dealerships", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN']), async (req, res) => {
     try {
-      const { oemId, state, city } = req.query;
-      const dealerships = await storage.getDealerships({
+      const { oemId, state, city, limit, offset } = req.query;
+      const result = await storage.getDealerships({
         oemId: oemId as string,
         state: state as string,
-        city: city as string
+        city: city as string,
+        limit: limit ? parseInt(limit as string) : undefined,
+        offset: offset ? parseInt(offset as string) : undefined
       });
       
       // Add counts and OEM IDs for each dealership
       const dealershipsWithCounts = await Promise.all(
-        dealerships.map(async (dealership) => {
-          const showrooms = await storage.getShowrooms({ dealershipId: dealership.id });
-          const showroomsCount = showrooms.length;
+        result.dealerships.map(async (dealership) => {
+          const showroomsResult = await storage.getShowrooms({ dealershipId: dealership.id });
+          const showroomsCount = showroomsResult.total;
           
           // Count sales staff for this dealership (users with SALES_PERSON role)
           const salesStaff = await storage.getUsers({ dealershipId: dealership.id, role: 'SALES_PERSON' });
@@ -869,7 +871,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
       );
       
-      res.json(dealershipsWithCounts);
+      res.json({
+        dealerships: dealershipsWithCounts,
+        total: result.total
+      });
     } catch (error) {
       console.error("Get dealerships error:", error);
       res.status(500).json({ error: "Failed to fetch dealerships" });
@@ -1330,14 +1335,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/showrooms", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']), async (req, res) => {
     try {
-      const { dealershipId, oemId, state, city } = req.query;
-      const showrooms = await storage.getShowrooms({
+      const { dealershipId, oemId, state, city, limit, offset } = req.query;
+      const result = await storage.getShowrooms({
         dealershipId: dealershipId as string,
         oemId: oemId as string,
         state: state as string,
-        city: city as string
+        city: city as string,
+        limit: limit ? parseInt(limit as string) : undefined,
+        offset: offset ? parseInt(offset as string) : undefined
       });
-      res.json(showrooms);
+      res.json(result);
     } catch (error) {
       console.error("Get showrooms error:", error);
       res.status(500).json({ error: "Failed to fetch showrooms" });
