@@ -8,12 +8,14 @@ import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { CalendarIcon, ClockIcon, CheckCircle2, PlayCircle, PauseCircle, UploadIcon, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon, Users, Camera } from 'lucide-react';
+import { CalendarIcon, ClockIcon, CheckCircle2, PlayCircle, PauseCircle, UploadIcon, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon, Users, Camera, Eye } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { ImageModal } from '@/components/ui/image-modal';
 import { format } from 'date-fns';
+import { PreInstallationModal } from '@/components/modals/PreInstallationModal';
+import { ViewPreInstallationModal } from '@/components/modals/ViewPreInstallationModal';
 
 interface JobCard {
   id: string;
@@ -33,6 +35,13 @@ interface JobCard {
   reworkRequestedBy?: string;
   reworkCompletedAt?: string;
   reworkCompletedBy?: string;
+  preInstallationPhotoFront?: string;
+  preInstallationPhotoBack?: string;
+  preInstallationPhotoLeft?: string;
+  preInstallationPhotoRight?: string;
+  preInstallationRemarks?: string;
+  preInstallationCompletedAt?: string;
+  preInstallationCompletedBy?: string;
   workOrder: {
     id: string;
     customerName: string;
@@ -93,6 +102,10 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   // Image modal state
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  
+  // Pre-installation modal state
+  const [preInstallationModalOpen, setPreInstallationModalOpen] = useState(false);
+  const [viewPreInstallationModalOpen, setViewPreInstallationModalOpen] = useState(false);
   
   // Material consumption form fields
   const [materialProductName, setMaterialProductName] = useState('');
@@ -288,6 +301,8 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const canStart = jobCard?.status === 'SCHEDULED';
   const canComplete = jobCard?.status === 'IN_PROGRESS';
   const needsRework = jobCard?.status === 'REWORK_REQUESTED';
+  const hasPreInstallationPhotos = !!(jobCard?.preInstallationPhotoFront && jobCard?.preInstallationPhotoBack && jobCard?.preInstallationPhotoLeft && jobCard?.preInstallationPhotoRight);
+  const needsPreInstallation = canStart && !hasPreInstallationPhotos;
 
   const resetForm = () => {
     setCurrentView('details');
@@ -376,10 +391,22 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                   Schedule Visit
                 </Button>
               )}
-              {canStart && (
+              {needsPreInstallation && (
+                <Button onClick={() => setPreInstallationModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-700" data-testid="button-pre-installation">
+                  <Camera className="h-4 w-4 mr-2" />
+                  Pre-Installation Photos
+                </Button>
+              )}
+              {canStart && hasPreInstallationPhotos && (
                 <Button onClick={() => setCurrentView('start')} className="bg-orange-600 hover:bg-orange-700" data-testid="button-start">
                   <PlayCircle className="h-4 w-4 mr-2" />
                   Start Work
+                </Button>
+              )}
+              {hasPreInstallationPhotos && (
+                <Button onClick={() => setViewPreInstallationModalOpen(true)} variant="outline" data-testid="button-view-pre-installation">
+                  <Eye className="h-4 w-4 mr-2" />
+                  View Pre-Installation Photos
                 </Button>
               )}
               {canComplete && (
@@ -963,6 +990,34 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
         initialIndex={selectedImageIndex}
         isOpen={imageModalOpen}
         onClose={() => setImageModalOpen(false)}
+      />
+    )}
+    
+    {/* Pre-Installation Modal */}
+    {jobCardId && (
+      <PreInstallationModal
+        open={preInstallationModalOpen}
+        onOpenChange={setPreInstallationModalOpen}
+        jobCardId={jobCardId}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/job-cards', jobCardId] });
+        }}
+      />
+    )}
+    
+    {/* View Pre-Installation Modal */}
+    {jobCard && hasPreInstallationPhotos && (
+      <ViewPreInstallationModal
+        open={viewPreInstallationModalOpen}
+        onOpenChange={setViewPreInstallationModalOpen}
+        photoFrontUrl={jobCard.preInstallationPhotoFront!}
+        photoBackUrl={jobCard.preInstallationPhotoBack!}
+        photoLeftUrl={jobCard.preInstallationPhotoLeft!}
+        photoRightUrl={jobCard.preInstallationPhotoRight!}
+        remarks={jobCard.preInstallationRemarks}
+        completedAt={jobCard.preInstallationCompletedAt ? new Date(jobCard.preInstallationCompletedAt) : null}
+        completedBy={jobCard.preInstallationCompletedBy}
       />
     )}
     </>
