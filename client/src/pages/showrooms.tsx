@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,9 +35,12 @@ export default function ShowroomsPage() {
   const canAccessShowrooms = user?.role === 'SUPER_ADMIN';
   
   const { data: showroomData, isLoading } = useQuery<{ showrooms: any[]; total: number }>({
-    queryKey: ["/api/showrooms", selectedState !== "all" ? selectedState : undefined, selectedCity !== "all" ? selectedCity : undefined, currentPage, itemsPerPage],
+    queryKey: ["/api/showrooms", searchTerm, selectedOEM !== "all" ? selectedOEM : undefined, selectedDealership !== "all" ? selectedDealership : undefined, selectedState !== "all" ? selectedState : undefined, selectedCity !== "all" ? selectedCity : undefined, currentPage, itemsPerPage],
     queryFn: async () => {
       const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (selectedOEM !== "all") params.append('oemId', selectedOEM);
+      if (selectedDealership !== "all") params.append('dealershipId', selectedDealership);
       if (selectedState !== "all") params.append('state', selectedState);
       if (selectedCity !== "all") params.append('city', selectedCity);
       params.append('limit', itemsPerPage.toString());
@@ -189,18 +192,10 @@ export default function ShowroomsPage() {
     queryClient.invalidateQueries({ queryKey: ["/api/showrooms"] });
   };
 
-  // Filter showrooms based on search term, OEM, and Dealership
-  const filteredShowrooms = showrooms.filter((showroom) => {
-    const searchMatch = searchTerm === "" || 
-      showroom.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      showroom.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      showroom.state?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const oemMatch = selectedOEM === "all" || showroom.oemId === selectedOEM;
-    const dealershipMatch = selectedDealership === "all" || showroom.dealershipId === selectedDealership;
-    
-    return searchMatch && oemMatch && dealershipMatch;
-  });
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedOEM, selectedDealership, selectedState, selectedCity]);
 
   // Show access denied for non-admin users
   if (!canAccessShowrooms) {
@@ -388,20 +383,22 @@ export default function ShowroomsPage() {
         </div>
 
         <div className="text-sm text-muted-foreground">
-          Showing {filteredShowrooms.length} of {showrooms.length} showrooms
+          Showing {showrooms.length} of {totalShowrooms} showrooms
         </div>
       </div>
 
       {/* Showrooms Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredShowrooms.length === 0 ? (
+        {showrooms.length === 0 ? (
           <div className="col-span-full">
             <Card>
               <CardContent className="py-12 text-center">
                 <MapPin className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-foreground mb-2">No Showrooms Found</h3>
                 <p className="text-muted-foreground mb-4">
-                  Add your first showroom to start managing individual locations.
+                  {searchTerm || selectedOEM !== "all" || selectedDealership !== "all" || selectedState !== "all" || selectedCity !== "all" 
+                    ? "No showrooms match your search criteria."
+                    : "Add your first showroom to start managing individual locations."}
                 </p>
                 <Button onClick={handleAddShowroom}>
                   <Plus className="mr-2 h-4 w-4" />
@@ -411,7 +408,7 @@ export default function ShowroomsPage() {
             </Card>
           </div>
         ) : (
-          filteredShowrooms.map((showroom) => (
+          showrooms.map((showroom) => (
             <Card key={showroom.id} data-testid={`card-showroom-${showroom.id}`}>
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
