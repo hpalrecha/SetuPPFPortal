@@ -54,7 +54,7 @@ export default function PricingPage() {
       
       return response.json();
     },
-    refetchInterval: 30000,
+    staleTime: 300000, // Cache for 5 minutes - pricing rules don't change often
     enabled: !!canAccessPricing // Only fetch if user has access
   });
 

@@ -85,7 +85,8 @@ export default function WorkOrdersPage() {
       
       return response.json();
     },
-    refetchInterval: 30000,
+    refetchInterval: 120000, // Refresh every 2 minutes
+    staleTime: 60000, // Consider data fresh for 1 minute
     enabled: currentView === 'list' // Only fetch when in list view
   });
 

@@ -35,7 +35,7 @@ export default function PartnersPage() {
       
       return response.json();
     },
-    refetchInterval: 30000
+    staleTime: 300000 // Cache for 5 minutes - partner data doesn't change often
   });
 
   // Fetch service categories for filtering
@@ -51,6 +51,7 @@ export default function PartnersPage() {
       if (!response.ok) throw new Error('Failed to fetch service categories');
       return response.json();
     },
+    staleTime: 300000 // Cache for 5 minutes - categories don't change often
   });
 
   // Filter partners based on selected filters

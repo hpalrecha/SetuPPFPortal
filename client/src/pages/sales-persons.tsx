@@ -93,7 +93,7 @@ export default function SalesPersonsPage() {
       
       return response.json();
     },
-    refetchInterval: 30000,
+    staleTime: 300000, // Cache for 5 minutes - sales persons don't change often
     enabled: canAccessSalesPersons
   });
 

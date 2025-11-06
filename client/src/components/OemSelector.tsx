@@ -19,7 +19,8 @@ export function OemSelector() {
   // Fetch OEM details for available OEMs
   const { data: oems = [], isLoading } = useQuery<Oem[]>({
     queryKey: ['/api/oems'],
-    enabled: isPartnerUser && availableOems.length > 0
+    enabled: isPartnerUser && availableOems.length > 0,
+    staleTime: 300000 // Cache for 5 minutes - OEM data doesn't change often
   });
 
   // Filter OEMs to only show available ones

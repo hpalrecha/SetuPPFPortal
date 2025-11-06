@@ -70,9 +70,10 @@ export default function DashboardPage() {
     return allowedRoles.includes(effectiveRole || '');
   };
 
-  const { data: metrics, isLoading } = useQuery<DashboardMetrics>({
+  const { data: metrics, isLoading} = useQuery<DashboardMetrics>({
     queryKey: ["/api/dashboard/metrics"],
-    refetchInterval: 30000 // Refresh every 30 seconds
+    refetchInterval: 120000, // Refresh every 2 minutes
+    staleTime: 60000 // Consider data fresh for 1 minute
   });
 
   // Chart data queries
@@ -82,7 +83,8 @@ export default function DashboardPage() {
     revenue: number;
   }[]>({
     queryKey: ["/api/dashboard/charts/orders-trend"],
-    refetchInterval: 60000, // Refresh every 60 seconds
+    refetchInterval: 120000, // Refresh every 2 minutes
+    staleTime: 60000, // Consider data fresh for 1 minute
     enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'])
   });
 
@@ -93,7 +95,8 @@ export default function DashboardPage() {
     growth: number;
   }[]>({
     queryKey: ["/api/dashboard/charts/dealership-performance"],
-    refetchInterval: 60000,
+    refetchInterval: 120000, // Refresh every 2 minutes
+    staleTime: 60000, // Consider data fresh for 1 minute
     enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN'])
   });
 
@@ -104,7 +107,8 @@ export default function DashboardPage() {
     avgValue: number;
   }[]>({
     queryKey: ["/api/dashboard/charts/vehicle-upsells"],
-    refetchInterval: 60000,
+    refetchInterval: 120000, // Refresh every 2 minutes
+    staleTime: 60000, // Consider data fresh for 1 minute
     enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN'])
   });
 
@@ -116,7 +120,8 @@ export default function DashboardPage() {
     revenue: number;
   }[]>({
     queryKey: ["/api/dashboard/charts/territory-performance"],
-    refetchInterval: 60000,
+    refetchInterval: 120000, // Refresh every 2 minutes
+    staleTime: 60000, // Consider data fresh for 1 minute
     enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'])
   });
 
@@ -134,6 +139,7 @@ export default function DashboardPage() {
       return response.json();
     },
     enabled: user?.role === 'DEALERSHIP_ADMIN' && !!user?.dealershipId,
+    staleTime: 300000 // Cache for 5 minutes - dealership data doesn't change often
   });
 
   const { data: myShowroom } = useQuery({
@@ -149,6 +155,7 @@ export default function DashboardPage() {
       return response.json();
     },
     enabled: (user?.role === 'SHOWROOM_MANAGER' || user?.role === 'SALES_PERSON') && !!user?.showroomId,
+    staleTime: 300000 // Cache for 5 minutes - showroom data doesn't change often
   });
 
   const { data: servicePopularity = [] } = useQuery<{
@@ -157,7 +164,8 @@ export default function DashboardPage() {
     color: string;
   }[]>({
     queryKey: ["/api/dashboard/charts/service-popularity"],
-    refetchInterval: 60000,
+    refetchInterval: 120000, // Refresh every 2 minutes
+    staleTime: 60000, // Consider data fresh for 1 minute
     enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'])
   });
 
@@ -168,7 +176,8 @@ export default function DashboardPage() {
     customerSatisfaction: number;
   }[]>({
     queryKey: ["/api/dashboard/charts/monthly-trends"],
-    refetchInterval: 60000,
+    refetchInterval: 120000, // Refresh every 2 minutes
+    staleTime: 60000, // Consider data fresh for 1 minute
     enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER'])
   });
 

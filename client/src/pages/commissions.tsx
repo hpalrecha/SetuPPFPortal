@@ -13,7 +13,7 @@ export default function CommissionsPage() {
   
   const { data: commissionRules = [], isLoading } = useQuery<CommissionRuleWithContext[]>({
     queryKey: ["/api/commission-rules"],
-    refetchInterval: 30000
+    staleTime: 300000 // Cache for 5 minutes - commission rules don't change often
   });
 
   const { data: summaryData, isLoading: summaryLoading } = useQuery<{
@@ -22,7 +22,8 @@ export default function CommissionsPage() {
     avgCommissionRate: number;
   }>({
     queryKey: ['/api/commissions/summary'],
-    refetchInterval: 30000,
+    refetchInterval: 120000, // Refresh every 2 minutes
+    staleTime: 60000 // Consider data fresh for 1 minute
   });
 
   const handleAddCommissionRule = () => {

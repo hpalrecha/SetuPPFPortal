@@ -54,7 +54,7 @@ export default function PartnerStaffPage() {
       return response.json();
     },
     enabled: !!partnerId,
-    refetchInterval: 30000
+    staleTime: 300000 // Cache for 5 minutes - staff data doesn't change often
   });
 
   const handleAddStaff = () => {

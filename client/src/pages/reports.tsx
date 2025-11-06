@@ -19,15 +19,9 @@ export default function ReportsPage() {
     customerSatisfaction: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
   }>({
     queryKey: ['/api/reports/metrics'],
-    refetchInterval: 30000,
+    refetchInterval: 120000, // Refresh every 2 minutes
+    staleTime: 60000 // Consider data fresh for 1 minute
   });
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refetch();
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [refetch]);
 
   const handleExportReport = () => {
     alert("Report export functionality would be implemented here");

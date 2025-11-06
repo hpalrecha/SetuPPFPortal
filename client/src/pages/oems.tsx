@@ -40,7 +40,7 @@ export default function OEMsPage() {
       
       return response.json();
     },
-    refetchInterval: 30000,
+    staleTime: 300000, // Cache for 5 minutes - OEM data doesn't change often
     enabled: canAccessOEMs
   });
 
@@ -61,6 +61,7 @@ export default function OEMsPage() {
       
       return response.json();
     },
+    staleTime: 300000, // Cache for 5 minutes - royalty rules don't change often
     enabled: canAccessOEMs
   });
 
