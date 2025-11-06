@@ -69,7 +69,8 @@ export const commissionTypeEnum = pgEnum('commission_type', ['PERCENT', 'AMOUNT'
 export const pricingTypeEnum = pgEnum('pricing_type', [
   'PARTNER_PRICING',     // What partner charges for services (existing)
   'DEALERSHIP_PRICING',  // What dealership is charged for services
-  'DETAILER_PRICING'     // What detailer/installer earns for completing jobs
+  'DETAILER_PRICING',    // What detailer/installer earns for completing jobs
+  'OEM_PRICING'          // OEM-level base pricing (fallback for all dealerships under OEM)
 ]);
 
 export const scopeEnum = pgEnum('scope', ['DEALERSHIP', 'SHOWROOM']);
@@ -413,6 +414,9 @@ export const pricingRules = pgTable("pricing_rules", {
   
   // For DETAILER_PRICING (Detailer + Service Category - no vehicle model needed)
   detailerId: uuid("detailer_id").references(() => partners.id), // References partner with INSTALLER type
+  
+  // For OEM_PRICING (OEM-level base pricing - fallback for all dealerships)
+  oemId: uuid("oem_id").references(() => oems.id),
   
   // Common fields for all pricing types
   vehicleModelId: uuid("vehicle_model_id").references(() => vehicleModels.id), // Optional: Not needed for DETAILER_PRICING
