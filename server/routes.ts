@@ -3879,8 +3879,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Pre-installation photo upload endpoint
+  app.post("/api/job-cards/:id/pre-installation", authenticate, async (req, res) => {
+    try {
+      const { photoFrontUrl, photoBackUrl, photoLeftUrl, photoRightUrl, remarks } = req.body;
+
+      // Validate that all 4 photos are provided
+      if (!photoFrontUrl || !photoBackUrl || !photoLeftUrl || !photoRightUrl) {
+        return res.status(400).json({ error: "All 4 photos are required (Front, Back, Left, Right)" });
+      }
+
+      const objectStorageService = new ObjectStorageService();
+
+      // Normalize and set ACL for all photos
+      const normalizedPhotoFront = await objectStorageService.trySetObjectEntityAclPolicy(
+        photoFrontUrl,
+        { visibility: "private" }
+      );
+      const normalizedPhotoBack = await objectStorageService.trySetObjectEntityAclPolicy(
+        photoBackUrl,
+        { visibility: "private" }
+      );
+      const normalizedPhotoLeft = await objectStorageService.trySetObjectEntityAclPolicy(
+        photoLeftUrl,
+        { visibility: "private" }
+      );
+      const normalizedPhotoRight = await objectStorageService.trySetObjectEntityAclPolicy(
+        photoRightUrl,
+        { visibility: "private" }
+      );
+
+      // Update job card with pre-installation data
+      const jobCard = await storage.updateJobCard(req.params.id, {
+        preInstallationPhotoFront: normalizedPhotoFront,
+        preInstallationPhotoBack: normalizedPhotoBack,
+        preInstallationPhotoLeft: normalizedPhotoLeft,
+        preInstallationPhotoRight: normalizedPhotoRight,
+        preInstallationRemarks: remarks || null,
+        preInstallationCompletedAt: new Date(),
+        preInstallationCompletedBy: req.user!.id
+      });
+
+      if (!jobCard) {
+        return res.status(404).json({ error: "Job card not found" });
+      }
+
+      console.log(`✅ Pre-installation inspection completed for job card ${jobCard.id}`);
+
+      res.json(jobCard);
+    } catch (error) {
+      console.error("Pre-installation upload error:", error);
+      res.status(500).json({ error: "Failed to upload pre-installation photos" });
+    }
+  });
+
   app.post("/api/job-cards/:id/start", authenticate, async (req, res) => {
     try {
+      // Check if pre-installation is completed
+      const existingJobCard = await storage.getJobCard(req.params.id);
+      if (!existingJobCard) {
+        return res.status(404).json({ error: "Job card not found" });
+      }
+
+      // Verify pre-installation is completed before allowing start
+      if (!existingJobCard.preInstallationCompletedAt) {
+        return res.status(400).json({ error: "Pre-installation inspection must be completed before starting work" });
+      }
+
       const jobCard = await storage.updateJobCard(req.params.id, {
         status: 'IN_PROGRESS',
         startedAt: new Date()
