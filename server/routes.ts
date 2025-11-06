@@ -1905,6 +1905,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  app.delete("/api/showrooms/:id", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    auditLog('showroom', 'delete'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const success = await storage.deleteShowroom(id);
+        
+        if (!success) {
+          return res.status(404).json({ error: "Showroom not found" });
+        }
+        
+        res.json({ message: "Showroom deleted successfully" });
+      } catch (error) {
+        console.error("Delete showroom error:", error);
+        res.status(500).json({ error: "Failed to delete showroom" });
+      }
+    }
+  );
+
   // Vehicle Data Display Route (OEM = Brand structure)
   app.get("/api/vehicle-data/:oemId", authenticate, requireOEMAccess, async (req, res) => {
     try {
