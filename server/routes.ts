@@ -921,27 +921,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         offset: offset ? parseInt(offset as string) : undefined
       });
       
-      // Add counts and OEM IDs for each dealership
-      const dealershipsWithCounts = await Promise.all(
-        result.dealerships.map(async (dealership) => {
-          const showroomsResult = await storage.getShowrooms({ dealershipId: dealership.id });
-          const showroomsCount = showroomsResult.total;
-          
-          // Count sales staff for this dealership (users with SALES_PERSON role)
-          const salesStaff = await storage.getUsers({ dealershipId: dealership.id, role: 'SALES_PERSON' });
-          const salesStaffCount = salesStaff ? salesStaff.length : 0;
-          
-          // Fetch OEM IDs for this dealership
-          const oemIds = await storage.getDealershipOems(dealership.id);
-          
-          return {
-            ...dealership,
-            oemIds,
-            showroomsCount,
-            salesStaffCount
-          };
-        })
-      );
+      // Extract all dealership IDs
+      const dealershipIds = result.dealerships.map(d => d.id);
+      
+      // Fetch all related data in bulk (3 queries instead of N*3)
+      const [allShowrooms, allSalesStaff, allOemMappings] = await Promise.all([
+        // Fetch all showrooms for these dealerships in one query
+        storage.getShowrooms({ limit: 10000 }).then(result => result.showrooms),
+        // Fetch all sales staff for these dealerships in one query
+        storage.getUsers({ role: 'SALES_PERSON' }),
+        // Fetch all OEM mappings for these dealerships in bulk
+        Promise.all(dealershipIds.map(id => storage.getDealershipOems(id)))
+      ]);
+      
+      // Count in memory
+      const showroomsByDealership = new Map<string, number>();
+      allShowrooms.forEach((showroom: any) => {
+        const count = showroomsByDealership.get(showroom.dealershipId) || 0;
+        showroomsByDealership.set(showroom.dealershipId, count + 1);
+      });
+      
+      const salesStaffByDealership = new Map<string, number>();
+      allSalesStaff.forEach((staff: any) => {
+        if (staff.dealershipId) {
+          const count = salesStaffByDealership.get(staff.dealershipId) || 0;
+          salesStaffByDealership.set(staff.dealershipId, count + 1);
+        }
+      });
+      
+      // Attach counts and OEM IDs to each dealership
+      const dealershipsWithCounts = result.dealerships.map((dealership, index) => ({
+        ...dealership,
+        oemIds: allOemMappings[index] || [],
+        showroomsCount: showroomsByDealership.get(dealership.id) || 0,
+        salesStaffCount: salesStaffByDealership.get(dealership.id) || 0
+      }));
       
       res.json({
         dealerships: dealershipsWithCounts,
