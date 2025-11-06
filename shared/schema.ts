@@ -10,7 +10,8 @@ import {
   boolean, 
   jsonb,
   pgEnum,
-  unique
+  unique,
+  index
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
@@ -135,6 +136,11 @@ export const dealerships = pgTable("dealerships", {
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
+}, (table) => {
+  return {
+    stateIdx: index("dealerships_state_idx").on(table.state),
+    cityIdx: index("dealerships_city_idx").on(table.city)
+  };
 });
 
 export const dealershipOemMapping = pgTable("dealership_oem_mapping", {
@@ -168,6 +174,13 @@ export const showrooms = pgTable("showrooms", {
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
+}, (table) => {
+  return {
+    dealershipIdx: index("showrooms_dealership_idx").on(table.dealershipId),
+    oemIdx: index("showrooms_oem_idx").on(table.oemId),
+    stateIdx: index("showrooms_state_idx").on(table.state),
+    cityIdx: index("showrooms_city_idx").on(table.city)
+  };
 });
 
 export const users = pgTable("users", {
