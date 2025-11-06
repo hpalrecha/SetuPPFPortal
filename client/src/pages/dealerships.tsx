@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,9 +35,11 @@ export default function DealershipsPage() {
   const canAccessDealerships = user?.role === 'SUPER_ADMIN';
   
   const { data: dealershipData, isLoading } = useQuery<{ dealerships: any[]; total: number }>({
-    queryKey: ["/api/dealerships", selectedState !== "all" ? selectedState : undefined, selectedCity !== "all" ? selectedCity : undefined, currentPage, itemsPerPage],
+    queryKey: ["/api/dealerships", searchTerm, selectedOEM !== "all" ? selectedOEM : undefined, selectedState !== "all" ? selectedState : undefined, selectedCity !== "all" ? selectedCity : undefined, currentPage, itemsPerPage],
     queryFn: async () => {
       const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (selectedOEM !== "all") params.append('oemId', selectedOEM);
       if (selectedState !== "all") params.append('state', selectedState);
       if (selectedCity !== "all") params.append('city', selectedCity);
       params.append('limit', itemsPerPage.toString());
@@ -198,19 +200,10 @@ export default function DealershipsPage() {
     queryClient.invalidateQueries({ queryKey: ["/api/dealerships"] });
   };
 
-  // Filter dealerships based on search term and OEM (client-side)
-  // Note: State and city filtering is now done server-side
-  const filteredDealerships = dealerships.filter((dealership) => {
-    const searchMatch = searchTerm === "" || 
-      dealership.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dealership.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dealership.state?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const oemMatch = selectedOEM === "all" || 
-      dealership.oemIds?.includes(selectedOEM);
-    
-    return searchMatch && oemMatch;
-  });
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedOEM, selectedState, selectedCity]);
 
   // Show access denied for non-admin users
   if (!canAccessDealerships) {
@@ -382,20 +375,22 @@ export default function DealershipsPage() {
         </div>
 
         <div className="text-sm text-muted-foreground">
-          Showing {filteredDealerships.length} of {dealerships.length} dealerships
+          Showing {dealerships.length} of {totalDealerships} dealerships
         </div>
       </div>
 
       {/* Dealerships Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredDealerships.length === 0 ? (
+        {dealerships.length === 0 ? (
           <div className="col-span-full">
             <Card>
               <CardContent className="py-12 text-center">
                 <Store className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-foreground mb-2">No Dealerships Found</h3>
                 <p className="text-muted-foreground mb-4">
-                  Add your first dealership to start managing regional operations.
+                  {searchTerm || selectedOEM !== "all" || selectedState !== "all" || selectedCity !== "all" 
+                    ? "No dealerships match your search criteria."
+                    : "Add your first dealership to start managing regional operations."}
                 </p>
                 <Button onClick={handleAddDealership}>
                   <Plus className="mr-2 h-4 w-4" />
@@ -405,7 +400,7 @@ export default function DealershipsPage() {
             </Card>
           </div>
         ) : (
-          filteredDealerships.map((dealership) => (
+          dealerships.map((dealership) => (
             <Card key={dealership.id} data-testid={`card-dealership-${dealership.id}`}>
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
