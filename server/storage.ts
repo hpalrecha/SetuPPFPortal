@@ -841,7 +841,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Dealership Management
-  async getDealerships(filters?: { oemId?: string; state?: string; city?: string; limit?: number; offset?: number }): Promise<{ dealerships: any[]; total: number }> {
+  async getDealerships(filters?: { oemId?: string; state?: string; city?: string; search?: string; limit?: number; offset?: number }): Promise<{ dealerships: any[]; total: number }> {
     const conditions = [];
     
     // Build filter conditions
@@ -850,6 +850,14 @@ export class DatabaseStorage implements IStorage {
     }
     if (filters?.city) {
       conditions.push(eq(dealerships.city, filters.city));
+    }
+    
+    // Add search filter (searches in name, city, and state)
+    if (filters?.search) {
+      const searchPattern = `%${filters.search}%`;
+      conditions.push(
+        sql`(${dealerships.name} ILIKE ${searchPattern} OR ${dealerships.city} ILIKE ${searchPattern} OR ${dealerships.state} ILIKE ${searchPattern})`
+      );
     }
     
     if (filters?.oemId) {

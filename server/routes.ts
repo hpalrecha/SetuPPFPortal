@@ -911,11 +911,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/dealerships", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN']), async (req, res) => {
     try {
-      const { oemId, state, city, limit, offset } = req.query;
+      const { oemId, state, city, search, limit, offset } = req.query;
       const result = await storage.getDealerships({
         oemId: oemId as string,
         state: state as string,
         city: city as string,
+        search: search as string,
         limit: limit ? parseInt(limit as string) : undefined,
         offset: offset ? parseInt(offset as string) : undefined
       });
