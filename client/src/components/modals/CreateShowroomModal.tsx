@@ -268,10 +268,10 @@ export function CreateShowroomModal({
   }, [showroom, open, form]);
 
   // Fetch dealerships
-  const { data: dealerships = [] } = useQuery({
+  const { data: dealershipData } = useQuery<{ dealerships: any[]; total: number }>({
     queryKey: ["/api/dealerships"],
     queryFn: async () => {
-      const response = await fetch('/api/dealerships', {
+      const response = await fetch('/api/dealerships?limit=1000', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -282,6 +282,8 @@ export function CreateShowroomModal({
     },
     enabled: open,
   });
+
+  const dealerships = dealershipData?.dealerships || [];
   
   // Fetch all OEMs to display names
   const { data: allOems = [] } = useQuery({
