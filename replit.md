@@ -21,7 +21,8 @@ The application uses the P91 Brand Theme with a Brand Green primary color, Oxani
 - **Job Card System**: Real-time status tracking, SLA monitoring, and notifications.
   - **Pre-Installation Inspection** (Nov 2025): Mandatory photo documentation before starting work. Partners must upload 4 labeled photos (Front, Back, Left Side, Right Side) with optional remarks. Photos are stored in object storage with private ACLs. The "Start Work" button is only enabled after pre-installation inspection is completed.
 - **Partner Allocation**: Priority-based auto-assignment with manual overrides and billing controls.
-- **Pricing Engine**: Hierarchical pricing rules applied at Partner, Showroom, and Dealership levels.
+- **Pricing Engine**: Hierarchical pricing rules applied at OEM, Dealership, and Partner levels.
+  - **OEM Pricing** (Nov 2025): OEM-level default pricing rules that apply to all dealerships under an OEM, reducing manual pricing management from 13,800+ to ~50 rules. Pricing hierarchy: DEALERSHIP_PRICING → OEM_PRICING (fallback). Each rule defines price for a specific OEM + Service + Vehicle Model combination.
 - **Commission System**: Automated calculations based on percentages/fixed amounts, with caps/floors.
 - **Billing System**: Automated detail population with hierarchical rules, supporting "Bill From" and "Bill To" logic, "Ship To" from Showroom, and partner direct billing.
 - **Audit System**: Comprehensive activity logging and timeline views.
