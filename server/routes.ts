@@ -3891,22 +3891,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const objectStorageService = new ObjectStorageService();
 
-      // Normalize and set ACL for all photos
+      // Normalize and set ACL for all photos (public so they can be viewed by all stakeholders)
       const normalizedPhotoFront = await objectStorageService.trySetObjectEntityAclPolicy(
         photoFrontUrl,
-        { visibility: "private", owner: req.user!.id }
+        { visibility: "public", owner: req.user!.id }
       );
       const normalizedPhotoBack = await objectStorageService.trySetObjectEntityAclPolicy(
         photoBackUrl,
-        { visibility: "private", owner: req.user!.id }
+        { visibility: "public", owner: req.user!.id }
       );
       const normalizedPhotoLeft = await objectStorageService.trySetObjectEntityAclPolicy(
         photoLeftUrl,
-        { visibility: "private", owner: req.user!.id }
+        { visibility: "public", owner: req.user!.id }
       );
       const normalizedPhotoRight = await objectStorageService.trySetObjectEntityAclPolicy(
         photoRightUrl,
-        { visibility: "private", owner: req.user!.id }
+        { visibility: "public", owner: req.user!.id }
       );
 
       // Update job card with pre-installation data
@@ -6189,14 +6189,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Serve object files
-  app.get("/objects/*", authenticate, async (req, res) => {
+  // Serve object files (no authentication required - ACL is checked in downloadObject)
+  app.get("/objects/*", async (req, res) => {
     try {
       const objectPath = req.path;
       const objectStorageService = new ObjectStorageService();
       const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
       
-      // Download/serve the file
+      // Download/serve the file (ACL permissions are checked inside downloadObject)
       await objectStorageService.downloadObject(objectFile, res);
     } catch (error) {
       if (error instanceof ObjectNotFoundError) {
