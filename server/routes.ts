@@ -39,6 +39,56 @@ function generateUsernameFromEmail(email: string): string {
   return email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+// Server-side cache for dashboard endpoints (1-minute TTL)
+interface CacheEntry {
+  data: any;
+  timestamp: number;
+}
+
+class SimpleCache {
+  private cache: Map<string, CacheEntry> = new Map();
+  private readonly TTL = 60000; // 1 minute
+
+  get(key: string): any | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    
+    const now = Date.now();
+    if (now - entry.timestamp > this.TTL) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return entry.data;
+  }
+
+  set(key: string, data: any): void {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now()
+    });
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+
+  // Periodic cleanup of expired entries
+  cleanup(): void {
+    const now = Date.now();
+    const entries = Array.from(this.cache.entries());
+    for (const [key, entry] of entries) {
+      if (now - entry.timestamp > this.TTL) {
+        this.cache.delete(key);
+      }
+    }
+  }
+}
+
+const dashboardCache = new SimpleCache();
+// Run cleanup every 5 minutes
+setInterval(() => dashboardCache.cleanup(), 300000);
+
 // Configure multer for file uploads (Excel and CSV for imports)
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -2429,7 +2479,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         showroomId = req.user!.showroomId;
       }
       
+      // Check cache first
+      const cacheKey = `orders-trend:${oemId}:${showroomId || 'all'}:${dealershipId || 'all'}`;
+      const cachedData = dashboardCache.get(cacheKey);
+      if (cachedData) {
+        return res.json(cachedData);
+      }
+      
       const data = await storage.getOrdersRevenueTrend(oemId, showroomId, dealershipId);
+      dashboardCache.set(cacheKey, data);
       res.json(data);
     } catch (error) {
       console.error("Orders trend error:", error);
@@ -2450,7 +2508,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         oemId = req.user!.oemId;
       }
       
+      // Check cache first
+      const cacheKey = `dealership-performance:${oemId}`;
+      const cachedData = dashboardCache.get(cacheKey);
+      if (cachedData) {
+        return res.json(cachedData);
+      }
+      
       const data = await storage.getDealershipPerformance(oemId);
+      dashboardCache.set(cacheKey, data);
       res.json(data);
     } catch (error) {
       console.error("Dealership performance error:", error);
@@ -2471,7 +2537,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         oemId = req.user!.oemId;
       }
       
+      // Check cache first
+      const cacheKey = `vehicle-upsells:${oemId}`;
+      const cachedData = dashboardCache.get(cacheKey);
+      if (cachedData) {
+        return res.json(cachedData);
+      }
+      
       const data = await storage.getVehicleCategoryUpsells(oemId);
+      dashboardCache.set(cacheKey, data);
       res.json(data);
     } catch (error) {
       console.error("Vehicle upsells error:", error);
@@ -2496,7 +2570,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         showroomId = req.user!.showroomId;
       }
       
+      // Check cache first
+      const cacheKey = `territory-performance:${oemId}:${dealershipId || 'all'}:${showroomId || 'all'}`;
+      const cachedData = dashboardCache.get(cacheKey);
+      if (cachedData) {
+        return res.json(cachedData);
+      }
+      
       const data = await storage.getTerritoryPerformance(oemId, dealershipId, showroomId);
+      dashboardCache.set(cacheKey, data);
       res.json(data);
     } catch (error) {
       console.error("Territory performance error:", error);
@@ -2521,7 +2603,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         showroomId = req.user!.showroomId;
       }
       
+      // Check cache first
+      const cacheKey = `service-popularity:${oemId}:${showroomId || 'all'}:${dealershipId || 'all'}`;
+      const cachedData = dashboardCache.get(cacheKey);
+      if (cachedData) {
+        return res.json(cachedData);
+      }
+      
       const data = await storage.getServicePopularity(oemId, showroomId, dealershipId);
+      dashboardCache.set(cacheKey, data);
       res.json(data);
     } catch (error) {
       console.error("Service popularity error:", error);
@@ -2546,7 +2636,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         showroomId = req.user!.showroomId;
       }
       
+      // Check cache first
+      const cacheKey = `monthly-trends:${oemId}:${showroomId || 'all'}:${dealershipId || 'all'}`;
+      const cachedData = dashboardCache.get(cacheKey);
+      if (cachedData) {
+        return res.json(cachedData);
+      }
+      
       const data = await storage.getMonthlyTrends(oemId, showroomId, dealershipId);
+      dashboardCache.set(cacheKey, data);
       res.json(data);
     } catch (error) {
       console.error("Monthly trends error:", error);
