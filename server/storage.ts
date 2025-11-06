@@ -129,7 +129,7 @@ export interface IStorage {
   deleteOem(id: string): Promise<boolean>;
 
   // Dealership management
-  getDealerships(filters?: { oemId?: string; state?: string; city?: string }): Promise<any[]>;
+  getDealerships(filters?: { oemId?: string; state?: string; city?: string; limit?: number; offset?: number }): Promise<{ dealerships: any[]; total: number }>;
   getDealershipFilterOptions(): Promise<{ states: Array<{ value: string; count: number }>; cities: Array<{ value: string; count: number }> }>;
   getDealership(id: string): Promise<any | undefined>;
   createDealership(dealership: any): Promise<any>;
@@ -144,7 +144,7 @@ export interface IStorage {
   checkDealershipOemMapping(dealershipId: string, oemId: string): Promise<boolean>; // Check if mapping exists
 
   // Showroom management
-  getShowrooms(filters?: { dealershipId?: string; oemId?: string; state?: string; city?: string }): Promise<any[]>;
+  getShowrooms(filters?: { dealershipId?: string; oemId?: string; state?: string; city?: string; limit?: number; offset?: number }): Promise<{ showrooms: any[]; total: number }>;
   getShowroomFilterOptions(): Promise<{ states: Array<{ value: string; count: number }>; cities: Array<{ value: string; count: number }> }>;
   getShowroom(id: string): Promise<any | undefined>;
   createShowroom(showroom: any): Promise<any>;
@@ -841,7 +841,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Dealership Management
-  async getDealerships(filters?: { oemId?: string; state?: string; city?: string }): Promise<any[]> {
+  async getDealerships(filters?: { oemId?: string; state?: string; city?: string; limit?: number; offset?: number }): Promise<{ dealerships: any[]; total: number }> {
     const conditions = [];
     
     // Build filter conditions
@@ -863,21 +863,36 @@ export class DatabaseStorage implements IStorage {
         ));
       
       if (mappings.length === 0) {
-        return [];
+        return { dealerships: [], total: 0 };
       }
       
       const dealershipIds = mappings.map(m => m.dealershipId);
       conditions.push(inArray(dealerships.id, dealershipIds));
     }
     
-    if (conditions.length > 0) {
-      return await db
-        .select()
-        .from(dealerships)
-        .where(and(...conditions));
+    // Get total count
+    const countQuery = conditions.length > 0
+      ? db.select({ count: sql<number>`count(*)::int` }).from(dealerships).where(and(...conditions))
+      : db.select({ count: sql<number>`count(*)::int` }).from(dealerships);
+    
+    const [{ count: total }] = await countQuery;
+    
+    // Get paginated results
+    let query = conditions.length > 0
+      ? db.select().from(dealerships).where(and(...conditions))
+      : db.select().from(dealerships);
+    
+    // Add pagination
+    if (filters?.limit) {
+      query = query.limit(filters.limit) as any;
+    }
+    if (filters?.offset) {
+      query = query.offset(filters.offset) as any;
     }
     
-    return await db.select().from(dealerships);
+    const dealershipsList = await query;
+    
+    return { dealerships: dealershipsList, total };
   }
 
   async getDealershipFilterOptions(): Promise<{ states: Array<{ value: string; count: number }>; cities: Array<{ value: string; count: number }> }> {
@@ -1004,7 +1019,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Showroom Management
-  async getShowrooms(filters?: { dealershipId?: string; oemId?: string; state?: string; city?: string }): Promise<any[]> {
+  async getShowrooms(filters?: { dealershipId?: string; oemId?: string; state?: string; city?: string; limit?: number; offset?: number }): Promise<{ showrooms: any[]; total: number }> {
     const conditions = [];
     
     // Build filter conditions
@@ -1021,12 +1036,27 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(showrooms.city, filters.city));
     }
     
-    let showroomsList;
-    if (conditions.length > 0) {
-      showroomsList = await db.select().from(showrooms).where(and(...conditions));
-    } else {
-      showroomsList = await db.select().from(showrooms);
+    // Get total count
+    const countQuery = conditions.length > 0
+      ? db.select({ count: sql<number>`count(*)::int` }).from(showrooms).where(and(...conditions))
+      : db.select({ count: sql<number>`count(*)::int` }).from(showrooms);
+    
+    const [{ count: total }] = await countQuery;
+    
+    // Get paginated results
+    let query = conditions.length > 0
+      ? db.select().from(showrooms).where(and(...conditions))
+      : db.select().from(showrooms);
+    
+    // Add pagination
+    if (filters?.limit) {
+      query = query.limit(filters.limit) as any;
     }
+    if (filters?.offset) {
+      query = query.offset(filters.offset) as any;
+    }
+    
+    const showroomsList = await query;
     
     // Add counts for each showroom
     const showroomsWithCounts = await Promise.all(
@@ -1052,7 +1082,7 @@ export class DatabaseStorage implements IStorage {
       })
     );
     
-    return showroomsWithCounts;
+    return { showrooms: showroomsWithCounts, total };
   }
 
   async getShowroomFilterOptions(): Promise<{ states: Array<{ value: string; count: number }>; cities: Array<{ value: string; count: number }> }> {
