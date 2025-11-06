@@ -32,13 +32,14 @@ import { ApiClient } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 
 const pricingRuleSchema = z.object({
-  pricingType: z.enum(["DEALERSHIP_PRICING", "DETAILER_PRICING"], {
+  pricingType: z.enum(["DEALERSHIP_PRICING", "DETAILER_PRICING", "OEM_PRICING"], {
     required_error: "Pricing type is required",
   }),
   dealershipId: z.string().optional(),
   detailerId: z.string().optional(),
+  oemId: z.string().optional(),
   vehicleModelId: z.string().optional(),
-  serviceId: z.string().optional(), // For DEALERSHIP_PRICING
+  serviceId: z.string().optional(), // For DEALERSHIP_PRICING and OEM_PRICING
   serviceCategoryId: z.string().optional(), // For DETAILER_PRICING
   priceAmount: z.string().min(1, "Price amount is required"),
   effectiveFrom: z.string().min(1, "Effective date is required"),
@@ -51,6 +52,10 @@ const pricingRuleSchema = z.object({
     // For DETAILER_PRICING, require serviceCategoryId (vehicleModelId is optional)
     if (data.pricingType === "DETAILER_PRICING") {
       return data.serviceCategoryId && data.serviceCategoryId.length > 0;
+    }
+    // For OEM_PRICING, require oemId, serviceId and vehicleModelId
+    if (data.pricingType === "OEM_PRICING") {
+      return data.oemId && data.oemId.length > 0 && data.serviceId && data.serviceId.length > 0 && data.vehicleModelId && data.vehicleModelId.length > 0;
     }
     return true;
   },
@@ -67,7 +72,7 @@ interface CreatePricingRuleModalProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   editingRule?: any;
-  pricingType?: 'DEALERSHIP_PRICING' | 'DETAILER_PRICING';
+  pricingType?: 'DEALERSHIP_PRICING' | 'DETAILER_PRICING' | 'OEM_PRICING';
 }
 
 export function CreatePricingRuleModal({
@@ -88,6 +93,7 @@ export function CreatePricingRuleModal({
       pricingType: editingRule?.pricingType || pricingType,
       dealershipId: editingRule?.dealershipId || undefined,
       detailerId: editingRule?.detailerId || undefined,
+      oemId: editingRule?.oemId || undefined,
       vehicleModelId: editingRule?.vehicleModelId || "",
       serviceId: editingRule?.serviceId || "",
       serviceCategoryId: editingRule?.serviceCategoryId || "",
@@ -131,6 +137,23 @@ export function CreatePricingRuleModal({
     enabled: open && pricingType === 'DETAILER_PRICING',
   });
 
+  // Fetch OEMs for OEM_PRICING
+  const { data: oems = [] } = useQuery({
+    queryKey: ["/api/oems"],
+    queryFn: async () => {
+      const response = await fetch('/api/oems', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch OEMs');
+      return response.json();
+    },
+    enabled: open && pricingType === 'OEM_PRICING',
+    staleTime: 300000, // Cache for 5 minutes - OEMs don't change often
+  });
+
   // Fetch services from API (for DEALERSHIP_PRICING)
   const { data: services = [] } = useQuery({
     queryKey: ["/api/services"],
@@ -163,12 +186,15 @@ export function CreatePricingRuleModal({
     enabled: open && pricingType === 'DETAILER_PRICING',
   });
 
-  // Get selected dealership's OEM ID
+  // Get selected dealership's OEM ID for DEALERSHIP_PRICING or use selected OEM for OEM_PRICING
   const selectedDealership = dealerships?.find((d: any) => d.id === form.watch('dealershipId'));
-  const selectedOemId = selectedDealership?.oemIds?.[0] || selectedDealership?.oemId || selectedDealership?.oem_id;
+  const selectedOemId = pricingType === 'OEM_PRICING' 
+    ? form.watch('oemId')
+    : (selectedDealership?.oemIds?.[0] || selectedDealership?.oemId || selectedDealership?.oem_id);
   
   console.log('Selected dealership:', selectedDealership);
   console.log('Selected OEM ID:', selectedOemId);
+  console.log('Pricing type:', pricingType);
 
   // Reset vehicle model when dealership changes
   const dealershipId = form.watch('dealershipId');
@@ -185,6 +211,7 @@ export function CreatePricingRuleModal({
         pricingType: editingRule.pricingType || pricingType,
         dealershipId: editingRule.dealershipId || undefined,
         detailerId: editingRule.detailerId || undefined,
+        oemId: editingRule.oemId || undefined,
         vehicleModelId: editingRule.vehicleModelId || "",
         serviceId: editingRule.serviceId || "",
         serviceCategoryId: editingRule.serviceCategoryId || "",
@@ -196,6 +223,7 @@ export function CreatePricingRuleModal({
         pricingType: pricingType,
         dealershipId: undefined,
         detailerId: undefined,
+        oemId: undefined,
         vehicleModelId: "",
         serviceId: "",
         serviceCategoryId: "",
@@ -205,11 +233,11 @@ export function CreatePricingRuleModal({
     }
   }, [editingRule, open, pricingType, form]);
 
-  // Fetch vehicle models from API (filtered by OEM for dealership pricing, all for detailer pricing)
+  // Fetch vehicle models from API (filtered by OEM for dealership and OEM pricing, all for detailer pricing)
   const { data: vehicleModels = [] } = useQuery({
-    queryKey: ["/api/vehicle-models", pricingType === 'DEALERSHIP_PRICING' ? selectedOemId : 'ALL'],
+    queryKey: ["/api/vehicle-models", (pricingType === 'DEALERSHIP_PRICING' || pricingType === 'OEM_PRICING') ? selectedOemId : 'ALL'],
     queryFn: async () => {
-      const url = (pricingType === 'DEALERSHIP_PRICING' && selectedOemId) 
+      const url = ((pricingType === 'DEALERSHIP_PRICING' || pricingType === 'OEM_PRICING') && selectedOemId) 
         ? `/api/vehicle-models?oemId=${selectedOemId}`
         : '/api/vehicle-models';
       
@@ -226,7 +254,7 @@ export function CreatePricingRuleModal({
       console.log('Filtered for OEM:', selectedOemId);
       return data;
     },
-    enabled: open && (pricingType === 'DEALERSHIP_PRICING' ? !!selectedOemId : true),
+    enabled: open && ((pricingType === 'DEALERSHIP_PRICING' || pricingType === 'OEM_PRICING') ? !!selectedOemId : true),
   });
 
   const onSubmit = async (data: PricingRuleFormData) => {
@@ -250,9 +278,15 @@ export function CreatePricingRuleModal({
           vehicleModelId: data.vehicleModelId || undefined,
           // Remove fields based on pricing type
           ...(pricingType === 'DEALERSHIP_PRICING' ? { 
-            detailerId: undefined 
+            detailerId: undefined,
+            oemId: undefined 
+          } : pricingType === 'DETAILER_PRICING' ? {
+            dealershipId: undefined,
+            oemId: undefined
           } : { 
-            dealershipId: undefined 
+            // OEM_PRICING
+            dealershipId: undefined,
+            detailerId: undefined
           }),
         }),
       });
@@ -356,8 +390,39 @@ export function CreatePricingRuleModal({
                 />
               )}
 
+              {pricingType === 'OEM_PRICING' && (
+                <FormField
+                  control={form.control}
+                  name="oemId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>OEM</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select OEM" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="bg-white dark:bg-gray-800">
+                          {oems?.map((oem: any) => (
+                            <SelectItem 
+                              key={oem.id} 
+                              value={oem.id}
+                              className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
+                              {oem.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               {/* Service selection - different for each pricing type */}
-              {pricingType === 'DEALERSHIP_PRICING' ? (
+              {(pricingType === 'DEALERSHIP_PRICING' || pricingType === 'OEM_PRICING') ? (
                 <FormField
                   control={form.control}
                   name="serviceId"
@@ -426,7 +491,7 @@ export function CreatePricingRuleModal({
                   <FormItem>
                     <FormLabel>
                       Vehicle Model 
-                      {pricingType === 'DEALERSHIP_PRICING' && <span className="text-red-500">*</span>}
+                      {(pricingType === 'DEALERSHIP_PRICING' || pricingType === 'OEM_PRICING') && <span className="text-red-500">*</span>}
                       {pricingType === 'DETAILER_PRICING' && <span className="text-muted-foreground text-sm"> (Optional)</span>}
                     </FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
