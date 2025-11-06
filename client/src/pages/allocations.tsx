@@ -73,10 +73,10 @@ export default function Allocations() {
   });
 
   // Fetch dealerships and showrooms for display names
-  const { data: dealerships = [] } = useQuery({
+  const { data: dealershipsData } = useQuery({
     queryKey: ["/api/dealerships"],
     queryFn: async () => {
-      const response = await fetch('/api/dealerships', {
+      const response = await fetch('/api/dealerships?limit=1000', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -87,10 +87,10 @@ export default function Allocations() {
     },
   });
 
-  const { data: showrooms = [] } = useQuery({
+  const { data: showroomsData } = useQuery({
     queryKey: ["/api/showrooms"],
     queryFn: async () => {
-      const response = await fetch('/api/showrooms', {
+      const response = await fetch('/api/showrooms?limit=1000', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -100,6 +100,10 @@ export default function Allocations() {
       return response.json();
     },
   });
+
+  // Extract arrays from paginated response
+  const dealerships = dealershipsData?.dealerships || [];
+  const showrooms = showroomsData?.showrooms || [];
 
   // Fetch OEMs/Brands for filtering
   const { data: oems = [] } = useQuery({
