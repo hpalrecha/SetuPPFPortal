@@ -491,6 +491,14 @@ export const jobCards = pgTable("job_cards", {
   status: jobCardStatusEnum("status").default("AWAITING_ACK"),
   acknowledgedAt: timestamp("acknowledged_at"), // When job was acknowledged
   scheduledAt: timestamp("scheduled_at"),
+  // Pre-installation inspection
+  preInstallationPhotoFront: text("pre_installation_photo_front"),
+  preInstallationPhotoBack: text("pre_installation_photo_back"),
+  preInstallationPhotoLeft: text("pre_installation_photo_left"),
+  preInstallationPhotoRight: text("pre_installation_photo_right"),
+  preInstallationRemarks: text("pre_installation_remarks"),
+  preInstallationCompletedAt: timestamp("pre_installation_completed_at"),
+  preInstallationCompletedBy: uuid("pre_installation_completed_by").references(() => users.id),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
   checklistJson: jsonb("checklist_json"),
