@@ -1027,7 +1027,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Showroom Management
-  async getShowrooms(filters?: { dealershipId?: string; oemId?: string; state?: string; city?: string; limit?: number; offset?: number }): Promise<{ showrooms: any[]; total: number }> {
+  async getShowrooms(filters?: { dealershipId?: string; oemId?: string; state?: string; city?: string; search?: string; limit?: number; offset?: number }): Promise<{ showrooms: any[]; total: number }> {
     const conditions = [];
     
     // Build filter conditions
@@ -1042,6 +1042,14 @@ export class DatabaseStorage implements IStorage {
     }
     if (filters?.city) {
       conditions.push(eq(showrooms.city, filters.city));
+    }
+    
+    // Add search filter (searches in name, city, and state)
+    if (filters?.search) {
+      const searchPattern = `%${filters.search}%`;
+      conditions.push(
+        sql`(${showrooms.name} ILIKE ${searchPattern} OR ${showrooms.city} ILIKE ${searchPattern} OR ${showrooms.state} ILIKE ${searchPattern})`
+      );
     }
     
     // Get total count
