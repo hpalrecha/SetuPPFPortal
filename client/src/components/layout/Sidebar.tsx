@@ -46,7 +46,7 @@ const baseNavigation = [
   { name: "Allocations", href: "/allocations", icon: Network, roles: ["SUPER_ADMIN"] },
   { name: "Services", href: "/services", icon: Shield, roles: ["SUPER_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON"] },
   { name: "Pricing Rules", href: "/pricing", icon: DollarSign, roles: ["SUPER_ADMIN"] },
-  { name: "Commissions", href: "/commissions", icon: Percent, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN"] },
+  { name: "Commissions", href: "/commissions", icon: Percent, roles: ["SUPER_ADMIN"] },
   { name: "Payout Settlement", href: "/payout-settlement", icon: CreditCard, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER"] },
 ];
 
