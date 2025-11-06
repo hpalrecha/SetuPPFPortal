@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Edit, X, Trash2, Building, Users, Wrench } from "lucide-react";
+import { Plus, Edit, X, Trash2, Building, Users, Wrench, Globe } from "lucide-react";
 import type { PricingRule } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -19,8 +19,8 @@ export default function PricingPage() {
   
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingRule, setEditingRule] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState('dealership'); // dealership, detailer
-  const [selectedPricingType, setSelectedPricingType] = useState<'DEALERSHIP_PRICING' | 'DETAILER_PRICING'>('DEALERSHIP_PRICING');
+  const [activeTab, setActiveTab] = useState('oem'); // dealership, detailer, oem
+  const [selectedPricingType, setSelectedPricingType] = useState<'DEALERSHIP_PRICING' | 'DETAILER_PRICING' | 'OEM_PRICING'>('OEM_PRICING');
   
   // Redirect if not SUPER_ADMIN
   useEffect(() => {
@@ -69,6 +69,8 @@ export default function PricingPage() {
       setSelectedPricingType('DEALERSHIP_PRICING');
     } else if (value === 'detailer') {
       setSelectedPricingType('DETAILER_PRICING');
+    } else if (value === 'oem') {
+      setSelectedPricingType('OEM_PRICING');
     }
   };
 
@@ -128,7 +130,7 @@ export default function PricingPage() {
     }).format(Number(amount));
   };
 
-  const renderPricingTable = (pricingType: 'DEALERSHIP_PRICING' | 'DETAILER_PRICING') => {
+  const renderPricingTable = (pricingType: 'DEALERSHIP_PRICING' | 'DETAILER_PRICING' | 'OEM_PRICING') => {
     const filteredRules = pricingRules.filter(rule => rule.pricingType === pricingType);
     
     const getColumns = () => {
@@ -137,6 +139,8 @@ export default function PricingPage() {
           return ['Dealership', 'Vehicle Model', 'Service', 'Price', 'Effective From', 'Status', 'Actions'];
         case 'DETAILER_PRICING':
           return ['Detailer', 'Vehicle Model', 'Service Category', 'Payout', 'Effective From', 'Status', 'Actions'];
+        case 'OEM_PRICING':
+          return ['OEM', 'Vehicle Model', 'Service', 'Base Price', 'Effective From', 'Status', 'Actions'];
         default:
           return [];
       }
@@ -158,6 +162,15 @@ export default function PricingPage() {
             rule.detailerName || 'Unknown Detailer',
             rule.vehicleModelName || 'Unknown Vehicle Model', 
             rule.serviceCategoryName || 'Unknown Service Category',
+            formatCurrency(rule.priceAmount),
+            new Date(rule.effectiveFrom).toLocaleDateString(),
+            rule.status
+          ];
+        case 'OEM_PRICING':
+          return [
+            rule.oemName || 'Unknown OEM',
+            rule.vehicleModelName || 'Unknown Vehicle Model',
+            rule.serviceName || 'Unknown Service',
             formatCurrency(rule.priceAmount),
             new Date(rule.effectiveFrom).toLocaleDateString(),
             rule.status
@@ -292,7 +305,11 @@ export default function PricingPage() {
 
       {/* Pricing Rules Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="oem" className="flex items-center gap-2">
+            <Globe className="h-4 w-4" />
+            OEM Pricing
+          </TabsTrigger>
           <TabsTrigger value="dealership" className="flex items-center gap-2">
             <Building className="h-4 w-4" />
             Dealership Pricing
@@ -302,6 +319,20 @@ export default function PricingPage() {
             Detailer Pricing
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="oem" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>OEM Base Pricing List</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Set OEM-level base pricing that applies to all dealerships under each OEM
+              </p>
+            </CardHeader>
+            <CardContent>
+              {renderPricingTable('OEM_PRICING')}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="dealership" className="mt-6">
           <Card>
