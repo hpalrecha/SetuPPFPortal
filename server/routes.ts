@@ -5556,7 +5556,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/payouts", 
     authenticate, 
     requireOEMAccess,
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     async (req, res) => {
       try {
         const { status, partnerId } = req.query;
@@ -5578,7 +5578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/commissions-for-settlement", 
     authenticate, 
     requireOEMAccess,
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     async (req, res) => {
       try {
         const { status, salesPersonId, showroomId } = req.query;
@@ -5601,7 +5601,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/payouts/:id/approve", 
     authenticate, 
     requireOEMAccess,
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     auditLog('payout', 'approve'),
     async (req, res) => {
       try {
@@ -5632,7 +5632,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/payouts/:id/settle", 
     authenticate, 
     requireOEMAccess,
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     auditLog('payout', 'settle'),
     async (req, res) => {
       try {
@@ -5679,7 +5679,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/commissions/:id/settle", 
     authenticate, 
     requireOEMAccess,
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     auditLog('commission', 'settle'),
     async (req, res) => {
       try {
