@@ -5435,7 +5435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get allocation brands
   app.get("/api/allocations/:id/brands", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     async (req, res) => {
       try {
         const { id } = req.params;
@@ -5451,7 +5451,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get allocated brands for a specific showroom/dealership
   app.get("/api/allocations/allocated-brands", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     async (req, res) => {
       try {
         const { level, levelId } = req.query;
