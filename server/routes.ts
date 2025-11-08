@@ -2006,6 +2006,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const { id } = req.params;
+        
+        // Check for dependencies before deletion
+        const dependencies = [];
+        
+        // Check for sales staff
+        const salesStaff = await storage.getUsers({ showroomId: id });
+        if (salesStaff && salesStaff.length > 0) {
+          dependencies.push(`${salesStaff.length} sales staff member(s)`);
+        }
+        
+        // Check for work orders
+        const workOrders = await storage.getWorkOrders({ showroomId: id });
+        if (workOrders && workOrders.length > 0) {
+          dependencies.push(`${workOrders.length} work order(s)`);
+        }
+        
+        // Check for allocations
+        const allocations = await storage.getAllocations({ level: 'SHOWROOM', levelId: id });
+        if (allocations && allocations.length > 0) {
+          dependencies.push(`${allocations.length} partner allocation(s)`);
+        }
+        
+        // If dependencies exist, return error with details
+        if (dependencies.length > 0) {
+          return res.status(400).json({ 
+            error: "Cannot delete showroom with existing dependencies",
+            details: `This showroom has: ${dependencies.join(', ')}. Please remove these first.`
+          });
+        }
+        
         const success = await storage.deleteShowroom(id);
         
         if (!success) {
