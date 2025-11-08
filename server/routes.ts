@@ -4368,7 +4368,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/partners", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     auditLog('partner', 'create'),
     async (req, res) => {
       try {
@@ -4496,7 +4496,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/partners/:id", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     auditLog('partner', 'update'),
     async (req, res) => {
       try {
@@ -4544,7 +4544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/partners/:id",
     authenticate,
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     auditLog('partner', 'delete'),
     async (req, res) => {
       try {
@@ -4566,7 +4566,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Partner service categories routes
   app.get("/api/partners/:id/service-categories", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     async (req, res) => {
       try {
         const { id } = req.params;
@@ -4582,7 +4582,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/partners-with-categories", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     async (req, res) => {
       try {
         const partners = await storage.getPartnersWithCategories();
