@@ -557,11 +557,7 @@ export default function KnowledgeHub() {
                               ? "https://youtube.com/watch?v=..." 
                               : "https://..."
                           }
-                          value={field.value || ""}
-                          onChange={field.onChange}
-                          onBlur={field.onBlur}
-                          name={field.name}
-                          ref={field.ref}
+                          {...field}
                           data-testid="input-external-link" 
                         />
                       </FormControl>
