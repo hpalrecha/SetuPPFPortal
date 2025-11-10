@@ -10,6 +10,7 @@ import { Plus, Edit, Trash2, Building, MapPin, Filter, Search } from "lucide-rea
 import { CreateAllocationModal } from "@/components/modals/CreateAllocationModal";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useDebounce } from "@/hooks/use-debounce";
 
 interface Allocation {
   id: string;
@@ -44,6 +45,9 @@ export default function Allocations() {
   const [selectedDealership, setSelectedDealership] = useState<string>("all");
   const [selectedShowroom, setSelectedShowroom] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+
+  // Debounce search term to prevent excessive filtering
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
   // Redirect if not SUPER_ADMIN
   useEffect(() => {
@@ -160,12 +164,25 @@ export default function Allocations() {
     }
   };
 
-  // Filter allocations based on selected filters
+  // Filter allocations based on selected filters (using debounced search term)
   const filteredAllocations = allocations.filter((allocation: any) => {
-    // Text search - search in partner name and level entity name
-    const searchMatch = searchTerm === "" || 
-      allocation.partner.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      getLevelDisplayName(allocation).toLowerCase().includes(searchTerm.toLowerCase());
+    // Text search - search in partner name, level entity name, city, and state
+    let searchMatch = debouncedSearchTerm === "" || 
+      allocation.partner.displayName?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      getLevelDisplayName(allocation).toLowerCase().includes(debouncedSearchTerm.toLowerCase());
+    
+    // Also search in dealership/showroom city and state
+    if (!searchMatch && debouncedSearchTerm !== "") {
+      if (allocation.level === 'DEALERSHIP') {
+        const dealership = dealerships.find((d: any) => d.id === allocation.levelId);
+        searchMatch = dealership?.city?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                     dealership?.state?.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
+      } else {
+        const showroom = showrooms.find((s: any) => s.id === allocation.levelId);
+        searchMatch = showroom?.city?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                     showroom?.state?.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
+      }
+    }
     
     // Brand/OEM filter
     const brandMatch = selectedBrand === "all" || getOemIdFromAllocation(allocation) === selectedBrand;
