@@ -27,8 +27,15 @@ interface HeaderProps {
 export function Header({ onToggleSidebar }: HeaderProps) {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
-  const [unreadCount, setUnreadCount] = useState(5);
   const [notificationOpen, setNotificationOpen] = useState(false);
+
+  // Check if notifications have been read from localStorage
+  const getUnreadCount = () => {
+    const hasRead = localStorage.getItem('notifications_read');
+    return hasRead === 'true' ? 0 : 5;
+  };
+
+  const [unreadCount, setUnreadCount] = useState(getUnreadCount());
 
   const handleLogout = async () => {
     await logout();
@@ -39,7 +46,10 @@ export function Header({ onToggleSidebar }: HeaderProps) {
     setNotificationOpen(open);
     if (open && unreadCount > 0) {
       // Mark notifications as read when opened
-      setTimeout(() => setUnreadCount(0), 300);
+      setTimeout(() => {
+        setUnreadCount(0);
+        localStorage.setItem('notifications_read', 'true');
+      }, 300);
     }
   };
 
