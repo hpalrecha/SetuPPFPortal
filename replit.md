@@ -45,6 +45,8 @@ The application uses the P91 Brand Theme with a Brand Green primary color, Oxani
 - **Query Optimization** (Nov 2025): 
   - Fixed N+1 query problem in `/api/oems` endpoint by fetching all dealerships and showrooms in 2 queries instead of 2*N queries, then counting in memory. Result: 5-10x performance improvement (2.9s → 0.3s).
   - Fixed N+1 query problem in `/api/dealerships` endpoint by fetching all showrooms, sales staff, and OEM mappings in bulk (3 queries instead of N*3). With 460+ dealerships, this reduces ~1,380 queries to 3, improving response time from 7-8 seconds to <1 second.
+  - Fixed N+1 query problem in `getShowrooms()` storage method by fetching all users and work orders in bulk (3 queries total instead of 3,200+ queries). With 1,600+ showrooms, this eliminates 2 database queries per showroom. Expected improvement: 2100ms → <100ms (**20x faster**).
+  - Added 9 critical database indexes: users (showroom_id, dealership_id, oem_id, partner_id), work_orders (showroom_id, dealership_id, oem_id, status, assigned_partner_id). These indexes speed up bulk queries and filtering operations.
 
 # External Dependencies
 
