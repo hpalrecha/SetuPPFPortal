@@ -58,6 +58,31 @@ const applicableToOptions = [
   { value: "ALL", label: "All Users" }
 ];
 
+function extractYouTubeVideoId(url: string): string | null {
+  if (!url) return null;
+  
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/v\/([a-zA-Z0-9_-]{11})/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  
+  return null;
+}
+
+function getYouTubeEmbedUrl(url: string): string | null {
+  const videoId = extractYouTubeVideoId(url);
+  if (!videoId) return null;
+  return `https://www.youtube.com/embed/${videoId}`;
+}
+
 const knowledgeHubSchema = z.object({
   title: z.string().min(1, "Title is required"),
   category: z.string().min(1, "Category is required"),
@@ -692,15 +717,23 @@ export default function KnowledgeHub() {
               )}
               
               {/* YouTube Embed */}
-              {selectedItem.contentType === 'YOUTUBE' && selectedItem.externalLink && (
-                <div className="aspect-video">
-                  <iframe
-                    src={selectedItem.externalLink.replace('watch?v=', 'embed/')}
-                    className="w-full h-full rounded-lg"
-                    allowFullScreen
-                  />
-                </div>
-              )}
+              {selectedItem.contentType === 'YOUTUBE' && selectedItem.externalLink && (() => {
+                const embedUrl = getYouTubeEmbedUrl(selectedItem.externalLink);
+                return embedUrl ? (
+                  <div className="aspect-video">
+                    <iframe
+                      src={embedUrl}
+                      className="w-full h-full rounded-lg border-0"
+                      allowFullScreen
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    />
+                  </div>
+                ) : (
+                  <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
+                    <p className="text-muted-foreground">Invalid YouTube URL</p>
+                  </div>
+                );
+              })()}
 
               {/* PDF Viewer */}
               {selectedItem.contentType === 'PDF' && selectedItem.fileUrl && (
