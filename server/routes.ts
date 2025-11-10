@@ -6659,20 +6659,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'SALES_PERSON': 'SHOWROOM'
       };
 
-      let applicableTo: string[] = ['ALL'];
-      
+      const filters: any = {
+        oemId: user.oemId,
+        isActive: true
+      };
+
+      // Admins see ALL resources regardless of applicableTo
+      // Regular users only see resources applicable to their role
       if (user.role !== 'SUPER_ADMIN' && user.role !== 'OEM_ADMIN') {
+        const applicableTo: string[] = ['ALL'];
         const mappedRole = roleMapping[user.role];
         if (mappedRole) {
           applicableTo.push(mappedRole);
         }
+        filters.applicableTo = applicableTo;
       }
-
-      const filters: any = {
-        oemId: user.oemId,
-        applicableTo,
-        isActive: true
-      };
 
       if (category) filters.category = category;
       if (contentType) filters.contentType = contentType;
