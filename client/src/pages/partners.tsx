@@ -66,7 +66,8 @@ export default function PartnersPage() {
     const searchMatch = debouncedSearchTerm === "" || 
       partner.displayName?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
       partner.contactPersonName?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-      partner.city?.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
+      partner.city?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      partner.state?.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
     return categoryMatch && typeMatch && searchMatch;
   });
 
