@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, Edit, Trash2, Building2, Percent, Search } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { useDebounce } from "@/hooks/use-debounce";
 import { CreateOEMModal } from "@/components/modals/CreateOEMModal";
 import { CreateRoyaltyRuleModal } from "@/components/modals/CreateRoyaltyRuleModal";
 
@@ -20,6 +21,9 @@ export default function OEMsPage() {
   const [showRoyaltyModal, setShowRoyaltyModal] = useState(false);
   const [editingRoyaltyRule, setEditingRoyaltyRule] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
+  
+  // Debounce search term to avoid filtering on every keystroke
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   
   // Only Super Admin can access OEM management
   const canAccessOEMs = user?.role === 'SUPER_ADMIN';
@@ -143,9 +147,9 @@ export default function OEMsPage() {
 
   // Filter OEMs based on search term
   const filteredOEMs = oems.filter((oem) => {
-    const searchMatch = searchTerm === "" || 
-      oem.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      oem.code?.toLowerCase().includes(searchTerm.toLowerCase());
+    const searchMatch = debouncedSearchTerm === "" || 
+      oem.name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      oem.code?.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
     return searchMatch;
   });
 
