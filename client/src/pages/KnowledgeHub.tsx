@@ -92,7 +92,19 @@ const knowledgeHubSchema = z.object({
   applicableTo: z.array(z.string()).min(1, "Select at least one user group"),
   description: z.string().optional(),
   isActive: z.boolean().default(true)
-});
+}).refine(
+  (data) => {
+    if (data.contentType === 'YOUTUBE' && data.externalLink) {
+      const videoId = extractYouTubeVideoId(data.externalLink);
+      return videoId !== null;
+    }
+    return true;
+  },
+  {
+    message: "Please enter a valid YouTube URL (e.g., youtube.com/watch?v=... or youtu.be/...)",
+    path: ["externalLink"],
+  }
+);
 
 type KnowledgeHubFormData = z.infer<typeof knowledgeHubSchema>;
 
@@ -524,14 +536,25 @@ export default function KnowledgeHub() {
                   name="externalLink"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>External Link/URL*</FormLabel>
+                      <FormLabel>
+                        {form.watch('contentType') === 'YOUTUBE' ? 'YouTube URL*' : 'External Link/URL*'}
+                      </FormLabel>
                       <FormControl>
                         <Input 
-                          placeholder="https://youtube.com/..." 
+                          placeholder={
+                            form.watch('contentType') === 'YOUTUBE' 
+                              ? "https://youtube.com/watch?v=..." 
+                              : "https://..."
+                          }
                           {...field} 
                           data-testid="input-external-link" 
                         />
                       </FormControl>
+                      {form.watch('contentType') === 'YOUTUBE' && (
+                        <p className="text-xs text-muted-foreground">
+                          Supported formats: youtube.com/watch?v=... or youtu.be/...
+                        </p>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
