@@ -129,7 +129,8 @@ export default function ShowroomsPage() {
     if (selectedOEM === "all") {
       return dealerships;
     }
-    return dealerships.filter(d => d.oemId === selectedOEM);
+    // Dealerships have oemIds (array) because they can belong to multiple OEMs
+    return dealerships.filter(d => d.oemIds && d.oemIds.includes(selectedOEM));
   }, [dealerships, selectedOEM]);
 
   // Reset dealership selection when OEM changes if current selection is not valid
