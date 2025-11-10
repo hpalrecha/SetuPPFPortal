@@ -88,20 +88,31 @@ const knowledgeHubSchema = z.object({
   category: z.string().min(1, "Category is required"),
   contentType: z.string().min(1, "Content type is required"),
   fileUrl: z.string().optional(),
-  externalLink: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+  externalLink: z.string().optional(),
   applicableTo: z.array(z.string()).min(1, "Select at least one user group"),
   description: z.string().optional(),
   isActive: z.boolean().default(true)
 }).refine(
   (data) => {
-    if (data.contentType === 'YOUTUBE' && data.externalLink) {
-      const videoId = extractYouTubeVideoId(data.externalLink);
-      return videoId !== null;
+    if ((data.contentType === 'YOUTUBE' || data.contentType === 'LINK') && data.externalLink) {
+      if (data.contentType === 'YOUTUBE') {
+        const videoId = extractYouTubeVideoId(data.externalLink);
+        return videoId !== null;
+      }
+      try {
+        new URL(data.externalLink);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    if ((data.contentType === 'YOUTUBE' || data.contentType === 'LINK') && !data.externalLink) {
+      return false;
     }
     return true;
   },
   {
-    message: "Please enter a valid YouTube URL (e.g., youtube.com/watch?v=... or youtu.be/...)",
+    message: "Please enter a valid URL",
     path: ["externalLink"],
   }
 );
