@@ -11,6 +11,7 @@ import { Plus, Search, Eye, Edit, ArrowLeft, Save } from "lucide-react";
 import type { WorkOrder } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { useDebounce } from "@/hooks/use-debounce";
 import { apiRequest } from "@/lib/queryClient";
 import { CreateWorkOrderModal } from "@/components/modals/CreateWorkOrderModal";
 
@@ -57,6 +58,16 @@ export default function WorkOrdersPage() {
     serviceName: '',
     partnerName: ''
   });
+  
+  // Debounce search filters to avoid filtering on every keystroke
+  const debouncedSearchFilters = {
+    workOrderNumber: useDebounce(searchFilters.workOrderNumber, 500),
+    customerName: useDebounce(searchFilters.customerName, 500),
+    status: searchFilters.status, // No debounce for dropdown selection
+    vehicleModel: useDebounce(searchFilters.vehicleModel, 500),
+    serviceName: useDebounce(searchFilters.serviceName, 500),
+    partnerName: useDebounce(searchFilters.partnerName, 500)
+  };
 
   // Check if user can create work orders (showroom managers, dealership admins, sales persons, and super admin)
   const canCreateWorkOrder = user && ['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'SALES_PERSON', 'SUPER_ADMIN'].includes(user.role);
@@ -110,7 +121,7 @@ export default function WorkOrdersPage() {
     enabled: currentView !== 'list' && !!workOrderId // Only fetch when not in list view and we have an ID
   });
 
-  // Apply search filters to work orders
+  // Apply search filters to work orders (using debounced filters)
   const workOrders = allWorkOrders.filter((order) => {
     const workOrderNumber = `WO-${order.id.slice(-6)}`.toLowerCase();
     const customerName = (order.customerName || '').toLowerCase();
@@ -120,12 +131,12 @@ export default function WorkOrdersPage() {
     const partnerName = ((order as any).assignedPartner?.displayName || '').toLowerCase();
 
     return (
-      (!searchFilters.workOrderNumber || workOrderNumber.includes(searchFilters.workOrderNumber.toLowerCase())) &&
-      (!searchFilters.customerName || customerName.includes(searchFilters.customerName.toLowerCase())) &&
-      (!searchFilters.status || status === searchFilters.status.toLowerCase()) &&
-      (!searchFilters.vehicleModel || vehicleModel.includes(searchFilters.vehicleModel.toLowerCase())) &&
-      (!searchFilters.serviceName || serviceName.includes(searchFilters.serviceName.toLowerCase())) &&
-      (!searchFilters.partnerName || partnerName.includes(searchFilters.partnerName.toLowerCase()))
+      (!debouncedSearchFilters.workOrderNumber || workOrderNumber.includes(debouncedSearchFilters.workOrderNumber.toLowerCase())) &&
+      (!debouncedSearchFilters.customerName || customerName.includes(debouncedSearchFilters.customerName.toLowerCase())) &&
+      (!debouncedSearchFilters.status || status === debouncedSearchFilters.status.toLowerCase()) &&
+      (!debouncedSearchFilters.vehicleModel || vehicleModel.includes(debouncedSearchFilters.vehicleModel.toLowerCase())) &&
+      (!debouncedSearchFilters.serviceName || serviceName.includes(debouncedSearchFilters.serviceName.toLowerCase())) &&
+      (!debouncedSearchFilters.partnerName || partnerName.includes(debouncedSearchFilters.partnerName.toLowerCase()))
     );
   });
 
