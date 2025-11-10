@@ -10,6 +10,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Plus, Edit, Trash2, MapPin, Phone, Users, Handshake, Search, Filter, Upload, Check, ChevronsUpDown } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { useDebounce } from "@/hooks/use-debounce";
 import { CreateShowroomModal } from "@/components/modals/CreateShowroomModal";
 import { BulkUploadShowroomsModal } from "@/components/modals/BulkUploadShowroomsModal";
 import { cn } from "@/lib/utils";
@@ -31,14 +32,17 @@ export default function ShowroomsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   
+  // Debounce search term to avoid excessive API calls
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  
   // Only Super Admin can access showroom management
   const canAccessShowrooms = user?.role === 'SUPER_ADMIN';
   
   const { data: showroomData, isLoading } = useQuery<{ showrooms: any[]; total: number }>({
-    queryKey: ["/api/showrooms", searchTerm, selectedOEM !== "all" ? selectedOEM : undefined, selectedDealership !== "all" ? selectedDealership : undefined, selectedState !== "all" ? selectedState : undefined, selectedCity !== "all" ? selectedCity : undefined, currentPage, itemsPerPage],
+    queryKey: ["/api/showrooms", debouncedSearchTerm, selectedOEM !== "all" ? selectedOEM : undefined, selectedDealership !== "all" ? selectedDealership : undefined, selectedState !== "all" ? selectedState : undefined, selectedCity !== "all" ? selectedCity : undefined, currentPage, itemsPerPage],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (searchTerm) params.append('search', searchTerm);
+      if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
       if (selectedOEM !== "all") params.append('oemId', selectedOEM);
       if (selectedDealership !== "all") params.append('dealershipId', selectedDealership);
       if (selectedState !== "all") params.append('state', selectedState);
