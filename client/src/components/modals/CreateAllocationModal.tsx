@@ -46,22 +46,11 @@ const allocationSchema = z.object({
   level: z.enum(['DEALERSHIP', 'SHOWROOM'], { required_error: "Level is required" }),
   levelId: z.string().default(""),
   showroomIds: z.array(z.string()).default([]),
+  dealershipIds: z.array(z.string()).default([]),
   priority: z.number().min(1).max(10).default(1),
   partnerBillsDirectly: z.boolean().default(false),
   active: z.boolean().default(true),
-}).refine(
-  (data) => {
-    if (data.level === "DEALERSHIP") {
-      return data.levelId && data.levelId.length > 0;
-    }
-    // Note: SHOWROOM validation handled manually in onSubmit using local state
-    return true;
-  },
-  {
-    message: "Please select a dealership",
-    path: ["levelId"],
-  }
-);
+});
 
 type AllocationFormData = z.infer<typeof allocationSchema>;
 
@@ -85,6 +74,7 @@ export function CreateAllocationModal({
   const [partnerSearch, setPartnerSearch] = useState("");
   const [locationSearch, setLocationSearch] = useState("");
   const [selectedShowroomIds, setSelectedShowroomIds] = useState<string[]>([]);
+  const [selectedDealershipIds, setSelectedDealershipIds] = useState<string[]>([]);
   const isEditing = !!allocation;
 
   const form = useForm<AllocationFormData>({
@@ -95,6 +85,7 @@ export function CreateAllocationModal({
       level: "DEALERSHIP",
       levelId: "",
       showroomIds: [],
+      dealershipIds: [],
       priority: 1,
       partnerBillsDirectly: false,
       active: true,
@@ -245,11 +236,13 @@ export function CreateAllocationModal({
         level: allocation.level || "DEALERSHIP",
         levelId: allocation.levelId || "",
         showroomIds: allocation.level === "SHOWROOM" ? [allocation.levelId] : [],
+        dealershipIds: allocation.level === "DEALERSHIP" ? [allocation.levelId] : [],
         priority: allocation.priority || 1,
         partnerBillsDirectly: allocation.partnerBillsDirectly ?? false,
         active: allocation.active ?? true,
       });
       setSelectedShowroomIds(allocation.level === "SHOWROOM" ? [allocation.levelId] : []);
+      setSelectedDealershipIds(allocation.level === "DEALERSHIP" ? [allocation.levelId] : []);
     } else if (!allocation && open) {
       form.reset({
         partnerId: "",
@@ -257,18 +250,23 @@ export function CreateAllocationModal({
         level: "DEALERSHIP",
         levelId: "",
         showroomIds: [],
+        dealershipIds: [],
         priority: 1,
         partnerBillsDirectly: false,
         active: true,
       });
       setSelectedShowroomIds([]);
+      setSelectedDealershipIds([]);
     }
   }, [allocation, open, form, allocationBrandsData]);
 
-  // Reset showroom selection when level changes
+  // Reset selection when level changes
   useEffect(() => {
     if (selectedLevel !== "SHOWROOM") {
       setSelectedShowroomIds([]);
+    }
+    if (selectedLevel !== "DEALERSHIP") {
+      setSelectedDealershipIds([]);
     }
   }, [selectedLevel]);
 
@@ -298,12 +296,21 @@ export function CreateAllocationModal({
   }, [selectedLevel, dealerships, showrooms, locationSearch]);
 
   const onSubmit = async (data: AllocationFormData) => {
-    // Validate showroom selection manually since we use local state
+    // Validate selections manually since we use local state
     if (data.level === "SHOWROOM" && selectedShowroomIds.length === 0) {
       toast({
         variant: "destructive",
         title: "Validation Error",
         description: "Please select at least one showroom",
+      });
+      return;
+    }
+    
+    if (data.level === "DEALERSHIP" && selectedDealershipIds.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please select at least one dealership",
       });
       return;
     }
@@ -320,7 +327,7 @@ export function CreateAllocationModal({
           credentials: 'include',
           body: JSON.stringify({
             level: data.level,
-            levelId: data.level === "DEALERSHIP" ? data.levelId : allocation.levelId,
+            levelId: allocation.levelId,
             partnerId: data.partnerId,
             brandIds: data.brandIds,
             priority: data.priority,
@@ -369,7 +376,39 @@ export function CreateAllocationModal({
 
           toast({
             title: "Success",
-            description: `Created ${data.showroomIds.length} allocation(s) successfully`,
+            description: `Created ${selectedShowroomIds.length} allocation(s) successfully`,
+          });
+        } else if (data.level === "DEALERSHIP" && selectedDealershipIds.length > 0) {
+          const promises = selectedDealershipIds.map(dealershipId => 
+            fetch("/api/allocations", {
+              method: "POST",
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+              },
+              credentials: 'include',
+              body: JSON.stringify({
+                level: "DEALERSHIP",
+                levelId: dealershipId,
+                partnerId: data.partnerId,
+                brandIds: data.brandIds,
+                priority: data.priority,
+                partnerBillsDirectly: data.partnerBillsDirectly,
+                active: data.active,
+              }),
+            })
+          );
+
+          const responses = await Promise.all(promises);
+          const failedResponses = responses.filter(r => !r.ok);
+          
+          if (failedResponses.length > 0) {
+            throw new Error(`Failed to create ${failedResponses.length} allocation(s)`);
+          }
+
+          toast({
+            title: "Success",
+            description: `Created ${selectedDealershipIds.length} allocation(s) successfully`,
           });
         } else {
           const response = await fetch("/api/allocations", {
@@ -678,85 +717,103 @@ export function CreateAllocationModal({
               {selectedLevel === "DEALERSHIP" ? (
                 <FormField
                   control={form.control}
-                  name="levelId"
+                  name="dealershipIds"
                   render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Dealership <span className="text-destructive">*</span></FormLabel>
-                      <Popover open={locationSearchOpen} onOpenChange={setLocationSearchOpen}>
+                    <FormItem>
+                      <FormLabel>Dealerships (Select multiple) <span className="text-destructive">*</span></FormLabel>
+                      <FormDescription>
+                        Click to search and select one or more dealerships
+                      </FormDescription>
+                      <Popover 
+                        open={locationSearchOpen} 
+                        onOpenChange={(open) => {
+                          setLocationSearchOpen(open);
+                        }}
+                        modal={false}
+                      >
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
                               variant="outline"
                               role="combobox"
-                              className={cn(
-                                "w-full justify-between",
-                                !field.value && "text-muted-foreground"
-                              )}
-                              data-testid="button-select-dealership"
+                              className="w-full justify-between h-auto min-h-10"
+                              data-testid="select-dealerships"
                             >
-                              {field.value ? (
-                                <div className="flex items-center gap-2">
-                                  <Building2 className="h-4 w-4" />
-                                  <span>{selectedLocation?.name}</span>
-                                </div>
-                              ) : (
-                                "Search and select dealership..."
-                              )}
+                              <span className="truncate">
+                                {selectedDealershipIds.length > 0
+                                  ? `${selectedDealershipIds.length} dealership${selectedDealershipIds.length > 1 ? 's' : ''} selected`
+                                  : "Select dealerships"}
+                              </span>
                               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-[600px] p-0" align="start">
+                        <PopoverContent className="w-[500px] p-0" align="start">
                           <Command>
-                            <CommandInput 
-                              placeholder="Search by name, city, or address..." 
-                              value={locationSearch}
-                              onValueChange={setLocationSearch}
-                            />
+                            <CommandInput placeholder="Search by name, city, or address..." />
                             <CommandList>
-                              <CommandEmpty>
-                                {dealershipsLoading ? "Loading dealerships..." : "No dealership found."}
-                              </CommandEmpty>
+                              <CommandEmpty>No dealership found.</CommandEmpty>
                               <CommandGroup>
-                                <ScrollArea className="h-[300px]">
-                                  {dealershipsLoading ? (
-                                    <div className="p-4 space-y-2">
-                                      <Skeleton className="h-12 w-full" />
-                                      <Skeleton className="h-12 w-full" />
-                                    </div>
-                                  ) : (
-                                    filteredLocations.map((dealership: any) => (
+                                {dealershipsLoading ? (
+                                  <div className="space-y-2 p-2">
+                                    <Skeleton className="h-12 w-full" />
+                                    <Skeleton className="h-12 w-full" />
+                                  </div>
+                                ) : (
+                                  filteredLocations.map((dealership: any) => {
+                                    const isSelected = selectedDealershipIds.includes(dealership.id);
+                                    return (
                                       <CommandItem
                                         key={dealership.id}
                                         value={`${dealership.name} ${dealership.city} ${dealership.state}`}
                                         onSelect={() => {
-                                          field.onChange(dealership.id);
-                                          setLocationSearchOpen(false);
+                                          if (isSelected) {
+                                            setSelectedDealershipIds(prev => prev.filter(id => id !== dealership.id));
+                                          } else {
+                                            setSelectedDealershipIds(prev => [...prev, dealership.id]);
+                                          }
                                         }}
-                                        className="cursor-pointer"
                                       >
                                         <Check
                                           className={cn(
                                             "mr-2 h-4 w-4",
-                                            dealership.id === field.value ? "opacity-100" : "opacity-0"
+                                            isSelected ? "opacity-100" : "opacity-0"
                                           )}
                                         />
-                                        <div className="flex flex-col flex-1">
-                                          <span className="font-medium">{dealership.name}</span>
-                                          <span className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                        <div className="flex-1">
+                                          <div className="font-medium">{dealership.name}</div>
+                                          <div className="text-xs text-muted-foreground flex items-center gap-1">
                                             <MapPin className="h-3 w-3" />
                                             {dealership.city}, {dealership.state}
-                                          </span>
+                                          </div>
                                         </div>
                                       </CommandItem>
-                                    ))
-                                  )}
-                                </ScrollArea>
+                                    );
+                                  })
+                                )}
                               </CommandGroup>
                             </CommandList>
                           </Command>
                         </PopoverContent>
                       </Popover>
+                      {selectedDealershipIds.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {selectedDealershipIds.map((dealershipId: string) => {
+                            const dealership = dealerships.find((d: any) => d.id === dealershipId);
+                            return (
+                              <Badge key={dealershipId} variant="secondary" className="gap-1">
+                                {dealership?.name}
+                                <X
+                                  className="h-3 w-3 cursor-pointer hover:text-destructive"
+                                  onClick={() => {
+                                    setSelectedDealershipIds(prev => prev.filter(id => id !== dealershipId));
+                                  }}
+                                />
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
