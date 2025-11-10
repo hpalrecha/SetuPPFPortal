@@ -559,6 +559,7 @@ export default function KnowledgeHub() {
                               : "https://..."
                           }
                           {...field}
+                          value={field.value || ""}
                           data-testid="input-external-link" 
                         />
                       </FormControl>
