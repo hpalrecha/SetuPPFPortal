@@ -134,6 +134,7 @@ export default function KnowledgeHub() {
 
   const form = useForm<KnowledgeHubFormData>({
     resolver: zodResolver(knowledgeHubSchema),
+    mode: "onSubmit",
     defaultValues: {
       title: "",
       category: "",
