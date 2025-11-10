@@ -684,6 +684,7 @@ export function CreateAllocationModal({
                         field.onChange(value);
                         form.setValue("levelId", "");
                         form.setValue("showroomIds", []);
+                        form.setValue("dealershipIds", []);
                       }} 
                       value={field.value}
                     >
@@ -711,7 +712,7 @@ export function CreateAllocationModal({
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold">4</div>
-                <h3 className="text-sm font-semibold">Select {selectedLevel === "DEALERSHIP" ? "Dealership" : "Showrooms"}</h3>
+                <h3 className="text-sm font-semibold">Select {selectedLevel === "DEALERSHIP" ? "Dealerships" : "Showrooms"}</h3>
               </div>
 
               {selectedLevel === "DEALERSHIP" ? (
