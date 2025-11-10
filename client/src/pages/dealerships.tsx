@@ -10,6 +10,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Plus, Edit, Trash2, Store, MapPin, Phone, Handshake, Search, Filter, Upload, Check, ChevronsUpDown } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { useDebounce } from "@/hooks/use-debounce";
 import { CreateDealershipModal } from "@/components/modals/CreateDealershipModal";
 import { BulkUploadDealershipsModal } from "@/components/modals/BulkUploadDealershipsModal";
 import { cn } from "@/lib/utils";
@@ -31,14 +32,17 @@ export default function DealershipsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   
+  // Debounce search term to avoid excessive API calls
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  
   // Only Super Admin can access dealership management
   const canAccessDealerships = user?.role === 'SUPER_ADMIN';
   
   const { data: dealershipData, isLoading } = useQuery<{ dealerships: any[]; total: number }>({
-    queryKey: ["/api/dealerships", searchTerm, selectedOEM !== "all" ? selectedOEM : undefined, selectedState !== "all" ? selectedState : undefined, selectedCity !== "all" ? selectedCity : undefined, currentPage, itemsPerPage],
+    queryKey: ["/api/dealerships", debouncedSearchTerm, selectedOEM !== "all" ? selectedOEM : undefined, selectedState !== "all" ? selectedState : undefined, selectedCity !== "all" ? selectedCity : undefined, currentPage, itemsPerPage],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (searchTerm) params.append('search', searchTerm);
+      if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
       if (selectedOEM !== "all") params.append('oemId', selectedOEM);
       if (selectedState !== "all") params.append('state', selectedState);
       if (selectedCity !== "all") params.append('city', selectedCity);
