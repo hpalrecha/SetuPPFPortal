@@ -928,14 +928,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Extract all dealership IDs
       const dealershipIds = result.dealerships.map(d => d.id);
       
+      if (dealershipIds.length === 0) {
+        return res.json({ dealerships: [], total: 0 });
+      }
+      
       // Fetch all related data in bulk (3 queries instead of N*3)
-      const [allShowrooms, allSalesStaff, allOemMappings] = await Promise.all([
+      const [allShowrooms, allSalesStaff, oemMappingsMap] = await Promise.all([
         // Fetch all showrooms for these dealerships in one query
         storage.getShowrooms({ limit: 10000 }).then(result => result.showrooms),
         // Fetch all sales staff for these dealerships in one query
         storage.getUsers({ role: 'SALES_PERSON' }),
-        // Fetch all OEM mappings for these dealerships in bulk
-        Promise.all(dealershipIds.map(id => storage.getDealershipOems(id)))
+        // Fetch all OEM mappings for these dealerships in ONE BULK query
+        storage.getDealershipOemsBulk(dealershipIds)
       ]);
       
       // Count in memory
@@ -954,9 +958,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Attach counts and OEM IDs to each dealership
-      const dealershipsWithCounts = result.dealerships.map((dealership, index) => ({
+      const dealershipsWithCounts = result.dealerships.map((dealership) => ({
         ...dealership,
-        oemIds: allOemMappings[index] || [],
+        oemIds: oemMappingsMap.get(dealership.id) || [],
         showroomsCount: showroomsByDealership.get(dealership.id) || 0,
         salesStaffCount: salesStaffByDealership.get(dealership.id) || 0
       }));

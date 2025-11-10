@@ -984,6 +984,31 @@ export class DatabaseStorage implements IStorage {
     return mappings.map(m => m.oemId);
   }
 
+  async getDealershipOemsBulk(dealershipIds: string[]): Promise<Map<string, string[]>> {
+    if (dealershipIds.length === 0) {
+      return new Map();
+    }
+
+    const mappings = await db
+      .select()
+      .from(dealershipOemMapping)
+      .where(and(
+        inArray(dealershipOemMapping.dealershipId, dealershipIds),
+        eq(dealershipOemMapping.status, 'active')
+      ));
+    
+    // Group OEM IDs by dealership ID
+    const result = new Map<string, string[]>();
+    mappings.forEach(mapping => {
+      if (!result.has(mapping.dealershipId)) {
+        result.set(mapping.dealershipId, []);
+      }
+      result.get(mapping.dealershipId)!.push(mapping.oemId);
+    });
+    
+    return result;
+  }
+
   async addDealershipOemMapping(dealershipId: string, oemId: string): Promise<any> {
     const [mapping] = await db
       .insert(dealershipOemMapping)
