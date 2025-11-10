@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -123,6 +123,24 @@ export default function ShowroomsPage() {
   });
 
   const dealerships = dealershipData?.dealerships || [];
+
+  // Filter dealerships based on selected OEM (cascading filter)
+  const filteredDealerships = useMemo(() => {
+    if (selectedOEM === "all") {
+      return dealerships;
+    }
+    return dealerships.filter(d => d.oemId === selectedOEM);
+  }, [dealerships, selectedOEM]);
+
+  // Reset dealership selection when OEM changes if current selection is not valid
+  useEffect(() => {
+    if (selectedDealership !== "all" && selectedOEM !== "all") {
+      const isDealershipValid = filteredDealerships.some(d => d.id === selectedDealership);
+      if (!isDealershipValid) {
+        setSelectedDealership("all");
+      }
+    }
+  }, [selectedOEM, selectedDealership, filteredDealerships]);
 
   // Fetch allocations to show assigned partners
   const { data: allocations = [] } = useQuery<any[]>({
@@ -302,7 +320,7 @@ export default function ShowroomsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Dealerships</SelectItem>
-                {dealerships.map((dealership: any) => (
+                {filteredDealerships.map((dealership: any) => (
                   <SelectItem key={dealership.id} value={dealership.id}>
                     {dealership.name}
                   </SelectItem>
