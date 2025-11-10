@@ -542,7 +542,7 @@ export default function KnowledgeHub() {
                 />
               </div>
 
-              {form.watch('contentType') === 'YOUTUBE' || form.watch('contentType') === 'LINK' ? (
+              {(form.watch('contentType') === 'YOUTUBE' || form.watch('contentType') === 'LINK') && (
                 <FormField
                   control={form.control}
                   name="externalLink"
@@ -551,18 +551,18 @@ export default function KnowledgeHub() {
                       <FormLabel>
                         {form.watch('contentType') === 'YOUTUBE' ? 'YouTube URL*' : 'External Link/URL*'}
                       </FormLabel>
-                      <Input 
-                        placeholder={
-                          form.watch('contentType') === 'YOUTUBE' 
-                            ? "https://youtube.com/watch?v=..." 
-                            : "https://..."
-                        }
-                        value={field.value || ""}
-                        onChange={field.onChange}
-                        onBlur={field.onBlur}
-                        name={field.name}
-                        data-testid="input-external-link" 
-                      />
+                      <FormControl>
+                        <Input 
+                          placeholder={
+                            form.watch('contentType') === 'YOUTUBE' 
+                              ? "https://youtube.com/watch?v=..." 
+                              : "https://..."
+                          }
+                          {...field}
+                          value={field.value ?? ""}
+                          data-testid="input-external-link" 
+                        />
+                      </FormControl>
                       {form.watch('contentType') === 'YOUTUBE' && (
                         <p className="text-xs text-muted-foreground">
                           Supported formats: youtube.com/watch?v=... or youtu.be/...
@@ -572,7 +572,8 @@ export default function KnowledgeHub() {
                     </FormItem>
                   )}
                 />
-              ) : (
+              )}
+              {(form.watch('contentType') !== 'YOUTUBE' && form.watch('contentType') !== 'LINK' && form.watch('contentType')) && (
                 <FormField
                   control={form.control}
                   name="fileUrl"
