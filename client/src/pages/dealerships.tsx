@@ -58,7 +58,7 @@ export default function DealershipsPage() {
       
       return response.json();
     },
-    staleTime: 30000,
+    staleTime: 300000, // Cache for 5 minutes - dealership data doesn't change often
     enabled: canAccessDealerships
   });
 
@@ -79,6 +79,7 @@ export default function DealershipsPage() {
       if (!response.ok) throw new Error('Failed to fetch filter options');
       return response.json();
     },
+    staleTime: 300000, // Cache for 5 minutes - filter options don't change often
     enabled: canAccessDealerships
   });
 
@@ -95,12 +96,14 @@ export default function DealershipsPage() {
       if (!response.ok) throw new Error('Failed to fetch OEMs');
       return response.json();
     },
+    staleTime: 300000, // Cache for 5 minutes - OEM data doesn't change often
     enabled: canAccessDealerships
   });
 
   // Fetch allocations to show assigned partners
   const { data: allocations = [] } = useQuery<any[]>({
     queryKey: ["/api/allocations"],
+    staleTime: 300000, // Cache for 5 minutes - allocation data doesn't change often
     queryFn: async () => {
       const response = await fetch('/api/allocations', {
         headers: {
