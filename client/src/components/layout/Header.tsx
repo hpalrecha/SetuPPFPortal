@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bell, User, CheckCircle } from "lucide-react";
+import { Bell, User, CheckCircle, AlertCircle, Clock, PackageCheck, FileText, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -27,7 +27,7 @@ interface HeaderProps {
 export function Header({ onToggleSidebar }: HeaderProps) {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
-  const [unreadCount, setUnreadCount] = useState(1);
+  const [unreadCount, setUnreadCount] = useState(5);
   const [notificationOpen, setNotificationOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -112,30 +112,110 @@ export function Header({ onToggleSidebar }: HeaderProps) {
                 )}
               </div>
               <div className="max-h-[400px] overflow-y-auto">
-                {/* Sample notification */}
+                {/* New Work Order */}
                 <div className="p-4 hover:bg-muted/50 border-b cursor-pointer transition-colors">
                   <div className="flex items-start space-x-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <CheckCircle className="w-4 h-4 text-primary" />
+                    <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-4 h-4 text-blue-500" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground">
-                        Work order creation optimized
+                        New Work Order #WO-2845
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Email sending is now 80% faster - work orders create in 3-5 seconds instead of 20 seconds
+                        Mercedes-Benz S-Class - Full Body PPF requested by Mumbai Hyundai Showroom
                       </p>
                       <p className="text-xs text-muted-foreground mt-2">
-                        Just now
+                        5 minutes ago
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Approval Pending */}
+                <div className="p-4 hover:bg-muted/50 border-b cursor-pointer transition-colors">
+                  <div className="flex items-start space-x-3">
+                    <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                      <Clock className="w-4 h-4 text-amber-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">
+                        Approval Required
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Job Card JC-1234 awaiting your approval for ceramic coating service
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        2 hours ago
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Job Card Completed */}
+                <div className="p-4 hover:bg-muted/50 border-b cursor-pointer transition-colors">
+                  <div className="flex items-start space-x-3">
+                    <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center flex-shrink-0">
+                      <PackageCheck className="w-4 h-4 text-green-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">
+                        Job Card Completed
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        JC-1189 has been marked as completed by P91 Car Care
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        5 hours ago
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rework Requested */}
+                <div className="p-4 hover:bg-muted/50 border-b cursor-pointer transition-colors">
+                  <div className="flex items-start space-x-3">
+                    <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0">
+                      <AlertCircle className="w-4 h-4 text-red-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">
+                        Rework Requested
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Job Card JC-1156 requires rework - quality issues reported
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Yesterday
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* System Update */}
+                <div className="p-4 hover:bg-muted/50 border-b cursor-pointer transition-colors">
+                  <div className="flex items-start space-x-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Wrench className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">
+                        System Performance Improved
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Work order creation is now 80% faster - orders create in 3-5 seconds
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        2 days ago
                       </p>
                     </div>
                   </div>
                 </div>
                 
-                {/* Empty state for remaining */}
+                {/* Empty state */}
                 <div className="p-8 text-center text-sm text-muted-foreground">
                   <p>All caught up! 🎉</p>
-                  <p className="text-xs mt-1">You have no other notifications</p>
+                  <p className="text-xs mt-1">You have no older notifications</p>
                 </div>
               </div>
             </PopoverContent>
