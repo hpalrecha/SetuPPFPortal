@@ -204,6 +204,13 @@ export const users = pgTable("users", {
   resetTokenExpiry: timestamp("reset_token_expiry"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
+}, (table) => {
+  return {
+    showroomIdx: index("users_showroom_idx").on(table.showroomId),
+    dealershipIdx: index("users_dealership_idx").on(table.dealershipId),
+    oemIdx: index("users_oem_idx").on(table.oemId),
+    partnerIdx: index("users_partner_idx").on(table.partnerId)
+  };
 });
 
 export const otpVerifications = pgTable("otp_verifications", {
@@ -485,6 +492,14 @@ export const workOrders = pgTable("work_orders", {
   shipTo: jsonb("ship_to"), // Shipping address (Showroom)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
+}, (table) => {
+  return {
+    showroomIdx: index("work_orders_showroom_idx").on(table.showroomId),
+    dealershipIdx: index("work_orders_dealership_idx").on(table.dealershipId),
+    oemIdx: index("work_orders_oem_idx").on(table.oemId),
+    statusIdx: index("work_orders_status_idx").on(table.status),
+    partnerIdx: index("work_orders_partner_idx").on(table.assignedPartnerId)
+  };
 });
 
 export const jobCards = pgTable("job_cards", {
