@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -30,6 +30,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { ApiClient } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Check, ChevronsUpDown, MapPin } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const pricingRuleSchema = z.object({
   pricingType: z.enum(["DEALERSHIP_PRICING", "DETAILER_PRICING", "OEM_PRICING"], {
@@ -85,6 +90,8 @@ export function CreatePricingRuleModal({
   const { user } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [dealershipSearch, setDealershipSearch] = useState("");
+  const [dealershipSearchOpen, setDealershipSearchOpen] = useState(false);
   const isEditing = !!editingRule;
 
   const form = useForm<PricingRuleFormData>({
@@ -121,6 +128,17 @@ export function CreatePricingRuleModal({
 
   // Extract array from paginated response
   const dealerships = dealershipsData?.dealerships || [];
+  
+  // Filter dealerships based on search
+  const filteredDealerships = useMemo(() => {
+    if (!dealershipSearch) return dealerships;
+    const search = dealershipSearch.toLowerCase();
+    return dealerships.filter((dealership: any) =>
+      dealership.name?.toLowerCase().includes(search) ||
+      dealership.city?.toLowerCase().includes(search) ||
+      dealership.state?.toLowerCase().includes(search)
+    );
+  }, [dealerships, dealershipSearch]);
 
   // Fetch all partners (both INSTALLER and STUDIO types)
   const { data: detailers = [] } = useQuery({
