@@ -9,6 +9,7 @@ import { Plus, Store, User, MapPin, Phone, Star, BarChart3, Edit, Trash2, Filter
 import type { Partner } from "@shared/schema";
 import { EditPartnerModal } from "@/components/modals/EditPartnerModal";
 import { useToast } from "@/hooks/use-toast";
+import { useDebounce } from "@/hooks/use-debounce";
 
 export default function PartnersPage() {
   const queryClient = useQueryClient();
@@ -18,6 +19,9 @@ export default function PartnersPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedType, setSelectedType] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState<string>("");
+  
+  // Debounce search term to avoid filtering on every keystroke
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   
   const { data: partners = [], isLoading } = useQuery<Partner[]>({
     queryKey: ["/api/partners-with-categories"],
@@ -54,15 +58,15 @@ export default function PartnersPage() {
     staleTime: 300000 // Cache for 5 minutes - categories don't change often
   });
 
-  // Filter partners based on selected filters
+  // Filter partners based on selected filters (using debounced search term)
   const filteredPartners = partners.filter((partner) => {
     const categoryMatch = selectedCategory === "all" || 
       partner.serviceCategories?.some((cat: any) => cat.id === selectedCategory);
     const typeMatch = selectedType === "all" || partner.type === selectedType;
-    const searchMatch = searchTerm === "" || 
-      partner.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      partner.contactPersonName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      partner.city?.toLowerCase().includes(searchTerm.toLowerCase());
+    const searchMatch = debouncedSearchTerm === "" || 
+      partner.displayName?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      partner.contactPersonName?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      partner.city?.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
     return categoryMatch && typeMatch && searchMatch;
   });
 
