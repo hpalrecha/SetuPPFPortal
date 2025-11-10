@@ -551,18 +551,18 @@ export default function KnowledgeHub() {
                       <FormLabel>
                         {form.watch('contentType') === 'YOUTUBE' ? 'YouTube URL*' : 'External Link/URL*'}
                       </FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder={
-                            form.watch('contentType') === 'YOUTUBE' 
-                              ? "https://youtube.com/watch?v=..." 
-                              : "https://..."
-                          }
-                          {...field}
-                          value={field.value || ""}
-                          data-testid="input-external-link" 
-                        />
-                      </FormControl>
+                      <Input 
+                        placeholder={
+                          form.watch('contentType') === 'YOUTUBE' 
+                            ? "https://youtube.com/watch?v=..." 
+                            : "https://..."
+                        }
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        data-testid="input-external-link" 
+                      />
                       {form.watch('contentType') === 'YOUTUBE' && (
                         <p className="text-xs text-muted-foreground">
                           Supported formats: youtube.com/watch?v=... or youtu.be/...
