@@ -495,10 +495,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    // Normalize username to lowercase for consistency
+    // Normalize username to lowercase for consistency (if provided)
     const normalizedUser = {
       ...insertUser,
-      username: insertUser.username.toLowerCase()
+      username: insertUser.username ? insertUser.username.toLowerCase() : insertUser.username
     };
     const [user] = await db
       .insert(users)

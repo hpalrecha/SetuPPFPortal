@@ -630,9 +630,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Hash the password
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        // Auto-generate username from email
+        const username = generateUsernameFromEmail(userData.email);
+
         // Create the user
         const newUser = await storage.createUser({
           ...userData,
+          username,
           passwordHash: hashedPassword,
         });
 
