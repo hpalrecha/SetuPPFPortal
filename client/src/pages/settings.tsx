@@ -63,7 +63,7 @@ export default function SettingsPage() {
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
 
   // Fetch data for organization management
-  const { data: oems = [] } = useQuery({
+  const { data: oems } = useQuery({
     queryKey: ["/api/oems"],
     queryFn: async () => {
       const response = await fetch('/api/oems', {
@@ -77,8 +77,9 @@ export default function SettingsPage() {
     },
     enabled: user?.role === 'SUPER_ADMIN',
   });
+  const oemsArray = Array.isArray(oems) ? oems : [];
 
-  const { data: dealerships = [] } = useQuery({
+  const { data: dealerships } = useQuery({
     queryKey: ["/api/dealerships"],
     queryFn: async () => {
       const response = await fetch('/api/dealerships', {
@@ -92,8 +93,9 @@ export default function SettingsPage() {
     },
     enabled: user?.role === 'SUPER_ADMIN',
   });
+  const dealershipsArray = Array.isArray(dealerships) ? dealerships : [];
 
-  const { data: showrooms = [] } = useQuery({
+  const { data: showrooms } = useQuery({
     queryKey: ["/api/showrooms"],
     queryFn: async () => {
       const response = await fetch('/api/showrooms', {
@@ -107,8 +109,9 @@ export default function SettingsPage() {
     },
     enabled: user?.role === 'SUPER_ADMIN',
   });
+  const showroomsArray = Array.isArray(showrooms) ? showrooms : [];
 
-  const { data: users = [] } = useQuery({
+  const { data: users } = useQuery({
     queryKey: ["/api/users"],
     queryFn: async () => {
       const response = await fetch('/api/users', {
@@ -122,6 +125,7 @@ export default function SettingsPage() {
     },
     enabled: user?.role === 'SUPER_ADMIN',
   });
+  const usersArray = Array.isArray(users) ? users : [];
 
   // Fetch current user's dealership details if they're a DEALERSHIP_ADMIN
   const { data: myDealership } = useQuery({
@@ -379,7 +383,7 @@ export default function SettingsPage() {
                   </Button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {oems.map((oem: any) => (
+                  {oemsArray.map((oem: any) => (
                     <Card key={oem.id} className="border">
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-2">
@@ -400,7 +404,7 @@ export default function SettingsPage() {
                       </CardContent>
                     </Card>
                   ))}
-                  {oems.length === 0 && (
+                  {oemsArray.length === 0 && (
                     <div className="col-span-full text-center py-8 text-muted-foreground">
                       No OEMs found. Add your first OEM to get started.
                     </div>
@@ -417,7 +421,7 @@ export default function SettingsPage() {
                   </Button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {dealerships.map((dealership: any) => (
+                  {dealershipsArray.map((dealership: any) => (
                     <Card key={dealership.id} className="border">
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-2">
@@ -438,7 +442,7 @@ export default function SettingsPage() {
                       </CardContent>
                     </Card>
                   ))}
-                  {dealerships.length === 0 && (
+                  {dealershipsArray.length === 0 && (
                     <div className="col-span-full text-center py-8 text-muted-foreground">
                       No dealerships found. Add your first dealership to get started.
                     </div>
@@ -455,7 +459,7 @@ export default function SettingsPage() {
                   </Button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {showrooms.map((showroom: any) => (
+                  {showroomsArray.map((showroom: any) => (
                     <Card key={showroom.id} className="border">
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-2">
@@ -476,7 +480,7 @@ export default function SettingsPage() {
                       </CardContent>
                     </Card>
                   ))}
-                  {showrooms.length === 0 && (
+                  {showroomsArray.length === 0 && (
                     <div className="col-span-full text-center py-8 text-muted-foreground">
                       No showrooms found. Add your first showroom to get started.
                     </div>
@@ -493,7 +497,7 @@ export default function SettingsPage() {
                   </Button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {users.map((usr: any) => (
+                  {usersArray.map((usr: any) => (
                     <Card key={usr.id} className="border">
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-2">
@@ -515,7 +519,7 @@ export default function SettingsPage() {
                       </CardContent>
                     </Card>
                   ))}
-                  {users.length === 0 && (
+                  {usersArray.length === 0 && (
                     <div className="col-span-full text-center py-8 text-muted-foreground">
                       No users found. Add your first user to get started.
                     </div>
