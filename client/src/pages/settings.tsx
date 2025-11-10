@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +61,7 @@ export default function SettingsPage() {
   const [showCreateDealershipModal, setShowCreateDealershipModal] = useState(false);
   const [showCreateShowroomModal, setShowCreateShowroomModal] = useState(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<string>("all");
 
   // Fetch data for organization management
   const { data: oems } = useQuery({
@@ -126,6 +127,14 @@ export default function SettingsPage() {
     enabled: user?.role === 'SUPER_ADMIN',
   });
   const usersArray = Array.isArray(users) ? users : [];
+
+  // Filter users based on selected role
+  const filteredUsers = useMemo(() => {
+    if (selectedRole === "all") {
+      return usersArray;
+    }
+    return usersArray.filter(u => u.role === selectedRole);
+  }, [usersArray, selectedRole]);
 
   // Fetch current user's dealership details if they're a DEALERSHIP_ADMIN
   const { data: myDealership } = useQuery({
@@ -496,8 +505,32 @@ export default function SettingsPage() {
                     Add User
                   </Button>
                 </div>
+                
+                {/* Role Filter */}
+                <div className="flex items-center gap-4">
+                  <Label htmlFor="role-filter" className="text-sm font-medium">Filter by Role:</Label>
+                  <Select value={selectedRole} onValueChange={setSelectedRole}>
+                    <SelectTrigger className="w-[250px]" id="role-filter" data-testid="filter-role">
+                      <SelectValue placeholder="All Roles" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Roles</SelectItem>
+                      <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                      <SelectItem value="OEM_ADMIN">OEM Admin</SelectItem>
+                      <SelectItem value="DEALERSHIP_ADMIN">Dealership Admin</SelectItem>
+                      <SelectItem value="SHOWROOM_MANAGER">Showroom Manager</SelectItem>
+                      <SelectItem value="SALES_PERSON">Sales Person</SelectItem>
+                      <SelectItem value="PARTNER_ADMIN">Partner Admin</SelectItem>
+                      <SelectItem value="PARTNER_STAFF">Partner Staff</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm text-muted-foreground">
+                    Showing {filteredUsers.length} of {usersArray.length} users
+                  </span>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {usersArray.map((usr: any) => (
+                  {filteredUsers.map((usr: any) => (
                     <Card key={usr.id} className="border">
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-2">
@@ -519,9 +552,12 @@ export default function SettingsPage() {
                       </CardContent>
                     </Card>
                   ))}
-                  {usersArray.length === 0 && (
+                  {filteredUsers.length === 0 && (
                     <div className="col-span-full text-center py-8 text-muted-foreground">
-                      No users found. Add your first user to get started.
+                      {selectedRole === "all" 
+                        ? "No users found. Add your first user to get started."
+                        : `No users found with role: ${selectedRole.replace(/_/g, ' ')}`
+                      }
                     </div>
                   )}
                 </div>
