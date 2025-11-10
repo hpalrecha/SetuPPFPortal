@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -31,6 +31,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Check, ChevronsUpDown, MapPin } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { INDIAN_STATES } from "@shared/constants";
 
 const showroomSchema = z.object({
@@ -119,6 +124,8 @@ export function CreateShowroomModal({
   const [billToSameAsShowroom, setBillToSameAsShowroom] = useState(false);
   const [shipToSameAsBillTo, setShipToSameAsBillTo] = useState(false);
   const [hasAdminUser, setHasAdminUser] = useState(false);
+  const [dealershipSearch, setDealershipSearch] = useState("");
+  const [dealershipSearchOpen, setDealershipSearchOpen] = useState(false);
   const isEditing = !!showroom;
 
   const form = useForm<ShowroomFormData>({
