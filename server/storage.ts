@@ -1075,29 +1075,51 @@ export class DatabaseStorage implements IStorage {
     
     const showroomsList = await query;
     
-    // Add counts for each showroom
-    const showroomsWithCounts = await Promise.all(
-      showroomsList.map(async (showroom) => {
-        // Count sales staff (users) for this showroom
-        const staffCount = await db.select().from(users).where(eq(users.showroomId, showroom.id));
-        
-        // Count work orders for this showroom (when work_orders table exists)
-        let workOrdersCount = 0;
-        try {
-          // This might fail if work_orders table doesn't exist yet
-          const showroomOrders = await db.select().from(workOrders).where(eq(workOrders.showroomId, showroom.id));
-          workOrdersCount = showroomOrders.length;
-        } catch (e) {
-          // Table doesn't exist yet, keep count as 0
-        }
-        
-        return {
-          ...showroom,
-          salesStaffCount: staffCount.length,
-          workOrdersCount
-        };
-      })
-    );
+    // PERFORMANCE OPTIMIZATION: Fetch all related data in bulk (2-3 queries instead of 2*N queries)
+    const showroomIds = showroomsList.map(s => s.id);
+    
+    if (showroomIds.length === 0) {
+      return { showrooms: [], total: 0 };
+    }
+    
+    // Fetch all users for these showrooms in ONE query
+    const allUsers = await db
+      .select()
+      .from(users)
+      .where(inArray(users.showroomId, showroomIds));
+    
+    // Fetch all work orders for these showrooms in ONE query (with error handling)
+    let allWorkOrders: any[] = [];
+    try {
+      allWorkOrders = await db
+        .select()
+        .from(workOrders)
+        .where(inArray(workOrders.showroomId, showroomIds));
+    } catch (e) {
+      // Table doesn't exist yet, keep empty array
+    }
+    
+    // Count in memory using Maps for O(n) performance
+    const staffCountByShowroom = new Map<string, number>();
+    allUsers.forEach((user: any) => {
+      if (user.showroomId) {
+        staffCountByShowroom.set(user.showroomId, (staffCountByShowroom.get(user.showroomId) || 0) + 1);
+      }
+    });
+    
+    const workOrdersCountByShowroom = new Map<string, number>();
+    allWorkOrders.forEach((order: any) => {
+      if (order.showroomId) {
+        workOrdersCountByShowroom.set(order.showroomId, (workOrdersCountByShowroom.get(order.showroomId) || 0) + 1);
+      }
+    });
+    
+    // Add counts to each showroom (in memory operation)
+    const showroomsWithCounts = showroomsList.map((showroom) => ({
+      ...showroom,
+      salesStaffCount: staffCountByShowroom.get(showroom.id) || 0,
+      workOrdersCount: workOrdersCountByShowroom.get(showroom.id) || 0
+    }));
     
     return { showrooms: showroomsWithCounts, total };
   }
