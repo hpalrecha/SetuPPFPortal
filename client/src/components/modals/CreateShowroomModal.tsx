@@ -292,6 +292,17 @@ export function CreateShowroomModal({
 
   const dealerships = dealershipData?.dealerships || [];
   
+  // Filter dealerships based on search
+  const filteredDealerships = useMemo(() => {
+    if (!dealershipSearch) return dealerships;
+    const search = dealershipSearch.toLowerCase();
+    return dealerships.filter((dealership: any) =>
+      dealership.name?.toLowerCase().includes(search) ||
+      dealership.city?.toLowerCase().includes(search) ||
+      dealership.state?.toLowerCase().includes(search)
+    );
+  }, [dealerships, dealershipSearch]);
+  
   // Fetch all OEMs to display names
   const { data: allOems = [] } = useQuery({
     queryKey: ["/api/oems"],
@@ -448,26 +459,76 @@ export function CreateShowroomModal({
                   control={form.control}
                   name="dealershipId"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="flex flex-col">
                       <FormLabel>Dealership</FormLabel>
-                      <Select onValueChange={(value) => {
-                        field.onChange(value);
-                        // Reset OEM selection when dealership changes
-                        form.setValue("oemId", "");
-                      }} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select Dealership" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {dealerships?.map((dealership: any) => (
-                            <SelectItem key={dealership.id} value={dealership.id}>
-                              {dealership.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={dealershipSearchOpen} onOpenChange={setDealershipSearchOpen}>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                "w-full justify-between",
+                                !field.value && "text-muted-foreground"
+                              )}
+                              data-testid="button-select-dealership"
+                            >
+                              {field.value ? (
+                                <div className="flex items-center gap-2 truncate">
+                                  <span className="truncate">{dealerships.find((d: any) => d.id === field.value)?.name}</span>
+                                </div>
+                              ) : (
+                                "Search and select dealership..."
+                              )}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[400px] p-0" align="start">
+                          <Command>
+                            <CommandInput 
+                              placeholder="Search by name, city, or state..." 
+                              value={dealershipSearch}
+                              onValueChange={setDealershipSearch}
+                            />
+                            <CommandList>
+                              <CommandEmpty>No dealership found.</CommandEmpty>
+                              <CommandGroup>
+                                <ScrollArea className="h-[300px]">
+                                  {filteredDealerships.map((dealership: any) => (
+                                    <CommandItem
+                                      key={dealership.id}
+                                      value={`${dealership.name} ${dealership.city} ${dealership.state}`}
+                                      onSelect={() => {
+                                        field.onChange(dealership.id);
+                                        // Reset OEM selection when dealership changes
+                                        form.setValue("oemId", "");
+                                        setDealershipSearchOpen(false);
+                                        setDealershipSearch("");
+                                      }}
+                                      className="cursor-pointer"
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          dealership.id === field.value ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      <div className="flex flex-col flex-1">
+                                        <span className="font-medium">{dealership.name}</span>
+                                        <span className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                          <MapPin className="h-3 w-3" />
+                                          {dealership.city}, {dealership.state}
+                                        </span>
+                                      </div>
+                                    </CommandItem>
+                                  ))}
+                                </ScrollArea>
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )}
