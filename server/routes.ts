@@ -3454,19 +3454,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (req.user!.role === 'OEM_ADMIN') {
         // OEM admins see job cards only for their OEM
         filters.oemId = req.user!.oemId;
-      } else if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
-        // Super admins see all job cards within the selected OEM context
+      } else if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN') {
+        // Super admins and admins see all job cards within the selected OEM context
         if (selectedOemId) {
           filters.oemId = selectedOemId;
         }
         // If no OEM selected, they see all job cards (global view)
+      } else if (req.user!.role === 'MANAGER') {
+        // MANAGER sees job cards filtered by allowed states
+        if (selectedOemId) {
+          filters.oemId = selectedOemId;
+        }
+        // State filtering will be applied after fetching
       }
       
       if (status) filters.status = status as string;
 
       console.log(`🎯 Final filters for job cards query:`, filters);
-      const jobCards = await storage.getJobCards(filters);
-      console.log(`📋 Returned ${jobCards.length} job cards for partner`);
+      let jobCards = await storage.getJobCards(filters);
+      console.log(`📋 Returned ${jobCards.length} job cards before filtering`);
+      
+      // ✅ MANAGER state filtering - filter job cards by showroom/dealership state
+      if (req.user!.role === 'MANAGER') {
+        const allowedStates = (req.user!.allowedStates as string[]) || [];
+        
+        // Get all unique showroom IDs from job cards
+        const showroomIds = [...new Set(jobCards.map(jc => jc.showroomId).filter(Boolean))];
+        
+        // Fetch all showrooms and their dealerships
+        const showroomsResponse = await storage.getShowrooms();
+        const showroomDealershipMap = new Map<string, string>();
+        showroomsResponse.showrooms.forEach(s => {
+          showroomDealershipMap.set(s.id, s.dealershipId);
+        });
+        
+        // Get all unique dealership IDs
+        const dealershipIds = [...new Set([
+          ...jobCards.map(jc => jc.dealershipId).filter(Boolean),
+          ...showroomIds.map(sid => showroomDealershipMap.get(sid))
+        ])].filter(Boolean);
+        
+        const dealershipsResponse = await storage.getDealerships();
+        const dealershipStates = new Map<string, string>();
+        dealershipsResponse.dealerships.forEach(d => {
+          if (d.state) dealershipStates.set(d.id, d.state);
+        });
+        
+        // Filter job cards based on showroom/dealership state
+        jobCards = jobCards.filter(jc => {
+          let dealershipId = jc.dealershipId;
+          if (!dealershipId && jc.showroomId) {
+            dealershipId = showroomDealershipMap.get(jc.showroomId) || '';
+          }
+          const state = dealershipStates.get(dealershipId);
+          return state && allowedStates.includes(state);
+        });
+        
+        console.log(`📋 After MANAGER state filtering: ${jobCards.length} job cards (allowed states: ${allowedStates.join(', ')})`);
+      }
       
       // 🔒 Filter price based on partner permissions (for partner users only)
       let filteredJobCards = jobCards;
@@ -3507,9 +3552,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const selectedOemId = req.headers['x-oem-id'] as string;
         let hasAccess = false;
         
-        // SUPER_ADMIN can access any job card
-        if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
+        // SUPER_ADMIN and ADMIN can access any job card
+        if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN') {
           hasAccess = true;
+        } else if (req.user!.role === 'MANAGER') {
+          // MANAGER can access job cards only from allowed states
+          const allowedStates = (req.user!.allowedStates as string[]) || [];
+          const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+          
+          if (workOrder) {
+            let dealershipId = workOrder.dealershipId;
+            
+            // If no direct dealership, get it from showroom
+            if (!dealershipId && workOrder.showroomId) {
+              const showroom = await storage.getShowroom(workOrder.showroomId);
+              if (showroom) {
+                dealershipId = showroom.dealershipId;
+              }
+            }
+            
+            // Check if dealership is in allowed states
+            if (dealershipId) {
+              const dealership = await storage.getDealership(dealershipId);
+              if (dealership && dealership.state && allowedStates.includes(dealership.state)) {
+                hasAccess = true;
+              }
+            }
+          }
         } else if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
           // Partner users can access job cards assigned to them
           hasAccess = jobCard.partnerId === req.user!.partnerId;
