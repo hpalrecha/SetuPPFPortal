@@ -4281,45 +4281,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(500).json({ error: "Failed to apply e-warranty" });
         }
 
-        // Send e-warranty notification emails
-        try {
-          const { emailService } = await import('./services/email-service');
-          const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
-          
-          if (workOrder) {
-            const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
-            const partner = await storage.getPartner(jobCard.partnerId);
+        // Send e-warranty notification emails asynchronously
+        setImmediate(async () => {
+          try {
+            const { emailService } = await import('./services/email-service');
+            const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
             
-            const jobCardDetails = {
-              jobCardId: jobCard.id,
-              workOrderNumber: workOrder.workOrderNumber || `WO-${workOrder.id.slice(-6)}`,
-              customerName: workOrder.customerName || 'N/A',
-              customerPhone: workOrder.customerPhone || 'N/A',
-              customerEmail: workOrder.customerEmail || 'N/A',
-              vehicleDetails: {
-                modelName: vehicleModel?.modelName || 'Unknown Vehicle',
-                brand: vehicleModel?.brand || 'N/A',
-                regNo: workOrder.regNo || 'N/A'
-              },
-              serviceName: workOrder.serviceName || 'N/A',
-              partnerName: partner?.displayName || 'Partner',
-              completedAt: jobCard.completedAt || new Date(),
-              approvedAt: jobCard.approvedAt || new Date(),
-              eWarrantyAppliedAt: updatedJobCard.eWarrantyAppliedAt || new Date()
-            };
+            if (workOrder) {
+              const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
+              const partner = await storage.getPartner(jobCard.partnerId);
+              const oem = workOrder.oemId ? await storage.getOem(workOrder.oemId) : null;
+              
+              const jobCardDetails = {
+                jobCardId: jobCard.id,
+                workOrderNumber: workOrder.workOrderNumber || `WO-${workOrder.id.slice(-6)}`,
+                customerName: workOrder.customerName || 'N/A',
+                customerPhone: workOrder.customerPhone || 'N/A',
+                customerEmail: workOrder.customerEmail || 'N/A',
+                vehicleDetails: {
+                  modelName: vehicleModel?.modelName || 'Unknown Vehicle',
+                  brand: oem?.name || 'N/A',
+                  regNo: workOrder.regNo || 'N/A'
+                },
+                serviceName: workOrder.serviceName || 'N/A',
+                partnerName: partner?.displayName || 'Partner',
+                completedAt: jobCard.completedAt || new Date(),
+                approvedAt: jobCard.approvedAt || new Date(),
+                eWarrantyAppliedAt: updatedJobCard.eWarrantyAppliedAt || new Date()
+              };
 
-            // Send to both recipients
-            await Promise.all([
-              emailService.sendEWarrantyNotification('justsignssocial@gmail.com', jobCardDetails),
-              emailService.sendEWarrantyNotification('info@stek-india.in', jobCardDetails)
-            ]);
-            
-            console.log(`✅ E-Warranty application emails sent for job card ${jobCardId}`);
+              // Send to both recipients
+              await Promise.all([
+                emailService.sendEWarrantyNotification('justsignssocial@gmail.com', jobCardDetails),
+                emailService.sendEWarrantyNotification('info@stek-india.in', jobCardDetails)
+              ]);
+              
+              console.log(`✅ E-Warranty application emails sent for job card ${jobCardId}`);
+            }
+          } catch (emailError) {
+            console.error("Failed to send e-warranty notification emails:", emailError);
           }
-        } catch (emailError) {
-          console.error("Failed to send e-warranty notification emails:", emailError);
-          // Don't fail the request if email fails
-        }
+        });
 
         res.json(updatedJobCard);
       } catch (error) {
