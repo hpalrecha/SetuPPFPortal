@@ -25,7 +25,7 @@ import { emailService } from "./services/email-service";
 import { whatsappService } from "./services/whatsapp-service";
 import smsService from "./services/sms-service";
 import { notificationService } from "./services/notificationService";
-import { authenticate, requireRole, requireOEMAccess, auditLog } from "./middleware";
+import { authenticate, requireRole, requireOEMAccess, auditLog, blockAdminDelete, hasStateAccess } from "./middleware";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { generateOTP, hashOTP, verifyOTP, getOTPExpiry } from "./utils/otp";
 import multer from "multer";
@@ -605,11 +605,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create user (Super Admin only)
   app.post("/api/users",
     authenticate,
-    requireRole(['SUPER_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']),
     auditLog('user', 'create'),
     async (req, res) => {
       try {
         const { password, ...userData } = req.body;
+
+        // MANAGER state validation - ensure dealership/showroom is in allowed states
+        if (req.user!.role === 'MANAGER') {
+          const allowedStates = (req.user!.allowedStates as string[]) || [];
+          
+          // For sales persons, validate the dealership/showroom state
+          if (userData.role === 'SALES_PERSON' || userData.role === 'SHOWROOM_MANAGER') {
+            if (userData.dealershipId) {
+              const dealership = await storage.getDealership(userData.dealershipId);
+              if (!dealership || !dealership.state || !allowedStates.includes(dealership.state)) {
+                return res.status(403).json({ error: "Access denied - dealership is not in your allowed states" });
+              }
+            }
+            
+            if (userData.showroomId) {
+              const showroom = await storage.getShowroom(userData.showroomId);
+              if (!showroom) {
+                return res.status(404).json({ error: "Showroom not found" });
+              }
+              
+              const dealership = await storage.getDealership(showroom.dealershipId);
+              if (!dealership || !dealership.state || !allowedStates.includes(dealership.state)) {
+                return res.status(403).json({ error: "Access denied - showroom is not in your allowed states" });
+              }
+            }
+          }
+        }
 
         // Check if email or phone number already exists
         if (userData.email) {
@@ -688,12 +715,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // OEM Routes
-  app.get("/api/oems", authenticate, requireRole(['SUPER_ADMIN', 'PARTNER_ADMIN', 'PARTNER_STAFF']), async (req, res) => {
+  app.get("/api/oems", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'PARTNER_ADMIN', 'PARTNER_STAFF']), async (req, res) => {
     try {
       let oems = await storage.getOems();
       
       // Filter OEMs based on user role and access
-      if (req.user?.role === 'PARTNER_ADMIN' || req.user?.role === 'PARTNER_STAFF') {
+      if (req.user?.role === 'MANAGER') {
+        // For MANAGER role, filter OEMs that have dealerships in allowed states
+        const allowedStates = (req.user.allowedStates as string[]) || [];
+        const dealershipsResponse = await storage.getDealerships();
+        const allDealerships = dealershipsResponse.dealerships || [];
+        
+        // Get unique OEM IDs from dealerships in allowed states
+        const allowedOemIds = new Set<string>();
+        for (const dealership of allDealerships) {
+          if (dealership.state && allowedStates.includes(dealership.state)) {
+            // Handle both single oemId and oemIds array
+            const oemIds = dealership.oemIds || (dealership.oemId ? [dealership.oemId] : []);
+            oemIds.forEach((id: string) => allowedOemIds.add(id));
+          }
+        }
+        
+        oems = oems.filter(oem => allowedOemIds.has(oem.id));
+      } else if (req.user?.role === 'PARTNER_ADMIN' || req.user?.role === 'PARTNER_STAFF') {
         // For partner users, only return OEMs they have access to
         const allowedOemIds = req.user.allowedOemIds || [];
         oems = oems.filter(oem => allowedOemIds.includes(oem.id));
@@ -883,7 +927,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/oems/:id", 
     authenticate, 
-    requireRole(['SUPER_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    blockAdminDelete,
     auditLog('oem', 'delete'),
     async (req, res) => {
       try {
@@ -913,12 +958,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/dealerships", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN']), async (req, res) => {
+  app.get("/api/dealerships", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN']), async (req, res) => {
     try {
       const { oemId, state, city, search, limit, offset } = req.query;
+      
+      // For MANAGER role, only allow filtering within their allowed states
+      let stateFilter = state as string;
+      if (req.user?.role === 'MANAGER') {
+        const allowedStates = (req.user.allowedStates as string[]) || [];
+        
+        // If a state filter is provided, validate it's in allowed states
+        if (stateFilter && !allowedStates.includes(stateFilter)) {
+          return res.json({ dealerships: [], total: 0 });
+        }
+        
+        // If no state filter, we'll filter results after fetching
+      }
+      
       const result = await storage.getDealerships({
         oemId: oemId as string,
-        state: state as string,
+        state: stateFilter,
         city: city as string,
         search: search as string,
         limit: limit ? parseInt(limit as string) : undefined,
@@ -958,16 +1017,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Attach counts and OEM IDs to each dealership
-      const dealershipsWithCounts = result.dealerships.map((dealership) => ({
+      let dealershipsWithCounts = result.dealerships.map((dealership) => ({
         ...dealership,
         oemIds: oemMappingsMap.get(dealership.id) || [],
         showroomsCount: showroomsByDealership.get(dealership.id) || 0,
         salesStaffCount: salesStaffByDealership.get(dealership.id) || 0
       }));
       
+      // For MANAGER role, filter dealerships by allowed states
+      if (req.user?.role === 'MANAGER' && !stateFilter) {
+        const allowedStates = (req.user.allowedStates as string[]) || [];
+        dealershipsWithCounts = dealershipsWithCounts.filter(d => 
+          d.state && allowedStates.includes(d.state)
+        );
+      }
+      
       res.json({
         dealerships: dealershipsWithCounts,
-        total: result.total
+        total: req.user?.role === 'MANAGER' ? dealershipsWithCounts.length : result.total
       });
     } catch (error) {
       console.error("Get dealerships error:", error);
@@ -1015,7 +1082,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/dealerships", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN']),
     auditLog('dealership', 'create'),
     async (req, res) => {
       try {
@@ -1025,6 +1092,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Validate oemIds array is provided
         if (!oemIds || !Array.isArray(oemIds) || oemIds.length === 0) {
           return res.status(400).json({ error: "At least one OEM must be selected" });
+        }
+        
+        // MANAGER state validation - ensure state is in allowed states
+        if (req.user!.role === 'MANAGER') {
+          const allowedStates = (req.user!.allowedStates as string[]) || [];
+          
+          if (!dealershipFields.state) {
+            return res.status(400).json({ error: "State is required" });
+          }
+          
+          if (!allowedStates.includes(dealershipFields.state)) {
+            return res.status(403).json({ error: "Access denied - you can only create dealerships in your allowed states" });
+          }
         }
         
         // Add code field derived from dealership name
@@ -1397,7 +1477,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/dealerships/:id", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN']),
+    blockAdminDelete,
     auditLog('dealership', 'delete'),
     async (req, res) => {
       try {
@@ -1427,18 +1508,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/showrooms", authenticate, requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']), async (req, res) => {
+  app.get("/api/showrooms", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']), async (req, res) => {
     try {
       const { dealershipId, oemId, state, city, search, limit, offset } = req.query;
+      
+      // For MANAGER role, only allow filtering within their allowed states
+      let stateFilter = state as string;
+      if (req.user?.role === 'MANAGER') {
+        const allowedStates = (req.user.allowedStates as string[]) || [];
+        
+        // If a state filter is provided, validate it's in allowed states
+        if (stateFilter && !allowedStates.includes(stateFilter)) {
+          return res.json({ showrooms: [], total: 0 });
+        }
+      }
+      
       const result = await storage.getShowrooms({
         dealershipId: dealershipId as string,
         oemId: oemId as string,
-        state: state as string,
+        state: stateFilter,
         city: city as string,
         search: search as string,
         limit: limit ? parseInt(limit as string) : undefined,
         offset: offset ? parseInt(offset as string) : undefined
       });
+      
+      // For MANAGER role, filter showrooms by dealership's allowed states
+      if (req.user?.role === 'MANAGER' && !stateFilter) {
+        const allowedStates = (req.user.allowedStates as string[]) || [];
+        
+        // Get all dealerships to check their states
+        const dealershipsResponse = await storage.getDealerships();
+        const dealershipStates = new Map<string, string>();
+        for (const d of dealershipsResponse.dealerships) {
+          if (d.state) dealershipStates.set(d.id, d.state);
+        }
+        
+        // Filter showrooms based on dealership state
+        result.showrooms = result.showrooms.filter(showroom => {
+          const dealershipState = dealershipStates.get(showroom.dealershipId);
+          return dealershipState && allowedStates.includes(dealershipState);
+        });
+        
+        result.total = result.showrooms.length;
+      }
+      
       res.json(result);
     } catch (error) {
       console.error("Get showrooms error:", error);
@@ -1448,12 +1562,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/showrooms", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     auditLog('showroom', 'create'),
     async (req, res) => {
       try {
         // Extract createUser flag and admin user data
         const { createUser, adminUserData, ...showroomFields } = req.body;
+        
+        // MANAGER state validation - ensure dealership is in allowed states
+        if (req.user!.role === 'MANAGER') {
+          const allowedStates = (req.user!.allowedStates as string[]) || [];
+          
+          if (!showroomFields.dealershipId) {
+            return res.status(400).json({ error: "Dealership is required" });
+          }
+          
+          const dealership = await storage.getDealership(showroomFields.dealershipId);
+          if (!dealership) {
+            return res.status(404).json({ error: "Dealership not found" });
+          }
+          
+          if (!dealership.state || !allowedStates.includes(dealership.state)) {
+            return res.status(403).json({ error: "Access denied - dealership is not in your allowed states" });
+          }
+        }
         
         // Validate that the selected OEM exists in the dealership's OEM mappings
         if (showroomFields.dealershipId && showroomFields.oemId) {
@@ -2009,7 +2141,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/showrooms/:id", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN']),
+    blockAdminDelete,
     auditLog('showroom', 'delete'),
     async (req, res) => {
       try {
@@ -2171,7 +2304,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/vehicle-models/:id", 
     authenticate, 
-    requireRole(['SUPER_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    blockAdminDelete,
     auditLog('vehicle_model', 'delete'),
     async (req, res) => {
       try {
@@ -2819,7 +2953,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (status) filters.status = status as string;
       if (partnerId) filters.partnerId = partnerId as string;
 
-      const workOrders = await storage.getWorkOrders(filters);
+      let workOrders = await storage.getWorkOrders(filters);
+      
+      // For MANAGER role, filter work orders by allowed states
+      if (req.user!.role === 'MANAGER') {
+        const allowedStates = (req.user!.allowedStates as string[]) || [];
+        
+        // Get showrooms and dealerships to check states
+        const showroomIds = workOrders.map(wo => wo.showroomId).filter(Boolean);
+        const showroomsResponse = await storage.getShowrooms({ limit: 10000 });
+        const showroomDealershipMap = new Map<string, string>();
+        showroomsResponse.showrooms.forEach(s => showroomDealershipMap.set(s.id, s.dealershipId));
+        
+        const dealershipIds = [...new Set([
+          ...workOrders.map(wo => wo.dealershipId),
+          ...showroomIds.map(sid => showroomDealershipMap.get(sid))
+        ])].filter(Boolean);
+        
+        const dealershipsResponse = await storage.getDealerships();
+        const dealershipStates = new Map<string, string>();
+        dealershipsResponse.dealerships.forEach(d => {
+          if (d.state) dealershipStates.set(d.id, d.state);
+        });
+        
+        // Filter work orders based on dealership/showroom state
+        workOrders = workOrders.filter(wo => {
+          let dealershipId = wo.dealershipId;
+          if (!dealershipId && wo.showroomId) {
+            dealershipId = showroomDealershipMap.get(wo.showroomId) || '';
+          }
+          const state = dealershipStates.get(dealershipId);
+          return state && allowedStates.includes(state);
+        });
+      }
+      
       res.json(workOrders);
     } catch (error) {
       console.error("Get work orders error:", error);
@@ -2829,7 +2996,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/work-orders", 
     authenticate, 
-    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'SUPER_ADMIN', 'PARTNER_ADMIN']),
+    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'MANAGER', 'SUPER_ADMIN', 'PARTNER_ADMIN']),
     auditLog('work_order', 'create'),
     async (req, res) => {
       try {
@@ -2854,6 +3021,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           workOrderData.oemId = req.user!.oemId!;
           if (req.user!.showroomId) {
             workOrderData.showroomId = req.user!.showroomId;
+          }
+        }
+
+        // ✅ NEW: MANAGER validation - ensure showroom/dealership is in allowed states
+        if (req.user!.role === 'MANAGER') {
+          const allowedStates = (req.user!.allowedStates as string[]) || [];
+          
+          if (workOrderData.showroomId) {
+            // Validate showroom belongs to a dealership in allowed states
+            const showroom = await storage.getShowroom(workOrderData.showroomId);
+            if (!showroom) {
+              return res.status(404).json({ error: "Showroom not found" });
+            }
+            
+            const dealership = await storage.getDealership(showroom.dealershipId);
+            if (!dealership || !dealership.state || !allowedStates.includes(dealership.state)) {
+              return res.status(403).json({ error: "Access denied - showroom is not in your allowed states" });
+            }
+          } else if (workOrderData.dealershipId) {
+            // Validate dealership is in allowed states
+            const dealership = await storage.getDealership(workOrderData.dealershipId);
+            if (!dealership || !dealership.state || !allowedStates.includes(dealership.state)) {
+              return res.status(403).json({ error: "Access denied - dealership is not in your allowed states" });
+            }
           }
         }
 
@@ -4506,7 +4697,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         filters.type = type as string;
       }
       
-      const partners = await storage.getPartners(filters);
+      let partners = await storage.getPartners(filters);
+      
+      // For MANAGER role, filter partners based on allocations to allowed dealerships
+      if (req.user!.role === 'MANAGER') {
+        const allowedStates = (req.user!.allowedStates as string[]) || [];
+        
+        // Get allocations for all partners
+        const allocations = await storage.getAllocations({});
+        
+        // Get dealerships to check states
+        const dealershipsResponse = await storage.getDealerships();
+        const dealershipStates = new Map<string, string>();
+        dealershipsResponse.dealerships.forEach(d => {
+          if (d.state) dealershipStates.set(d.id, d.state);
+        });
+        
+        // Get showrooms to map to dealerships
+        const showroomsResponse = await storage.getShowrooms({ limit: 10000 });
+        const showroomDealershipMap = new Map<string, string>();
+        showroomsResponse.showrooms.forEach(s => showroomDealershipMap.set(s.id, s.dealershipId));
+        
+        // Filter partners based on allocations
+        const allowedPartnerIds = new Set<string>();
+        for (const allocation of allocations) {
+          let dealershipId = '';
+          if (allocation.level === 'DEALERSHIP') {
+            dealershipId = allocation.levelId;
+          } else if (allocation.level === 'SHOWROOM') {
+            dealershipId = showroomDealershipMap.get(allocation.levelId) || '';
+          }
+          
+          const state = dealershipStates.get(dealershipId);
+          if (state && allowedStates.includes(state)) {
+            allowedPartnerIds.add(allocation.partnerId);
+          }
+        }
+        
+        partners = partners.filter(p => allowedPartnerIds.has(p.id));
+      }
+      
       res.json(partners);
     } catch (error) {
       console.error("Get partners error:", error);
@@ -4720,7 +4950,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/partners/:id",
     authenticate,
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    blockAdminDelete,
     auditLog('partner', 'delete'),
     async (req, res) => {
       try {
@@ -5077,7 +5308,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/pricing-rules/:id", 
     authenticate, 
-    requireRole(['SUPER_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    blockAdminDelete,
     auditLog('pricing_rule', 'delete'),
     async (req, res) => {
       try {
@@ -5238,7 +5470,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/sales-persons/:id", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    blockAdminDelete,
     auditLog('sales_person', 'delete'),
     async (req, res) => {
       try {
@@ -5349,7 +5582,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/service-categories/:id", 
     authenticate, 
-    requireRole(['SUPER_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    blockAdminDelete,
     auditLog('service_category', 'delete'),
     async (req, res) => {
       try {
@@ -5519,7 +5753,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/services/:id", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN']),
+    blockAdminDelete,
     auditLog('service', 'delete'),
     async (req, res) => {
       try {
@@ -5647,7 +5882,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/allocations", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     auditLog('allocation', 'create'),
     async (req, res) => {
       try {
@@ -5658,6 +5893,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ 
             error: "Level, levelId, and partnerId are required" 
           });
+        }
+
+        // MANAGER state validation - ensure allocation is in allowed states
+        if (req.user!.role === 'MANAGER') {
+          const allowedStates = (req.user!.allowedStates as string[]) || [];
+          
+          if (allocationData.level === 'DEALERSHIP') {
+            const dealership = await storage.getDealership(allocationData.levelId);
+            if (!dealership || !dealership.state || !allowedStates.includes(dealership.state)) {
+              return res.status(403).json({ error: "Access denied - dealership is not in your allowed states" });
+            }
+          } else if (allocationData.level === 'SHOWROOM') {
+            const showroom = await storage.getShowroom(allocationData.levelId);
+            if (!showroom) {
+              return res.status(404).json({ error: "Showroom not found" });
+            }
+            
+            const dealership = await storage.getDealership(showroom.dealershipId);
+            if (!dealership || !dealership.state || !allowedStates.includes(dealership.state)) {
+              return res.status(403).json({ error: "Access denied - showroom is not in your allowed states" });
+            }
+          }
         }
 
         const allocation = await storage.createAllocation(allocationData);
@@ -5712,7 +5969,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/allocations/:id", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    blockAdminDelete,
     auditLog('allocation', 'delete'),
     async (req, res) => {
       try {
@@ -6062,7 +6320,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/commission-rules/:id", 
     authenticate, 
     requireOEMAccess,
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    blockAdminDelete,
     auditLog('commission_rule', 'delete'),
     async (req, res) => {
       try {
@@ -6225,7 +6484,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/oem-royalty-rules/:id", 
     authenticate, 
     requireOEMAccess,
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN']),
+    blockAdminDelete,
     auditLog('oem_royalty_rule', 'deactivate'),
     async (req, res) => {
       try {
@@ -6963,7 +7223,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/knowledge-hub/:id", 
     authenticate, 
     requireOEMAccess,
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN']),
+    blockAdminDelete,
     async (req, res) => {
       try {
         const { id } = req.params;
@@ -7110,7 +7371,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete brand
-  app.delete("/api/p91/brand/:id", authenticate, requireOEMAccess, async (req, res) => {
+  app.delete("/api/p91/brand/:id", authenticate, requireOEMAccess, blockAdminDelete, async (req, res) => {
     try {
       const { id } = req.params;
       const deleted = await storage.deleteBrand(id);
@@ -7217,7 +7478,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete raw material
-  app.delete("/api/p91/raw_material/delete/:id", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
+  app.delete("/api/p91/raw_material/delete/:id", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN']), blockAdminDelete, async (req, res) => {
     try {
       const { id } = req.params;
       const deleted = await storage.deleteRawMaterial(id);
@@ -7264,7 +7525,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Remove raw material from service
-  app.delete("/api/p91/service/:serviceId/raw_materials/:rawMaterialId", authenticate, requireRole(['SUPER_ADMIN']), async (req, res) => {
+  app.delete("/api/p91/service/:serviceId/raw_materials/:rawMaterialId", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN']), blockAdminDelete, async (req, res) => {
     try {
       const { serviceId, rawMaterialId } = req.params;
       const deleted = await storage.removeServiceRawMaterial(serviceId, rawMaterialId);

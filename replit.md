@@ -21,12 +21,20 @@ The application uses the P91 Brand Theme with a Brand Green primary color, Oxani
 - **Job Card System**: Real-time status tracking, SLA monitoring, and notifications.
   - **Pre-Installation Inspection** (Nov 2025): Mandatory photo documentation before starting work. Partners must upload 4 labeled photos (Front, Back, Left Side, Right Side) with optional remarks. Photos are stored in object storage with private ACLs. The "Start Work" button is only enabled after pre-installation inspection is completed.
   - **Status Synchronization** (Nov 2025): Work order status automatically syncs with job card status changes. When job card moves to IN_PROGRESS, work order also updates to IN_PROGRESS. When job card is approved, work order updates to APPROVED. This ensures consistent status tracking across the system.
+  - **E-Warranty Application** (Nov 2025): Two separate flows exist: 1) Partner e-warranty request (for partner-billed jobs) sends notification emails to STEK India without requiring warranty reference number, 2) Admin warranty registration requires warranty reference number and sets status to WARRANTY_REGISTRATION.
 - **Partner Allocation**: Priority-based auto-assignment with manual overrides and billing controls.
 - **Pricing Engine**: Hierarchical pricing rules applied at OEM, Dealership, and Partner levels.
   - **OEM Pricing** (Nov 2025): OEM-level default pricing rules that apply to all dealerships under an OEM, reducing manual pricing management from 13,800+ to ~50 rules. Pricing hierarchy: DEALERSHIP_PRICING → OEM_PRICING (fallback). Each rule defines price for a specific OEM + Service + Vehicle Model combination.
 - **Commission System**: Automated calculations based on percentages/fixed amounts, with caps/floors.
 - **Billing System**: Automated detail population with hierarchical rules, supporting "Bill From" and "Bill To" logic, "Ship To" from Showroom, and partner direct billing.
 - **Audit System**: Comprehensive activity logging and timeline views.
+- **Hierarchical Permission System** (Nov 2025): Added ADMIN and MANAGER roles:
+  - **ADMIN Role**: Full read/write access to all resources except DELETE operations (blocked from all deletes)
+  - **MANAGER Role**: State-based access control with allowedStates field
+    - View: Can see OEMs, dealerships, showrooms, work orders, partners only in allowed states
+    - Create: Can create work orders, dealerships, showrooms, sales persons only in allowed states
+    - Restrictions: Cannot access entities outside allowedStates, no delete permissions
+  - Existing roles (SUPER_ADMIN, OEM_ADMIN, DEALERSHIP_ADMIN, SHOWROOM_MANAGER, SALES_PERSON, PARTNER_ADMIN, PARTNER_STAFF) remain unchanged
 
 ## System Design Choices
 - **Database**: PostgreSQL with Drizzle ORM, using UUIDs, timestamps, decimals, JSONB, enums, and strategic indexing.
