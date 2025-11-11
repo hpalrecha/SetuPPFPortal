@@ -140,6 +140,26 @@ export default function WorkOrdersPage() {
     enabled: currentView !== 'list' && !!workOrderId // Only fetch when not in list view and we have an ID
   });
 
+  // Query for work order in edit modal
+  const { data: editWorkOrder } = useQuery<WorkOrder>({
+    queryKey: ["/api/work-orders", selectedWorkOrder],
+    queryFn: async () => {
+      const response = await fetch(`/api/work-orders/${selectedWorkOrder}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch work order');
+      }
+      
+      return response.json();
+    },
+    enabled: !!selectedWorkOrder && showEditModal // Only fetch when modal is open
+  });
+
   // Apply search filters to work orders (using debounced filters)
   const workOrders = allWorkOrders.filter((order) => {
     const workOrderNumber = `WO-${order.id.slice(-6)}`.toLowerCase();
@@ -1218,7 +1238,7 @@ export default function WorkOrdersPage() {
             </p>
           </DialogHeader>
           
-          {selectedWorkOrder && workOrder && (
+          {editWorkOrder && (
             <div className="space-y-6">
               {/* Vehicle Information - Read-only */}
               <div className="border rounded-lg p-4 bg-muted/50">
@@ -1229,16 +1249,16 @@ export default function WorkOrdersPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <Label className="text-muted-foreground">Vehicle Brand</Label>
-                    <p className="font-medium">{workOrder.vehicleBrandName}</p>
+                    <p className="font-medium">{(editWorkOrder as any).vehicleBrandName}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Vehicle Model</Label>
-                    <p className="font-medium">{workOrder.vehicleModelName}</p>
+                    <p className="font-medium">{(editWorkOrder as any).vehicleModelName}</p>
                   </div>
-                  {workOrder.variant && (
+                  {editWorkOrder.variant && (
                     <div>
                       <Label className="text-muted-foreground">Variant</Label>
-                      <p className="font-medium">{workOrder.variant}</p>
+                      <p className="font-medium">{editWorkOrder.variant}</p>
                     </div>
                   )}
                 </div>
@@ -1253,11 +1273,11 @@ export default function WorkOrdersPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <Label className="text-muted-foreground">Service</Label>
-                    <p className="font-medium">{workOrder.serviceName}</p>
+                    <p className="font-medium">{(editWorkOrder as any).serviceName}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Quantity</Label>
-                    <p className="font-medium">{workOrder.quantity} unit(s)</p>
+                    <p className="font-medium">{editWorkOrder.quantity} unit(s)</p>
                   </div>
                 </div>
               </div>
@@ -1272,8 +1292,9 @@ export default function WorkOrdersPage() {
                   <div className="space-y-2">
                     <Label htmlFor="edit-modal-customer-name">Customer Name</Label>
                     <Input
+                      key={`customer-name-${editWorkOrder.id}`}
                       id="edit-modal-customer-name"
-                      defaultValue={workOrder.customerName || ""}
+                      defaultValue={editWorkOrder.customerName || ""}
                       data-testid="input-edit-modal-customer-name"
                     />
                   </div>
@@ -1281,8 +1302,9 @@ export default function WorkOrdersPage() {
                   <div className="space-y-2">
                     <Label htmlFor="edit-modal-customer-phone">Customer Phone</Label>
                     <Input
+                      key={`customer-phone-${editWorkOrder.id}`}
                       id="edit-modal-customer-phone"
-                      defaultValue={workOrder.customerPhone || ""}
+                      defaultValue={editWorkOrder.customerPhone || ""}
                       data-testid="input-edit-modal-customer-phone"
                     />
                   </div>
@@ -1290,9 +1312,10 @@ export default function WorkOrdersPage() {
                   <div className="space-y-2">
                     <Label htmlFor="edit-modal-customer-email">Customer Email</Label>
                     <Input
+                      key={`customer-email-${editWorkOrder.id}`}
                       id="edit-modal-customer-email"
                       type="email"
-                      defaultValue={workOrder.customerEmail || ""}
+                      defaultValue={editWorkOrder.customerEmail || ""}
                       data-testid="input-edit-modal-customer-email"
                     />
                   </div>
@@ -1300,8 +1323,9 @@ export default function WorkOrdersPage() {
                   <div className="space-y-2">
                     <Label htmlFor="edit-modal-reg-no">Registration Number</Label>
                     <Input
+                      key={`reg-no-${editWorkOrder.id}`}
                       id="edit-modal-reg-no"
-                      defaultValue={workOrder.regNo || ""}
+                      defaultValue={editWorkOrder.regNo || ""}
                       data-testid="input-edit-modal-reg-no"
                     />
                   </div>
@@ -1309,8 +1333,9 @@ export default function WorkOrdersPage() {
                   <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="edit-modal-customer-address">Customer Address</Label>
                     <Textarea
+                      key={`customer-address-${editWorkOrder.id}`}
                       id="edit-modal-customer-address"
-                      defaultValue={workOrder.customerAddress || ""}
+                      defaultValue={editWorkOrder.customerAddress || ""}
                       rows={2}
                       data-testid="textarea-edit-modal-customer-address"
                     />
@@ -1319,8 +1344,9 @@ export default function WorkOrdersPage() {
                   <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="edit-modal-notes">Notes</Label>
                     <Textarea
+                      key={`notes-${editWorkOrder.id}`}
                       id="edit-modal-notes"
-                      defaultValue={workOrder.notes || ""}
+                      defaultValue={editWorkOrder.notes || ""}
                       rows={3}
                       data-testid="textarea-edit-modal-notes"
                     />
