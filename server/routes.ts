@@ -929,7 +929,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.json({ dealerships: [], total: 0 });
         }
         
-        // If no state filter, we'll filter results after fetching
+        // If no state filter provided, we need to fetch ALL dealerships that match allowed states
+        // Since we can't pass multiple states to getDealerships, we'll fetch all and filter in memory
+        if (!stateFilter && allowedStates.length > 0) {
+          // Don't use pagination for MANAGER - fetch all dealerships to filter by state
+          const allResults = await storage.getDealerships({
+            oemId: oemId as string,
+            state: undefined,
+            city: city as string,
+            search: search as string,
+            limit: 10000, // Fetch all
+            offset: undefined
+          });
+          
+          // Filter by allowed states
+          const filteredDealerships = allResults.dealerships.filter(d => 
+            d.state && allowedStates.includes(d.state)
+          );
+          
+          // Get dealership IDs for the filtered set
+          const dealershipIds = filteredDealerships.map(d => d.id);
+          
+          if (dealershipIds.length === 0) {
+            return res.json({ dealerships: [], total: 0 });
+          }
+          
+          // Fetch all related data in bulk
+          const [allShowrooms, allSalesStaff, oemMappingsMap] = await Promise.all([
+            storage.getShowrooms({ limit: 10000 }).then(result => result.showrooms),
+            storage.getUsers({ role: 'SALES_PERSON' }),
+            storage.getDealershipOemsBulk(dealershipIds)
+          ]);
+          
+          // Count in memory
+          const showroomsByDealership = new Map<string, number>();
+          allShowrooms.forEach((showroom: any) => {
+            const count = showroomsByDealership.get(showroom.dealershipId) || 0;
+            showroomsByDealership.set(showroom.dealershipId, count + 1);
+          });
+          
+          const salesStaffByDealership = new Map<string, number>();
+          allSalesStaff.forEach((staff: any) => {
+            if (staff.dealershipId) {
+              const count = salesStaffByDealership.get(staff.dealershipId) || 0;
+              salesStaffByDealership.set(staff.dealershipId, count + 1);
+            }
+          });
+          
+          // Attach counts and OEM IDs
+          const dealershipsWithCounts = filteredDealerships.map((dealership) => ({
+            ...dealership,
+            oemIds: oemMappingsMap.get(dealership.id) || [],
+            showroomsCount: showroomsByDealership.get(dealership.id) || 0,
+            salesStaffCount: salesStaffByDealership.get(dealership.id) || 0
+          }));
+          
+          return res.json({
+            dealerships: dealershipsWithCounts,
+            total: dealershipsWithCounts.length
+          });
+        }
       }
       
       const result = await storage.getDealerships({
@@ -974,33 +1033,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Attach counts and OEM IDs to each dealership
-      let dealershipsWithCounts = result.dealerships.map((dealership) => ({
+      const dealershipsWithCounts = result.dealerships.map((dealership) => ({
         ...dealership,
         oemIds: oemMappingsMap.get(dealership.id) || [],
         showroomsCount: showroomsByDealership.get(dealership.id) || 0,
         salesStaffCount: salesStaffByDealership.get(dealership.id) || 0
       }));
       
-      // For MANAGER role, filter dealerships by allowed states
-      if (req.user?.role === 'MANAGER' && !stateFilter) {
-        const allowedStates = (req.user.allowedStates as string[]) || [];
-        console.log('MANAGER Filter Debug:', {
-          role: req.user.role,
-          allowedStates,
-          totalDealerships: dealershipsWithCounts.length,
-          dealershipStates: dealershipsWithCounts.map(d => d.state)
-        });
-        dealershipsWithCounts = dealershipsWithCounts.filter(d => 
-          d.state && allowedStates.includes(d.state)
-        );
-        console.log('After filtering:', {
-          filteredCount: dealershipsWithCounts.length
-        });
-      }
-      
       res.json({
         dealerships: dealershipsWithCounts,
-        total: req.user?.role === 'MANAGER' ? dealershipsWithCounts.length : result.total
+        total: result.total
       });
     } catch (error) {
       console.error("Get dealerships error:", error);
