@@ -1225,7 +1225,9 @@ export default function WorkOrdersPage() {
       />
 
       {/* Edit Work Order Modal */}
+      {console.log("RENDER CHECK - showEditModal:", showEditModal, "selectedWorkOrder:", selectedWorkOrder)}
       <Dialog open={showEditModal} onOpenChange={(open) => {
+        console.log("Dialog onOpenChange called with:", open);
         setShowEditModal(open);
         if (!open) {
           setSelectedWorkOrder(null);
