@@ -51,6 +51,10 @@ interface JobCard {
     regNo: string;
     quantity: number;
     notes?: string;
+    status?: string;
+    cancelledReason?: string;
+    cancelledAt?: string;
+    cancelledByName?: string;
     vehicleModel: {
       modelName: string;
       brand: { name: string };
@@ -480,6 +484,40 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                     <p className="text-sm text-yellow-800 font-medium mt-3">
                       ⚠️ Please address the issues mentioned above and click "Mark as Fixed" when completed.
                     </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Cancellation Information */}
+            {jobCard?.status === 'CANCELLED' && jobCard?.workOrder?.status === 'CANCELLED' && (
+              <Card className="border-2 border-red-200 bg-red-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base text-red-800 flex items-center gap-2">
+                    <PauseCircle className="h-5 w-5" />
+                    Work Order Cancelled
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {jobCard.workOrder.cancelledReason && (
+                      <div>
+                        <p className="text-sm font-medium text-red-800">Cancellation Reason:</p>
+                        <p className="text-sm text-red-700 bg-red-100 p-3 rounded border mt-1">
+                          {jobCard.workOrder.cancelledReason}
+                        </p>
+                      </div>
+                    )}
+                    {jobCard.workOrder.cancelledAt && (
+                      <p className="text-xs text-red-600">
+                        Cancelled on: {format(new Date(jobCard.workOrder.cancelledAt), 'PPp')}
+                      </p>
+                    )}
+                    {jobCard.workOrder.cancelledByName && (
+                      <p className="text-xs text-red-600">
+                        Cancelled by: {jobCard.workOrder.cancelledByName}
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
