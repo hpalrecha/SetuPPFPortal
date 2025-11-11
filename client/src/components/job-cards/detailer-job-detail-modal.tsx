@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { CalendarIcon, ClockIcon, CheckCircle2, PlayCircle, PauseCircle, UploadIcon, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon, Users, Camera, Eye } from 'lucide-react';
+import { CalendarIcon, ClockIcon, CheckCircle2, PlayCircle, PauseCircle, UploadIcon, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon, Users, Camera, Eye, Shield } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -42,6 +42,9 @@ interface JobCard {
   preInstallationRemarks?: string;
   preInstallationCompletedAt?: string;
   preInstallationCompletedBy?: string;
+  eWarrantyApplied?: boolean;
+  eWarrantyAppliedAt?: string;
+  partnerBilledDirectly?: boolean;
   workOrder: {
     id: string;
     customerName: string;
@@ -286,6 +289,26 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     }
   });
 
+  // E-Warranty Application Mutation
+  const applyWarrantyMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/apply-warranty`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards', jobCardId] });
+      toast({ 
+        title: 'E-Warranty Applied', 
+        description: 'E-Warranty application has been submitted successfully. Notification emails have been sent.' 
+      });
+    },
+    onError: (error: Error) => {
+      const errorMessage = error.message || 'Failed to apply e-warranty.';
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
+    }
+  });
+
   const getStatusColor = (status: string) => {
     const colors = {
       'AWAITING_ACK': 'bg-yellow-100 text-yellow-800',
@@ -307,6 +330,10 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const needsRework = jobCard?.status === 'REWORK_REQUESTED';
   const hasPreInstallationPhotos = !!(jobCard?.preInstallationPhotoFront && jobCard?.preInstallationPhotoBack && jobCard?.preInstallationPhotoLeft && jobCard?.preInstallationPhotoRight);
   const needsPreInstallation = canStart && !hasPreInstallationPhotos;
+  // E-Warranty button: show when partner bills directly, job is approved/completed, and not already applied
+  const canApplyWarranty = jobCard?.partnerBilledDirectly && 
+                          ['PENDING_SALES_INVOICE', 'APPROVED'].includes(jobCard?.status || '') && 
+                          !jobCard?.eWarrantyApplied;
 
   const resetForm = () => {
     setCurrentView('details');
@@ -423,6 +450,17 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                 <Button onClick={() => markFixedMutation.mutate()} disabled={markFixedMutation.isPending} className="bg-green-600 hover:bg-green-700" data-testid="button-mark-fixed">
                   <CheckCircle2 className="h-4 w-4 mr-2" />
                   {markFixedMutation.isPending ? 'Marking as Fixed...' : 'Mark as Fixed'}
+                </Button>
+              )}
+              {canApplyWarranty && (
+                <Button 
+                  onClick={() => applyWarrantyMutation.mutate()} 
+                  disabled={applyWarrantyMutation.isPending} 
+                  className="bg-amber-600 hover:bg-amber-700" 
+                  data-testid="button-apply-warranty"
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  {applyWarrantyMutation.isPending ? 'Applying...' : 'Apply for E-Warranty'}
                 </Button>
               )}
             </div>
