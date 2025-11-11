@@ -337,11 +337,17 @@ export default function WorkOrdersPage() {
     setShowAllocateDialog(true);
   };
 
+  // Prepare initialData for edit modal with vehicleBrandId
+  const enrichedInitialData = editWorkOrder ? {
+    ...editWorkOrder,
+    vehicleBrandId: (editWorkOrder as any).vehicleBrand?.id || (editWorkOrder as any).vehicleBrandId,
+  } : undefined;
+
   // Render modals (always rendered regardless of view)
   const modalsJSX = (
     <>
       {/* Create/Edit Work Order Modal */}
-      {console.log("MODAL DATA:", { showEditModal, selectedWorkOrder, editWorkOrder, isLoadingEditWorkOrder })}
+      {console.log("MODAL DATA:", { showEditModal, selectedWorkOrder, editWorkOrder, enrichedInitialData, isLoadingEditWorkOrder })}
       <CreateWorkOrderModal 
         open={showCreateModal || showEditModal}
         onOpenChange={(open) => {
@@ -362,7 +368,7 @@ export default function WorkOrdersPage() {
           queryClient.invalidateQueries({ queryKey: ['/api/work-orders'] });
         }}
         workOrderId={selectedWorkOrder || undefined}
-        initialData={editWorkOrder}
+        initialData={enrichedInitialData}
         isLoading={isLoadingEditWorkOrder}
       />
 
