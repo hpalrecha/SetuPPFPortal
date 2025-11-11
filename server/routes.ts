@@ -4070,6 +4070,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Job card not found" });
       }
 
+      // 🔄 Update work order status to IN_PROGRESS when job card starts
+      await storage.updateWorkOrder(jobCard.workOrderId, {
+        status: 'IN_PROGRESS'
+      });
+      console.log(`🔄 Work order ${jobCard.workOrderId} status synced to IN_PROGRESS`);
+
       // WhatsApp notification for started not needed (no Meta-approved template)
       console.log(`ℹ️ Job card ${jobCard.id} started`);
 

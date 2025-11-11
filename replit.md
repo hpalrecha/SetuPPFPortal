@@ -20,6 +20,7 @@ The application uses the P91 Brand Theme with a Brand Green primary color, Oxani
 - **Work Order Management**: Full lifecycle management with draft-submit workflow, manual partner allocation for PENDING orders, and cancellation with cascade effects (job cards, payouts, commissions).
 - **Job Card System**: Real-time status tracking, SLA monitoring, and notifications.
   - **Pre-Installation Inspection** (Nov 2025): Mandatory photo documentation before starting work. Partners must upload 4 labeled photos (Front, Back, Left Side, Right Side) with optional remarks. Photos are stored in object storage with private ACLs. The "Start Work" button is only enabled after pre-installation inspection is completed.
+  - **Status Synchronization** (Nov 2025): Work order status automatically syncs with job card status changes. When job card moves to IN_PROGRESS, work order also updates to IN_PROGRESS. When job card is approved, work order updates to APPROVED. This ensures consistent status tracking across the system.
 - **Partner Allocation**: Priority-based auto-assignment with manual overrides and billing controls.
 - **Pricing Engine**: Hierarchical pricing rules applied at OEM, Dealership, and Partner levels.
   - **OEM Pricing** (Nov 2025): OEM-level default pricing rules that apply to all dealerships under an OEM, reducing manual pricing management from 13,800+ to ~50 rules. Pricing hierarchy: DEALERSHIP_PRICING → OEM_PRICING (fallback). Each rule defines price for a specific OEM + Service + Vehicle Model combination.
