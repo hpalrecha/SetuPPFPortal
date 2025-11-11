@@ -141,7 +141,7 @@ export default function WorkOrdersPage() {
   });
 
   // Query for work order in edit modal
-  const { data: editWorkOrder } = useQuery<WorkOrder>({
+  const { data: editWorkOrder, isLoading: isLoadingEditWorkOrder } = useQuery<WorkOrder>({
     queryKey: ["/api/work-orders", selectedWorkOrder],
     queryFn: async () => {
       const response = await fetch(`/api/work-orders/${selectedWorkOrder}`, {
@@ -1241,7 +1241,13 @@ export default function WorkOrdersPage() {
             </p>
           </DialogHeader>
           
-          {editWorkOrder && (
+          {isLoadingEditWorkOrder && (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+            </div>
+          )}
+          
+          {!isLoadingEditWorkOrder && editWorkOrder && (
             <div className="space-y-6">
               {/* Vehicle Information - Read-only */}
               <div className="border rounded-lg p-4 bg-muted/50">
