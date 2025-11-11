@@ -36,35 +36,35 @@ interface SidebarProps {
 
 // Navigation items configuration
 const baseNavigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
-  { name: "Work Orders", href: "/work-orders", icon: ClipboardList, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN"] },
-  { name: "Job Cards", href: "/job-cards", icon: CheckSquare, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
-  { name: "Knowledge Hub", href: "/knowledge-hub", icon: BookOpen, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
-  { name: "Partners", href: "/partners", icon: Handshake, roles: ["SUPER_ADMIN"] },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
+  { name: "Work Orders", href: "/work-orders", icon: ClipboardList, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN"] },
+  { name: "Job Cards", href: "/job-cards", icon: CheckSquare, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
+  { name: "Knowledge Hub", href: "/knowledge-hub", icon: BookOpen, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
+  { name: "Partners", href: "/partners", icon: Handshake, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
   { name: "Staff Management", href: "/partner-staff", icon: Users, roles: ["PARTNER_ADMIN"] },
   { name: "Payouts & Earnings", href: "/payouts", icon: DollarSign, roles: ["PARTNER_ADMIN"] },
-  { name: "Allocations", href: "/allocations", icon: Network, roles: ["SUPER_ADMIN"] },
-  { name: "Services", href: "/services", icon: Shield, roles: ["SUPER_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON"] },
-  { name: "Pricing Rules", href: "/pricing", icon: DollarSign, roles: ["SUPER_ADMIN"] },
-  { name: "Commissions", href: "/commissions", icon: Percent, roles: ["SUPER_ADMIN"] },
-  { name: "Payout Settlement", href: "/payout-settlement", icon: CreditCard, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN"] },
+  { name: "Allocations", href: "/allocations", icon: Network, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
+  { name: "Services", href: "/services", icon: Shield, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON"] },
+  { name: "Pricing Rules", href: "/pricing", icon: DollarSign, roles: ["SUPER_ADMIN", "ADMIN"] },
+  { name: "Commissions", href: "/commissions", icon: Percent, roles: ["SUPER_ADMIN", "ADMIN"] },
+  { name: "Payout Settlement", href: "/payout-settlement", icon: CreditCard, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN"] },
 ];
 
 const organizationNavigation = [
-  { name: "OEMs", href: "/oems", icon: Building2, roles: ["SUPER_ADMIN"] },
-  { name: "Dealerships", href: "/dealerships", icon: Store, roles: ["SUPER_ADMIN"] },
-  { name: "Showrooms", href: "/showrooms", icon: MapPin, roles: ["SUPER_ADMIN"] },
-  { name: "Sales Persons", href: "/sales-persons", icon: Users, roles: ["SUPER_ADMIN"] },
-  { name: "Vehicles", href: "/vehicles", icon: Car, roles: ["SUPER_ADMIN"] },
-  { name: "Service Categories", href: "/service-categories", icon: Tag, roles: ["SUPER_ADMIN"] },
-  { name: "Brands", href: "/brands", icon: Tag, roles: ["SUPER_ADMIN"] },
-  { name: "Raw Materials", href: "/raw-materials", icon: Package, roles: ["SUPER_ADMIN"] },
+  { name: "OEMs", href: "/oems", icon: Building2, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
+  { name: "Dealerships", href: "/dealerships", icon: Store, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
+  { name: "Showrooms", href: "/showrooms", icon: MapPin, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
+  { name: "Sales Persons", href: "/sales-persons", icon: Users, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
+  { name: "Vehicles", href: "/vehicles", icon: Car, roles: ["SUPER_ADMIN", "ADMIN"] },
+  { name: "Service Categories", href: "/service-categories", icon: Tag, roles: ["SUPER_ADMIN", "ADMIN"] },
+  { name: "Brands", href: "/brands", icon: Tag, roles: ["SUPER_ADMIN", "ADMIN"] },
+  { name: "Raw Materials", href: "/raw-materials", icon: Package, roles: ["SUPER_ADMIN", "ADMIN"] },
 ];
 
 const systemNavigation = [
-  { name: "Reports", href: "/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "PARTNER_ADMIN"] },
-  { name: "Audit Logs", href: "/audit", icon: History, roles: ["SUPER_ADMIN", "OEM_ADMIN"] },
-  { name: "Settings", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
+  { name: "Reports", href: "/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "PARTNER_ADMIN"] },
+  { name: "Audit Logs", href: "/audit", icon: History, roles: ["SUPER_ADMIN", "ADMIN", "OEM_ADMIN"] },
+  { name: "Settings", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
 ];
 
 const getFilteredNavigation = (userRole: string | undefined) => {
@@ -75,8 +75,8 @@ const getFilteredNavigation = (userRole: string | undefined) => {
   
   const navigation = [...filterByRole(baseNavigation)];
   
-  // Add organization management section for Super Admin
-  if (userRole === "SUPER_ADMIN") {
+  // Add organization management section for Super Admin, Admin, and Manager
+  if (userRole === "SUPER_ADMIN" || userRole === "ADMIN" || userRole === "MANAGER") {
     navigation.push(...filterByRole(organizationNavigation));
   }
   
@@ -123,8 +123,8 @@ export function Sidebar({ collapsed, onToggle, className, isMobile = false }: Si
           const isActive = location === item.href || 
                           (item.href === "/dashboard" && location === "/");
           
-          // Add section divider for organization management (Super Admin only)
-          const isFirstOrgItem = user?.role === "SUPER_ADMIN" && item.href === "/oems";
+          // Add section divider for organization management (Super Admin, Admin, Manager)
+          const isFirstOrgItem = (user?.role === "SUPER_ADMIN" || user?.role === "ADMIN" || user?.role === "MANAGER") && item.href === "/oems";
           const isFirstSystemItem = item.href === "/reports";
           
           return (
