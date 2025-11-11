@@ -164,6 +164,17 @@ export default function Allocations() {
     }
   };
 
+  // Helper function to get level display name
+  const getLevelDisplayName = (allocation: Allocation) => {
+    if (allocation.level === 'DEALERSHIP') {
+      const dealership = dealerships.find((d: any) => d.id === allocation.levelId);
+      return dealership?.name || 'Unknown Dealership';
+    } else {
+      const showroom = showrooms.find((s: any) => s.id === allocation.levelId);
+      return showroom?.name || 'Unknown Showroom';
+    }
+  };
+
   // Filter allocations based on selected filters (using debounced search term)
   const filteredAllocations = allocations.filter((allocation: any) => {
     // Text search - search in partner name, level entity name, city, and state
@@ -200,16 +211,6 @@ export default function Allocations() {
     
     return searchMatch && brandMatch && dealershipMatch && showroomMatch && categoryMatch;
   });
-
-  const getLevelDisplayName = (allocation: Allocation) => {
-    if (allocation.level === 'DEALERSHIP') {
-      const dealership = dealerships.find((d: any) => d.id === allocation.levelId);
-      return dealership?.name || 'Unknown Dealership';
-    } else {
-      const showroom = showrooms.find((s: any) => s.id === allocation.levelId);
-      return showroom?.name || 'Unknown Showroom';
-    }
-  };
 
   // Delete allocation mutation
   const deleteAllocationMutation = useMutation({
