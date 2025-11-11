@@ -4271,15 +4271,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
 
-        // Update job card with e-warranty applied
+        // Update job card with e-warranty applied and change status
         const updatedJobCard = await storage.updateJobCard(jobCardId, {
           eWarrantyApplied: true,
-          eWarrantyAppliedAt: new Date()
+          eWarrantyAppliedAt: new Date(),
+          status: 'WARRANTY_REGISTRATION'
         });
 
         if (!updatedJobCard) {
           return res.status(500).json({ error: "Failed to apply e-warranty" });
         }
+
+        // Sync work order status to match job card status
+        await storage.updateWorkOrder(jobCard.workOrderId, {
+          status: 'WARRANTY_REGISTRATION'
+        });
 
         // Send e-warranty notification emails asynchronously
         setImmediate(async () => {
