@@ -300,10 +300,10 @@ export function CreateWorkOrderModal({
   });
 
   const onSubmit = async (data: WorkOrderFormData) => {
-    // For Super Admin, use selected values; for others, use user context
+    // For Super Admin, Admin, Manager, use selected values; for others, use user context
     let workOrderData;
     
-    if (isSuperAdmin) {
+    if (canSelectOrgHierarchy) {
       if (!data.oemId || !data.dealershipId || !data.showroomId) {
         toast({
           title: "Error", 
