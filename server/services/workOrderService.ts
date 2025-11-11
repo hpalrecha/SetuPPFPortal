@@ -403,12 +403,16 @@ Please acknowledge receipt and provide estimated completion time.
       await this.updateCommissionWithPricing(workOrderId, Number(pricing.priceAmount));
     }
 
-    // Send job card creation notification (WhatsApp + Email to Partner)
-    await notificationService.sendJobCardCreated(jobCard);
-
-    // Send work order assignment notifications
-    await notificationService.sendWorkOrderAssigned(updatedWorkOrder, partnerId);
-    await notificationService.notifyStakeholders('work_order_assigned', updatedWorkOrder);
+    // 🔥 Send notifications in background (non-blocking)
+    setImmediate(() => {
+      Promise.all([
+        notificationService.sendJobCardCreated(jobCard),
+        notificationService.sendWorkOrderAssigned(updatedWorkOrder, partnerId),
+        notificationService.notifyStakeholders('work_order_assigned', updatedWorkOrder)
+      ]).catch(err => {
+        console.error('❌ Failed to send work order assignment notifications:', err);
+      });
+    });
 
     return updatedWorkOrder;
   }
