@@ -422,6 +422,27 @@ export default function JobCardsNew() {
     }
   });
 
+  const requestEWarrantyMutation = useMutation({
+    mutationFn: async (jobCardId: string) => {
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/request-e-warranty`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      toast({
+        title: "E-Warranty Requested",
+        description: "E-warranty application has been submitted. Notification emails have been sent to STEK India.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to request e-warranty. Please try again.",
+        variant: "destructive"
+      });
+    }
+  });
+
   // Check if user is admin 
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'OEM_ADMIN' || user?.role === 'SHOWROOM_MANAGER' || user?.role === 'DEALERSHIP_ADMIN';
   console.log('User role:', user?.role, 'isAdmin:', isAdmin);
@@ -1799,38 +1820,73 @@ export default function JobCardsNew() {
 
                         {/* Warranty Application Status */}
                         <div className="flex items-start gap-3 p-3 bg-white rounded-lg border">
-                          <Shield className={`h-5 w-5 mt-0.5 ${detailedJobCard.warrantyAppliedAt ? 'text-blue-600' : 'text-gray-400'}`} />
+                          <Shield className={`h-5 w-5 mt-0.5 ${(detailedJobCard.partnerBilledDirectly ? detailedJobCard.eWarrantyApplied : detailedJobCard.warrantyAppliedAt) ? 'text-blue-600' : 'text-gray-400'}`} />
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <span className="font-medium text-sm">E-Warranty</span>
-                              {detailedJobCard.warrantyAppliedAt && (
+                              {(detailedJobCard.partnerBilledDirectly ? detailedJobCard.eWarrantyApplied : detailedJobCard.warrantyAppliedAt) && (
                                 <CheckCircle className="h-4 w-4 text-blue-600" />
                               )}
                             </div>
-                            {detailedJobCard.warrantyAppliedAt ? (
-                              <>
+                            {detailedJobCard.partnerBilledDirectly ? (
+                              detailedJobCard.eWarrantyApplied ? (
+                                <>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Requested on {formatDateTime(detailedJobCard.eWarrantyAppliedAt)}
+                                  </p>
+                                  <p className="text-xs text-amber-700 mt-1">
+                                    Notification sent to STEK India
+                                  </p>
+                                </>
+                              ) : (
                                 <p className="text-xs text-muted-foreground mt-1">
-                                  Applied on {formatDateTime(detailedJobCard.warrantyAppliedAt)}
+                                  E-warranty not requested yet
                                 </p>
-                                <p className="text-xs font-mono mt-1 text-blue-700">
-                                  Ref: {detailedJobCard.warrantyReferenceNumber}
-                                </p>
-                              </>
+                              )
                             ) : (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Warranty reference not recorded yet
-                              </p>
+                              detailedJobCard.warrantyAppliedAt ? (
+                                <>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Applied on {formatDateTime(detailedJobCard.warrantyAppliedAt)}
+                                  </p>
+                                  <p className="text-xs font-mono mt-1 text-blue-700">
+                                    Ref: {detailedJobCard.warrantyReferenceNumber}
+                                  </p>
+                                </>
+                              ) : (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Warranty reference not recorded yet
+                                </p>
+                              )
                             )}
                           </div>
-                          {detailedJobCard.status === 'INVOICE_RAISED' && (
-                            <Button
-                              size="sm"
-                              onClick={() => setShowApplyWarrantyModal(true)}
-                              className="bg-blue-600 hover:bg-blue-700"
-                              data-testid="button-apply-warranty"
-                            >
-                              Apply eWarranty
-                            </Button>
+                          {detailedJobCard.partnerBilledDirectly ? (
+                            (detailedJobCard.status === 'APPROVED' || detailedJobCard.status === 'PENDING_SALES_INVOICE') && !detailedJobCard.eWarrantyApplied && (
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  if (detailedJobCard?.id) {
+                                    requestEWarrantyMutation.mutate(detailedJobCard.id);
+                                  }
+                                }}
+                                disabled={requestEWarrantyMutation.isPending}
+                                className="bg-amber-600 hover:bg-amber-700"
+                                data-testid="button-request-e-warranty"
+                              >
+                                {requestEWarrantyMutation.isPending ? 'Requesting...' : 'Request E-Warranty'}
+                              </Button>
+                            )
+                          ) : (
+                            detailedJobCard.status === 'INVOICE_RAISED' && (
+                              <Button
+                                size="sm"
+                                onClick={() => setShowApplyWarrantyModal(true)}
+                                className="bg-blue-600 hover:bg-blue-700"
+                                data-testid="button-apply-warranty"
+                              >
+                                Apply eWarranty
+                              </Button>
+                            )
                           )}
                         </div>
                       </div>
@@ -1844,7 +1900,9 @@ export default function JobCardsNew() {
                         </p>
                       )}
 
-                      {detailedJobCard.paymentSettledAt && detailedJobCard.warrantyAppliedAt && detailedJobCard.status !== 'CLOSED' && (
+                      {detailedJobCard.paymentSettledAt && 
+                       (detailedJobCard.partnerBilledDirectly ? detailedJobCard.eWarrantyApplied : detailedJobCard.warrantyAppliedAt) && 
+                       detailedJobCard.status !== 'CLOSED' && (
                         <div className="mt-3 p-3 bg-green-100 border border-green-300 rounded-lg">
                           <div className="flex items-center gap-2">
                             <CheckCircle className="h-4 w-4 text-green-700" />
