@@ -76,13 +76,18 @@ interface CreateWorkOrderModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  workOrderId?: string; // If provided, modal is in edit mode
+  initialData?: any; // Pre-filled data for editing
 }
 
 export function CreateWorkOrderModal({
   open,
   onOpenChange,
   onSuccess,
+  workOrderId,
+  initialData,
 }: CreateWorkOrderModalProps) {
+  const isEditMode = !!workOrderId;
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -95,7 +100,23 @@ export function CreateWorkOrderModal({
 
   const form = useForm<WorkOrderFormData>({
     resolver: zodResolver(workOrderSchema),
-    defaultValues: {
+    defaultValues: isEditMode && initialData ? {
+      quantity: initialData.quantity || 1,
+      vehicleBrandId: initialData.vehicleBrandId || "",
+      vehicleModelId: initialData.vehicleModelId || "",
+      serviceId: initialData.serviceId || "",
+      variant: initialData.variant || "",
+      regNo: initialData.regNo || "",
+      customerName: initialData.customerName || "",
+      customerPhone: initialData.customerPhone || "",
+      customerEmail: initialData.customerEmail || "",
+      customerAddress: initialData.customerAddress || "",
+      notes: initialData.notes || "",
+      oemId: initialData.oemId || "",
+      dealershipId: initialData.dealershipId || "",
+      showroomId: initialData.showroomId || "",
+      salesPersonId: initialData.salesPersonId || "",
+    } : {
       quantity: 1,
       vehicleBrandId: "",
       vehicleModelId: "",
@@ -305,18 +326,32 @@ export function CreateWorkOrderModal({
 
     setIsLoading(true);
     try {
-      const response = await ApiClient.post("/api/work-orders", workOrderData);
-      
-      // Store the created work order and show success dialog
-      setCreatedWorkOrder(response);
-      setShowSuccessDialog(true);
-      form.reset();
+      if (isEditMode) {
+        // Update existing work order
+        await apiRequest('PUT', `/api/work-orders/${workOrderId}`, workOrderData);
+        
+        toast({
+          title: "Success",
+          description: "Work order updated successfully",
+        });
+        
+        onOpenChange(false);
+        onSuccess();
+      } else {
+        // Create new work order
+        const response = await ApiClient.post("/api/work-orders", workOrderData);
+        
+        // Store the created work order and show success dialog
+        setCreatedWorkOrder(response);
+        setShowSuccessDialog(true);
+        form.reset();
+      }
       
     } catch (error) {
-      console.error("Error creating work order:", error);
+      console.error(`Error ${isEditMode ? 'updating' : 'creating'} work order:`, error);
       toast({
         title: "Error",
-        description: "Failed to create work order",
+        description: `Failed to ${isEditMode ? 'update' : 'create'} work order`,
         variant: "destructive",
       });
     } finally {
@@ -330,10 +365,7 @@ export function CreateWorkOrderModal({
     
     setIsSubmitting(true);
     try {
-      await apiRequest({
-        method: 'POST',
-        url: `/api/work-orders/${createdWorkOrder.id}/submit`,
-      });
+      await apiRequest('POST', `/api/work-orders/${createdWorkOrder.id}/submit`);
 
       toast({
         title: "Success",
@@ -369,7 +401,7 @@ export function CreateWorkOrderModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="modal-responsive max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create Work Order</DialogTitle>
+          <DialogTitle>{isEditMode ? 'Edit Work Order' : 'Create Work Order'}</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>

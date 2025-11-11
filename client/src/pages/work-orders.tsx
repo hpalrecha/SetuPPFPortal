@@ -340,11 +340,28 @@ export default function WorkOrdersPage() {
   // Render modals (always rendered regardless of view)
   const modalsJSX = (
     <>
-      {/* Create Work Order Modal */}
+      {/* Create/Edit Work Order Modal */}
       <CreateWorkOrderModal 
-        open={showCreateModal}
-        onOpenChange={setShowCreateModal}
-        onSuccess={handleCreateSuccess}
+        open={showCreateModal || showEditModal}
+        onOpenChange={(open) => {
+          if (showEditModal) {
+            setShowEditModal(open);
+            if (!open) setSelectedWorkOrder(null);
+          } else {
+            setShowCreateModal(open);
+          }
+        }}
+        onSuccess={() => {
+          if (showEditModal) {
+            setShowEditModal(false);
+            setSelectedWorkOrder(null);
+          } else {
+            handleCreateSuccess();
+          }
+          queryClient.invalidateQueries({ queryKey: ['/api/work-orders'] });
+        }}
+        workOrderId={selectedWorkOrder || undefined}
+        initialData={editWorkOrder}
       />
 
       {/* Cancel Dialog */}
@@ -429,205 +446,6 @@ export default function WorkOrdersPage() {
               data-testid="button-confirm-allocate"
             >
               {isAllocating ? "Allocating..." : "Allocate Partner"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Work Order Modal */}
-      {console.log("RENDER CHECK - showEditModal:", showEditModal, "selectedWorkOrder:", selectedWorkOrder)}
-      <Dialog open={showEditModal} onOpenChange={(open) => {
-        console.log("Dialog onOpenChange called with:", open);
-        setShowEditModal(open);
-        if (!open) {
-          setSelectedWorkOrder(null);
-        }
-      }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold">
-              Edit Work Order
-            </DialogTitle>
-            <p className="text-sm text-muted-foreground">
-              {selectedWorkOrder && `WO-${selectedWorkOrder.slice(-6)}`}
-            </p>
-          </DialogHeader>
-          
-          <p className="text-red-500 font-bold text-xl">DEBUG: Modal is open! SelectedWorkOrder: {selectedWorkOrder}</p>
-          
-          {isLoadingEditWorkOrder && (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
-            </div>
-          )}
-          
-          {!isLoadingEditWorkOrder && editWorkOrder && (
-            <div className="space-y-6">
-              {/* Vehicle Information - Read-only */}
-              <div className="border rounded-lg p-4 bg-muted/50">
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Car className="h-4 w-4" />
-                  Vehicle Information (Read-only)
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <Label className="text-muted-foreground">Vehicle Brand</Label>
-                    <p className="font-medium">{(editWorkOrder as any).vehicleBrandName}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Vehicle Model</Label>
-                    <p className="font-medium">{(editWorkOrder as any).vehicleModelName}</p>
-                  </div>
-                  {editWorkOrder.variant && (
-                    <div>
-                      <Label className="text-muted-foreground">Variant</Label>
-                      <p className="font-medium">{editWorkOrder.variant}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Service Information - Read-only */}
-              <div className="border rounded-lg p-4 bg-muted/50">
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Wrench className="h-4 w-4" />
-                  Service Information (Read-only)
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <Label className="text-muted-foreground">Service</Label>
-                    <p className="font-medium">{(editWorkOrder as any).serviceName}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Quantity</Label>
-                    <p className="font-medium">{editWorkOrder.quantity} unit(s)</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Editable Customer Information */}
-              <div className="border rounded-lg p-4">
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  Customer Information
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-modal-customer-name">Customer Name</Label>
-                    <Input
-                      key={`customer-name-${editWorkOrder.id}`}
-                      id="edit-modal-customer-name"
-                      defaultValue={editWorkOrder.customerName || ''}
-                      data-testid="input-edit-customer-name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-modal-customer-phone">Customer Phone</Label>
-                    <Input
-                      key={`customer-phone-${editWorkOrder.id}`}
-                      id="edit-modal-customer-phone"
-                      defaultValue={editWorkOrder.customerPhone || ''}
-                      data-testid="input-edit-customer-phone"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-modal-customer-email">Customer Email</Label>
-                    <Input
-                      key={`customer-email-${editWorkOrder.id}`}
-                      id="edit-modal-customer-email"
-                      type="email"
-                      defaultValue={editWorkOrder.customerEmail || ''}
-                      data-testid="input-edit-customer-email"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-modal-reg-no">Registration Number</Label>
-                    <Input
-                      key={`reg-no-${editWorkOrder.id}`}
-                      id="edit-modal-reg-no"
-                      defaultValue={editWorkOrder.regNo || ''}
-                      data-testid="input-edit-reg-no"
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="edit-modal-customer-address">Customer Address</Label>
-                    <Textarea
-                      key={`customer-address-${editWorkOrder.id}`}
-                      id="edit-modal-customer-address"
-                      defaultValue={editWorkOrder.customerAddress || ''}
-                      data-testid="textarea-edit-customer-address"
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="edit-modal-notes">Notes</Label>
-                    <Textarea
-                      key={`notes-${editWorkOrder.id}`}
-                      id="edit-modal-notes"
-                      defaultValue={editWorkOrder.notes || ''}
-                      data-testid="textarea-edit-notes"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowEditModal(false)}
-              disabled={isSaving}
-              data-testid="button-edit-modal-cancel"
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={async () => {
-                if (!selectedWorkOrder) return;
-                
-                const customerName = (document.getElementById('edit-modal-customer-name') as HTMLInputElement)?.value;
-                const customerPhone = (document.getElementById('edit-modal-customer-phone') as HTMLInputElement)?.value;
-                const customerEmail = (document.getElementById('edit-modal-customer-email') as HTMLInputElement)?.value;
-                const regNo = (document.getElementById('edit-modal-reg-no') as HTMLInputElement)?.value;
-                const customerAddress = (document.getElementById('edit-modal-customer-address') as HTMLTextAreaElement)?.value;
-                const notes = (document.getElementById('edit-modal-notes') as HTMLTextAreaElement)?.value;
-                
-                setIsSaving(true);
-                try {
-                  await apiRequest('PUT', `/api/work-orders/${selectedWorkOrder}`, {
-                    customerName: customerName || null,
-                    customerPhone: customerPhone || null,
-                    customerEmail: customerEmail || null,
-                    regNo: regNo || null,
-                    customerAddress: customerAddress || null,
-                    notes: notes || null,
-                  });
-                  
-                  toast({
-                    title: "Success",
-                    description: "Work order updated successfully",
-                  });
-                  
-                  queryClient.invalidateQueries({ queryKey: ['/api/work-orders'] });
-                  setShowEditModal(false);
-                  setSelectedWorkOrder(null);
-                } catch (error: any) {
-                  console.error("Update work order error:", error);
-                  toast({
-                    title: "Error",
-                    description: error.message || "Failed to update work order",
-                    variant: "destructive",
-                  });
-                } finally {
-                  setIsSaving(false);
-                }
-              }}
-              disabled={isSaving}
-              data-testid="button-save-work-order-modal"
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {isSaving ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
