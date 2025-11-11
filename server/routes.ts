@@ -602,41 +602,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create user (Super Admin only)
+  // Create user (Super Admin and Admin only)
   app.post("/api/users",
     authenticate,
-    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']),
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
     auditLog('user', 'create'),
     async (req, res) => {
       try {
         const { password, ...userData } = req.body;
-
-        // MANAGER state validation - ensure dealership/showroom is in allowed states
-        if (req.user!.role === 'MANAGER') {
-          const allowedStates = (req.user!.allowedStates as string[]) || [];
-          
-          // For sales persons, validate the dealership/showroom state
-          if (userData.role === 'SALES_PERSON' || userData.role === 'SHOWROOM_MANAGER') {
-            if (userData.dealershipId) {
-              const dealership = await storage.getDealership(userData.dealershipId);
-              if (!dealership || !dealership.state || !allowedStates.includes(dealership.state)) {
-                return res.status(403).json({ error: "Access denied - dealership is not in your allowed states" });
-              }
-            }
-            
-            if (userData.showroomId) {
-              const showroom = await storage.getShowroom(userData.showroomId);
-              if (!showroom) {
-                return res.status(404).json({ error: "Showroom not found" });
-              }
-              
-              const dealership = await storage.getDealership(showroom.dealershipId);
-              if (!dealership || !dealership.state || !allowedStates.includes(dealership.state)) {
-                return res.status(403).json({ error: "Access denied - showroom is not in your allowed states" });
-              }
-            }
-          }
-        }
 
         // Check if email or phone number already exists
         if (userData.email) {
@@ -1082,7 +1055,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/dealerships", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN']),
     auditLog('dealership', 'create'),
     async (req, res) => {
       try {
@@ -1092,19 +1065,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Validate oemIds array is provided
         if (!oemIds || !Array.isArray(oemIds) || oemIds.length === 0) {
           return res.status(400).json({ error: "At least one OEM must be selected" });
-        }
-        
-        // MANAGER state validation - ensure state is in allowed states
-        if (req.user!.role === 'MANAGER') {
-          const allowedStates = (req.user!.allowedStates as string[]) || [];
-          
-          if (!dealershipFields.state) {
-            return res.status(400).json({ error: "State is required" });
-          }
-          
-          if (!allowedStates.includes(dealershipFields.state)) {
-            return res.status(403).json({ error: "Access denied - you can only create dealerships in your allowed states" });
-          }
         }
         
         // Add code field derived from dealership name
@@ -1562,30 +1522,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/showrooms", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     auditLog('showroom', 'create'),
     async (req, res) => {
       try {
         // Extract createUser flag and admin user data
         const { createUser, adminUserData, ...showroomFields } = req.body;
-        
-        // MANAGER state validation - ensure dealership is in allowed states
-        if (req.user!.role === 'MANAGER') {
-          const allowedStates = (req.user!.allowedStates as string[]) || [];
-          
-          if (!showroomFields.dealershipId) {
-            return res.status(400).json({ error: "Dealership is required" });
-          }
-          
-          const dealership = await storage.getDealership(showroomFields.dealershipId);
-          if (!dealership) {
-            return res.status(404).json({ error: "Dealership not found" });
-          }
-          
-          if (!dealership.state || !allowedStates.includes(dealership.state)) {
-            return res.status(403).json({ error: "Access denied - dealership is not in your allowed states" });
-          }
-        }
         
         // Validate that the selected OEM exists in the dealership's OEM mappings
         if (showroomFields.dealershipId && showroomFields.oemId) {

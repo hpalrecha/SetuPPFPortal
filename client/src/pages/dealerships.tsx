@@ -251,20 +251,22 @@ export default function DealershipsPage() {
           <h2 className="text-2xl font-semibold text-foreground">Dealership Management</h2>
           <p className="text-muted-foreground mt-1">Manage vehicle dealerships across regions</p>
         </div>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => setShowBulkUploadModal(true)} 
-            data-testid="button-bulk-upload-dealerships"
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            Bulk Upload
-          </Button>
-          <Button onClick={handleAddDealership} data-testid="button-add-dealership">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Dealership
-          </Button>
-        </div>
+        {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowBulkUploadModal(true)} 
+              data-testid="button-bulk-upload-dealerships"
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Bulk Upload
+            </Button>
+            <Button onClick={handleAddDealership} data-testid="button-add-dealership">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Dealership
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Filters */}

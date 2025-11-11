@@ -30,10 +30,14 @@ The application uses the P91 Brand Theme with a Brand Green primary color, Oxani
 - **Audit System**: Comprehensive activity logging and timeline views.
 - **Hierarchical Permission System** (Nov 2025): Added ADMIN and MANAGER roles:
   - **ADMIN Role**: Full read/write access to all resources except DELETE operations (blocked from all deletes)
-  - **MANAGER Role**: State-based access control with allowedStates field
-    - View: Can see OEMs, dealerships, showrooms, work orders, partners only in allowed states
-    - Create: Can create work orders, dealerships, showrooms, sales persons only in allowed states
-    - Restrictions: Cannot access entities outside allowedStates, no delete permissions
+    - Can create/edit OEMs, dealerships, showrooms, sales persons, work orders
+    - Can access pricing rules, commissions, vehicles, service categories, brands, raw materials
+    - Cannot delete any resources (403 Forbidden on all DELETE operations)
+  - **MANAGER Role**: READ-ONLY state-based access control with allowedStates field
+    - View: Can see OEMs, dealerships, showrooms, work orders, partners, sales persons only in allowed states
+    - Create: Can only create work orders (only for dealerships in allowed states)
+    - Restrictions: Cannot create/edit dealerships, showrooms, or users; cannot access entities outside allowedStates; no delete permissions
+    - Frontend: Add buttons hidden for dealerships, showrooms, and sales persons
   - Existing roles (SUPER_ADMIN, OEM_ADMIN, DEALERSHIP_ADMIN, SHOWROOM_MANAGER, SALES_PERSON, PARTNER_ADMIN, PARTNER_STAFF) remain unchanged
 
 ## System Design Choices

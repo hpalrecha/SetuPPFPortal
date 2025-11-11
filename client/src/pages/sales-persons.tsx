@@ -209,10 +209,12 @@ export default function SalesPersonsPage() {
           <h2 className="text-2xl font-semibold text-foreground">Sales Person Management</h2>
           <p className="text-muted-foreground mt-1">Manage sales staff across all showrooms</p>
         </div>
-        <Button onClick={handleAddSalesPerson} data-testid="button-add-sales-person">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Sales Person
-        </Button>
+        {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
+          <Button onClick={handleAddSalesPerson} data-testid="button-add-sales-person">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Sales Person
+          </Button>
+        )}
       </div>
 
       {/* Sales Persons Grid */}

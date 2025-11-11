@@ -263,20 +263,22 @@ export default function ShowroomsPage() {
           <h2 className="text-2xl font-semibold text-foreground">Showroom Management</h2>
           <p className="text-muted-foreground mt-1">Manage individual showroom locations</p>
         </div>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => setShowBulkUploadModal(true)} 
-            data-testid="button-bulk-upload-showrooms"
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            Bulk Upload
-          </Button>
-          <Button onClick={handleAddShowroom} data-testid="button-add-showroom">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Showroom
-          </Button>
-        </div>
+        {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowBulkUploadModal(true)} 
+              data-testid="button-bulk-upload-showrooms"
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Bulk Upload
+            </Button>
+            <Button onClick={handleAddShowroom} data-testid="button-add-showroom">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Showroom
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Filters */}
