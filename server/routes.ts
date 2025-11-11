@@ -693,24 +693,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let oems = await storage.getOems();
       
       // Filter OEMs based on user role and access
-      if (req.user?.role === 'MANAGER') {
-        // For MANAGER role, filter OEMs that have dealerships in allowed states
-        const allowedStates = (req.user.allowedStates as string[]) || [];
-        const dealershipsResponse = await storage.getDealerships();
-        const allDealerships = dealershipsResponse.dealerships || [];
-        
-        // Get unique OEM IDs from dealerships in allowed states
-        const allowedOemIds = new Set<string>();
-        for (const dealership of allDealerships) {
-          if (dealership.state && allowedStates.includes(dealership.state)) {
-            // Handle both single oemId and oemIds array
-            const oemIds = dealership.oemIds || (dealership.oemId ? [dealership.oemId] : []);
-            oemIds.forEach((id: string) => allowedOemIds.add(id));
-          }
-        }
-        
-        oems = oems.filter(oem => allowedOemIds.has(oem.id));
-      } else if (req.user?.role === 'PARTNER_ADMIN' || req.user?.role === 'PARTNER_STAFF') {
+      // MANAGER can see ALL OEMs (no filtering), but dealerships/showrooms are filtered by allowedStates
+      if (req.user?.role === 'PARTNER_ADMIN' || req.user?.role === 'PARTNER_STAFF') {
         // For partner users, only return OEMs they have access to
         const allowedOemIds = req.user.allowedOemIds || [];
         oems = oems.filter(oem => allowedOemIds.includes(oem.id));
@@ -761,7 +745,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get individual OEM by ID
-  app.get("/api/oems/:id", authenticate, requireRole(['SUPER_ADMIN', 'PARTNER_ADMIN', 'PARTNER_STAFF']), async (req, res) => {
+  app.get("/api/oems/:id", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'PARTNER_ADMIN', 'PARTNER_STAFF']), async (req, res) => {
     try {
       const { id } = req.params;
       const oem = await storage.getOem(id);
