@@ -761,7 +761,7 @@ Please acknowledge receipt and provide estimated completion time.
     }
 
     // Cancel related commissions
-    const commissions = await storage.getCommissions({ workOrderId });
+    const { commissions } = await storage.getCommissions({ workOrderId });
     for (const commission of commissions) {
       await storage.updateCommission(commission.id, {
         status: 'CANCELLED'
