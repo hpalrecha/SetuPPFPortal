@@ -3375,7 +3375,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Job Card Routes
   app.get("/api/job-cards", 
     authenticate, 
-    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'SHOWROOM_MANAGER', 'SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SALES_PERSON']),
+    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'SHOWROOM_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SALES_PERSON']),
     async (req, res) => {
     try {
       // Disable HTTP caching for real-time job card updates
@@ -3487,7 +3487,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get individual job card with related data (workOrder, partner)
   app.get("/api/job-cards/:id", 
     authenticate,
-    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'SHOWROOM_MANAGER', 'SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SALES_PERSON']),
+    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'SHOWROOM_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SALES_PERSON']),
     async (req, res) => {
       try {
         // Disable caching to ensure fresh data
