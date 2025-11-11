@@ -5991,7 +5991,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/allocations", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     auditLog('allocation', 'create'),
     async (req, res) => {
       try {
@@ -6002,28 +6002,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ 
             error: "Level, levelId, and partnerId are required" 
           });
-        }
-
-        // MANAGER state validation - ensure allocation is in allowed states
-        if (req.user!.role === 'MANAGER') {
-          const allowedStates = (req.user!.allowedStates as string[]) || [];
-          
-          if (allocationData.level === 'DEALERSHIP') {
-            const dealership = await storage.getDealership(allocationData.levelId);
-            if (!dealership || !dealership.state || !allowedStates.includes(dealership.state)) {
-              return res.status(403).json({ error: "Access denied - dealership is not in your allowed states" });
-            }
-          } else if (allocationData.level === 'SHOWROOM') {
-            const showroom = await storage.getShowroom(allocationData.levelId);
-            if (!showroom) {
-              return res.status(404).json({ error: "Showroom not found" });
-            }
-            
-            const dealership = await storage.getDealership(showroom.dealershipId);
-            if (!dealership || !dealership.state || !allowedStates.includes(dealership.state)) {
-              return res.status(403).json({ error: "Access denied - showroom is not in your allowed states" });
-            }
-          }
         }
 
         const allocation = await storage.createAllocation(allocationData);
