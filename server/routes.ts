@@ -3062,6 +3062,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         delete updates.id; // Prevent ID modification
         delete updates.status; // Prevent status modification through this endpoint
         
+        // Convert empty strings to null for UUID fields
+        const uuidFields = ['salesPersonId', 'vehicleVariantId', 'assignedPartnerId', 'assignedJobCardId'];
+        uuidFields.forEach(field => {
+          if (updates[field] === '') {
+            updates[field] = null;
+          }
+        });
+        
         const workOrder = await storage.updateWorkOrder(req.params.id, updates);
         
         if (!workOrder) {
