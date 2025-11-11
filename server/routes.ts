@@ -3032,8 +3032,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           customerAddress: requestData.customerAddress && requestData.customerAddress.trim() !== '' ? requestData.customerAddress : null
         };
         
-        // Ensure user can only create for their OEM/showroom (except Super Admin)
-        if (req.user!.role !== 'SUPER_ADMIN') {
+        // Ensure user can only create for their OEM/showroom (except Super Admin, Admin, and Manager)
+        if (req.user!.role !== 'SUPER_ADMIN' && req.user!.role !== 'ADMIN' && req.user!.role !== 'MANAGER') {
           workOrderData.oemId = req.user!.oemId!;
           if (req.user!.showroomId) {
             workOrderData.showroomId = req.user!.showroomId;
