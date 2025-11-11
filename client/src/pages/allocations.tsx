@@ -272,10 +272,12 @@ export default function Allocations() {
           <h2 className="text-2xl font-semibold text-foreground">Partner Allocations</h2>
           <p className="text-muted-foreground mt-1">Manage partner assignments to dealerships and showrooms (you can now select multiple showrooms at once)</p>
         </div>
-        <Button onClick={handleAddAllocation} data-testid="button-add-allocation">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Allocation
-        </Button>
+        {user?.role !== "MANAGER" && (
+          <Button onClick={handleAddAllocation} data-testid="button-add-allocation">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Allocation
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
@@ -376,12 +378,16 @@ export default function Allocations() {
                 <Building className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-foreground mb-2">No Allocations Found</h3>
                 <p className="text-muted-foreground mb-4">
-                  Start by allocating partners to dealerships and showrooms.
+                  {user?.role === "MANAGER" 
+                    ? "No allocations found in your allowed states."
+                    : "Start by allocating partners to dealerships and showrooms."}
                 </p>
-                <Button onClick={handleAddAllocation}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add First Allocation
-                </Button>
+                {user?.role !== "MANAGER" && (
+                  <Button onClick={handleAddAllocation}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add First Allocation
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </div>

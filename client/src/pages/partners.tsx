@@ -10,10 +10,12 @@ import type { Partner } from "@shared/schema";
 import { EditPartnerModal } from "@/components/modals/EditPartnerModal";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function PartnersPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingPartner, setEditingPartner] = useState<any>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -154,10 +156,12 @@ export default function PartnersPage() {
           <h2 className="text-2xl font-semibold text-foreground">Partners Management</h2>
           <p className="text-muted-foreground mt-1">Manage detailers and installers</p>
         </div>
-        <Button onClick={handleAddPartner} data-testid="button-add-partner">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Partner
-        </Button>
+        {user?.role !== "MANAGER" && (
+          <Button onClick={handleAddPartner} data-testid="button-add-partner">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Partner
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
@@ -223,12 +227,16 @@ export default function PartnersPage() {
                 <Store className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-foreground mb-2">No Partners Found</h3>
                 <p className="text-muted-foreground mb-4">
-                  Add your first partner to start managing PPF installations.
+                  {user?.role === "MANAGER" 
+                    ? "No partners found in your allowed states."
+                    : "Add your first partner to start managing PPF installations."}
                 </p>
-                <Button onClick={handleAddPartner}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Partner
-                </Button>
+                {user?.role !== "MANAGER" && (
+                  <Button onClick={handleAddPartner}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Partner
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </div>
