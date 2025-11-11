@@ -7,13 +7,23 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Eye, Edit, ArrowLeft, Save } from "lucide-react";
+import { Plus, Search, Eye, Edit, ArrowLeft, Save, XCircle, UserPlus, Send } from "lucide-react";
 import type { WorkOrder } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/use-debounce";
 import { apiRequest } from "@/lib/queryClient";
 import { CreateWorkOrderModal } from "@/components/modals/CreateWorkOrderModal";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 const statusColors = {
   DRAFT: "bg-gray-100 text-gray-800",
@@ -41,6 +51,13 @@ export default function WorkOrdersPage() {
   const currentView = editRouteParams ? 'edit' : (viewRouteParams ? 'view' : 'list');
   const workOrderId = editRouteParams?.id || viewRouteParams?.id;
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showAllocateDialog, setShowAllocateDialog] = useState(false);
+  const [selectedWorkOrder, setSelectedWorkOrder] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [selectedPartnerId, setSelectedPartnerId] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isAllocating, setIsAllocating] = useState(false);
   const [filters, setFilters] = useState({
     status: "",
     partnerId: "",
@@ -189,6 +206,119 @@ export default function WorkOrdersPage() {
 
   const handleBackToList = () => {
     setLocation('/work-orders');
+  };
+
+  // Check if user can cancel work orders (admins only)
+  const canCancelWorkOrder = user && ['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'].includes(user.role);
+  const canAllocatePartner = user?.role === 'SUPER_ADMIN';
+
+  // Fetch partners for manual allocation (only for SUPER_ADMIN)
+  const { data: partners = [] } = useQuery({
+    queryKey: ["/api/partners"],
+    queryFn: async () => {
+      const response = await fetch('/api/partners', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch partners');
+      return response.json();
+    },
+    enabled: canAllocatePartner && currentView === 'list',
+    staleTime: 300000, // Cache for 5 minutes
+  });
+
+  // Handle cancel work order
+  const handleCancelWorkOrder = async () => {
+    if (!selectedWorkOrder || !cancelReason.trim()) {
+      toast({
+        title: "Error",
+        description: "Please provide a cancellation reason",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCancelling(true);
+    try {
+      await apiRequest({
+        method: 'POST',
+        url: `/api/work-orders/${selectedWorkOrder}/cancel`,
+        body: { reason: cancelReason },
+      });
+
+      toast({
+        title: "Success",
+        description: "Work order cancelled successfully",
+      });
+
+      setShowCancelDialog(false);
+      setSelectedWorkOrder(null);
+      setCancelReason("");
+      queryClient.invalidateQueries({ queryKey: ['/api/work-orders'] });
+    } catch (error: any) {
+      console.error("Cancel work order error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to cancel work order",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  // Handle manual allocation
+  const handleAllocatePartner = async () => {
+    if (!selectedWorkOrder || !selectedPartnerId) {
+      toast({
+        title: "Error",
+        description: "Please select a partner",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsAllocating(true);
+    try {
+      await apiRequest({
+        method: 'POST',
+        url: `/api/work-orders/${selectedWorkOrder}/allocate`,
+        body: { partnerId: selectedPartnerId },
+      });
+
+      toast({
+        title: "Success",
+        description: "Partner allocated successfully",
+      });
+
+      setShowAllocateDialog(false);
+      setSelectedWorkOrder(null);
+      setSelectedPartnerId("");
+      queryClient.invalidateQueries({ queryKey: ['/api/work-orders'] });
+    } catch (error: any) {
+      console.error("Allocate partner error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to allocate partner",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAllocating(false);
+    }
+  };
+
+  // Open cancel dialog
+  const openCancelDialog = (workOrderId: string) => {
+    setSelectedWorkOrder(workOrderId);
+    setShowCancelDialog(true);
+  };
+
+  // Open allocate dialog
+  const openAllocateDialog = (workOrderId: string) => {
+    setSelectedWorkOrder(workOrderId);
+    setShowAllocateDialog(true);
   };
 
   // Show loading state
@@ -708,26 +838,42 @@ export default function WorkOrdersPage() {
                           onClick={() => handleViewWorkOrder(order.id)}
                           data-testid={`button-view-${order.id}`}
                           className="text-xs px-2"
+                          title="View"
                         >
                           <Eye className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEditWorkOrder(order.id)}
-                          data-testid={`button-edit-${order.id}`}
-                          className="text-xs px-2"
-                        >
-                          <Edit className="h-3 w-3" />
                         </Button>
                         {order.status === 'DRAFT' && (
                           <Button
                             size="sm"
                             onClick={() => handleSubmitWorkOrder(order.id)}
                             data-testid={`button-submit-${order.id}`}
-                            className="text-xs px-2"
+                            className="text-xs px-2 bg-green-600 hover:bg-green-700 text-white"
+                            title="Submit"
                           >
-                            <Save className="h-3 w-3" />
+                            <Send className="h-3 w-3" />
+                          </Button>
+                        )}
+                        {order.status === 'PENDING' && canAllocatePartner && (
+                          <Button
+                            size="sm"
+                            onClick={() => openAllocateDialog(order.id)}
+                            data-testid={`button-allocate-${order.id}`}
+                            className="text-xs px-2 bg-purple-600 hover:bg-purple-700 text-white"
+                            title="Allocate Partner"
+                          >
+                            <UserPlus className="h-3 w-3" />
+                          </Button>
+                        )}
+                        {!['CANCELLED', 'COMPLETED_PENDING_APPROVAL', 'APPROVED', 'CLOSED'].includes(order.status) && canCancelWorkOrder && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => openCancelDialog(order.id)}
+                            data-testid={`button-cancel-${order.id}`}
+                            className="text-xs px-2"
+                            title="Cancel"
+                          >
+                            <XCircle className="h-3 w-3" />
                           </Button>
                         )}
                       </div>
@@ -948,6 +1094,105 @@ export default function WorkOrdersPage() {
           </div>
         </>
       )}
+
+      {/* Cancel Work Order Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent data-testid="dialog-cancel-work-order">
+          <DialogHeader>
+            <DialogTitle>Cancel Work Order</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for cancelling this work order. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="cancel-reason">Cancellation Reason *</Label>
+              <Textarea
+                id="cancel-reason"
+                placeholder="Enter the reason for cancellation..."
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                rows={4}
+                data-testid="textarea-cancel-reason"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCancelDialog(false);
+                setCancelReason("");
+              }}
+              disabled={isCancelling}
+              data-testid="button-cancel-dialog-close"
+            >
+              Close
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancelWorkOrder}
+              disabled={isCancelling || !cancelReason.trim()}
+              data-testid="button-confirm-cancel"
+            >
+              {isCancelling ? "Cancelling..." : "Cancel Work Order"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual Allocation Dialog */}
+      <Dialog open={showAllocateDialog} onOpenChange={setShowAllocateDialog}>
+        <DialogContent data-testid="dialog-allocate-partner">
+          <DialogHeader>
+            <DialogTitle>Allocate Partner</DialogTitle>
+            <DialogDescription>
+              Manually assign this work order to a partner. The partner will receive a notification.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="partner-select">Select Partner *</Label>
+              <Select
+                value={selectedPartnerId}
+                onValueChange={setSelectedPartnerId}
+              >
+                <SelectTrigger id="partner-select" data-testid="select-partner">
+                  <SelectValue placeholder="Choose a partner..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {partners.map((partner: any) => (
+                    <SelectItem key={partner.id} value={partner.id}>
+                      {partner.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAllocateDialog(false);
+                setSelectedPartnerId("");
+              }}
+              disabled={isAllocating}
+              data-testid="button-allocate-dialog-close"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={handleAllocatePartner}
+              disabled={isAllocating || !selectedPartnerId}
+              className="bg-purple-600 hover:bg-purple-700"
+              data-testid="button-confirm-allocate"
+            >
+              {isAllocating ? "Allocating..." : "Allocate Partner"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Work Order Modal */}
       <CreateWorkOrderModal 
