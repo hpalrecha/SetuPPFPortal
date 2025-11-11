@@ -157,7 +157,7 @@ export class WorkOrderService {
       ...data,
       estimatedPrice,
       createdByUserId: userId,
-      status: 'PENDING',
+      status: 'DRAFT', // 📝 Always create as DRAFT - requires explicit submission
       billFrom: billingDetails?.billFrom || null,
       billTo: billingDetails?.billTo || null,
       shipTo: billingDetails?.shipTo || null
@@ -171,15 +171,9 @@ export class WorkOrderService {
       console.log(`⚠️ No Salesperson mapped → commission skipped.`);
     }
 
-    // Auto-assign partner and create job card immediately for showroom work orders
-    if (workOrder.showroomId) {
-      try {
-        await this.autoAssignPartner(workOrder.id);
-      } catch (error) {
-        console.warn('Could not auto-assign partner for work order:', workOrder.id, error);
-        // Don't fail the work order creation if auto-assignment fails
-      }
-    }
+    // ❌ REMOVED: Auto-assignment moved to submitWorkOrder method
+    // Work orders now save as DRAFT and require explicit submission
+    console.log(`📝 Work order ${workOrder.id} created as DRAFT - requires submission for partner allocation`);
 
     // 🔥 Send notification in background (non-blocking)
     setImmediate(() => {
