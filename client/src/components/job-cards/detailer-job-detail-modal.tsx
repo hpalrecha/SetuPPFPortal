@@ -289,10 +289,10 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     }
   });
 
-  // E-Warranty Application Mutation
+  // E-Warranty Request Mutation
   const applyWarrantyMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/apply-warranty`);
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/request-e-warranty`);
       return response.json();
     },
     onSuccess: () => {

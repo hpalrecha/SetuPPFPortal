@@ -4237,10 +4237,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // E-Warranty Application Endpoint
-  app.post("/api/job-cards/:id/apply-warranty",
+  // E-Warranty Request Endpoint (Partner initiates warranty application)
+  app.post("/api/job-cards/:id/request-e-warranty",
     authenticate,
-    auditLog('job_card', 'apply_warranty'),
+    auditLog('job_card', 'request_e_warranty'),
     async (req, res) => {
       try {
         const jobCardId = req.params.id;
