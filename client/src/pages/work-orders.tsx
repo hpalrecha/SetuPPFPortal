@@ -194,7 +194,8 @@ export default function WorkOrdersPage() {
   };
 
   const handleEditWorkOrder = (id: string) => {
-    setLocation(`/work-orders/${id}/edit`);
+    setSelectedWorkOrder(id);
+    setShowEditModal(true);
   };
 
   const handleSubmitWorkOrder = async (id: string) => {
