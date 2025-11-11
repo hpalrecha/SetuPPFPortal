@@ -2997,6 +2997,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  app.post("/api/work-orders/:id/cancel", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    auditLog('work_order', 'cancel'),
+    async (req, res) => {
+      try {
+        const { reason } = req.body;
+        if (!reason || reason.trim().length === 0) {
+          return res.status(400).json({ error: "Cancellation reason is required" });
+        }
+
+        const { workOrderService } = await import('./services/workOrderService');
+        const workOrder = await workOrderService.cancelWorkOrder(req.params.id, req.user!.id, reason);
+        res.json(workOrder);
+      } catch (error: any) {
+        console.error("Cancel work order error:", error);
+        res.status(500).json({ error: error.message || "Failed to cancel work order" });
+      }
+    }
+  );
+
+  app.post("/api/work-orders/:id/allocate", 
+    authenticate, 
+    requireRole(['SUPER_ADMIN']),
+    auditLog('work_order', 'manual_allocate'),
+    async (req, res) => {
+      try {
+        const { partnerId } = req.body;
+        if (!partnerId) {
+          return res.status(400).json({ error: "Partner ID is required" });
+        }
+
+        const { workOrderService } = await import('./services/workOrderService');
+        const workOrder = await workOrderService.allocatePartnerManually(req.params.id, partnerId, req.user!.id);
+        res.json(workOrder);
+      } catch (error: any) {
+        console.error("Manual allocate work order error:", error);
+        res.status(500).json({ error: error.message || "Failed to allocate partner" });
+      }
+    }
+  );
+
   app.put("/api/work-orders/:id", 
     authenticate, 
     requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'SUPER_ADMIN', 'PARTNER_ADMIN']),

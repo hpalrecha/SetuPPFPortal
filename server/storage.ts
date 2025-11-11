@@ -166,6 +166,9 @@ export interface IStorage {
   getWorkOrdersWithoutCommissions(): Promise<any[]>;
   createWorkOrder(workOrder: InsertWorkOrder): Promise<WorkOrder>;
   updateWorkOrder(id: string, updates: Partial<InsertWorkOrder>): Promise<WorkOrder | undefined>;
+  submitWorkOrder(id: string, userId: string): Promise<{ success: boolean; workOrder?: WorkOrder; jobCard?: JobCard; error?: string }>;
+  cancelWorkOrder(id: string, userId: string, reason: string): Promise<{ success: boolean; error?: string }>;
+  allocatePartnerManually(workOrderId: string, partnerId: string, userId: string): Promise<{ success: boolean; workOrder?: WorkOrder; jobCard?: JobCard; error?: string }>;
 
   // Job Card management
   getJobCards(filters?: { 

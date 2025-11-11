@@ -284,7 +284,15 @@ export class WorkOrderService {
 
     // Auto-assign to partner if no manual assignment
     if (!workOrder.assignedPartnerId) {
-      await this.autoAssignPartner(workOrderId);
+      try {
+        await this.autoAssignPartner(workOrderId);
+      } catch (error) {
+        console.warn(`⚠️ Auto-assignment failed for work order ${workOrderId}, setting to PENDING status:`, error);
+        // If auto-assignment fails, set work order to PENDING status for manual allocation
+        await storage.updateWorkOrder(workOrderId, {
+          status: 'PENDING'
+        });
+      }
     }
 
     // 🔥 Send notification in background (non-blocking)
@@ -718,6 +726,80 @@ Please acknowledge receipt and provide estimated completion time.
       ...workOrder,
       jobCards: jobCards.jobCards
     };
+  }
+
+  async cancelWorkOrder(workOrderId: string, userId: string, reason: string): Promise<WorkOrder> {
+    const workOrder = await storage.getWorkOrder(workOrderId);
+    if (!workOrder) {
+      throw new Error('Work order not found');
+    }
+
+    // Only allow cancellation if work order is not completed or closed
+    if (['COMPLETED_PENDING_APPROVAL', 'APPROVED', 'CLOSED'].includes(workOrder.status)) {
+      throw new Error(`Cannot cancel work order in ${workOrder.status} status`);
+    }
+
+    // Update work order to cancelled status
+    const updatedWorkOrder = await storage.updateWorkOrder(workOrderId, {
+      status: 'CANCELLED',
+      cancelledReason: reason,
+      cancelledAt: new Date(),
+      cancelledBy: userId
+    });
+
+    // Cascade cancel to related job cards if any
+    if (workOrder.assignedJobCardId) {
+      const jobCard = await storage.getJobCard(workOrder.assignedJobCardId);
+      if (jobCard) {
+        await storage.updateJobCard(workOrder.assignedJobCardId, {
+          status: 'CANCELLED'
+        });
+
+        // Cancel related payouts
+        const payouts = await storage.getPartnerPayouts(jobCard.partnerId);
+        const relatedPayouts = payouts.filter(p => p.jobCardId === workOrder.assignedJobCardId);
+        for (const payout of relatedPayouts) {
+          await storage.updatePayout(payout.id, {
+            status: 'cancelled'
+          });
+        }
+      }
+    }
+
+    // Cancel related commissions
+    const commissions = await storage.getCommissions({ workOrderId });
+    for (const commission of commissions) {
+      await storage.updateCommission(commission.id, {
+        status: 'CANCELLED'
+      });
+    }
+
+    console.log(`✅ Work order ${workOrderId} cancelled by user ${userId}. Reason: ${reason}`);
+    return updatedWorkOrder;
+  }
+
+  async allocatePartnerManually(workOrderId: string, partnerId: string, userId: string): Promise<WorkOrder> {
+    const workOrder = await storage.getWorkOrder(workOrderId);
+    if (!workOrder) {
+      throw new Error('Work order not found');
+    }
+
+    // Only allow manual allocation for PENDING or SUBMITTED work orders
+    if (!['PENDING', 'SUBMITTED'].includes(workOrder.status)) {
+      throw new Error(`Cannot allocate partner for work order in ${workOrder.status} status`);
+    }
+
+    // Verify partner exists and is active
+    const partner = await storage.getPartner(partnerId);
+    if (!partner || !partner.active) {
+      throw new Error('Invalid or inactive partner');
+    }
+
+    // Use existing assignWorkOrder method which handles all the logic
+    const updatedWorkOrder = await this.assignWorkOrder(workOrderId, partnerId, userId);
+
+    console.log(`✅ Work order ${workOrderId} manually allocated to partner ${partnerId} by user ${userId}`);
+    return updatedWorkOrder;
   }
 }
 
