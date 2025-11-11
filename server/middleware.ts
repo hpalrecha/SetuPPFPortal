@@ -50,8 +50,8 @@ export const requireOEMAccess = async (req: Request, res: Response, next: NextFu
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  // Super admin can access any OEM
-  if (req.user.role === 'SUPER_ADMIN') {
+  // Super admin, Admin, and Manager can access any OEM
+  if (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN' || req.user.role === 'MANAGER') {
     return next();
   }
 
