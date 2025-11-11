@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -129,6 +129,29 @@ export function CreateWorkOrderModal({
       showroomId: "",
     },
   });
+
+  // Reset form when initialData changes (for edit mode)
+  useEffect(() => {
+    if (isEditMode && initialData && open) {
+      form.reset({
+        quantity: initialData.quantity || 1,
+        vehicleBrandId: initialData.vehicleBrandId || "",
+        vehicleModelId: initialData.vehicleModelId || "",
+        serviceId: initialData.serviceId || "",
+        variant: initialData.variant || "",
+        regNo: initialData.regNo || "",
+        customerName: initialData.customerName || "",
+        customerPhone: initialData.customerPhone || "",
+        customerEmail: initialData.customerEmail || "",
+        customerAddress: initialData.customerAddress || "",
+        notes: initialData.notes || "",
+        oemId: initialData.oemId || "",
+        dealershipId: initialData.dealershipId || "",
+        showroomId: initialData.showroomId || "",
+        salesPersonId: initialData.salesPersonId || "",
+      });
+    }
+  }, [isEditMode, initialData, open, form]);
 
   // Fetch OEMs for Super Admin
   const { data: oems = [] } = useQuery({
