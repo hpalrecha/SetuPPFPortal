@@ -1301,7 +1301,7 @@ export class DatabaseStorage implements IStorage {
         const vehicleModel = await db.select().from(vehicleModels).where(eq(vehicleModels.id, workOrder.vehicleModelId)).limit(1);
         if (vehicleModel[0]) {
           enriched.vehicleModelName = vehicleModel[0].modelName;
-          enriched.vehicleModelBrand = vehicleModel[0].brand;
+          enriched.vehicleBrandId = vehicleModel[0].oemId; // OEM is the vehicle brand
           enriched.vehicleModel = vehicleModel[0];
         }
       }
