@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useLocation, useRoute } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -198,19 +198,21 @@ export default function WorkOrdersPage() {
     setShowEditModal(true);
   };
 
-  const handleSubmitWorkOrder = async (id: string) => {
-    try {
-      const response = await apiRequest('POST', `/api/work-orders/${id}/submit`);
+  const submitWorkOrderMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest('POST', `/api/work-orders/${id}/submit`);
+    },
+    onSuccess: () => {
       toast({
         title: "Success",
         description: "Work order submitted successfully and assigned to partner"
       });
-      // Refetch work orders to show updated status
       queryClient.invalidateQueries({ queryKey: ['/api/work-orders'] });
-    } catch (error: any) {
+      queryClient.invalidateQueries({ queryKey: ['/api/work-orders', workOrderId] });
+    },
+    onError: (error: any) => {
       console.error("Submit work order error:", error);
       
-      // Extract detailed error message from backend
       let errorMessage = "Failed to submit work order";
       
       if (error?.response?.data?.error) {
@@ -225,6 +227,10 @@ export default function WorkOrdersPage() {
         variant: "destructive"
       });
     }
+  });
+
+  const handleSubmitWorkOrder = (id: string) => {
+    submitWorkOrderMutation.mutate(id);
   };
 
   const handleBackToList = () => {
@@ -748,9 +754,10 @@ export default function WorkOrdersPage() {
                     onClick={() => handleSubmitWorkOrder(workOrder.id)} 
                     className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
                     data-testid="button-submit-work-order-detail"
+                    disabled={submitWorkOrderMutation.isPending}
                   >
                     <Send className="h-4 w-4 mr-2" />
-                    Submit Work Order
+                    {submitWorkOrderMutation.isPending ? "Submitting..." : "Submit Work Order"}
                   </Button>
                 </>
               )}
@@ -1025,6 +1032,7 @@ export default function WorkOrdersPage() {
                             data-testid={`button-submit-${order.id}`}
                             className="text-xs px-2 bg-green-600 hover:bg-green-700 text-white"
                             title="Submit"
+                            disabled={submitWorkOrderMutation.isPending}
                           >
                             <Send className="h-3 w-3" />
                           </Button>
@@ -1257,9 +1265,10 @@ export default function WorkOrdersPage() {
                           onClick={() => handleSubmitWorkOrder(order.id)}
                           data-testid={`button-submit-${order.id}`}
                           className="flex-1"
+                          disabled={submitWorkOrderMutation.isPending}
                         >
                           <Save className="h-4 w-4 mr-2" />
-                          Submit
+                          {submitWorkOrderMutation.isPending ? "Submitting..." : "Submit"}
                         </Button>
                       )}
                     </div>
