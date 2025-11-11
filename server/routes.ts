@@ -3041,13 +3041,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/work-orders/:id", 
     authenticate, 
-    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'SUPER_ADMIN', 'PARTNER_ADMIN']),
+    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'SUPER_ADMIN', 'SALES_PERSON']),
     requireOEMAccess,
     auditLog('work_order', 'update'),
     async (req, res) => {
       try {
+        // First fetch the work order to check its status
+        const existingWorkOrder = await storage.getWorkOrder(req.params.id);
+        
+        if (!existingWorkOrder) {
+          return res.status(404).json({ error: "Work order not found" });
+        }
+
+        // Only allow editing DRAFT work orders
+        if (existingWorkOrder.status !== 'DRAFT') {
+          return res.status(400).json({ error: "Only DRAFT work orders can be edited" });
+        }
+
         const updates = req.body;
         delete updates.id; // Prevent ID modification
+        delete updates.status; // Prevent status modification through this endpoint
         
         const workOrder = await storage.updateWorkOrder(req.params.id, updates);
         
