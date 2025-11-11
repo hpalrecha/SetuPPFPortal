@@ -33,12 +33,12 @@ The application uses the P91 Brand Theme with a Brand Green primary color, Oxani
     - Can create/edit OEMs, dealerships, showrooms, sales persons, work orders
     - Can access pricing rules, commissions, vehicles, service categories, brands, raw materials
     - Cannot delete any resources (403 Forbidden on all DELETE operations)
-  - **MANAGER Role**: READ-ONLY state-based access control with allowedStates field
+  - **MANAGER Role**: State-based access control with allowedStates field
     - View: Can see ALL OEMs (no state filtering), but dealerships, showrooms, work orders, partners, and sales persons are filtered by allowedStates
     - Filtering Hierarchy: OEMs (ALL visible) → Dealerships (state-filtered) → Showrooms (state-filtered via dealership)
-    - Create: Can only create work orders (only for dealerships in allowed states)
-    - Restrictions: Cannot create/edit dealerships, showrooms, or users; cannot access entities outside allowedStates; no delete permissions
-    - Frontend: Add buttons hidden for dealerships, showrooms, and sales persons
+    - Create: Can create work orders AND sales persons (only for dealerships/showrooms in allowed states)
+    - Restrictions: Cannot create/edit dealerships or showrooms; cannot access entities outside allowedStates; no delete permissions
+    - Frontend: Add buttons shown for sales persons and work orders; hidden for dealerships and showrooms
   - Existing roles (SUPER_ADMIN, OEM_ADMIN, DEALERSHIP_ADMIN, SHOWROOM_MANAGER, SALES_PERSON, PARTNER_ADMIN, PARTNER_STAFF) remain unchanged
 
 ## System Design Choices

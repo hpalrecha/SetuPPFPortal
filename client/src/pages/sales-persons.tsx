@@ -209,7 +209,7 @@ export default function SalesPersonsPage() {
           <h2 className="text-2xl font-semibold text-foreground">Sales Person Management</h2>
           <p className="text-muted-foreground mt-1">Manage sales staff across all showrooms</p>
         </div>
-        {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
+        {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
           <Button onClick={handleAddSalesPerson} data-testid="button-add-sales-person">
             <Plus className="mr-2 h-4 w-4" />
             Add Sales Person
@@ -226,11 +226,11 @@ export default function SalesPersonsPage() {
                 <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-foreground mb-2">No Sales Persons Found</h3>
                 <p className="text-muted-foreground mb-4">
-                  {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN')
+                  {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'MANAGER')
                     ? "Add your first sales person to start managing the sales team."
                     : "No sales persons available in your allowed states."}
                 </p>
-                {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
+                {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
                   <Button onClick={handleAddSalesPerson}>
                     <Plus className="mr-2 h-4 w-4" />
                     Add First Sales Person

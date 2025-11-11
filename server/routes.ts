@@ -605,11 +605,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create user (Super Admin and Admin only)
   app.post("/api/users",
     authenticate,
-    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']),
     auditLog('user', 'create'),
     async (req, res) => {
       try {
         const { password, ...userData } = req.body;
+
+        // For MANAGER role, validate that they can only create sales persons for dealerships in their allowed states
+        if (req.user?.role === 'MANAGER') {
+          // MANAGER can only create SALES_PERSON role
+          if (userData.role !== 'SALES_PERSON') {
+            return res.status(403).json({ error: 'MANAGER can only create sales persons' });
+          }
+
+          // Validate dealership is in allowed states
+          if (userData.dealershipId) {
+            const dealership = await storage.getDealership(userData.dealershipId);
+            if (!dealership) {
+              return res.status(404).json({ error: 'Dealership not found' });
+            }
+
+            const allowedStates = (req.user.allowedStates as string[]) || [];
+            if (!dealership.state || !allowedStates.includes(dealership.state)) {
+              return res.status(403).json({ error: 'You can only create sales persons for dealerships in your allowed states' });
+            }
+          }
+
+          // Validate showroom is in allowed states (via dealership)
+          if (userData.showroomId) {
+            const showroom = await storage.getShowroom(userData.showroomId);
+            if (!showroom) {
+              return res.status(404).json({ error: 'Showroom not found' });
+            }
+
+            const dealership = await storage.getDealership(showroom.dealershipId);
+            if (!dealership) {
+              return res.status(404).json({ error: 'Dealership not found for this showroom' });
+            }
+
+            const allowedStates = (req.user.allowedStates as string[]) || [];
+            if (!dealership.state || !allowedStates.includes(dealership.state)) {
+              return res.status(403).json({ error: 'You can only create sales persons for showrooms in your allowed states' });
+            }
+          }
+        }
 
         // Check if email or phone number already exists
         if (userData.email) {
