@@ -4237,6 +4237,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // E-Warranty Application Endpoint
+  app.post("/api/job-cards/:id/apply-warranty",
+    authenticate,
+    auditLog('job_card', 'apply_warranty'),
+    async (req, res) => {
+      try {
+        const jobCardId = req.params.id;
+        
+        // Get job card with validation
+        const jobCard = await storage.getJobCard(jobCardId);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        // Validate job card is approved/completed and partner billed directly
+        if (!['PENDING_SALES_INVOICE', 'APPROVED'].includes(jobCard.status)) {
+          return res.status(400).json({ 
+            error: "E-Warranty can only be applied for approved job cards",
+            currentStatus: jobCard.status 
+          });
+        }
+
+        if (!jobCard.partnerBilledDirectly) {
+          return res.status(400).json({ 
+            error: "E-Warranty application is only available when partner bills customer directly" 
+          });
+        }
+
+        if (jobCard.eWarrantyApplied) {
+          return res.status(400).json({ 
+            error: "E-Warranty has already been applied for this job card" 
+          });
+        }
+
+        // Update job card with e-warranty applied
+        const updatedJobCard = await storage.updateJobCard(jobCardId, {
+          eWarrantyApplied: true,
+          eWarrantyAppliedAt: new Date()
+        });
+
+        if (!updatedJobCard) {
+          return res.status(500).json({ error: "Failed to apply e-warranty" });
+        }
+
+        // Send e-warranty notification emails
+        try {
+          const { emailService } = await import('./services/emailService');
+          const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+          
+          if (workOrder) {
+            const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
+            const partner = await storage.getPartner(jobCard.partnerId);
+            
+            const jobCardDetails = {
+              jobCardId: jobCard.id,
+              workOrderNumber: workOrder.workOrderNumber || `WO-${workOrder.id.slice(-6)}`,
+              customerName: workOrder.customerName || 'N/A',
+              customerPhone: workOrder.customerPhone || 'N/A',
+              customerEmail: workOrder.customerEmail || 'N/A',
+              vehicleDetails: {
+                modelName: vehicleModel?.modelName || 'Unknown Vehicle',
+                brand: vehicleModel?.brand || 'N/A',
+                regNo: workOrder.regNo || 'N/A'
+              },
+              serviceName: workOrder.serviceName || 'N/A',
+              partnerName: partner?.displayName || 'Partner',
+              completedAt: jobCard.completedAt || new Date(),
+              approvedAt: jobCard.approvedAt || new Date(),
+              eWarrantyAppliedAt: updatedJobCard.eWarrantyAppliedAt || new Date()
+            };
+
+            // Send to both recipients
+            await Promise.all([
+              emailService.sendEWarrantyNotification('justsignssocial@gmail.com', jobCardDetails),
+              emailService.sendEWarrantyNotification('info@stek-india.in', jobCardDetails)
+            ]);
+            
+            console.log(`✅ E-Warranty application emails sent for job card ${jobCardId}`);
+          }
+        } catch (emailError) {
+          console.error("Failed to send e-warranty notification emails:", emailError);
+          // Don't fail the request if email fails
+        }
+
+        res.json(updatedJobCard);
+      } catch (error) {
+        console.error("Apply e-warranty error:", error);
+        res.status(500).json({ error: "Failed to apply e-warranty" });
+      }
+    }
+  );
 
   app.post("/api/job-cards/:id/request-rework", 
     authenticate, 

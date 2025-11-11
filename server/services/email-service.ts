@@ -374,6 +374,102 @@ export class EmailService {
     });
   }
 
+  async sendEWarrantyNotification(
+    recipientEmail: string,
+    jobCardDetails: {
+      jobCardId: string;
+      workOrderNumber: string;
+      customerName: string;
+      customerPhone: string;
+      customerEmail: string;
+      vehicleDetails: {
+        modelName: string;
+        brand: string;
+        regNo: string;
+      };
+      serviceName: string;
+      partnerName: string;
+      completedAt: Date;
+      approvedAt: Date;
+      eWarrantyAppliedAt: Date;
+    }
+  ): Promise<boolean> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>E-Warranty Application</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; }
+          .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #4db848 0%, #38a334 100%); color: white; padding: 30px 20px; border-radius: 8px 8px 0 0; text-align: center; }
+          .content { padding: 30px; }
+          .status-badge { background: #10b981; color: white; padding: 5px 15px; border-radius: 20px; font-size: 14px; font-weight: bold; display: inline-block; }
+          .details { background: #f8fafc; padding: 20px; border-radius: 6px; margin: 20px 0; }
+          .footer { background: #f1f5f9; padding: 20px; border-radius: 0 0 8px 8px; text-align: center; color: #64748b; }
+          .section { margin: 20px 0; }
+          .section h3 { margin: 0 0 10px 0; color: #1e293b; border-bottom: 2px solid #4db848; padding-bottom: 5px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          ${this.getLogoHtml()}
+          <div class="header">
+            <h1 style="margin: 0; font-size: 28px;">E-Warranty Application Submitted</h1>
+          </div>
+          <div class="content">
+            <p>A new e-warranty application has been submitted for processing.</p>
+            
+            <div class="section">
+              <h3>Job Card Information</h3>
+              <p><strong>Job Card ID:</strong> ${jobCardDetails.jobCardId}</p>
+              <p><strong>Work Order:</strong> ${jobCardDetails.workOrderNumber}</p>
+              <p><strong>Service:</strong> ${jobCardDetails.serviceName}</p>
+              <p><strong>Partner:</strong> ${jobCardDetails.partnerName}</p>
+              <p><strong>Status:</strong> <span class="status-badge">E-WARRANTY APPLIED</span></p>
+            </div>
+            
+            <div class="section">
+              <h3>Customer Details</h3>
+              <p><strong>Name:</strong> ${jobCardDetails.customerName}</p>
+              <p><strong>Phone:</strong> ${jobCardDetails.customerPhone}</p>
+              <p><strong>Email:</strong> ${jobCardDetails.customerEmail}</p>
+            </div>
+            
+            <div class="section">
+              <h3>Vehicle Details</h3>
+              <p><strong>Make/Model:</strong> ${jobCardDetails.vehicleDetails.brand} ${jobCardDetails.vehicleDetails.modelName}</p>
+              <p><strong>Registration No:</strong> ${jobCardDetails.vehicleDetails.regNo}</p>
+            </div>
+            
+            <div class="section">
+              <h3>Timeline</h3>
+              <p><strong>Completed:</strong> ${jobCardDetails.completedAt.toLocaleString()}</p>
+              <p><strong>Approved:</strong> ${jobCardDetails.approvedAt.toLocaleString()}</p>
+              <p><strong>E-Warranty Applied:</strong> ${jobCardDetails.eWarrantyAppliedAt.toLocaleString()}</p>
+            </div>
+            
+            <p style="color: #64748b; font-size: 14px; margin-top: 20px;">
+              <strong>Note:</strong> This is an automated notification for e-warranty application. Please process this request according to your warranty registration procedures.
+            </p>
+          </div>
+          <div class="footer">
+            <p>Pulse VAS - Professional Paint Protection Film Services</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    return this.sendEmail({
+      to: recipientEmail,
+      subject: `E-Warranty Application - ${jobCardDetails.workOrderNumber}`,
+      html
+    });
+  }
+
   async sendPasswordResetEmail(
     recipientEmail: string,
     resetToken: string,
