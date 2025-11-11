@@ -92,6 +92,76 @@ export const requireOEMAccess = async (req: Request, res: Response, next: NextFu
   return res.status(403).json({ error: 'Access denied' });
 };
 
+// Helper function to check if Manager has access to a specific state
+export const hasStateAccess = (user: AuthUser, state: string | null | undefined): boolean => {
+  if (!state) return false;
+  
+  // SUPER_ADMIN and ADMIN have access to all states
+  if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
+    return true;
+  }
+  
+  // MANAGER must check allowedStates
+  if (user.role === 'MANAGER') {
+    const allowedStates = user.allowedStates as string[] | undefined;
+    return allowedStates ? allowedStates.includes(state) : false;
+  }
+  
+  // Other roles have access to their specific state via their entities
+  return true;
+};
+
+// Middleware to check if Manager can access a specific dealership
+export const checkDealershipAccess = async (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  // SUPER_ADMIN and ADMIN have full access
+  if (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN') {
+    return next();
+  }
+
+  // MANAGER must check state access
+  if (req.user.role === 'MANAGER') {
+    const dealershipId = req.params.id || req.body.dealershipId;
+    if (!dealershipId) {
+      return res.status(400).json({ error: 'Dealership ID required' });
+    }
+
+    try {
+      const dealership = await storage.getDealership(dealershipId);
+      if (!dealership) {
+        return res.status(404).json({ error: 'Dealership not found' });
+      }
+
+      if (!hasStateAccess(req.user, dealership.state)) {
+        return res.status(403).json({ error: 'Access denied: State not in your allowed states' });
+      }
+
+      return next();
+    } catch (error) {
+      console.error('Error checking dealership access:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  next();
+};
+
+// Middleware to block ADMIN from delete operations
+export const blockAdminDelete = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  if (req.user.role === 'ADMIN') {
+    return res.status(403).json({ error: 'Admin users cannot perform delete operations' });
+  }
+
+  next();
+};
+
 export const auditLog = (entity: string, action: string) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const originalSend = res.send;

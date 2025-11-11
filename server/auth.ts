@@ -37,6 +37,7 @@ export interface AuthUser {
   dealershipId?: string;
   showroomId?: string;
   partnerId?: string;
+  allowedStates?: string[];
   name: string;
   emailVerified: boolean;
   phoneVerified: boolean;
@@ -190,6 +191,7 @@ export class AuthService {
       dealershipId: user.dealershipId || undefined,
       showroomId: user.showroomId || undefined,
       partnerId: user.partnerId || undefined,
+      allowedStates: user.allowedStates as string[] | undefined,
       name: user.name,
       emailVerified: user.emailVerified || false,
       phoneVerified: user.phoneVerified || false,

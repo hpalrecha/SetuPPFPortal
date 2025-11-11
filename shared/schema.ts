@@ -20,6 +20,8 @@ import { z } from "zod";
 // Enums
 export const userRoleEnum = pgEnum('user_role', [
   'SUPER_ADMIN',
+  'ADMIN',
+  'MANAGER',
   'OEM_ADMIN', 
   'DEALERSHIP_ADMIN',
   'SHOWROOM_MANAGER',
@@ -196,6 +198,7 @@ export const users = pgTable("users", {
   dealershipId: uuid("dealership_id").references(() => dealerships.id),
   showroomId: uuid("showroom_id").references(() => showrooms.id),
   partnerId: uuid("partner_id"),
+  allowedStates: jsonb("allowed_states").$type<string[]>(),
   isActive: boolean("is_active").default(true),
   name: text("name").notNull(),
   emailVerified: boolean("email_verified").default(false),
