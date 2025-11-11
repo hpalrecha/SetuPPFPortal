@@ -399,12 +399,16 @@ export default function DealershipsPage() {
                 <p className="text-muted-foreground mb-4">
                   {searchTerm || selectedOEM !== "all" || selectedState !== "all" || selectedCity !== "all" 
                     ? "No dealerships match your search criteria."
-                    : "Add your first dealership to start managing regional operations."}
+                    : (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN')
+                      ? "Add your first dealership to start managing regional operations."
+                      : "No dealerships available in your allowed states."}
                 </p>
-                <Button onClick={handleAddDealership}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add First Dealership
-                </Button>
+                {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
+                  <Button onClick={handleAddDealership}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add First Dealership
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </div>

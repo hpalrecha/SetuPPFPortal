@@ -226,12 +226,16 @@ export default function SalesPersonsPage() {
                 <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-foreground mb-2">No Sales Persons Found</h3>
                 <p className="text-muted-foreground mb-4">
-                  Add your first sales person to start managing the sales team.
+                  {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN')
+                    ? "Add your first sales person to start managing the sales team."
+                    : "No sales persons available in your allowed states."}
                 </p>
-                <Button onClick={handleAddSalesPerson}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add First Sales Person
-                </Button>
+                {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
+                  <Button onClick={handleAddSalesPerson}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add First Sales Person
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </div>

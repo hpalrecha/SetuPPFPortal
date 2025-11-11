@@ -427,12 +427,16 @@ export default function ShowroomsPage() {
                 <p className="text-muted-foreground mb-4">
                   {searchTerm || selectedOEM !== "all" || selectedDealership !== "all" || selectedState !== "all" || selectedCity !== "all" 
                     ? "No showrooms match your search criteria."
-                    : "Add your first showroom to start managing individual locations."}
+                    : (user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN')
+                      ? "Add your first showroom to start managing individual locations."
+                      : "No showrooms available in your allowed states."}
                 </p>
-                <Button onClick={handleAddShowroom}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add First Showroom
-                </Button>
+                {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
+                  <Button onClick={handleAddShowroom}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add First Showroom
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </div>
