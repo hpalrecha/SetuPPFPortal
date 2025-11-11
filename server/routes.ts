@@ -984,9 +984,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // For MANAGER role, filter dealerships by allowed states
       if (req.user?.role === 'MANAGER' && !stateFilter) {
         const allowedStates = (req.user.allowedStates as string[]) || [];
+        console.log('MANAGER Filter Debug:', {
+          role: req.user.role,
+          allowedStates,
+          totalDealerships: dealershipsWithCounts.length,
+          dealershipStates: dealershipsWithCounts.map(d => d.state)
+        });
         dealershipsWithCounts = dealershipsWithCounts.filter(d => 
           d.state && allowedStates.includes(d.state)
         );
+        console.log('After filtering:', {
+          filteredCount: dealershipsWithCounts.length
+        });
       }
       
       res.json({
