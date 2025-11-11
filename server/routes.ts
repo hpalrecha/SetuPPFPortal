@@ -4252,7 +4252,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Validate job card is approved/completed and partner billed directly
-        if (!['PENDING_SALES_INVOICE', 'APPROVED'].includes(jobCard.status)) {
+        if (!['PENDING_SALES_INVOICE', 'APPROVED', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING'].includes(jobCard.status)) {
           return res.status(400).json({ 
             error: "E-Warranty can only be applied for approved job cards",
             currentStatus: jobCard.status 
