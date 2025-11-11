@@ -78,6 +78,7 @@ interface CreateWorkOrderModalProps {
   onSuccess: () => void;
   workOrderId?: string; // If provided, modal is in edit mode
   initialData?: any; // Pre-filled data for editing
+  isLoading?: boolean; // Loading state for fetching initial data
 }
 
 export function CreateWorkOrderModal({
@@ -86,6 +87,7 @@ export function CreateWorkOrderModal({
   onSuccess,
   workOrderId,
   initialData,
+  isLoading: isLoadingData,
 }: CreateWorkOrderModalProps) {
   const isEditMode = !!workOrderId;
   const { user } = useAuth();
@@ -427,6 +429,14 @@ export function CreateWorkOrderModal({
           <DialogTitle>{isEditMode ? 'Edit Work Order' : 'Create Work Order'}</DialogTitle>
         </DialogHeader>
 
+        {isLoadingData && isEditMode ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="flex flex-col items-center gap-3">
+              <div className="animate-spin h-10 w-10 border-4 border-primary border-t-transparent rounded-full"></div>
+              <p className="text-sm text-muted-foreground">Loading work order data...</p>
+            </div>
+          </div>
+        ) : (
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             {/* Showroom Selection (Dealership Admin Only) */}
@@ -892,6 +902,7 @@ export function CreateWorkOrderModal({
             </DialogFooter>
           </form>
         </Form>
+        )}
       </DialogContent>
     </Dialog>
 

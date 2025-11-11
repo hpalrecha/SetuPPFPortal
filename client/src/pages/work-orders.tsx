@@ -341,6 +341,7 @@ export default function WorkOrdersPage() {
   const modalsJSX = (
     <>
       {/* Create/Edit Work Order Modal */}
+      {console.log("MODAL DATA:", { showEditModal, selectedWorkOrder, editWorkOrder, isLoadingEditWorkOrder })}
       <CreateWorkOrderModal 
         open={showCreateModal || showEditModal}
         onOpenChange={(open) => {
@@ -362,6 +363,7 @@ export default function WorkOrdersPage() {
         }}
         workOrderId={selectedWorkOrder || undefined}
         initialData={editWorkOrder}
+        isLoading={isLoadingEditWorkOrder}
       />
 
       {/* Cancel Dialog */}
