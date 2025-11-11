@@ -537,6 +537,9 @@ export const jobCards = pgTable("job_cards", {
   salesInvoiceNumber: text("sales_invoice_number"),
   warrantyAppliedAt: timestamp("warranty_applied_at"),
   warrantyReferenceNumber: text("warranty_reference_number"),
+  // E-Warranty application tracking
+  eWarrantyApplied: boolean("e_warranty_applied").default(false),
+  eWarrantyAppliedAt: timestamp("e_warranty_applied_at"),
   pricingSnapshotJson: jsonb("pricing_snapshot_json"),
   commissionSnapshotJson: jsonb("commission_snapshot_json"),
   billingValue: decimal("billing_value", { precision: 10, scale: 2 }), // Auto-populated from Work Order total
