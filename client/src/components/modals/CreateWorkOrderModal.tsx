@@ -232,7 +232,7 @@ export function CreateWorkOrderModal({
   const dealershipShowrooms = dealershipShowroomData?.showrooms || [];
 
   // Get the OEM ID for vehicle data fetching
-  const finalOemId = isSuperAdmin ? selectedOemId : user?.oemId;
+  const finalOemId = canSelectOrgHierarchy ? selectedOemId : user?.oemId;
   
   // Fetch vehicle data (brands and models) based on OEM
   const { data: vehicleData = [] } = useQuery({
