@@ -49,9 +49,9 @@ export default function Allocations() {
   // Debounce search term to prevent excessive filtering
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-  // Redirect if not SUPER_ADMIN
+  // Redirect if not SUPER_ADMIN, ADMIN, or MANAGER
   useEffect(() => {
-    if (user && user.role !== "SUPER_ADMIN") {
+    if (user && user.role !== "SUPER_ADMIN" && user.role !== "ADMIN" && user.role !== "MANAGER") {
       toast({
         title: "Access Denied",
         description: "You don't have permission to access this page.",

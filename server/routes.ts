@@ -2641,9 +2641,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // For SUPER_ADMIN, use the first available OEM or create aggregate metrics
-      if (req.user!.role === 'SUPER_ADMIN') {
-        // Get first available OEM for super admin
+      // For SUPER_ADMIN, ADMIN, and MANAGER, use the first available OEM or create aggregate metrics
+      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
+        // Get first available OEM for super admin, admin, and manager
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) {
           // No OEMs available, return zero metrics
@@ -2659,7 +2659,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
         
-        // Use first OEM for super admin dashboard
+        // Use first OEM for dashboard
         const metrics = await storage.getDashboardMetrics(availableOems[0].id);
         return res.json(metrics);
       }
@@ -2693,7 +2693,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let dealershipId: string | undefined;
       
       // Handle different user roles
-      if (req.user!.role === 'SUPER_ADMIN') {
+      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) return res.json([]);
         oemId = availableOems[0].id;
@@ -2724,7 +2724,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       let oemId: string;
       
-      if (req.user!.role === 'SUPER_ADMIN') {
+      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) return res.json([]);
         oemId = availableOems[0].id;
@@ -2753,7 +2753,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       let oemId: string;
       
-      if (req.user!.role === 'SUPER_ADMIN') {
+      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) return res.json([]);
         oemId = availableOems[0].id;
@@ -2784,7 +2784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let dealershipId: string | undefined;
       let showroomId: string | undefined;
       
-      if (req.user!.role === 'SUPER_ADMIN') {
+      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) return res.json([]);
         oemId = availableOems[0].id;
@@ -2817,7 +2817,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let dealershipId: string | undefined;
       let showroomId: string | undefined;
       
-      if (req.user!.role === 'SUPER_ADMIN') {
+      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) return res.json([]);
         oemId = availableOems[0].id;
@@ -2850,7 +2850,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let dealershipId: string | undefined;
       let showroomId: string | undefined;
       
-      if (req.user!.role === 'SUPER_ADMIN') {
+      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) return res.json([]);
         oemId = availableOems[0].id;
@@ -2884,7 +2884,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let showroomId: string | undefined;
       let dealershipId: string | undefined;
       
-      if (req.user!.role === 'SUPER_ADMIN') {
+      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) {
           return res.json({
@@ -2917,7 +2917,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let showroomId: string | undefined;
       let dealershipId: string | undefined;
       
-      if (req.user!.role === 'SUPER_ADMIN') {
+      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) {
           return res.json({
@@ -3155,7 +3155,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let hasAccess = false;
       
       // SUPER_ADMIN can access any work order
-      if (req.user!.role === 'SUPER_ADMIN') {
+      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         hasAccess = true;
       } else if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
         // Partner users can access work orders for job cards assigned to them
@@ -3454,7 +3454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (req.user!.role === 'OEM_ADMIN') {
         // OEM admins see job cards only for their OEM
         filters.oemId = req.user!.oemId;
-      } else if (req.user!.role === 'SUPER_ADMIN') {
+      } else if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         // Super admins see all job cards within the selected OEM context
         if (selectedOemId) {
           filters.oemId = selectedOemId;
@@ -3508,7 +3508,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let hasAccess = false;
         
         // SUPER_ADMIN can access any job card
-        if (req.user!.role === 'SUPER_ADMIN') {
+        if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
           hasAccess = true;
         } else if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
           // Partner users can access job cards assigned to them
@@ -3684,7 +3684,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Check if user has permission to approve this job card
         let hasAccess = false;
-        if (req.user!.role === 'SUPER_ADMIN') {
+        if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
           hasAccess = true;
         } else if (req.user!.role === 'OEM_ADMIN') {
           hasAccess = workOrder.oemId === req.user!.oemId;
@@ -4009,7 +4009,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } else {
           // Admin roles can settle Plus Nine One billing
-          if (req.user!.role === 'SUPER_ADMIN') {
+          if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
             hasAccess = true;
           } else if (req.user!.role === 'OEM_ADMIN') {
             hasAccess = workOrder.oemId === req.user!.oemId;
@@ -4087,7 +4087,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } else {
           // Admin roles can apply warranty for Plus Nine One billing
-          if (req.user!.role === 'SUPER_ADMIN') {
+          if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
             hasAccess = true;
           } else if (req.user!.role === 'OEM_ADMIN') {
             hasAccess = workOrder.oemId === req.user!.oemId;
@@ -4580,7 +4580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Check if user has permission to request rework for this job card
         let hasAccess = false;
-        if (req.user!.role === 'SUPER_ADMIN') {
+        if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
           hasAccess = true;
         } else if (req.user!.role === 'OEM_ADMIN') {
           hasAccess = workOrder.oemId === req.user!.oemId;
@@ -4878,7 +4878,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Role-based access control with OEM tenant isolation
         let hasAccess = false;
         
-        if (req.user!.role === 'SUPER_ADMIN') {
+        if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
           hasAccess = true; // Super admin can access all partners
         } else if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
           // Partner users can only access their own partner data
