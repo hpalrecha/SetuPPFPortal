@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
   FormControl,
@@ -19,20 +20,32 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+
+const INDIAN_STATES = [
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
+  "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram",
+  "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
+  "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
+  "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu",
+  "Delhi", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry"
+];
 
 const userSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Invalid email address"),
   phone: z.string().min(10, "Phone number is required"),
   password: z.string().min(6, "Password must be at least 6 characters"),
-  role: z.enum(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'SALES_PERSON', 'PARTNER_ADMIN', 'PARTNER_STAFF']),
+  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'SALES_PERSON', 'PARTNER_ADMIN', 'PARTNER_STAFF']),
   oemId: z.string().optional(),
   dealershipId: z.string().optional(),
   showroomId: z.string().optional(),
   partnerId: z.string().optional(),
+  allowedStates: z.array(z.string()).optional(),
   isActive: z.boolean().default(true),
 });
 
@@ -210,6 +223,8 @@ export function CreateUserModal({
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                        <SelectItem value="ADMIN">Admin</SelectItem>
+                        <SelectItem value="MANAGER">Manager</SelectItem>
                         <SelectItem value="OEM_ADMIN">OEM Admin</SelectItem>
                         <SelectItem value="DEALERSHIP_ADMIN">Dealership Admin</SelectItem>
                         <SelectItem value="SHOWROOM_MANAGER">Showroom Manager</SelectItem>
@@ -327,6 +342,60 @@ export function CreateUserModal({
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {selectedRole === 'MANAGER' && (
+              <FormField
+                control={form.control}
+                name="allowedStates"
+                render={() => (
+                  <FormItem>
+                    <div className="mb-4">
+                      <FormLabel className="text-base">Allowed States *</FormLabel>
+                      <FormDescription>
+                        Select the states this manager can access
+                      </FormDescription>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 max-h-[300px] overflow-y-auto p-4 border rounded-md">
+                      {INDIAN_STATES.map((state) => (
+                        <FormField
+                          key={state}
+                          control={form.control}
+                          name="allowedStates"
+                          render={({ field }) => {
+                            return (
+                              <FormItem
+                                key={state}
+                                className="flex flex-row items-start space-x-3 space-y-0"
+                              >
+                                <FormControl>
+                                  <Checkbox
+                                    checked={field.value?.includes(state)}
+                                    onCheckedChange={(checked) => {
+                                      return checked
+                                        ? field.onChange([...(field.value || []), state])
+                                        : field.onChange(
+                                            field.value?.filter(
+                                              (value) => value !== state
+                                            )
+                                          )
+                                    }}
+                                    data-testid={`checkbox-state-${state.toLowerCase().replace(/\s+/g, '-')}`}
+                                  />
+                                </FormControl>
+                                <FormLabel className="text-sm font-normal">
+                                  {state}
+                                </FormLabel>
+                              </FormItem>
+                            )
+                          }}
+                        />
+                      ))}
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
