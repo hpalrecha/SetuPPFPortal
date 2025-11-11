@@ -1,6 +1,6 @@
 # Overview
 
-Pulse VAS is a multi-tenant web application for managing Paint Protection Film (PPF) installation orders within the automotive industry. It connects Vehicle OEMs, dealerships, showrooms, and installation partners, providing a complete workflow management system. Key features include real-time tracking, automated pricing, commission management, and role-specific dashboards to streamline order lifecycles and track job cards.
+Pulse VAS is a multi-tenant web application for managing Paint Protection Film (PPF) installation orders within the automotive industry. It connects Vehicle OEMs, dealerships, showrooms, and installation partners, providing a complete workflow management system. Key features include real-time tracking, automated pricing, commission management, role-specific dashboards to streamline order lifecycles, and a draft-submit workflow for work orders with manual partner allocation and cancellation capabilities.
 
 # User Preferences
 
@@ -17,7 +17,7 @@ The application uses the P91 Brand Theme with a Brand Green primary color, Oxani
 - **Multi-Tenancy**: Achieved through OEM-level data isolation, role-based permissions, and a middleware stack for authentication, tenant context, and RBAC, ensuring data is scoped to the user's tenant.
 
 ## Feature Specifications
-- **Work Order Management**: Full lifecycle management, including approvals.
+- **Work Order Management**: Full lifecycle management with draft-submit workflow, manual partner allocation for PENDING orders, and cancellation with cascade effects (job cards, payouts, commissions).
 - **Job Card System**: Real-time status tracking, SLA monitoring, and notifications.
   - **Pre-Installation Inspection** (Nov 2025): Mandatory photo documentation before starting work. Partners must upload 4 labeled photos (Front, Back, Left Side, Right Side) with optional remarks. Photos are stored in object storage with private ACLs. The "Start Work" button is only enabled after pre-installation inspection is completed.
 - **Partner Allocation**: Priority-based auto-assignment with manual overrides and billing controls.
