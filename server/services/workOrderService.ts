@@ -742,9 +742,9 @@ Please acknowledge receipt and provide estimated completion time.
     // Update work order to cancelled status
     const updatedWorkOrder = await storage.updateWorkOrder(workOrderId, {
       status: 'CANCELLED',
-      notes: workOrder.notes 
-        ? `${workOrder.notes}\n\n[CANCELLED by ${userId}] Reason: ${reason}`
-        : `[CANCELLED by ${userId}] Reason: ${reason}`
+      cancelledReason: reason,
+      cancelledAt: new Date(),
+      cancelledBy: userId
     });
 
     // Cascade cancel to related job cards if any
