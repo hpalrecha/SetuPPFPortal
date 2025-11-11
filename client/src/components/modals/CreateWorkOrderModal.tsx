@@ -9,6 +9,15 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,10 +39,11 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { ApiClient } from "@/lib/api";
+import { ApiClient, apiRequest } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
-import { Building, Store, Users } from "lucide-react";
+import { Building, Store, Users, CheckCircle2, Send, FileText } from "lucide-react";
+import { useLocation } from "wouter";
 
 const workOrderSchema = z.object({
   // Organization fields (for Super Admin)
@@ -75,7 +85,11 @@ export function CreateWorkOrderModal({
 }: CreateWorkOrderModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdWorkOrder, setCreatedWorkOrder] = useState<any>(null);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const isDealershipAdmin = user?.role === 'DEALERSHIP_ADMIN';
 
@@ -292,14 +306,12 @@ export function CreateWorkOrderModal({
     setIsLoading(true);
     try {
       const response = await ApiClient.post("/api/work-orders", workOrderData);
-
-      toast({
-        title: "Success",
-        description: "Work order created successfully and job card assigned to partner",
-      });
-
+      
+      // Store the created work order and show success dialog
+      setCreatedWorkOrder(response);
+      setShowSuccessDialog(true);
       form.reset();
-      onSuccess();
+      
     } catch (error) {
       console.error("Error creating work order:", error);
       toast({
@@ -312,7 +324,48 @@ export function CreateWorkOrderModal({
     }
   };
 
+  // Handle submitting the draft work order
+  const handleSubmitWorkOrder = async () => {
+    if (!createdWorkOrder) return;
+    
+    setIsSubmitting(true);
+    try {
+      await apiRequest({
+        method: 'POST',
+        url: `/api/work-orders/${createdWorkOrder.id}/submit`,
+      });
+
+      toast({
+        title: "Success",
+        description: "Work order submitted successfully",
+      });
+
+      setShowSuccessDialog(false);
+      onOpenChange(false);
+      setCreatedWorkOrder(null);
+      onSuccess();
+    } catch (error: any) {
+      console.error("Error submitting work order:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to submit work order",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle viewing the draft
+  const handleViewDraft = () => {
+    setShowSuccessDialog(false);
+    onOpenChange(false);
+    setCreatedWorkOrder(null);
+    onSuccess();
+  };
+
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="modal-responsive max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -786,5 +839,57 @@ export function CreateWorkOrderModal({
         </Form>
       </DialogContent>
     </Dialog>
+
+    {/* Success Dialog */}
+    <AlertDialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+      <AlertDialogContent data-testid="dialog-work-order-success">
+        <AlertDialogHeader>
+          <div className="flex items-center justify-center mb-4">
+            <div className="rounded-full bg-green-100 p-3">
+              <CheckCircle2 className="h-8 w-8 text-green-600" />
+            </div>
+          </div>
+          <AlertDialogTitle className="text-center text-xl">
+            Work Order Created Successfully!
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-center space-y-3 pt-2">
+            <p className="text-base">
+              Your work order has been saved as a <span className="font-semibold text-gray-700">DRAFT</span>.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              You can submit it now to auto-assign to a partner, or view it later to make changes.
+            </p>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+          <Button
+            variant="outline"
+            onClick={handleViewDraft}
+            disabled={isSubmitting}
+            className="w-full sm:w-auto"
+            data-testid="button-view-draft"
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            View Draft
+          </Button>
+          <Button
+            onClick={handleSubmitWorkOrder}
+            disabled={isSubmitting}
+            className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
+            data-testid="button-submit-now"
+          >
+            {isSubmitting ? (
+              "Submitting..."
+            ) : (
+              <>
+                <Send className="h-4 w-4 mr-2" />
+                Submit Now
+              </>
+            )}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
