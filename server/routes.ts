@@ -4283,7 +4283,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Send e-warranty notification emails
         try {
-          const { emailService } = await import('./services/emailService');
+          const { emailService } = await import('./services/email-service');
           const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
           
           if (workOrder) {
