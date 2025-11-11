@@ -85,7 +85,7 @@ export default function DashboardPage() {
     queryKey: ["/api/dashboard/charts/orders-trend"],
     refetchInterval: 120000, // Refresh every 2 minutes
     staleTime: 60000, // Consider data fresh for 1 minute
-    enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'])
+    enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'])
   });
 
   const { data: dealershipPerformance = [] } = useQuery<{
@@ -97,7 +97,7 @@ export default function DashboardPage() {
     queryKey: ["/api/dashboard/charts/dealership-performance"],
     refetchInterval: 120000, // Refresh every 2 minutes
     staleTime: 60000, // Consider data fresh for 1 minute
-    enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN'])
+    enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN'])
   });
 
   const { data: vehicleCategoryUpsells = [] } = useQuery<{
@@ -109,7 +109,7 @@ export default function DashboardPage() {
     queryKey: ["/api/dashboard/charts/vehicle-upsells"],
     refetchInterval: 120000, // Refresh every 2 minutes
     staleTime: 60000, // Consider data fresh for 1 minute
-    enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN'])
+    enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN'])
   });
 
   const { data: territoryPerformance = [] } = useQuery<{
@@ -122,7 +122,7 @@ export default function DashboardPage() {
     queryKey: ["/api/dashboard/charts/territory-performance"],
     refetchInterval: 120000, // Refresh every 2 minutes
     staleTime: 60000, // Consider data fresh for 1 minute
-    enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'])
+    enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'])
   });
 
   // Fetch dealership/showroom name for welcome message
@@ -166,7 +166,7 @@ export default function DashboardPage() {
     queryKey: ["/api/dashboard/charts/service-popularity"],
     refetchInterval: 120000, // Refresh every 2 minutes
     staleTime: 60000, // Consider data fresh for 1 minute
-    enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'])
+    enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'])
   });
 
   const { data: monthlyTrends = [] } = useQuery<{
@@ -178,7 +178,7 @@ export default function DashboardPage() {
     queryKey: ["/api/dashboard/charts/monthly-trends"],
     refetchInterval: 120000, // Refresh every 2 minutes
     staleTime: 60000, // Consider data fresh for 1 minute
-    enabled: canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER'])
+    enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER'])
   });
 
   const formatCurrency = (amount: number) => {
@@ -248,7 +248,7 @@ export default function DashboardPage() {
             </Select>
           )}
           
-          {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'SALES_PERSON']) && (
+          {canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'SALES_PERSON']) && (
             <Button 
               onClick={() => setLocation("/work-orders")}
               data-testid="button-new-work-order"
@@ -264,7 +264,7 @@ export default function DashboardPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {/* Active Work Orders - Visible to Admin, OEM, Dealership, Showroom */}
-        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']) && (
+        {canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']) && (
           <Card>
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
@@ -286,7 +286,7 @@ export default function DashboardPage() {
         )}
 
         {/* Pending Approvals - Visible to Admin, OEM, Dealership, Showroom */}
-        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']) && (
+        {canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']) && (
           <Card>
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
@@ -306,7 +306,7 @@ export default function DashboardPage() {
         )}
 
         {/* This Month Revenue - Visible to Admin, OEM, Dealership, Showroom */}
-        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']) && (
+        {canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']) && (
           <Card>
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
@@ -328,7 +328,7 @@ export default function DashboardPage() {
         )}
 
         {/* Avg TAT - Visible to Admin, OEM, Dealership, Showroom, Detailer */}
-        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'PARTNER_ADMIN', 'PARTNER_STAFF']) && (
+        {canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'PARTNER_ADMIN', 'PARTNER_STAFF']) && (
           <Card>
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
@@ -451,7 +451,7 @@ export default function DashboardPage() {
       {/* Analytics Charts Section */}
       <div className="space-y-6">
         {/* PPF Orders Trend - Visible to Admin, OEM, Dealership */}
-        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']) && (
+        {canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']) && (
           <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
@@ -480,7 +480,7 @@ export default function DashboardPage() {
         )}
 
         {/* Dealership Performance & Vehicle Category Upsells - Visible to Admin, OEM */}
-        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN']) && (
+        {canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN']) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           <Card>
             <CardHeader>
@@ -535,7 +535,7 @@ export default function DashboardPage() {
         )}
 
         {/* Territory Performance & Service Popularity - Visible to Admin, OEM, Dealership */}
-        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']) && (
+        {canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           <Card>
             <CardHeader>
@@ -595,7 +595,7 @@ export default function DashboardPage() {
         )}
 
         {/* Monthly Performance Trends - Visible to Admin, OEM, Dealership, Showroom */}
-        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']) && (
+        {canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']) && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
@@ -626,7 +626,7 @@ export default function DashboardPage() {
         )}
 
         {/* Performance Summary Tables - Visible to Admin, OEM */}
-        {canViewSection(['SUPER_ADMIN', 'OEM_ADMIN']) && (
+        {canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN']) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Top Dealerships Table */}
           <Card>
