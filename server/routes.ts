@@ -5380,7 +5380,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sales Persons Routes
   app.get("/api/sales-persons", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']), 
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']), 
     async (req, res) => {
       try {
         const { showroomId } = req.query;
@@ -5395,7 +5395,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/sales-persons/:id/metrics", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']), 
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']), 
     async (req, res) => {
       try {
         const metrics = await storage.getSalesPersonMetrics(req.params.id);
@@ -5409,7 +5409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/sales-persons", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
     auditLog('sales_person', 'create'),
     async (req, res) => {
       try {
@@ -5426,6 +5426,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const existingUserByPhone = users.find(u => u.phone === req.body.phone);
           if (existingUserByPhone) {
             return res.status(400).json({ error: `Phone number ${req.body.phone} is already in use` });
+          }
+        }
+        
+        // For MANAGER role, validate showroom is in allowed states
+        if (req.user?.role === 'MANAGER' && req.body.showroomId) {
+          const showroom = await storage.getShowroom(req.body.showroomId);
+          if (!showroom) {
+            return res.status(404).json({ error: 'Showroom not found' });
+          }
+
+          const dealership = await storage.getDealership(showroom.dealershipId);
+          if (!dealership) {
+            return res.status(404).json({ error: 'Dealership not found for this showroom' });
+          }
+
+          const allowedStates = (req.user.allowedStates as string[]) || [];
+          if (!dealership.state || !allowedStates.includes(dealership.state)) {
+            return res.status(403).json({ error: 'You can only create sales persons for showrooms in your allowed states' });
           }
         }
         
