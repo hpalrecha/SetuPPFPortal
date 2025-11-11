@@ -242,11 +242,7 @@ export default function WorkOrdersPage() {
 
     setIsCancelling(true);
     try {
-      await apiRequest({
-        method: 'POST',
-        url: `/api/work-orders/${selectedWorkOrder}/cancel`,
-        body: { reason: cancelReason },
-      });
+      await apiRequest('POST', `/api/work-orders/${selectedWorkOrder}/cancel`, { reason: cancelReason });
 
       toast({
         title: "Success",
@@ -282,11 +278,7 @@ export default function WorkOrdersPage() {
 
     setIsAllocating(true);
     try {
-      await apiRequest({
-        method: 'POST',
-        url: `/api/work-orders/${selectedWorkOrder}/allocate`,
-        body: { partnerId: selectedPartnerId },
-      });
+      await apiRequest('POST', `/api/work-orders/${selectedWorkOrder}/allocate`, { partnerId: selectedPartnerId });
 
       toast({
         title: "Success",
@@ -561,13 +553,46 @@ export default function WorkOrdersPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-              <Button onClick={() => setLocation(`/work-orders/${workOrder.id}/edit`)} className="w-full sm:w-auto">
-                <Edit className="h-4 w-4 mr-2" />
-                Edit Work Order
-              </Button>
-              {workOrder.status === 'PENDING' && (
-                <Button onClick={() => handleSubmitWorkOrder(workOrder.id)} variant="default" className="w-full sm:w-auto">
-                  Submit Work Order
+              {workOrder.status === 'DRAFT' && (
+                <>
+                  <Button 
+                    onClick={() => setLocation(`/work-orders/${workOrder.id}/edit`)} 
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    data-testid="button-edit-work-order"
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Work Order
+                  </Button>
+                  <Button 
+                    onClick={() => handleSubmitWorkOrder(workOrder.id)} 
+                    className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
+                    data-testid="button-submit-work-order-detail"
+                  >
+                    <Send className="h-4 w-4 mr-2" />
+                    Submit Work Order
+                  </Button>
+                </>
+              )}
+              {workOrder.status === 'PENDING' && canAllocatePartner && (
+                <Button 
+                  onClick={() => openAllocateDialog(workOrder.id)} 
+                  className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700"
+                  data-testid="button-allocate-from-detail"
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Allocate Partner
+                </Button>
+              )}
+              {workOrder.status && !['CANCELLED', 'COMPLETED_PENDING_APPROVAL', 'APPROVED', 'CLOSED'].includes(workOrder.status) && canCancelWorkOrder && (
+                <Button 
+                  onClick={() => openCancelDialog(workOrder.id)} 
+                  variant="destructive"
+                  className="w-full sm:w-auto"
+                  data-testid="button-cancel-from-detail"
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Cancel Work Order
                 </Button>
               )}
             </div>
@@ -579,6 +604,50 @@ export default function WorkOrdersPage() {
 
   // Render edit work order view
   if (currentView === 'edit' && workOrder) {
+    // Only allow editing DRAFT work orders
+    if (workOrder.status !== 'DRAFT') {
+      return (
+        <div className="space-y-6">
+          <div className="flex items-center">
+            <Button variant="ghost" onClick={handleBackToList} className="mr-4">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Work Orders
+            </Button>
+            <div>
+              <h2 className="text-2xl font-semibold text-foreground">Edit Work Order</h2>
+              <p className="text-muted-foreground mt-1">WO-{workOrder.id.slice(-6)}</p>
+            </div>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Cannot Edit Work Order</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="text-muted-foreground">
+                  Only work orders in <Badge className="bg-gray-100 text-gray-800 mx-1">DRAFT</Badge> status can be edited.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  This work order has status: <Badge className={statusColors[workOrder.status as keyof typeof statusColors]}>{workOrder.status?.replace(/_/g, " ")}</Badge>
+                </p>
+                <div className="flex gap-2">
+                  <Button onClick={() => setLocation(`/work-orders/${workOrder.id}`)}>
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Work Order
+                  </Button>
+                  <Button variant="outline" onClick={handleBackToList}>
+                    Back to List
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    // DRAFT work order - show edit form
     return (
       <div className="space-y-6">
         <div className="flex items-center">
@@ -597,12 +666,121 @@ export default function WorkOrdersPage() {
             <CardTitle>Edit Work Order Details</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground mb-4">
-              Edit functionality is coming soon. For now, you can view work order details.
-            </p>
-            <Button onClick={() => setLocation(`/work-orders/${workOrder.id}`)}>
-              View Work Order
-            </Button>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground mb-4">
+                Update the work order information below. You can edit basic details like customer information and notes.
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Customer Information */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-customer-name">Customer Name</Label>
+                  <Input
+                    id="edit-customer-name"
+                    defaultValue={workOrder.customerName || ""}
+                    data-testid="input-edit-customer-name"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit-customer-phone">Customer Phone</Label>
+                  <Input
+                    id="edit-customer-phone"
+                    defaultValue={workOrder.customerPhone || ""}
+                    data-testid="input-edit-customer-phone"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit-customer-email">Customer Email</Label>
+                  <Input
+                    id="edit-customer-email"
+                    type="email"
+                    defaultValue={workOrder.customerEmail || ""}
+                    data-testid="input-edit-customer-email"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit-reg-no">Registration Number</Label>
+                  <Input
+                    id="edit-reg-no"
+                    defaultValue={workOrder.regNo || ""}
+                    data-testid="input-edit-reg-no"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="edit-customer-address">Customer Address</Label>
+                <Textarea
+                  id="edit-customer-address"
+                  defaultValue={workOrder.customerAddress || ""}
+                  rows={2}
+                  data-testid="textarea-edit-customer-address"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="edit-notes">Notes</Label>
+                <Textarea
+                  id="edit-notes"
+                  defaultValue={workOrder.notes || ""}
+                  rows={3}
+                  data-testid="textarea-edit-notes"
+                />
+              </div>
+              
+              <div className="flex gap-2 pt-4">
+                <Button 
+                  onClick={async () => {
+                    const customerName = (document.getElementById('edit-customer-name') as HTMLInputElement)?.value;
+                    const customerPhone = (document.getElementById('edit-customer-phone') as HTMLInputElement)?.value;
+                    const customerEmail = (document.getElementById('edit-customer-email') as HTMLInputElement)?.value;
+                    const regNo = (document.getElementById('edit-reg-no') as HTMLInputElement)?.value;
+                    const customerAddress = (document.getElementById('edit-customer-address') as HTMLTextAreaElement)?.value;
+                    const notes = (document.getElementById('edit-notes') as HTMLTextAreaElement)?.value;
+                    
+                    try {
+                      await apiRequest('PUT', `/api/work-orders/${workOrder.id}`, {
+                        customerName: customerName || null,
+                        customerPhone: customerPhone || null,
+                        customerEmail: customerEmail || null,
+                        regNo: regNo || null,
+                        customerAddress: customerAddress || null,
+                        notes: notes || null,
+                      });
+                      
+                      toast({
+                        title: "Success",
+                        description: "Work order updated successfully",
+                      });
+                      
+                      queryClient.invalidateQueries({ queryKey: ['/api/work-orders'] });
+                      setLocation(`/work-orders/${workOrder.id}`);
+                    } catch (error: any) {
+                      console.error("Update work order error:", error);
+                      toast({
+                        title: "Error",
+                        description: error.message || "Failed to update work order",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  data-testid="button-save-work-order"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Changes
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setLocation(`/work-orders/${workOrder.id}`)}
+                  data-testid="button-cancel-edit"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -864,7 +1042,7 @@ export default function WorkOrdersPage() {
                             <UserPlus className="h-3 w-3" />
                           </Button>
                         )}
-                        {!['CANCELLED', 'COMPLETED_PENDING_APPROVAL', 'APPROVED', 'CLOSED'].includes(order.status) && canCancelWorkOrder && (
+                        {order.status && !['CANCELLED', 'COMPLETED_PENDING_APPROVAL', 'APPROVED', 'CLOSED'].includes(order.status) && canCancelWorkOrder && (
                           <Button
                             size="sm"
                             variant="destructive"
