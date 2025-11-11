@@ -76,7 +76,7 @@ export default function SettingsPage() {
       if (!response.ok) throw new Error('Failed to fetch OEMs');
       return response.json();
     },
-    enabled: user?.role === 'SUPER_ADMIN',
+    enabled: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.role || ''),
   });
   const oemsArray = Array.isArray(oems) ? oems : [];
 
@@ -92,7 +92,7 @@ export default function SettingsPage() {
       if (!response.ok) throw new Error('Failed to fetch dealerships');
       return response.json();
     },
-    enabled: user?.role === 'SUPER_ADMIN',
+    enabled: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.role || ''),
   });
   const dealershipsArray = Array.isArray(dealerships) ? dealerships : [];
 
@@ -108,7 +108,7 @@ export default function SettingsPage() {
       if (!response.ok) throw new Error('Failed to fetch showrooms');
       return response.json();
     },
-    enabled: user?.role === 'SUPER_ADMIN',
+    enabled: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.role || ''),
   });
   const showroomsArray = Array.isArray(showrooms) ? showrooms : [];
 
@@ -124,7 +124,7 @@ export default function SettingsPage() {
       if (!response.ok) throw new Error('Failed to fetch users');
       return response.json();
     },
-    enabled: user?.role === 'SUPER_ADMIN',
+    enabled: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.role || ''),
   });
   const usersArray = Array.isArray(users) ? users : [];
 
@@ -357,6 +357,7 @@ export default function SettingsPage() {
   };
 
   const isSupperAdmin = user?.role === 'SUPER_ADMIN';
+  const isAdminOrManager = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.role || '');
 
   return (
     <div className="space-y-6">
@@ -365,8 +366,8 @@ export default function SettingsPage() {
         <p className="text-muted-foreground mt-1">Manage your account and system preferences</p>
       </div>
 
-      {/* Organization Management for Super Admin */}
-      {isSupperAdmin && (
+      {/* Organization Management for Super Admin, Admin, and Manager */}
+      {isAdminOrManager && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -516,6 +517,8 @@ export default function SettingsPage() {
                     <SelectContent>
                       <SelectItem value="all">All Roles</SelectItem>
                       <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                      <SelectItem value="ADMIN">Admin</SelectItem>
+                      <SelectItem value="MANAGER">Manager</SelectItem>
                       <SelectItem value="OEM_ADMIN">OEM Admin</SelectItem>
                       <SelectItem value="DEALERSHIP_ADMIN">Dealership Admin</SelectItem>
                       <SelectItem value="SHOWROOM_MANAGER">Showroom Manager</SelectItem>
