@@ -5005,10 +5005,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/partners-with-categories", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     async (req, res) => {
       try {
-        const partners = await storage.getPartnersWithCategories();
+        let partners = await storage.getPartnersWithCategories();
+        
+        // For MANAGER role, filter partners by state
+        if (req.user?.role === 'MANAGER') {
+          const allowedStates = (req.user.allowedStates as string[]) || [];
+          
+          // Filter partners based on their state
+          partners = partners.filter(partner => 
+            partner.state && allowedStates.includes(partner.state)
+          );
+        }
+        
         res.json(partners);
       } catch (error) {
         console.error("Get partners with categories error:", error);
@@ -5873,7 +5884,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/allocations-with-categories", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN']),
     async (req, res) => {
       try {
         const { partnerId, level, levelId } = req.query;
@@ -5883,7 +5894,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (level) filters.level = level as string;
         if (levelId) filters.levelId = levelId as string;
 
-        const allocations = await storage.getAllocationsWithCategories(filters);
+        let allocations = await storage.getAllocationsWithCategories(filters);
+        
+        // For MANAGER role, filter allocations by allowed states
+        if (req.user?.role === 'MANAGER') {
+          const allowedStates = (req.user.allowedStates as string[]) || [];
+          
+          // Get all dealerships and showrooms to check states
+          const dealershipsResponse = await storage.getDealerships({ limit: 10000 });
+          const dealershipStates = new Map<string, string>();
+          dealershipsResponse.dealerships.forEach(d => {
+            if (d.state) dealershipStates.set(d.id, d.state);
+          });
+          
+          const showroomsResponse = await storage.getShowrooms({ limit: 10000 });
+          const showroomDealershipMap = new Map<string, string>();
+          showroomsResponse.showrooms.forEach(s => showroomDealershipMap.set(s.id, s.dealershipId));
+          
+          // Filter allocations based on state
+          allocations = allocations.filter(allocation => {
+            if (allocation.level === 'DEALERSHIP') {
+              const state = dealershipStates.get(allocation.levelId);
+              return state && allowedStates.includes(state);
+            } else if (allocation.level === 'SHOWROOM') {
+              const dealershipId = showroomDealershipMap.get(allocation.levelId);
+              if (!dealershipId) return false;
+              const state = dealershipStates.get(dealershipId);
+              return state && allowedStates.includes(state);
+            }
+            // For OEM level allocations, don't show to MANAGER
+            return false;
+          });
+        }
+        
         res.json(allocations);
       } catch (error) {
         console.error("Get allocations with categories error:", error);
