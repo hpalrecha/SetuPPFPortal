@@ -660,6 +660,35 @@ export default function WorkOrdersPage() {
           </Card>
         </div>
 
+        {/* Cancellation Information */}
+        {workOrder.status === 'CANCELLED' && (
+          <Card className="border-destructive">
+            <CardHeader>
+              <CardTitle className="text-destructive">Cancellation Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {(workOrder as any).cancelledReason && (
+                <div>
+                  <h3 className="font-medium text-sm text-muted-foreground">Reason</h3>
+                  <p className="text-sm">{(workOrder as any).cancelledReason}</p>
+                </div>
+              )}
+              {(workOrder as any).cancelledAt && (
+                <div>
+                  <h3 className="font-medium text-sm text-muted-foreground">Cancelled On</h3>
+                  <p className="text-sm">{new Date((workOrder as any).cancelledAt).toLocaleString()}</p>
+                </div>
+              )}
+              {(workOrder as any).cancelledByName && (
+                <div>
+                  <h3 className="font-medium text-sm text-muted-foreground">Cancelled By</h3>
+                  <p className="text-sm">{(workOrder as any).cancelledByName}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Notes Section */}
         {workOrder.notes && (
           <Card>

@@ -1374,6 +1374,14 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
+      // Fetch cancelled by user details if cancelled
+      if (workOrder.cancelledBy) {
+        const cancelledByUser = await db.select().from(users).where(eq(users.id, workOrder.cancelledBy)).limit(1);
+        if (cancelledByUser[0]) {
+          enriched.cancelledByName = cancelledByUser[0].name || cancelledByUser[0].email;
+        }
+      }
+
     } catch (error) {
       console.error("Error enriching work order data:", error);
     }
