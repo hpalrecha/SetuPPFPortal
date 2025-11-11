@@ -100,6 +100,7 @@ export function CreateWorkOrderModal({
   const [dealershipSearch, setDealershipSearch] = useState("");
   const [showroomSearch, setShowroomSearch] = useState("");
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const canSelectOrgHierarchy = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const isDealershipAdmin = user?.role === 'DEALERSHIP_ADMIN';
 
   const form = useForm<WorkOrderFormData>({
@@ -157,7 +158,7 @@ export function CreateWorkOrderModal({
     }
   }, [isEditMode, initialData, open, form]);
 
-  // Fetch OEMs for Super Admin
+  // Fetch OEMs for Super Admin, Admin, and Manager
   const { data: oems = [] } = useQuery({
     queryKey: ["/api/oems"],
     queryFn: async () => {
@@ -170,7 +171,7 @@ export function CreateWorkOrderModal({
       if (!response.ok) throw new Error('Failed to fetch OEMs');
       return response.json();
     },
-    enabled: isSuperAdmin,
+    enabled: canSelectOrgHierarchy,
     staleTime: 300000, // Cache for 5 minutes - OEMs rarely change
   });
 
@@ -179,7 +180,7 @@ export function CreateWorkOrderModal({
   const { data: dealershipData } = useQuery<{ dealerships: any[]; total: number }>({
     queryKey: ["/api/dealerships", selectedOemId],
     queryFn: async () => {
-      const response = await fetch(`/api/dealerships?oemId=${selectedOemId}&limit=1000`, {
+      const response = await fetch(`/api/dealerships?oemId=${selectedOemId}&limit=10000`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -188,7 +189,7 @@ export function CreateWorkOrderModal({
       if (!response.ok) throw new Error('Failed to fetch dealerships');
       return response.json();
     },
-    enabled: isSuperAdmin && !!selectedOemId,
+    enabled: canSelectOrgHierarchy && !!selectedOemId,
     staleTime: 300000, // Cache for 5 minutes - dealerships rarely change
   });
   const dealerships = dealershipData?.dealerships || [];
@@ -198,7 +199,7 @@ export function CreateWorkOrderModal({
   const { data: showroomData } = useQuery<{ showrooms: any[]; total: number }>({
     queryKey: ["/api/showrooms", selectedDealershipId, selectedOemId],
     queryFn: async () => {
-      const response = await fetch(`/api/showrooms?dealershipId=${selectedDealershipId}&oemId=${selectedOemId}&limit=1000`, {
+      const response = await fetch(`/api/showrooms?dealershipId=${selectedDealershipId}&oemId=${selectedOemId}&limit=10000`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -207,7 +208,7 @@ export function CreateWorkOrderModal({
       if (!response.ok) throw new Error('Failed to fetch showrooms');
       return response.json();
     },
-    enabled: isSuperAdmin && !!selectedDealershipId && !!selectedOemId,
+    enabled: canSelectOrgHierarchy && !!selectedDealershipId && !!selectedOemId,
     staleTime: 300000, // Cache for 5 minutes - showrooms rarely change
   });
   const showrooms = showroomData?.showrooms || [];
@@ -482,12 +483,12 @@ export function CreateWorkOrderModal({
             )}
 
             {/* Organization Selection (Super Admin Only) */}
-            {isSuperAdmin && (
+            {canSelectOrgHierarchy && (
               <div className="space-y-4 p-4 border border-blue-200 rounded-lg bg-blue-50">
                 <div className="flex items-center gap-2 mb-4">
                   <Building className="h-5 w-5 text-blue-600" />
                   <h3 className="text-lg font-medium text-blue-800">Organization Selection</h3>
-                  <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700">Admin Only</Badge>
+                  <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700">Required</Badge>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
