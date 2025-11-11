@@ -42,7 +42,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { ApiClient, apiRequest } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
-import { Building, Store, Users, CheckCircle2, Send, FileText } from "lucide-react";
+import { Building, Store, Users, CheckCircle2, Send, FileText, Search } from "lucide-react";
 import { useLocation } from "wouter";
 
 const workOrderSchema = z.object({
@@ -97,6 +97,8 @@ export function CreateWorkOrderModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdWorkOrder, setCreatedWorkOrder] = useState<any>(null);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [dealershipSearch, setDealershipSearch] = useState("");
+  const [showroomSearch, setShowroomSearch] = useState("");
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const isDealershipAdmin = user?.role === 'DEALERSHIP_ADMIN';
 
@@ -527,64 +529,118 @@ export function CreateWorkOrderModal({
                   <FormField
                     control={form.control}
                     name="dealershipId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-blue-700">Dealership</FormLabel>
-                        <Select
-                          onValueChange={(value) => {
-                            field.onChange(value);
-                            form.setValue("showroomId", "");
-                          }}
-                          value={field.value}
-                          disabled={!selectedOemId}
-                          data-testid="select-dealership"
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select Dealership" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {dealerships?.map((dealership: any) => (
-                              <SelectItem key={dealership.id} value={dealership.id}>
-                                {dealership.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const filteredDealerships = dealerships?.filter((d: any) => 
+                        d.name.toLowerCase().includes(dealershipSearch.toLowerCase())
+                      ) || [];
+                      
+                      return (
+                        <FormItem>
+                          <FormLabel className="text-blue-700">Dealership</FormLabel>
+                          <Select
+                            onValueChange={(value) => {
+                              field.onChange(value);
+                              form.setValue("showroomId", "");
+                              setDealershipSearch("");
+                            }}
+                            value={field.value}
+                            disabled={!selectedOemId}
+                            data-testid="select-dealership"
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Dealership" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <div className="flex items-center px-3 pb-2 sticky top-0 bg-white border-b">
+                                <Search className="h-4 w-4 text-gray-400 mr-2" />
+                                <Input
+                                  placeholder="Search dealerships..."
+                                  value={dealershipSearch}
+                                  onChange={(e) => setDealershipSearch(e.target.value)}
+                                  className="h-8 border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                />
+                              </div>
+                              <div className="max-h-[300px] overflow-auto">
+                                {filteredDealerships.length === 0 ? (
+                                  <div className="py-6 text-center text-sm text-gray-500">
+                                    No dealerships found
+                                  </div>
+                                ) : (
+                                  filteredDealerships.map((dealership: any) => (
+                                    <SelectItem key={dealership.id} value={dealership.id}>
+                                      {dealership.name}
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </div>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
                   />
 
                   <FormField
                     control={form.control}
                     name="showroomId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-blue-700">Showroom</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value}
-                          disabled={!selectedDealershipId}
-                          data-testid="select-showroom"
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select Showroom" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {showrooms?.map((showroom: any) => (
-                              <SelectItem key={showroom.id} value={showroom.id}>
-                                {showroom.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const filteredShowrooms = showrooms?.filter((s: any) => 
+                        s.name.toLowerCase().includes(showroomSearch.toLowerCase())
+                      ) || [];
+                      
+                      return (
+                        <FormItem>
+                          <FormLabel className="text-blue-700">Showroom</FormLabel>
+                          <Select
+                            onValueChange={(value) => {
+                              field.onChange(value);
+                              setShowroomSearch("");
+                            }}
+                            value={field.value}
+                            disabled={!selectedDealershipId}
+                            data-testid="select-showroom"
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Showroom" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <div className="flex items-center px-3 pb-2 sticky top-0 bg-white border-b">
+                                <Search className="h-4 w-4 text-gray-400 mr-2" />
+                                <Input
+                                  placeholder="Search showrooms..."
+                                  value={showroomSearch}
+                                  onChange={(e) => setShowroomSearch(e.target.value)}
+                                  className="h-8 border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                />
+                              </div>
+                              <div className="max-h-[300px] overflow-auto">
+                                {filteredShowrooms.length === 0 ? (
+                                  <div className="py-6 text-center text-sm text-gray-500">
+                                    No showrooms found
+                                  </div>
+                                ) : (
+                                  filteredShowrooms.map((showroom: any) => (
+                                    <SelectItem key={showroom.id} value={showroom.id}>
+                                      {showroom.name}
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </div>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
                   />
                 </div>
               </div>
