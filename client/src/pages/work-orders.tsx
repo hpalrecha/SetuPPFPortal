@@ -771,7 +771,7 @@ export default function WorkOrdersPage() {
                   Allocate Partner
                 </Button>
               )}
-              {workOrder.status && !['CANCELLED', 'COMPLETED_PENDING_APPROVAL', 'APPROVED', 'CLOSED'].includes(workOrder.status) && canCancelWorkOrder && (
+              {workOrder.status && !['CANCELLED', 'IN_PROGRESS', 'COMPLETED_PENDING_APPROVAL', 'APPROVED', 'CLOSED'].includes(workOrder.status) && canCancelWorkOrder && (
                 <Button 
                   onClick={() => openCancelDialog(workOrder.id)} 
                   variant="destructive"
@@ -1048,7 +1048,7 @@ export default function WorkOrdersPage() {
                             <UserPlus className="h-3 w-3" />
                           </Button>
                         )}
-                        {order.status && !['CANCELLED', 'COMPLETED_PENDING_APPROVAL', 'APPROVED', 'CLOSED'].includes(order.status) && canCancelWorkOrder && (
+                        {order.status && !['CANCELLED', 'IN_PROGRESS', 'COMPLETED_PENDING_APPROVAL', 'APPROVED', 'CLOSED'].includes(order.status) && canCancelWorkOrder && (
                           <Button
                             size="sm"
                             variant="destructive"

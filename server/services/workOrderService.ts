@@ -732,8 +732,8 @@ Please acknowledge receipt and provide estimated completion time.
       throw new Error('Work order not found');
     }
 
-    // Only allow cancellation if work order is not completed or closed
-    if (['COMPLETED_PENDING_APPROVAL', 'APPROVED', 'CLOSED'].includes(workOrder.status)) {
+    // Only allow cancellation if work order is not in progress, completed, or closed
+    if (['IN_PROGRESS', 'COMPLETED_PENDING_APPROVAL', 'APPROVED', 'CLOSED'].includes(workOrder.status)) {
       throw new Error(`Cannot cancel work order in ${workOrder.status} status`);
     }
 
