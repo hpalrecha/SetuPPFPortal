@@ -35,8 +35,8 @@ export default function DealershipsPage() {
   // Debounce search term to avoid excessive API calls
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
   
-  // Only Super Admin can access dealership management
-  const canAccessDealerships = user?.role === 'SUPER_ADMIN';
+  // Super Admin, Admin, and Manager can access dealership management
+  const canAccessDealerships = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'MANAGER';
   
   const { data: dealershipData, isLoading } = useQuery<{ dealerships: any[]; total: number }>({
     queryKey: ["/api/dealerships", debouncedSearchTerm, selectedOEM !== "all" ? selectedOEM : undefined, selectedState !== "all" ? selectedState : undefined, selectedCity !== "all" ? selectedCity : undefined, currentPage, itemsPerPage],
@@ -220,7 +220,7 @@ export default function DealershipsPage() {
           <div className="text-center space-y-4">
             <h2 className="text-2xl font-semibold text-foreground">Access Restricted</h2>
             <p className="text-muted-foreground max-w-md">
-              Dealership management is only available to Super Administrators.
+              Dealership management is only available to Super Administrators, Admins, and Managers.
             </p>
           </div>
         </div>

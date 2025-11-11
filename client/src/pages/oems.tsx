@@ -25,8 +25,8 @@ export default function OEMsPage() {
   // Debounce search term to avoid filtering on every keystroke
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
   
-  // Only Super Admin can access OEM management
-  const canAccessOEMs = user?.role === 'SUPER_ADMIN';
+  // Super Admin, Admin, and Manager can access OEM management
+  const canAccessOEMs = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'MANAGER';
   
   const { data: oems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/oems"],
@@ -161,7 +161,7 @@ export default function OEMsPage() {
           <div className="text-center space-y-4">
             <h2 className="text-2xl font-semibold text-foreground">Access Restricted</h2>
             <p className="text-muted-foreground max-w-md">
-              OEM management is only available to Super Administrators.
+              OEM management is only available to Super Administrators, Admins, and Managers.
             </p>
             <div className="text-sm text-muted-foreground">
               Current role: {user?.role || 'Unknown'}

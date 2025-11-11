@@ -35,8 +35,8 @@ export default function ShowroomsPage() {
   // Debounce search term to avoid excessive API calls
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
   
-  // Only Super Admin can access showroom management
-  const canAccessShowrooms = user?.role === 'SUPER_ADMIN';
+  // Super Admin, Admin, and Manager can access showroom management
+  const canAccessShowrooms = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'MANAGER';
   
   const { data: showroomData, isLoading } = useQuery<{ showrooms: any[]; total: number }>({
     queryKey: ["/api/showrooms", debouncedSearchTerm, selectedOEM !== "all" ? selectedOEM : undefined, selectedDealership !== "all" ? selectedDealership : undefined, selectedState !== "all" ? selectedState : undefined, selectedCity !== "all" ? selectedCity : undefined, currentPage, itemsPerPage],
@@ -232,7 +232,7 @@ export default function ShowroomsPage() {
           <div className="text-center space-y-4">
             <h2 className="text-2xl font-semibold text-foreground">Access Restricted</h2>
             <p className="text-muted-foreground max-w-md">
-              Showroom management is only available to Super Administrators.
+              Showroom management is only available to Super Administrators, Admins, and Managers.
             </p>
           </div>
         </div>

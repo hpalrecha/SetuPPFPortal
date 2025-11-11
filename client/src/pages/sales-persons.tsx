@@ -74,8 +74,8 @@ export default function SalesPersonsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingSalesPerson, setEditingSalesPerson] = useState<any>(null);
   
-  // Only Super Admin can access sales person management
-  const canAccessSalesPersons = user?.role === 'SUPER_ADMIN';
+  // Super Admin, Admin, and Manager can access sales person management
+  const canAccessSalesPersons = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'MANAGER';
   
   const { data: salesPersons = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/sales-persons"],
@@ -178,7 +178,7 @@ export default function SalesPersonsPage() {
           <div className="text-center space-y-4">
             <h2 className="text-2xl font-semibold text-foreground">Access Restricted</h2>
             <p className="text-muted-foreground max-w-md">
-              Sales person management is only available to Super Administrators.
+              Sales person management is only available to Super Administrators, Admins, and Managers.
             </p>
           </div>
         </div>
