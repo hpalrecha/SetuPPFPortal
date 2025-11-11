@@ -1861,7 +1861,7 @@ export default function JobCardsNew() {
                             )}
                           </div>
                           {detailedJobCard.partnerBilledDirectly ? (
-                            (detailedJobCard.status === 'APPROVED' || detailedJobCard.status === 'PENDING_SALES_INVOICE') && !detailedJobCard.eWarrantyApplied && (
+                            !detailedJobCard.eWarrantyApplied && detailedJobCard.status !== 'CLOSED' && (
                               <Button
                                 size="sm"
                                 onClick={() => {
