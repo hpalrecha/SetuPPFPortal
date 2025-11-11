@@ -581,8 +581,10 @@ export default function WorkOrdersPage() {
                 <>
                   <Button 
                     onClick={() => {
+                      console.log("Edit button clicked, workOrder.id:", workOrder.id);
                       setSelectedWorkOrder(workOrder.id);
                       setShowEditModal(true);
+                      console.log("Modal state set to true");
                     }} 
                     variant="outline"
                     className="w-full sm:w-auto"
