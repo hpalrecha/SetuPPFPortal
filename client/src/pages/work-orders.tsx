@@ -211,6 +211,7 @@ export default function WorkOrdersPage() {
   };
 
   // Check if user can cancel work orders (admins only)
+  const canEditWorkOrder = user && ['SUPER_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'SALES_PERSON'].includes(user.role);
   const canCancelWorkOrder = user && ['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'].includes(user.role);
   const canAllocatePartner = user?.role === 'SUPER_ADMIN';
 
@@ -555,7 +556,7 @@ export default function WorkOrdersPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-              {workOrder.status === 'DRAFT' && (
+              {workOrder.status === 'DRAFT' && canEditWorkOrder && (
                 <>
                   <Button 
                     onClick={() => {
@@ -1217,7 +1218,7 @@ export default function WorkOrdersPage() {
             </p>
           </DialogHeader>
           
-          {selectedWorkOrder && workOrderQuery.data && (
+          {selectedWorkOrder && workOrder && (
             <div className="space-y-6">
               {/* Vehicle Information - Read-only */}
               <div className="border rounded-lg p-4 bg-muted/50">
@@ -1228,16 +1229,16 @@ export default function WorkOrdersPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <Label className="text-muted-foreground">Vehicle Brand</Label>
-                    <p className="font-medium">{workOrderQuery.data.vehicleBrandName}</p>
+                    <p className="font-medium">{workOrder.vehicleBrandName}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Vehicle Model</Label>
-                    <p className="font-medium">{workOrderQuery.data.vehicleModelName}</p>
+                    <p className="font-medium">{workOrder.vehicleModelName}</p>
                   </div>
-                  {workOrderQuery.data.variant && (
+                  {workOrder.variant && (
                     <div>
                       <Label className="text-muted-foreground">Variant</Label>
-                      <p className="font-medium">{workOrderQuery.data.variant}</p>
+                      <p className="font-medium">{workOrder.variant}</p>
                     </div>
                   )}
                 </div>
@@ -1252,11 +1253,11 @@ export default function WorkOrdersPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <Label className="text-muted-foreground">Service</Label>
-                    <p className="font-medium">{workOrderQuery.data.serviceName}</p>
+                    <p className="font-medium">{workOrder.serviceName}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Quantity</Label>
-                    <p className="font-medium">{workOrderQuery.data.quantity} unit(s)</p>
+                    <p className="font-medium">{workOrder.quantity} unit(s)</p>
                   </div>
                 </div>
               </div>
@@ -1272,7 +1273,7 @@ export default function WorkOrdersPage() {
                     <Label htmlFor="edit-modal-customer-name">Customer Name</Label>
                     <Input
                       id="edit-modal-customer-name"
-                      defaultValue={workOrderQuery.data.customerName || ""}
+                      defaultValue={workOrder.customerName || ""}
                       data-testid="input-edit-modal-customer-name"
                     />
                   </div>
@@ -1281,7 +1282,7 @@ export default function WorkOrdersPage() {
                     <Label htmlFor="edit-modal-customer-phone">Customer Phone</Label>
                     <Input
                       id="edit-modal-customer-phone"
-                      defaultValue={workOrderQuery.data.customerPhone || ""}
+                      defaultValue={workOrder.customerPhone || ""}
                       data-testid="input-edit-modal-customer-phone"
                     />
                   </div>
@@ -1291,7 +1292,7 @@ export default function WorkOrdersPage() {
                     <Input
                       id="edit-modal-customer-email"
                       type="email"
-                      defaultValue={workOrderQuery.data.customerEmail || ""}
+                      defaultValue={workOrder.customerEmail || ""}
                       data-testid="input-edit-modal-customer-email"
                     />
                   </div>
@@ -1300,7 +1301,7 @@ export default function WorkOrdersPage() {
                     <Label htmlFor="edit-modal-reg-no">Registration Number</Label>
                     <Input
                       id="edit-modal-reg-no"
-                      defaultValue={workOrderQuery.data.regNo || ""}
+                      defaultValue={workOrder.regNo || ""}
                       data-testid="input-edit-modal-reg-no"
                     />
                   </div>
@@ -1309,7 +1310,7 @@ export default function WorkOrdersPage() {
                     <Label htmlFor="edit-modal-customer-address">Customer Address</Label>
                     <Textarea
                       id="edit-modal-customer-address"
-                      defaultValue={workOrderQuery.data.customerAddress || ""}
+                      defaultValue={workOrder.customerAddress || ""}
                       rows={2}
                       data-testid="textarea-edit-modal-customer-address"
                     />
@@ -1319,7 +1320,7 @@ export default function WorkOrdersPage() {
                     <Label htmlFor="edit-modal-notes">Notes</Label>
                     <Textarea
                       id="edit-modal-notes"
-                      defaultValue={workOrderQuery.data.notes || ""}
+                      defaultValue={workOrder.notes || ""}
                       rows={3}
                       data-testid="textarea-edit-modal-notes"
                     />
