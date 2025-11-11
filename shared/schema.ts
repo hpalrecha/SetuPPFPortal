@@ -472,7 +472,7 @@ export const workOrders = pgTable("work_orders", {
   dealershipId: uuid("dealership_id").references(() => dealerships.id).notNull(),
   showroomId: uuid("showroom_id").references(() => showrooms.id).notNull(),
   createdByUserId: uuid("created_by_user_id").references(() => users.id).notNull(),
-  status: workOrderStatusEnum("status").default("DRAFT"),
+  status: workOrderStatusEnum("status").default("PENDING"),
   vehicleModelId: uuid("vehicle_model_id").references(() => vehicleModels.id).notNull(),
   vehicleVariantId: varchar("vehicle_variant_id"), // Keep as varchar to match existing data
   variant: text("variant"), // Add missing variant column from database
@@ -491,9 +491,6 @@ export const workOrders = pgTable("work_orders", {
   billFrom: jsonb("bill_from"), // Billing entity (Plus Nine One Inc or Partner)
   billTo: jsonb("bill_to"), // Customer entity (OEM/Dealership/Showroom)
   shipTo: jsonb("ship_to"), // Shipping address (Showroom)
-  cancelledReason: text("cancelled_reason"), // Reason for cancellation
-  cancelledAt: timestamp("cancelled_at"), // When it was cancelled
-  cancelledBy: uuid("cancelled_by").references(() => users.id), // Who cancelled it
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 }, (table) => {
