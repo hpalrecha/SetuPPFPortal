@@ -5629,7 +5629,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/service-categories", 
     authenticate, 
-    requireRole(['SUPER_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
     auditLog('service_category', 'create'),
     async (req, res) => {
       try {
@@ -5659,7 +5659,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/service-categories/:id", 
     authenticate, 
-    requireRole(['SUPER_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
     auditLog('service_category', 'update'),
     async (req, res) => {
       try {
