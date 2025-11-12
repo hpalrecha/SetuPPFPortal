@@ -3474,38 +3474,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let jobCards = await storage.getJobCards(filters);
       console.log(`📋 Returned ${jobCards.length} job cards before filtering`);
       
-      // ✅ MANAGER state filtering - filter job cards by showroom/dealership state
+      // ✅ MANAGER state filtering - filter job cards by work order's dealership state
       if (req.user!.role === 'MANAGER') {
         const allowedStates = (req.user!.allowedStates as string[]) || [];
         
-        // Get all unique showroom IDs from job cards
-        const showroomIds = [...new Set(jobCards.map(jc => jc.showroomId).filter(Boolean))];
+        // Job cards don't have dealershipId directly - get it from work orders
+        const workOrderIds = [...new Set(jobCards.map(jc => jc.workOrderId).filter(Boolean))];
+        const workOrders = await storage.getWorkOrders({ 
+          workOrderIds: workOrderIds,
+          limit: workOrderIds.length 
+        });
         
-        // Fetch all showrooms and their dealerships
-        const showroomsResponse = await storage.getShowrooms();
-        const showroomDealershipMap = new Map<string, string>();
-        showroomsResponse.showrooms.forEach(s => {
-          showroomDealershipMap.set(s.id, s.dealershipId);
+        // Map work order ID to dealership ID
+        const workOrderDealershipMap = new Map<string, string>();
+        workOrders.forEach(wo => {
+          workOrderDealershipMap.set(wo.id, wo.dealershipId);
         });
         
         // Get all unique dealership IDs
-        const dealershipIds = [...new Set([
-          ...jobCards.map(jc => jc.dealershipId).filter(Boolean),
-          ...showroomIds.map(sid => showroomDealershipMap.get(sid))
-        ])].filter(Boolean);
+        const dealershipIds = [...new Set(workOrders.map(wo => wo.dealershipId).filter(Boolean))];
         
+        // Fetch dealerships and build state map
         const dealershipsResponse = await storage.getDealerships();
         const dealershipStates = new Map<string, string>();
         dealershipsResponse.dealerships.forEach(d => {
           if (d.state) dealershipStates.set(d.id, d.state);
         });
         
-        // Filter job cards based on showroom/dealership state
+        // Filter job cards based on work order's dealership state
         jobCards = jobCards.filter(jc => {
-          let dealershipId = jc.dealershipId;
-          if (!dealershipId && jc.showroomId) {
-            dealershipId = showroomDealershipMap.get(jc.showroomId) || '';
-          }
+          const dealershipId = workOrderDealershipMap.get(jc.workOrderId);
+          if (!dealershipId) return false;
           const state = dealershipStates.get(dealershipId);
           return state && allowedStates.includes(state);
         });
