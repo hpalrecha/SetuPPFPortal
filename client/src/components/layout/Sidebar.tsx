@@ -45,7 +45,7 @@ const baseNavigation = [
   { name: "Payouts & Earnings", href: "/payouts", icon: DollarSign, roles: ["PARTNER_ADMIN"] },
   { name: "Allocations", href: "/allocations", icon: Network, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
   { name: "Services", href: "/services", icon: Shield, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON"] },
-  { name: "Pricing Rules", href: "/pricing", icon: DollarSign, roles: ["SUPER_ADMIN", "ADMIN"] },
+  { name: "Pricing Rules", href: "/pricing", icon: DollarSign, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
   { name: "Commissions", href: "/commissions", icon: Percent, roles: ["SUPER_ADMIN", "ADMIN"] },
   { name: "Payout Settlement", href: "/payout-settlement", icon: CreditCard, roles: ["SUPER_ADMIN", "ADMIN", "OEM_ADMIN", "DEALERSHIP_ADMIN"] },
 ];
@@ -56,9 +56,9 @@ const organizationNavigation = [
   { name: "Showrooms", href: "/showrooms", icon: MapPin, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
   { name: "Sales Persons", href: "/sales-persons", icon: Users, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
   { name: "Vehicles", href: "/vehicles", icon: Car, roles: ["SUPER_ADMIN", "ADMIN"] },
-  { name: "Service Categories", href: "/service-categories", icon: Tag, roles: ["SUPER_ADMIN", "ADMIN"] },
-  { name: "Brands", href: "/brands", icon: Tag, roles: ["SUPER_ADMIN", "ADMIN"] },
-  { name: "Raw Materials", href: "/raw-materials", icon: Package, roles: ["SUPER_ADMIN", "ADMIN"] },
+  { name: "Service Categories", href: "/service-categories", icon: Tag, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
+  { name: "Brands", href: "/brands", icon: Tag, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
+  { name: "Raw Materials", href: "/raw-materials", icon: Package, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
 ];
 
 const systemNavigation = [
