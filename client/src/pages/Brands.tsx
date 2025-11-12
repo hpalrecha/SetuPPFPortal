@@ -167,7 +167,8 @@ export default function BrandsPage() {
     );
   }
 
-  if (user?.role !== 'SUPER_ADMIN') {
+  // Only Super Admins, Admins, and Managers can view brands
+  if (!['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.role || '')) {
     return (
       <div className="container mx-auto p-6">
         <div className="text-center py-12">
@@ -177,6 +178,9 @@ export default function BrandsPage() {
       </div>
     );
   }
+
+  const canCreate = ['SUPER_ADMIN', 'ADMIN'].includes(user?.role || '');
+  const canDelete = user?.role === 'SUPER_ADMIN';
 
   return (
     <div className="container mx-auto p-6" data-testid="brands-page">
@@ -189,14 +193,16 @@ export default function BrandsPage() {
             Manage brand catalog and information
           </p>
         </div>
-        <Button 
-          onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
-          data-testid="button-create-brand"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Brand
-        </Button>
+        {canCreate && (
+          <Button 
+            onClick={() => setShowCreateModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            data-testid="button-create-brand"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Brand
+          </Button>
+        )}
       </div>
 
       <div className="flex gap-4 mb-6">
@@ -240,26 +246,30 @@ export default function BrandsPage() {
             </CardHeader>
             <CardContent className="pt-0">
               <div className="flex gap-2 mt-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openEditModal(brand)}
-                  className="flex-1"
-                  data-testid={`button-edit-${brand.id}`}
-                >
-                  <Edit2 className="w-3 h-3 mr-1" />
-                  Edit
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDeleteBrand(brand.id)}
-                  className="flex-1 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                  data-testid={`button-delete-${brand.id}`}
-                >
-                  <Trash2 className="w-3 h-3 mr-1" />
-                  Delete
-                </Button>
+                {canCreate && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEditModal(brand)}
+                    className="flex-1"
+                    data-testid={`button-edit-${brand.id}`}
+                  >
+                    <Edit2 className="w-3 h-3 mr-1" />
+                    Edit
+                  </Button>
+                )}
+                {canDelete && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDeleteBrand(brand.id)}
+                    className="flex-1 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                    data-testid={`button-delete-${brand.id}`}
+                  >
+                    <Trash2 className="w-3 h-3 mr-1" />
+                    Delete
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

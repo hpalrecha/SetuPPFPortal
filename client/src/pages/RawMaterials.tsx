@@ -167,8 +167,8 @@ export default function RawMaterialsPage() {
     );
   }
 
-  // Only Super Admins can manage raw materials
-  if (user?.role !== 'SUPER_ADMIN') {
+  // Only Super Admins, Admins, and Managers can view raw materials
+  if (!['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.role || '')) {
     return (
       <div className="container mx-auto p-6">
         <div className="text-center py-12">
@@ -178,6 +178,9 @@ export default function RawMaterialsPage() {
       </div>
     );
   }
+
+  const canCreate = ['SUPER_ADMIN', 'ADMIN'].includes(user?.role || '');
+  const canDelete = user?.role === 'SUPER_ADMIN';
 
   return (
     <div className="container mx-auto p-6" data-testid="raw-materials-page">
@@ -190,33 +193,35 @@ export default function RawMaterialsPage() {
             Manage raw materials, inventory, and pricing
           </p>
         </div>
-        <div className="flex gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            onChange={handleFileSelect}
-            className="hidden"
-            data-testid="input-csv-file"
-          />
-          <Button 
-            onClick={() => fileInputRef.current?.click()}
-            variant="outline"
-            disabled={isImporting}
-            data-testid="button-import-csv"
-          >
-            <Upload className="w-4 h-4 mr-2" />
-            {isImporting ? 'Importing...' : 'Import CSV'}
-          </Button>
-          <Button 
-            onClick={() => setShowCreateModal(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-            data-testid="button-create-material"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Material
-          </Button>
-        </div>
+        {canCreate && (
+          <div className="flex gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleFileSelect}
+              className="hidden"
+              data-testid="input-csv-file"
+            />
+            <Button 
+              onClick={() => fileInputRef.current?.click()}
+              variant="outline"
+              disabled={isImporting}
+              data-testid="button-import-csv"
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              {isImporting ? 'Importing...' : 'Import CSV'}
+            </Button>
+            <Button 
+              onClick={() => setShowCreateModal(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              data-testid="button-create-material"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Material
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-4 mb-6">
@@ -262,23 +267,27 @@ export default function RawMaterialsPage() {
                   </CardDescription>
                 </div>
                 <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setEditingMaterial(material)}
-                    data-testid={`button-edit-${material.id}`}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteMaterial(material.id)}
-                    disabled={deleteMaterialMutation.isPending}
-                    data-testid={`button-delete-${material.id}`}
-                  >
-                    <Trash2 className="w-4 h-4 text-red-500" />
-                  </Button>
+                  {canCreate && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditingMaterial(material)}
+                      data-testid={`button-edit-${material.id}`}
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteMaterial(material.id)}
+                      disabled={deleteMaterialMutation.isPending}
+                      data-testid={`button-delete-${material.id}`}
+                    >
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -302,7 +311,7 @@ export default function RawMaterialsPage() {
           <p className="text-gray-600 dark:text-gray-400 mb-4">
             {searchTerm ? 'Try adjusting your search terms.' : 'Get started by adding your first raw material.'}
           </p>
-          {!searchTerm && (
+          {!searchTerm && canCreate && (
             <Button 
               onClick={() => setShowCreateModal(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -315,14 +324,14 @@ export default function RawMaterialsPage() {
         </div>
       )}
 
-      {showCreateModal && (
+      {canCreate && showCreateModal && (
         <CreateRawMaterialModal
           open={showCreateModal}
           onOpenChange={setShowCreateModal}
         />
       )}
 
-      {editingMaterial && (
+      {canCreate && editingMaterial && (
         <EditRawMaterialModal
           open={!!editingMaterial}
           onOpenChange={(open: boolean) => !open && setEditingMaterial(null)}

@@ -68,8 +68,8 @@ export default function ServiceCategoriesPage() {
     );
   }
 
-  // Only Super Admins can manage service categories
-  if (user?.role !== 'SUPER_ADMIN') {
+  // Only Super Admins, Admins, and Managers can view service categories
+  if (!['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.role || '')) {
     return (
       <div className="container mx-auto p-6">
         <div className="text-center py-12">
@@ -79,6 +79,9 @@ export default function ServiceCategoriesPage() {
       </div>
     );
   }
+
+  const canCreate = ['SUPER_ADMIN', 'ADMIN'].includes(user?.role || '');
+  const canDelete = user?.role === 'SUPER_ADMIN';
 
   return (
     <div className="container mx-auto p-6" data-testid="service-categories-page">
@@ -91,14 +94,16 @@ export default function ServiceCategoriesPage() {
             Manage service category types and their properties
           </p>
         </div>
-        <Button 
-          onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
-          data-testid="button-create-category"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Category
-        </Button>
+        {canCreate && (
+          <Button 
+            onClick={() => setShowCreateModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            data-testid="button-create-category"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Category
+          </Button>
+        )}
       </div>
 
       <div className="flex gap-4 mb-6">
@@ -138,23 +143,27 @@ export default function ServiceCategoriesPage() {
                   </CardDescription>
                 </div>
                 <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setEditingCategory(category)}
-                    data-testid={`button-edit-${category.id}`}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteCategory(category.id)}
-                    disabled={deleteServiceCategoryMutation.isPending}
-                    data-testid={`button-delete-${category.id}`}
-                  >
-                    <Trash2 className="w-4 h-4 text-red-500" />
-                  </Button>
+                  {canCreate && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditingCategory(category)}
+                      data-testid={`button-edit-${category.id}`}
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteCategory(category.id)}
+                      disabled={deleteServiceCategoryMutation.isPending}
+                      data-testid={`button-delete-${category.id}`}
+                    >
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -178,7 +187,7 @@ export default function ServiceCategoriesPage() {
           <p className="text-gray-600 dark:text-gray-400 mb-4">
             {searchTerm ? 'Try adjusting your search terms.' : 'Get started by creating your first service category.'}
           </p>
-          {!searchTerm && (
+          {!searchTerm && canCreate && (
             <Button 
               onClick={() => setShowCreateModal(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -191,14 +200,14 @@ export default function ServiceCategoriesPage() {
         </div>
       )}
 
-      {showCreateModal && (
+      {canCreate && showCreateModal && (
         <CreateServiceCategoryModal
           open={showCreateModal}
           onOpenChange={setShowCreateModal}
         />
       )}
 
-      {editingCategory && (
+      {canCreate && editingCategory && (
         <EditServiceCategoryModal
           open={!!editingCategory}
           onOpenChange={(open: boolean) => !open && setEditingCategory(null)}

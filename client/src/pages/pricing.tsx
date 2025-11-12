@@ -22,9 +22,9 @@ export default function PricingPage() {
   const [activeTab, setActiveTab] = useState('oem'); // dealership, detailer, oem
   const [selectedPricingType, setSelectedPricingType] = useState<'DEALERSHIP_PRICING' | 'DETAILER_PRICING' | 'OEM_PRICING'>('OEM_PRICING');
   
-  // Redirect if not SUPER_ADMIN
+  // Redirect if not SUPER_ADMIN, ADMIN, or MANAGER
   useEffect(() => {
-    if (user && user.role !== "SUPER_ADMIN") {
+    if (user && !['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user.role)) {
       toast({
         title: "Access Denied",
         description: "You don't have permission to access this page.",
@@ -34,8 +34,10 @@ export default function PricingPage() {
     }
   }, [user, navigate, toast]);
   
-  // Only admins can access pricing rules
-  const canAccessPricing = user && user.role === 'SUPER_ADMIN';
+  // SUPER_ADMIN, ADMIN, and MANAGER can view pricing rules
+  const canAccessPricing = user && ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user.role);
+  const canCreate = user && ['SUPER_ADMIN', 'ADMIN'].includes(user.role);
+  const canDelete = user && user.role === 'SUPER_ADMIN';
   
   const { data: pricingRules = [], isLoading } = useQuery<PricingRule[]>({
     queryKey: ["/api/pricing-rules", selectedPricingType],
@@ -190,10 +192,12 @@ export default function PricingPage() {
             <p className="text-muted-foreground">
               Create pricing rules to define costs for this category.
             </p>
-            <Button onClick={handleAddPricingRule}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add First Rule
-            </Button>
+            {canCreate && (
+              <Button onClick={handleAddPricingRule}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add First Rule
+              </Button>
+            )}
           </div>
         </div>
       );
@@ -231,22 +235,26 @@ export default function PricingPage() {
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex space-x-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleEditPricingRule(rule)}
-                        data-testid={`button-edit-${rule.id}`}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleDeletePricingRule(rule.id)}
-                        data-testid={`button-delete-${rule.id}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {canCreate && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleEditPricingRule(rule)}
+                          data-testid={`button-edit-${rule.id}`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {canDelete && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleDeletePricingRule(rule.id)}
+                          data-testid={`button-delete-${rule.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -297,10 +305,12 @@ export default function PricingPage() {
           <h2 className="text-2xl font-semibold text-foreground">Pricing Rules</h2>
           <p className="text-muted-foreground mt-1">Configure pricing for partners, dealerships, and detailers</p>
         </div>
-        <Button onClick={handleAddPricingRule} data-testid="button-add-pricing-rule">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Pricing Rule
-        </Button>
+        {canCreate && (
+          <Button onClick={handleAddPricingRule} data-testid="button-add-pricing-rule">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Pricing Rule
+          </Button>
+        )}
       </div>
 
       {/* Pricing Rules Tabs */}
