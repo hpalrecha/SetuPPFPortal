@@ -37,7 +37,7 @@ The application uses the P91 Brand Theme with a Brand Green primary color, Oxani
     - View: Can see ALL OEMs (no state filtering), but dealerships, showrooms, work orders, partners, sales persons, allocations, and job cards are filtered by allowedStates
     - Filtering Hierarchy: OEMs (ALL visible) → Dealerships (state-filtered) → Showrooms (state-filtered via dealership) → Partners (state-filtered) → Allocations (state-filtered) → Job Cards (state-filtered via work order's dealership)
     - Create: Can ONLY create work orders and sales persons (only for dealerships/showrooms in allowed states with state validation)
-    - Restrictions: Cannot create partners or allocations; cannot create/edit dealerships or showrooms; cannot access entities outside allowedStates; no delete permissions
+    - Restrictions: Cannot create partners or allocations; cannot create/edit dealerships or showrooms; cannot access entities outside allowedStates; no delete permissions; no access to payout settlement page
     - Frontend: Add buttons shown ONLY for sales persons and work orders; hidden for dealerships, showrooms, partners, and allocations
     - Backend: Removed from POST /api/partners and POST /api/allocations endpoints; retained in POST /api/work-orders with state validation; job cards filtered by state in GET /api/job-cards and GET /api/job-cards/:id
   - Existing roles (SUPER_ADMIN, OEM_ADMIN, DEALERSHIP_ADMIN, SHOWROOM_MANAGER, SALES_PERSON, PARTNER_ADMIN, PARTNER_STAFF) remain unchanged
