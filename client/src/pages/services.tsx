@@ -23,7 +23,9 @@ export default function ServicesPage() {
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const isOEMAdmin = user?.role === 'OEM_ADMIN';
-  const canManageServices = isSuperAdmin || isOEMAdmin;
+  const isAdmin = user?.role === 'ADMIN';
+  const canManageServices = isSuperAdmin || isOEMAdmin || isAdmin;
+  const canDelete = isSuperAdmin;
 
   // Fetch service categories
   const { data: serviceCategories = [] } = useQuery({
@@ -229,14 +231,16 @@ export default function ServicesPage() {
                     >
                       <Edit2 className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(service.id)}
-                      data-testid={`button-delete-service-${service.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {canDelete && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(service.id)}
+                        data-testid={`button-delete-service-${service.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

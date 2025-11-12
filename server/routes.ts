@@ -5813,14 +5813,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/services", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN']),
     auditLog('service', 'create'),
     async (req, res) => {
       try {
         const serviceData = req.body;
         
-        // Set user context if not Super Admin
-        if (req.user!.role !== 'SUPER_ADMIN') {
+        // Set user context if not Super Admin or Admin
+        if (req.user!.role !== 'SUPER_ADMIN' && req.user!.role !== 'ADMIN') {
           serviceData.oemId = req.user!.oemId;
           if (serviceData.availabilityScope === 'DEALERSHIP_SPECIFIC') {
             serviceData.dealershipId = req.user!.dealershipId;
@@ -5838,7 +5838,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/services/:id", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN']),
     auditLog('service', 'update'),
     async (req, res) => {
       try {
@@ -5851,7 +5851,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Service not found" });
         }
         
-        if (req.user!.role !== 'SUPER_ADMIN' && existingService.oemId !== req.user!.oemId) {
+        if (req.user!.role !== 'SUPER_ADMIN' && req.user!.role !== 'ADMIN' && existingService.oemId !== req.user!.oemId) {
           return res.status(403).json({ error: "Unauthorized to update this service" });
         }
         
@@ -5879,7 +5879,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Service not found" });
         }
         
-        if (req.user!.role !== 'SUPER_ADMIN' && existingService.oemId !== req.user!.oemId) {
+        if (req.user!.role !== 'SUPER_ADMIN' && req.user!.role !== 'ADMIN' && existingService.oemId !== req.user!.oemId) {
           return res.status(403).json({ error: "Unauthorized to delete this service" });
         }
         
