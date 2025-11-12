@@ -3012,7 +3012,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/work-orders", 
     authenticate, 
-    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'MANAGER', 'SUPER_ADMIN', 'PARTNER_ADMIN']),
+    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'MANAGER', 'SUPER_ADMIN', 'ADMIN', 'PARTNER_ADMIN']),
     auditLog('work_order', 'create'),
     async (req, res) => {
       try {
