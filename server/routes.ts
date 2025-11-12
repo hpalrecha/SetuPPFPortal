@@ -5057,7 +5057,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Partner service categories routes
   app.get("/api/partners/:id/service-categories", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
     async (req, res) => {
       try {
         const { id } = req.params;
