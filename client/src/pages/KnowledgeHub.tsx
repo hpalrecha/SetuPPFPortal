@@ -130,7 +130,8 @@ export default function KnowledgeHub() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
 
-  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'OEM_ADMIN';
+  const canCreate = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const canDelete = user?.role === 'SUPER_ADMIN';
 
   const form = useForm<KnowledgeHubFormData>({
     resolver: zodResolver(knowledgeHubSchema),
@@ -309,7 +310,7 @@ export default function KnowledgeHub() {
             Access training materials, offers, and important resources
           </p>
         </div>
-        {isAdmin && (
+        {canCreate && (
           <Button 
             onClick={() => {
               setEditingItem(null);
@@ -433,7 +434,7 @@ export default function KnowledgeHub() {
                       <Eye className="h-3 w-3" />
                       <span>{item.viewCount || 0} views</span>
                     </div>
-                    {isAdmin && (
+                    {canCreate && (
                       <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                         <Button
                           variant="ghost"
@@ -443,18 +444,20 @@ export default function KnowledgeHub() {
                         >
                           <Edit className="h-3 w-3" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            if (confirm("Are you sure you want to delete this resource?")) {
-                              deleteMutation.mutate(item.id);
-                            }
-                          }}
-                          data-testid={`button-delete-${item.id}`}
-                        >
-                          <Trash2 className="h-3 w-3 text-red-600" />
-                        </Button>
+                        {canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              if (confirm("Are you sure you want to delete this resource?")) {
+                                deleteMutation.mutate(item.id);
+                              }
+                            }}
+                            data-testid={`button-delete-${item.id}`}
+                          >
+                            <Trash2 className="h-3 w-3 text-red-600" />
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>

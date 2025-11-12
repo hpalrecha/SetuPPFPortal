@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Building, Store, Users, Edit, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { ApiClient } from "@/lib/api";
+import { apiRequest } from "@/lib/queryClient";
 import { CreateUserModal } from "@/components/modals/CreateUserModal";
 import { INDIAN_STATES } from "@shared/constants";
 
@@ -62,6 +63,27 @@ export default function SettingsPage() {
   const [showCreateShowroomModal, setShowCreateShowroomModal] = useState(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string>("all");
+
+  // Delete user mutation
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest('DELETE', `/api/users/${userId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      toast({
+        title: "Success",
+        description: "User deleted successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete user",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Fetch data for organization management
   const { data: oems } = useQuery({
@@ -548,9 +570,21 @@ export default function SettingsPage() {
                           <Button size="sm" variant="outline" data-testid={`button-edit-user-${usr.id}`}>
                             <Edit className="h-3 w-3" />
                           </Button>
-                          <Button size="sm" variant="outline" data-testid={`button-delete-user-${usr.id}`}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          {user?.role === 'SUPER_ADMIN' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => {
+                                if (window.confirm(`Are you sure you want to delete ${usr.name}? This action cannot be undone.`)) {
+                                  deleteUserMutation.mutate(usr.id);
+                                }
+                              }}
+                              disabled={deleteUserMutation.isPending}
+                              data-testid={`button-delete-user-${usr.id}`}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
                         </div>
                       </CardContent>
                     </Card>

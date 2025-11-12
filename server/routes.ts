@@ -689,6 +689,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Delete user (Super Admin only)
+  app.delete("/api/users/:id",
+    authenticate,
+    requireRole(['SUPER_ADMIN']),
+    auditLog('user', 'delete'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const currentUser = req.user!;
+
+        // Prevent users from deleting themselves
+        if (id === currentUser.id) {
+          return res.status(400).json({ error: "You cannot delete your own account" });
+        }
+
+        // Get user to verify they exist
+        const user = await storage.getUser(id);
+        if (!user) {
+          return res.status(404).json({ error: "User not found" });
+        }
+
+        // Delete the user
+        const success = await storage.deleteUser(id);
+        if (!success) {
+          return res.status(500).json({ error: "Failed to delete user" });
+        }
+
+        res.json({ 
+          message: "User deleted successfully",
+          userId: id
+        });
+      } catch (error) {
+        console.error("Delete user error:", error);
+        res.status(500).json({ error: "Failed to delete user" });
+      }
+    }
+  );
+
   // Reset user password (Admin only)
   app.post("/api/users/:id/reset-password", 
     authenticate, 
@@ -7291,7 +7329,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/knowledge-hub", 
     authenticate, 
     requireOEMAccess,
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
     async (req, res) => {
       try {
         const user = req.user!;
@@ -7343,7 +7381,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/knowledge-hub/:id", 
     authenticate, 
     requireOEMAccess,
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
     async (req, res) => {
       try {
         const { id } = req.params;
