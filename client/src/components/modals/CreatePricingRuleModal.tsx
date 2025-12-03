@@ -565,13 +565,24 @@ export function CreatePricingRuleModal({
                       {(pricingType === 'DEALERSHIP_PRICING' || pricingType === 'OEM_PRICING') && <span className="text-red-500">*</span>}
                       {pricingType === 'DETAILER_PRICING' && <span className="text-muted-foreground text-sm"> (Optional)</span>}
                     </FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select 
+                      onValueChange={(value) => field.onChange(value === "__ALL_VEHICLES__" ? "" : value)} 
+                      value={field.value || (pricingType === 'DETAILER_PRICING' ? "__ALL_VEHICLES__" : "")}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select vehicle model" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent className="bg-white dark:bg-gray-800">
+                        {pricingType === 'DETAILER_PRICING' && (
+                          <SelectItem 
+                            value="__ALL_VEHICLES__"
+                            className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 font-medium border-b"
+                          >
+                            🚗 All Vehicles (Applies to any vehicle)
+                          </SelectItem>
+                        )}
                         {vehicleModels?.map((model: any) => (
                           <SelectItem 
                             key={model.id} 

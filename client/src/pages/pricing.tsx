@@ -162,7 +162,7 @@ export default function PricingPage() {
         case 'DETAILER_PRICING':
           return [
             rule.detailerName || 'Unknown Detailer',
-            rule.vehicleModelName || 'Unknown Vehicle Model', 
+            rule.vehicleModelName || '🚗 All Vehicles', 
             rule.serviceCategoryName || 'Unknown Service Category',
             formatCurrency(rule.priceAmount),
             new Date(rule.effectiveFrom).toLocaleDateString(),
