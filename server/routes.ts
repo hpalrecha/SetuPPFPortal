@@ -3652,13 +3652,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const showroom = await storage.getShowroom(workOrder.showroomId);
         const oem = await storage.getOem(workOrder.oemId);
         
-        // Get job card media
-        const media = await storage.getJobCardMedia({ jobCardId: jobCard.id });
+        // Get job card media from media table
+        const mediaFromTable = await storage.getJobCardMedia({ jobCardId: jobCard.id });
+        
+        // Also include pre-installation photos stored directly on job card
+        const preInstallationPhotos: { url: string; caption: string; id: string }[] = [];
+        if (jobCard.preInstallationPhotoFront) {
+          preInstallationPhotos.push({ 
+            url: jobCard.preInstallationPhotoFront, 
+            caption: 'Front', 
+            id: `pre-install-front-${jobCard.id}` 
+          });
+        }
+        if (jobCard.preInstallationPhotoBack) {
+          preInstallationPhotos.push({ 
+            url: jobCard.preInstallationPhotoBack, 
+            caption: 'Back', 
+            id: `pre-install-back-${jobCard.id}` 
+          });
+        }
+        if (jobCard.preInstallationPhotoLeft) {
+          preInstallationPhotos.push({ 
+            url: jobCard.preInstallationPhotoLeft, 
+            caption: 'Left Side', 
+            id: `pre-install-left-${jobCard.id}` 
+          });
+        }
+        if (jobCard.preInstallationPhotoRight) {
+          preInstallationPhotos.push({ 
+            url: jobCard.preInstallationPhotoRight, 
+            caption: 'Right Side', 
+            id: `pre-install-right-${jobCard.id}` 
+          });
+        }
+        
+        // Combine media from table and pre-installation photos
+        const allMedia = [...preInstallationPhotos, ...(mediaFromTable || [])];
         
         // Generate signed URLs for private media
         const objectStorageServiceInstance = new ObjectStorageService();
         const mediaWithSignedUrls = await Promise.all(
-          (media || []).map(async (item: any) => {
+          allMedia.map(async (item: any) => {
             if (item.url) {
               try {
                 const signedUrl = await objectStorageServiceInstance.getSignedUrl(item.url, 3600);
