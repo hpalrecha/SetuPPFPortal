@@ -2882,6 +2882,28 @@ export class DatabaseStorage implements IStorage {
     try {
       console.log("🎯 DETAILER PAYOUT PRICING:", { partnerId, serviceCategoryId, vehicleModelId });
       
+      // Debug: Show all active detailer pricing rules for this partner
+      const allRulesForPartner = await db.select()
+        .from(pricingRules)
+        .where(
+          and(
+            eq(pricingRules.pricingType, "DETAILER_PRICING"),
+            eq(pricingRules.status, "ACTIVE"),
+            or(
+              eq(pricingRules.partnerId, partnerId),
+              eq(pricingRules.detailerId, partnerId)
+            )
+          )
+        );
+      console.log(`📋 All active DETAILER_PRICING rules for partner ${partnerId}:`, allRulesForPartner.map(r => ({
+        id: r.id,
+        partnerId: r.partnerId,
+        detailerId: r.detailerId,
+        serviceCategoryId: r.serviceCategoryId,
+        vehicleModelId: r.vehicleModelId,
+        priceAmount: r.priceAmount
+      })));
+      
       // Priority 1: Partner + Service Category + Vehicle Model (most specific)
       if (vehicleModelId) {
         const exactMatch = await db.select()
