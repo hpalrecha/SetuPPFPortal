@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { CalendarIcon, ClockIcon, CheckCircle2, PlayCircle, PauseCircle, UploadIcon, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon, Users, Camera, Eye, Shield } from 'lucide-react';
+import { CalendarIcon, ClockIcon, CheckCircle2, PlayCircle, PauseCircle, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon, Users, Camera, Eye, Shield } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -16,6 +16,7 @@ import { ImageModal } from '@/components/ui/image-modal';
 import { format } from 'date-fns';
 import { PreInstallationModal } from '@/components/modals/PreInstallationModal';
 import { ViewPreInstallationModal } from '@/components/modals/ViewPreInstallationModal';
+import { PostInstallationPhotoUpload } from '@/components/job-cards/PostInstallationPhotoUpload';
 
 interface JobCard {
   id: string;
@@ -104,7 +105,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const [scheduleTime, setScheduleTime] = useState('');
   const [completionRemarks, setCompletionRemarks] = useState('');
   const [selectedTeamMemberId, setSelectedTeamMemberId] = useState<string>('');
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadedPostPhotos, setUploadedPostPhotos] = useState<Array<{label: string; url: string; originalSize: number; compressedSize: number}>>([]);
   
   // Image modal state
   const [imageModalOpen, setImageModalOpen] = useState(false);
@@ -232,24 +233,8 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
         };
       }
 
-      // Upload files first if any
-      const mediaUrls = [];
-      if (selectedFiles.length > 0) {
-        for (const file of selectedFiles) {
-          try {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('jobCardId', jobCardId!);
-            formData.append('type', 'IMAGE');
-            
-            const uploadResponse = await apiRequest('POST', '/api/job-cards/upload-media', formData);
-            const uploadResult = await uploadResponse.json();
-            mediaUrls.push(uploadResult.url);
-          } catch (error) {
-            throw new Error(`Failed to upload file ${file.name}. Please try again.`);
-          }
-        }
-      }
+      // Photos are already uploaded individually via PostInstallationPhotoUpload component
+      // No need to upload files here
 
       const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/complete`, {
         remarks: completionRemarks,
@@ -340,7 +325,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     setScheduleDate('');
     setScheduleTime('');
     setCompletionRemarks('');
-    setSelectedFiles([]);
+    setUploadedPostPhotos([]);
     setSelectedTeamMemberId(jobCard?.assignedInstallerId || '');
     setMaterialProductName('');
     setMaterialBatchNumber('');
@@ -1019,58 +1004,12 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
               />
             </div>
 
-            {/* Photo Upload - 4-Side Car Images */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">4-Side Car Images</CardTitle>
-                <p className="text-sm text-gray-600">Upload photos showing all four sides of the vehicle after installation</p>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
-                    <UploadIcon className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
-                      className="hidden"
-                      id="photo-upload"
-                      data-testid="input-photo-upload"
-                    />
-                    <Label htmlFor="photo-upload" className="cursor-pointer text-blue-600 hover:text-blue-700 font-medium">
-                      Click to upload vehicle photos
-                    </Label>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Upload 4 photos: Front, Rear, Left Side, Right Side (JPG, PNG up to 10MB each)
-                    </p>
-                  </div>
-                  
-                  {selectedFiles.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <p className="text-sm font-medium text-green-700">{selectedFiles.length} file(s) selected</p>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {selectedFiles.map((file, index) => (
-                          <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded border">
-                            <div className="w-3 h-3 bg-blue-500 rounded-full flex-shrink-0"></div>
-                            <span className="text-xs text-gray-700 truncate">{file.name}</span>
-                            <span className="text-xs text-gray-500 ml-auto">
-                              {(file.size / 1024 / 1024).toFixed(1)}MB
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                        ✓ Images will be uploaded when you complete the job
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            {/* Photo Upload - Post-Installation Photos with compression and one-by-one upload */}
+            <PostInstallationPhotoUpload
+              jobCardId={jobCardId!}
+              onPhotosChange={setUploadedPostPhotos}
+              existingPhotos={uploadedPostPhotos}
+            />
 
             <div className="flex gap-3">
               <Button 
