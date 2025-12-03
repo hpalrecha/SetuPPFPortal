@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DollarSign, Users, Calendar, CheckCircle, FileText, CreditCard, Wrench, UserCheck, Building2 } from "lucide-react";
+import { DollarSign, Users, Calendar, CheckCircle, FileText, CreditCard, Wrench, UserCheck, Building2, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -82,6 +82,27 @@ export default function PayoutSettlementPage() {
     }
   });
 
+  const recalculateMutation = useMutation({
+    mutationFn: async (payoutId: string) => {
+      return apiRequest("POST", `/api/payouts/${payoutId}/recalculate`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/payouts"] });
+      toast({
+        title: "Success",
+        description: "Payout amount recalculated successfully",
+      });
+    },
+    onError: (error: any) => {
+      console.error("Recalculate error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to recalculate payout",
+        variant: "destructive",
+      });
+    }
+  });
+
   const handleSettle = (item: any, type: "payout" | "commission") => {
     const amount = type === "payout" ? item.netAmount : item.computedAmount;
     setSettlementData({
@@ -89,6 +110,10 @@ export default function PayoutSettlementPage() {
       type,
       amount
     });
+  };
+
+  const handleRecalculate = (payoutId: string) => {
+    recalculateMutation.mutate(payoutId);
   };
 
   const handleSubmitSettlement = () => {
@@ -382,16 +407,29 @@ export default function PayoutSettlementPage() {
                       )}
                     </div>
                     
-                    {(item.status === 'PENDING' || item.status === 'due') && payoutType !== "oem_royalties" && (
+                    {(item.status === 'PENDING' || item.status === 'due' || item.status === 'pending_review') && payoutType !== "oem_royalties" && (
                       <div className="flex space-x-2">
-                        <Button
-                          onClick={() => handleSettle(item, payoutType === "detailers" ? "payout" : "commission")}
-                          className="bg-green-600 hover:bg-green-700"
-                          data-testid={`button-settle-${item.id.slice(-6)}`}
-                        >
-                          <CreditCard className="h-4 w-4 mr-2" />
-                          Settle Payment
-                        </Button>
+                        {payoutType === "detailers" && (item.status === 'pending_review' || Number(item.netAmount) === 0) && (
+                          <Button
+                            variant="outline"
+                            onClick={() => handleRecalculate(item.id)}
+                            disabled={recalculateMutation.isPending}
+                            data-testid={`button-recalculate-${item.id.slice(-6)}`}
+                          >
+                            <RefreshCw className={`h-4 w-4 mr-2 ${recalculateMutation.isPending ? 'animate-spin' : ''}`} />
+                            {recalculateMutation.isPending ? "Recalculating..." : "Recalculate"}
+                          </Button>
+                        )}
+                        {(item.status === 'PENDING' || item.status === 'due') && (
+                          <Button
+                            onClick={() => handleSettle(item, payoutType === "detailers" ? "payout" : "commission")}
+                            className="bg-green-600 hover:bg-green-700"
+                            data-testid={`button-settle-${item.id.slice(-6)}`}
+                          >
+                            <CreditCard className="h-4 w-4 mr-2" />
+                            Settle Payment
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
