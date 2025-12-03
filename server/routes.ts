@@ -3654,6 +3654,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Get job card media
         const media = await storage.getJobCardMedia({ jobCardId: jobCard.id });
+        
+        // Generate signed URLs for private media
+        const objectStorageServiceInstance = new ObjectStorageService();
+        const mediaWithSignedUrls = await Promise.all(
+          (media || []).map(async (item: any) => {
+            if (item.url) {
+              try {
+                const signedUrl = await objectStorageServiceInstance.getSignedUrl(item.url, 3600);
+                return { ...item, url: signedUrl || item.url };
+              } catch (e) {
+                console.error('Failed to sign URL for media:', item.url, e);
+                return item;
+              }
+            }
+            return item;
+          })
+        );
 
         // Build the response with the expected structure
         let result: any = {
@@ -3682,7 +3699,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             id: partner.id,
             displayName: partner.displayName
           },
-          media: media || []
+          media: mediaWithSignedUrls
         };
 
         // 🔒 Filter price based on partner permissions (for partner users only)
@@ -6252,6 +6269,194 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Approve payout error:", error);
         res.status(500).json({ error: "Failed to approve payout" });
+      }
+    }
+  );
+
+  // Recalculate payout pricing for existing payouts with ₹0.00
+  app.post("/api/payouts/:id/recalculate", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    auditLog('payout', 'recalculate'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        
+        // Get payout to verify it exists
+        const payout = await storage.getPayout(id);
+        if (!payout) {
+          return res.status(404).json({ error: "Payout not found" });
+        }
+        
+        // Get job card to find pricing parameters
+        const jobCard = await storage.getJobCard(payout.jobCardId);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Associated job card not found" });
+        }
+        
+        // Get work order for pricing calculation
+        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+        if (!workOrder) {
+          return res.status(404).json({ error: "Associated work order not found" });
+        }
+        
+        // Get service details for category-based pricing
+        const service = await storage.getService(workOrder.serviceId);
+        const serviceCategoryId = service?.serviceCategoryId || null;
+        
+        if (!serviceCategoryId) {
+          return res.status(400).json({ 
+            error: "Service category not found - cannot calculate pricing" 
+          });
+        }
+        
+        console.log(`🔄 RECALCULATING PAYOUT: partnerId=${jobCard.partnerId}, serviceCategoryId=${serviceCategoryId}, vehicleModelId=${workOrder.vehicleModelId}`);
+        
+        // Resolve pricing using the same logic as job card completion
+        const pricingResult = await storage.resolvePayoutPricing(
+          jobCard.partnerId,
+          serviceCategoryId,
+          workOrder.vehicleModelId
+        );
+        
+        let payoutAmount = '0.00';
+        let newStatus: 'pending_review' | 'due' = 'pending_review';
+        
+        if (pricingResult) {
+          payoutAmount = pricingResult.amount;
+          newStatus = 'due'; // If pricing found, set to due
+          console.log(`✅ PRICING FOUND: Rule ${pricingResult.ruleId} → ₹${payoutAmount}`);
+        } else {
+          console.log(`❌ NO PRICING RULE FOUND - keeping as pending_review`);
+          return res.status(400).json({
+            error: "No pricing rule found for this combination",
+            details: {
+              partnerId: jobCard.partnerId,
+              serviceCategoryId,
+              vehicleModelId: workOrder.vehicleModelId
+            }
+          });
+        }
+        
+        // Update payout with new amount
+        const updatedPayout = await storage.updatePayout(id, {
+          grossAmount: payoutAmount,
+          netAmount: payoutAmount,
+          status: newStatus
+        });
+        
+        console.log(`✅ PAYOUT UPDATED: ${id} → ₹${payoutAmount} (${newStatus})`);
+        
+        res.json({
+          message: "Payout recalculated successfully",
+          payout: updatedPayout,
+          pricing: {
+            amount: payoutAmount,
+            ruleId: pricingResult?.ruleId
+          }
+        });
+      } catch (error) {
+        console.error("Recalculate payout error:", error);
+        res.status(500).json({ error: "Failed to recalculate payout" });
+      }
+    }
+  );
+
+  // Bulk recalculate all pending_review payouts with ₹0.00
+  app.post("/api/payouts/bulk-recalculate", 
+    authenticate, 
+    requireOEMAccess,
+    requireRole(['SUPER_ADMIN']),
+    auditLog('payout', 'bulk_recalculate'),
+    async (req, res) => {
+      try {
+        // Get all payouts with status pending_review and amount 0
+        const allPayouts = await storage.getPayouts({ status: 'pending_review' });
+        const zeroPayouts = allPayouts.filter(p => 
+          parseFloat(p.grossAmount) === 0 || p.grossAmount === '0.00'
+        );
+        
+        console.log(`🔄 BULK RECALCULATING: Found ${zeroPayouts.length} payouts with ₹0.00`);
+        
+        const results = {
+          success: [] as any[],
+          failed: [] as any[],
+          unchanged: [] as any[]
+        };
+        
+        for (const payout of zeroPayouts) {
+          try {
+            // Get job card
+            const jobCard = await storage.getJobCard(payout.jobCardId);
+            if (!jobCard) {
+              results.failed.push({ payoutId: payout.id, reason: 'Job card not found' });
+              continue;
+            }
+            
+            // Get work order
+            const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+            if (!workOrder) {
+              results.failed.push({ payoutId: payout.id, reason: 'Work order not found' });
+              continue;
+            }
+            
+            // Get service category
+            const service = await storage.getService(workOrder.serviceId);
+            const serviceCategoryId = service?.serviceCategoryId || null;
+            
+            if (!serviceCategoryId) {
+              results.failed.push({ payoutId: payout.id, reason: 'Service category not found' });
+              continue;
+            }
+            
+            // Resolve pricing
+            const pricingResult = await storage.resolvePayoutPricing(
+              jobCard.partnerId,
+              serviceCategoryId,
+              workOrder.vehicleModelId
+            );
+            
+            if (pricingResult) {
+              // Update payout
+              await storage.updatePayout(payout.id, {
+                grossAmount: pricingResult.amount,
+                netAmount: pricingResult.amount,
+                status: 'due'
+              });
+              
+              results.success.push({
+                payoutId: payout.id,
+                jobCardId: payout.jobCardId,
+                oldAmount: payout.grossAmount,
+                newAmount: pricingResult.amount,
+                ruleId: pricingResult.ruleId
+              });
+            } else {
+              results.unchanged.push({
+                payoutId: payout.id,
+                jobCardId: payout.jobCardId,
+                reason: 'No matching pricing rule'
+              });
+            }
+          } catch (error) {
+            results.failed.push({ 
+              payoutId: payout.id, 
+              reason: error instanceof Error ? error.message : 'Unknown error' 
+            });
+          }
+        }
+        
+        console.log(`✅ BULK RECALCULATION COMPLETE: ${results.success.length} success, ${results.failed.length} failed, ${results.unchanged.length} unchanged`);
+        
+        res.json({
+          message: "Bulk recalculation complete",
+          totalProcessed: zeroPayouts.length,
+          results
+        });
+      } catch (error) {
+        console.error("Bulk recalculate payouts error:", error);
+        res.status(500).json({ error: "Failed to bulk recalculate payouts" });
       }
     }
   );

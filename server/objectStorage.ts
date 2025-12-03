@@ -237,6 +237,53 @@ export class ObjectStorageService {
       requestedPermission: requestedPermission ?? ObjectPermission.READ,
     });
   }
+
+  // Generate a signed URL for reading a private object
+  async getSignedUrl(objectPath: string, ttlSec: number = 3600): Promise<string | null> {
+    try {
+      // Handle different URL formats
+      let bucketName: string;
+      let objectName: string;
+
+      if (objectPath.startsWith('/objects/')) {
+        // Normalized path format: /objects/{entityId}
+        const entityId = objectPath.slice('/objects/'.length);
+        let entityDir = this.getPrivateObjectDir();
+        if (!entityDir.endsWith('/')) {
+          entityDir = `${entityDir}/`;
+        }
+        const fullPath = `${entityDir}${entityId}`;
+        const parsed = parseObjectPath(fullPath);
+        bucketName = parsed.bucketName;
+        objectName = parsed.objectName;
+      } else if (objectPath.startsWith('https://storage.googleapis.com/')) {
+        // Raw GCS URL
+        const url = new URL(objectPath);
+        const pathParts = url.pathname.slice(1).split('/');
+        bucketName = pathParts[0];
+        objectName = pathParts.slice(1).join('/');
+      } else if (objectPath.startsWith('/')) {
+        // Direct path format: /bucket/object
+        const parsed = parseObjectPath(objectPath);
+        bucketName = parsed.bucketName;
+        objectName = parsed.objectName;
+      } else {
+        // Unknown format, return as-is
+        return objectPath;
+      }
+
+      // Generate signed URL
+      return await signObjectURL({
+        bucketName,
+        objectName,
+        method: 'GET',
+        ttlSec,
+      });
+    } catch (error) {
+      console.error('Error generating signed URL:', error);
+      return null;
+    }
+  }
 }
 
 function parseObjectPath(path: string): {
