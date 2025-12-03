@@ -281,18 +281,50 @@ export function PreInstallationModal({
             )}
           </div>
         ) : (
-          <label
-            htmlFor={`upload-${testId}`}
-            className="flex flex-col items-center justify-center h-40 cursor-pointer"
-          >
-            <Camera className="h-10 w-10 text-gray-400 mb-2" />
-            <span className="text-sm text-gray-500">Tap to capture {label}</span>
-            <span className="text-xs text-gray-400 mt-1">HEIC, JPEG, PNG supported</span>
+          <div className="flex flex-col items-center justify-center h-40 gap-3">
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => document.getElementById(`camera-${testId}`)?.click()}
+                className="gap-1 bg-blue-50 border-blue-200 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300"
+                data-testid={`button-camera-${testId}`}
+              >
+                <Camera className="h-4 w-4" />
+                Camera
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => document.getElementById(`gallery-${testId}`)?.click()}
+                className="gap-1"
+                data-testid={`button-gallery-${testId}`}
+              >
+                <Upload className="h-4 w-4" />
+                Gallery
+              </Button>
+            </div>
+            <span className="text-xs text-gray-400">Capture {label} or choose from gallery</span>
             <input
-              id={`upload-${testId}`}
+              id={`camera-${testId}`}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  onFileSelect(file);
+                }
+                e.target.value = '';
+              }}
+            />
+            <input
+              id={`gallery-${testId}`}
               type="file"
               accept="image/*,.heic,.heif"
-              capture="environment"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -303,7 +335,7 @@ export function PreInstallationModal({
               }}
               data-testid={`input-${testId}`}
             />
-          </label>
+          </div>
         )}
       </div>
     </div>

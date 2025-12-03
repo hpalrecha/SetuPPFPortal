@@ -29,6 +29,7 @@ export function PostInstallationPhotoUpload({
 }: PostInstallationPhotoUploadProps) {
   const { toast } = useToast();
   const fileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const cameraInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   
   const [photos, setPhotos] = useState<(UploadedPhoto | null)[]>(
     PHOTO_LABELS.map((label, index) => existingPhotos[index] || null)
@@ -36,6 +37,8 @@ export function PostInstallationPhotoUpload({
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const [processingIndex, setProcessingIndex] = useState<number | null>(null);
   const [processingStatus, setProcessingStatus] = useState<string>('');
+  
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
   const handleFileSelect = async (index: number, file: File) => {
     if (!file) return;
@@ -178,14 +181,13 @@ export function PostInstallationPhotoUpload({
                   <div
                     className={`
                       relative border-2 border-dashed rounded-lg h-32 
-                      flex flex-col items-center justify-center gap-2 
-                      transition-all cursor-pointer
+                      flex flex-col items-center justify-center gap-1 
+                      transition-all
                       ${isActive 
                         ? 'border-purple-400 bg-purple-50' 
-                        : 'border-gray-300 hover:border-purple-400 hover:bg-purple-50/50'
+                        : 'border-gray-300'
                       }
                     `}
-                    onClick={() => !isActive && fileInputRefs.current[index]?.click()}
                   >
                     <input
                       type="file"
@@ -198,6 +200,19 @@ export function PostInstallationPhotoUpload({
                       className="hidden"
                       data-testid={`input-post-photo-${index}`}
                     />
+                    
+                    <input
+                      type="file"
+                      ref={(el) => (cameraInputRefs.current[index] = el)}
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileSelect(index, file);
+                      }}
+                      className="hidden"
+                      data-testid={`input-post-camera-${index}`}
+                    />
 
                     {isActive ? (
                       <>
@@ -207,12 +222,35 @@ export function PostInstallationPhotoUpload({
                         </span>
                       </>
                     ) : (
-                      <>
-                        <Upload className="h-6 w-6 text-gray-400" />
-                        <span className="text-xs text-gray-500 text-center px-2">
-                          Tap to upload
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => cameraInputRefs.current[index]?.click()}
+                            className="gap-1 bg-purple-50 border-purple-200 hover:bg-purple-100 text-purple-700"
+                            data-testid={`button-post-camera-${index}`}
+                          >
+                            <Camera className="h-4 w-4" />
+                            Camera
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => fileInputRefs.current[index]?.click()}
+                            className="gap-1"
+                            data-testid={`button-post-gallery-${index}`}
+                          >
+                            <Upload className="h-4 w-4" />
+                            Gallery
+                          </Button>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {isMobile ? 'Take photo or choose from gallery' : 'Upload photo'}
                         </span>
-                      </>
+                      </div>
                     )}
                   </div>
                 )}
