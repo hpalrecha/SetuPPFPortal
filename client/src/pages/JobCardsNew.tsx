@@ -54,6 +54,7 @@ import { useToast } from "@/hooks/use-toast";
 import DetailerJobDetailModal from "@/components/job-cards/detailer-job-detail-modal";
 import ApprovalModal from "@/components/job-cards/approval-modal";
 import { ImageModal } from "@/components/ui/image-modal";
+import { ViewPreInstallationModal } from "@/components/modals/ViewPreInstallationModal";
 
 // Enhanced Job Card types to match API structure
 interface JobCard {
@@ -202,6 +203,7 @@ export default function JobCardsNew() {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [showSettlePaymentModal, setShowSettlePaymentModal] = useState(false);
   const [showApplyWarrantyModal, setShowApplyWarrantyModal] = useState(false);
+  const [showViewPreInstallationModal, setShowViewPreInstallationModal] = useState(false);
   const [salesInvoiceNumber, setSalesInvoiceNumber] = useState('');
   const [warrantyReferenceNumber, setWarrantyReferenceNumber] = useState('');
   
@@ -1688,16 +1690,31 @@ export default function JobCardsNew() {
                   </Card>
                 )}
 
-                {/* Images Section */}
-                <Card className="col-span-1 lg:col-span-2 xl:col-span-3">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center gap-2">
-                      <Image className="h-5 w-5 text-purple-600" />
-                      <CardTitle className="text-base">Images</CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {detailedJobCard?.media && detailedJobCard.media.length > 0 ? (
+                {/* Pre-Installation Photos Section - Always visible when photos exist */}
+                {detailedJobCard?.media && detailedJobCard.media.length > 0 && (
+                  <Card className="col-span-1 lg:col-span-2 xl:col-span-3 border-2 border-indigo-200 bg-indigo-50/50">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Image className="h-5 w-5 text-indigo-600" />
+                          <CardTitle className="text-base text-indigo-900">Pre-Installation Photos</CardTitle>
+                          <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
+                            Completed
+                          </Badge>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowViewPreInstallationModal(true)}
+                          className="border-indigo-300 text-indigo-700 hover:bg-indigo-100"
+                          data-testid="button-view-pre-installation"
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          View Photos
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {detailedJobCard.media.map((mediaItem: any, index: number) => {
                           const imageUrl = mediaItem.url;
@@ -1726,14 +1743,12 @@ export default function JobCardsNew() {
                           );
                         })}
                       </div>
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <Image className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                        <p data-testid="text-no-images">No images uploaded</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                      <p className="text-sm text-indigo-700 mt-3">
+                        Pre-installation inspection photos documenting vehicle condition before PPF installation.
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Admin Approval Section */}
                 {isAdmin && (detailedJobCard.status === 'COMPLETED' || detailedJobCard.status === 'PENDING_APPROVAL') && (
@@ -1988,6 +2003,20 @@ export default function JobCardsNew() {
         isOpen={!!selectedApprovalJobCard}
         onClose={() => setSelectedApprovalJobCard(null)}
       />
+
+      {/* View Pre-Installation Photos Modal */}
+      {detailedJobCard?.media && detailedJobCard.media.length >= 4 && (
+        <ViewPreInstallationModal
+          open={showViewPreInstallationModal}
+          onOpenChange={setShowViewPreInstallationModal}
+          photoFrontUrl={detailedJobCard.media[0]?.url || ''}
+          photoBackUrl={detailedJobCard.media[1]?.url || ''}
+          photoLeftUrl={detailedJobCard.media[2]?.url || ''}
+          photoRightUrl={detailedJobCard.media[3]?.url || ''}
+          remarks={null}
+          completedAt={null}
+        />
+      )}
 
       {/* Settle Payment Modal */}
       <Dialog open={showSettlePaymentModal} onOpenChange={setShowSettlePaymentModal}>
