@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useOemContext } from '@/hooks/use-oem-context';
+import { useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -204,6 +205,10 @@ export default function JobCardsNew() {
   const [salesInvoiceNumber, setSalesInvoiceNumber] = useState('');
   const [warrantyReferenceNumber, setWarrantyReferenceNumber] = useState('');
   
+  // Handle direct link to specific job card
+  const [, params] = useRoute('/job-cards/:id');
+  const urlJobCardId = params?.id;
+  
   // Search filters state
   const [searchFilters, setSearchFilters] = useState({
     jobCardNumber: '',
@@ -325,6 +330,27 @@ export default function JobCardsNew() {
     },
     enabled: !!selectedJobCardId
   });
+
+  // Handle direct link to specific job card from URL
+  useEffect(() => {
+    if (urlJobCardId && !isLoading) {
+      // Find the job card in the list
+      const jobCard = allJobCards.find(jc => jc.id === urlJobCardId);
+      if (jobCard) {
+        // Open the job card modal/detail view
+        if (isPartnerUser) {
+          setSelectedDetailerJobCard(urlJobCardId);
+        } else {
+          setSelectedJobCardId(urlJobCardId);
+          setSelectedJobCard(jobCard);
+        }
+      } else if (allJobCards.length > 0) {
+        // Job card not found in list - might need to fetch directly
+        console.warn(`Job card ${urlJobCardId} not found in list, attempting direct fetch`);
+        setSelectedJobCardId(urlJobCardId);
+      }
+    }
+  }, [urlJobCardId, allJobCards, isLoading, isPartnerUser]);
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';

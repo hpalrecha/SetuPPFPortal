@@ -135,6 +135,10 @@ function Router() {
         component={() => <ProtectedRoute component={JobCardsNew} />}
       />
       <Route
+        path="/job-cards/:id"
+        component={() => <ProtectedRoute component={JobCardsNew} />}
+      />
+      <Route
         path="/partners"
         component={() => <ProtectedRoute component={PartnersPage} />}
       />
