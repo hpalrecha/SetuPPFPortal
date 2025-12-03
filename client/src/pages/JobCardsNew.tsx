@@ -1691,7 +1691,7 @@ export default function JobCardsNew() {
                 )}
 
                 {/* Pre-Installation Photos Section - Always visible when photos exist */}
-                {detailedJobCard?.media && detailedJobCard.media.length > 0 && (
+                {detailedJobCard?.preInstallationPhotos && detailedJobCard.preInstallationPhotos.length > 0 && (
                   <Card className="col-span-1 lg:col-span-2 xl:col-span-3 border-2 border-indigo-200 bg-indigo-50/50">
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
@@ -1716,9 +1716,9 @@ export default function JobCardsNew() {
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {detailedJobCard.media.map((mediaItem: any, index: number) => {
+                        {detailedJobCard.preInstallationPhotos.map((mediaItem: any, index: number) => {
                           const imageUrl = mediaItem.url;
-                          const imageName = mediaItem.caption || ['Front', 'Back', 'Left', 'Right'][index] || `Image ${index + 1}`;
+                          const imageName = mediaItem.caption || ['Front', 'Back', 'Left Side', 'Right Side'][index] || `Image ${index + 1}`;
                           return (
                             <div key={index} className="relative group">
                               <img
@@ -1731,7 +1731,7 @@ export default function JobCardsNew() {
                                   setSelectedImageUrl(imageUrl);
                                   setSelectedImageIndex(index);
                                 }}
-                                data-testid={`thumbnail-${imageName.toLowerCase()}`}
+                                data-testid={`thumbnail-preinstall-${imageName.toLowerCase().replace(/\s+/g, '-')}`}
                               />
                               <div className="absolute bottom-1 left-1 bg-black/70 text-white text-xs px-1 rounded">
                                 {imageName}
@@ -1746,6 +1746,48 @@ export default function JobCardsNew() {
                       <p className="text-sm text-indigo-700 mt-3">
                         Pre-installation inspection photos documenting vehicle condition before PPF installation.
                       </p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Post-Installation Photos Section - Show only if there are post-installation media */}
+                {detailedJobCard?.media && detailedJobCard.media.length > 0 && (
+                  <Card className="col-span-1 lg:col-span-2 xl:col-span-3">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center gap-2">
+                        <Image className="h-5 w-5 text-purple-600" />
+                        <CardTitle className="text-base">Post-Installation Photos</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {detailedJobCard.media.map((mediaItem: any, index: number) => {
+                          const imageUrl = mediaItem.url;
+                          const imageName = mediaItem.caption || `Image ${index + 1}`;
+                          return (
+                            <div key={index} className="relative group">
+                              <img
+                                src={imageUrl}
+                                alt={imageName}
+                                className="w-full h-24 object-cover rounded-lg border cursor-pointer hover:opacity-75 transition-opacity"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setSelectedImageUrl(imageUrl);
+                                  setSelectedImageIndex(index);
+                                }}
+                                data-testid={`thumbnail-postinstall-${index}`}
+                              />
+                              <div className="absolute bottom-1 left-1 bg-black/70 text-white text-xs px-1 rounded">
+                                {imageName}
+                              </div>
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                <Eye className="h-6 w-6 text-white drop-shadow-lg" />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -1974,16 +2016,24 @@ export default function JobCardsNew() {
         </DialogContent>
       </Dialog>
 
-      {/* Image Preview Modal */}
+      {/* Image Preview Modal - Combine pre and post installation photos */}
       <ImageModal
-        images={detailedJobCard?.media ? detailedJobCard.media.map((mediaItem: any, index: number) => ({
-          id: mediaItem.id || `media-${index}`,
-          url: mediaItem.url,
-          caption: mediaItem.caption || ['Front', 'Back', 'Left', 'Right'][index] || `Image ${index + 1}`,
-          alt: `Job card media ${index + 1}`
-        })) : []}
+        images={[
+          ...(detailedJobCard?.preInstallationPhotos || []).map((mediaItem: any, index: number) => ({
+            id: mediaItem.id || `pre-install-${index}`,
+            url: mediaItem.url,
+            caption: mediaItem.caption || ['Front', 'Back', 'Left Side', 'Right Side'][index] || `Pre-Install ${index + 1}`,
+            alt: `Pre-installation photo ${index + 1}`
+          })),
+          ...(detailedJobCard?.media || []).map((mediaItem: any, index: number) => ({
+            id: mediaItem.id || `post-install-${index}`,
+            url: mediaItem.url,
+            caption: mediaItem.caption || `Post-Install ${index + 1}`,
+            alt: `Post-installation photo ${index + 1}`
+          }))
+        ]}
         initialIndex={selectedImageIndex}
-        isOpen={!!selectedImageUrl && !!detailedJobCard?.media}
+        isOpen={!!selectedImageUrl && (!!detailedJobCard?.preInstallationPhotos || !!detailedJobCard?.media)}
         onClose={() => {
           setSelectedImageUrl(null);
           setSelectedImageIndex(0);
@@ -2005,16 +2055,16 @@ export default function JobCardsNew() {
       />
 
       {/* View Pre-Installation Photos Modal */}
-      {detailedJobCard?.media && detailedJobCard.media.length >= 4 && (
+      {detailedJobCard?.preInstallationPhotos && detailedJobCard.preInstallationPhotos.length > 0 && (
         <ViewPreInstallationModal
           open={showViewPreInstallationModal}
           onOpenChange={setShowViewPreInstallationModal}
-          photoFrontUrl={detailedJobCard.media[0]?.url || ''}
-          photoBackUrl={detailedJobCard.media[1]?.url || ''}
-          photoLeftUrl={detailedJobCard.media[2]?.url || ''}
-          photoRightUrl={detailedJobCard.media[3]?.url || ''}
-          remarks={null}
-          completedAt={null}
+          photoFrontUrl={detailedJobCard.preInstallationPhotos.find((p: any) => p.caption === 'Front')?.url || detailedJobCard.preInstallationPhotos[0]?.url || ''}
+          photoBackUrl={detailedJobCard.preInstallationPhotos.find((p: any) => p.caption === 'Back')?.url || detailedJobCard.preInstallationPhotos[1]?.url || ''}
+          photoLeftUrl={detailedJobCard.preInstallationPhotos.find((p: any) => p.caption === 'Left Side')?.url || detailedJobCard.preInstallationPhotos[2]?.url || ''}
+          photoRightUrl={detailedJobCard.preInstallationPhotos.find((p: any) => p.caption === 'Right Side')?.url || detailedJobCard.preInstallationPhotos[3]?.url || ''}
+          remarks={detailedJobCard.preInstallationRemarks}
+          completedAt={detailedJobCard.preInstallationCompletedAt}
         />
       )}
 

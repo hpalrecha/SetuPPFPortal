@@ -3652,10 +3652,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const showroom = await storage.getShowroom(workOrder.showroomId);
         const oem = await storage.getOem(workOrder.oemId);
         
-        // Get job card media from media table
-        const mediaFromTable = await storage.getJobCardMedia({ jobCardId: jobCard.id });
+        // Get post-installation media from media table
+        const postInstallationMedia = await storage.getJobCardMedia({ jobCardId: jobCard.id });
         
-        // Also include pre-installation photos stored directly on job card
+        // Build pre-installation photos array from job card fields
         const preInstallationPhotos: { url: string; caption: string; id: string }[] = [];
         if (jobCard.preInstallationPhotoFront) {
           preInstallationPhotos.push({ 
@@ -3686,19 +3686,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
         
-        // Combine media from table and pre-installation photos
-        const allMedia = [...preInstallationPhotos, ...(mediaFromTable || [])];
-        
         // Generate signed URLs for private media
         const objectStorageServiceInstance = new ObjectStorageService();
-        const mediaWithSignedUrls = await Promise.all(
-          allMedia.map(async (item: any) => {
+        
+        // Sign pre-installation photos
+        const preInstallationPhotosWithSignedUrls = await Promise.all(
+          preInstallationPhotos.map(async (item: any) => {
             if (item.url) {
               try {
                 const signedUrl = await objectStorageServiceInstance.getSignedUrl(item.url, 3600);
                 return { ...item, url: signedUrl || item.url };
               } catch (e) {
-                console.error('Failed to sign URL for media:', item.url, e);
+                console.error('Failed to sign URL for pre-installation photo:', item.url, e);
+                return item;
+              }
+            }
+            return item;
+          })
+        );
+        
+        // Sign post-installation media
+        const postInstallationMediaWithSignedUrls = await Promise.all(
+          (postInstallationMedia || []).map(async (item: any) => {
+            if (item.url) {
+              try {
+                const signedUrl = await objectStorageServiceInstance.getSignedUrl(item.url, 3600);
+                return { ...item, url: signedUrl || item.url };
+              } catch (e) {
+                console.error('Failed to sign URL for post-installation media:', item.url, e);
                 return item;
               }
             }
@@ -3733,7 +3748,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             id: partner.id,
             displayName: partner.displayName
           },
-          media: mediaWithSignedUrls
+          preInstallationPhotos: preInstallationPhotosWithSignedUrls,
+          media: postInstallationMediaWithSignedUrls
         };
 
         // 🔒 Filter price based on partner permissions (for partner users only)
