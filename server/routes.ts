@@ -4131,6 +4131,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } catch (whatsappError) {
               console.error('❌ WhatsApp notification failed:', whatsappError);
             }
+
+            // 📧 Send Pending Invoice notification to Accounts Team
+            try {
+              const ACCOUNTS_TEAM_EMAILS = [
+                'accounts@plusnineoneinc.in',
+                'hp@justsigns.co.in',
+                'nidhi@justsigns.co.in'
+              ];
+
+              // Gather all necessary data for the comprehensive email
+              const partner = await storage.getPartner(jobCard.partnerId);
+              const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
+              const service = await storage.getService(workOrder.serviceId);
+              const showroom = await storage.getShowroom(workOrder.showroomId);
+              const dealership = await storage.getDealership(workOrder.dealershipId);
+              const oem = await storage.getOem(workOrder.oemId);
+
+              // Get dealership pricing for display
+              const { pricingService } = await import('./services/pricingService');
+              const pricing = await pricingService.resolvePricing(
+                jobCard.partnerId,
+                'SHOWROOM',
+                workOrder.showroomId,
+                workOrder.vehicleModelId,
+                workOrder.serviceId
+              );
+              const priceAmount = pricing?.priceAmount || workOrder.estimatedPrice || 0;
+              const formattedPrice = `₹${Number(priceAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
+              // Get bill from/to entity names
+              let billFromName = '';
+              let billToName = '';
+              
+              if (jobCard.billFromType && jobCard.billFromId) {
+                if (jobCard.billFromType === 'PARTNER') {
+                  const billFromPartner = await storage.getPartner(jobCard.billFromId);
+                  billFromName = billFromPartner?.displayName || '';
+                } else if (jobCard.billFromType === 'SHOWROOM') {
+                  billFromName = showroom?.name || '';
+                }
+              }
+              
+              if (jobCard.billToType && jobCard.billToId) {
+                if (jobCard.billToType === 'DEALERSHIP') {
+                  billToName = dealership?.name || '';
+                } else if (jobCard.billToType === 'SHOWROOM') {
+                  const billToShowroom = await storage.getShowroom(jobCard.billToId);
+                  billToName = billToShowroom?.name || '';
+                } else if (jobCard.billToType === 'CUSTOMER') {
+                  billToName = workOrder.customerName || 'Customer';
+                }
+              }
+
+              const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000'}/job-cards/${updatedJobCard.id}`;
+
+              await emailService.sendPendingInvoiceNotification(
+                ACCOUNTS_TEAM_EMAILS,
+                {
+                  jobCardId: updatedJobCard.id,
+                  workOrderNumber: workOrder.workOrderNumber || workOrder.id.slice(0, 8),
+                  customerName: workOrder.customerName || 'N/A',
+                  customerPhone: workOrder.customerPhone || 'N/A',
+                  customerEmail: workOrder.customerEmail || undefined,
+                  customerAddress: workOrder.customerAddress || undefined,
+                  vehicleModel: vehicleModel?.modelName || 'Unknown Model',
+                  vehicleBrand: vehicleModel?.brandId ? (await storage.getBrand(vehicleModel.brandId))?.name || 'Unknown' : 'Unknown',
+                  regNo: workOrder.regNo || 'N/A',
+                  color: workOrder.color || undefined,
+                  serviceName: service?.name || 'PPF Installation',
+                  serviceDescription: service?.description || undefined,
+                  partnerName: partner?.displayName || 'Unknown Partner',
+                  partnerPhone: partner?.phone || undefined,
+                  partnerEmail: partner?.email || undefined,
+                  showroomName: showroom?.name || 'Unknown Showroom',
+                  showroomCity: showroom?.city || undefined,
+                  showroomState: showroom?.state || undefined,
+                  dealershipName: dealership?.name || 'Unknown Dealership',
+                  oemName: oem?.name || 'Unknown OEM',
+                  price: formattedPrice,
+                  approvedAt: updatedJobCard.approvedAt || new Date(),
+                  approvedBy: req.user!.name || req.user!.email,
+                  jobCardLink,
+                  billFromName: billFromName || undefined,
+                  billToName: billToName || undefined
+                }
+              );
+              
+              console.log(`📧 Sent pending invoice notification to ${ACCOUNTS_TEAM_EMAILS.length} accounts team members`);
+            } catch (accountsEmailError) {
+              console.error('❌ Failed to send accounts team notification:', accountsEmailError);
+            }
           } catch (bgError) {
             console.error('❌ Background task error:', bgError);
           }
