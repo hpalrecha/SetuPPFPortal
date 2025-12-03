@@ -882,6 +882,216 @@ export class EmailService {
       html
     });
   }
+
+  // Send Pending Invoice notification to Accounts Team
+  async sendPendingInvoiceNotification(
+    recipientEmails: string[],
+    jobCardData: {
+      jobCardId: string;
+      workOrderNumber: string;
+      customerName: string;
+      customerPhone: string;
+      customerEmail?: string;
+      customerAddress?: string;
+      vehicleModel: string;
+      vehicleBrand: string;
+      regNo: string;
+      color?: string;
+      serviceName: string;
+      serviceDescription?: string;
+      partnerName: string;
+      partnerPhone?: string;
+      partnerEmail?: string;
+      showroomName: string;
+      showroomCity?: string;
+      showroomState?: string;
+      dealershipName: string;
+      oemName: string;
+      price: string;
+      approvedAt: Date;
+      approvedBy: string;
+      jobCardLink?: string;
+      billFromName?: string;
+      billToName?: string;
+    }
+  ): Promise<boolean> {
+    const jobCardLink = jobCardData.jobCardLink || `${this.getBaseUrl()}/job-cards/${jobCardData.jobCardId}`;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Job Card Pending Invoice</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background: #f1f5f9; }
+          .container { max-width: 700px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; }
+          .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 30px 20px; text-align: center; }
+          .header h1 { margin: 0; font-size: 24px; }
+          .content { padding: 30px; }
+          .status-badge { 
+            background: #f59e0b; 
+            color: white; 
+            padding: 8px 20px; 
+            border-radius: 25px; 
+            font-size: 14px; 
+            font-weight: bold; 
+            display: inline-block;
+            text-transform: uppercase;
+          }
+          .section { 
+            background: #f8fafc; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin: 20px 0; 
+            border-left: 4px solid #4db848;
+          }
+          .section-title { 
+            color: #1e293b; 
+            font-size: 16px; 
+            font-weight: bold; 
+            margin: 0 0 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          .section p { margin: 8px 0; font-size: 14px; }
+          .section strong { color: #475569; min-width: 140px; display: inline-block; }
+          .highlight-box {
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            border: 2px solid #10b981;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+          }
+          .price-display {
+            font-size: 32px;
+            font-weight: bold;
+            color: #059669;
+            margin: 10px 0;
+          }
+          .button {
+            display: inline-block;
+            background: #4db848;
+            color: white !important;
+            padding: 14px 32px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+            margin: 20px 0;
+            text-align: center;
+          }
+          .footer { background: #f1f5f9; padding: 20px; text-align: center; color: #64748b; font-size: 13px; }
+          .info-grid { display: table; width: 100%; }
+          .info-row { display: table-row; }
+          .info-label { display: table-cell; padding: 6px 10px 6px 0; font-weight: bold; color: #475569; width: 140px; }
+          .info-value { display: table-cell; padding: 6px 0; color: #1e293b; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          ${this.getLogoHtml()}
+          <div class="header">
+            <h1>📋 Job Card Pending Invoice</h1>
+            <p style="margin: 10px 0 0 0; opacity: 0.9;">A job card has been approved and requires invoice processing</p>
+          </div>
+          <div class="content">
+            <div style="text-align: center; margin-bottom: 25px;">
+              <span class="status-badge">⏳ Pending Invoice</span>
+            </div>
+
+            <div class="highlight-box">
+              <p style="margin: 0; color: #065f46; font-weight: bold;">Invoice Amount</p>
+              <div class="price-display">${jobCardData.price}</div>
+              <p style="margin: 5px 0 0 0; color: #047857; font-size: 14px;">Approved on ${jobCardData.approvedAt.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+            </div>
+
+            <div class="section">
+              <div class="section-title">📋 Job Card Information</div>
+              <div class="info-grid">
+                <div class="info-row"><span class="info-label">Job Card ID:</span><span class="info-value">${jobCardData.jobCardId.slice(0, 8).toUpperCase()}</span></div>
+                <div class="info-row"><span class="info-label">Work Order:</span><span class="info-value">${jobCardData.workOrderNumber}</span></div>
+                <div class="info-row"><span class="info-label">Approved By:</span><span class="info-value">${jobCardData.approvedBy}</span></div>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">👤 Customer Details</div>
+              <div class="info-grid">
+                <div class="info-row"><span class="info-label">Name:</span><span class="info-value">${jobCardData.customerName}</span></div>
+                <div class="info-row"><span class="info-label">Phone:</span><span class="info-value">${jobCardData.customerPhone}</span></div>
+                ${jobCardData.customerEmail ? `<div class="info-row"><span class="info-label">Email:</span><span class="info-value">${jobCardData.customerEmail}</span></div>` : ''}
+                ${jobCardData.customerAddress ? `<div class="info-row"><span class="info-label">Address:</span><span class="info-value">${jobCardData.customerAddress}</span></div>` : ''}
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">🚗 Vehicle Information</div>
+              <div class="info-grid">
+                <div class="info-row"><span class="info-label">Brand:</span><span class="info-value">${jobCardData.vehicleBrand}</span></div>
+                <div class="info-row"><span class="info-label">Model:</span><span class="info-value">${jobCardData.vehicleModel}</span></div>
+                <div class="info-row"><span class="info-label">Reg No:</span><span class="info-value">${jobCardData.regNo}</span></div>
+                ${jobCardData.color ? `<div class="info-row"><span class="info-label">Color:</span><span class="info-value">${jobCardData.color}</span></div>` : ''}
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">🔧 Service Details</div>
+              <div class="info-grid">
+                <div class="info-row"><span class="info-label">Service:</span><span class="info-value">${jobCardData.serviceName}</span></div>
+                ${jobCardData.serviceDescription ? `<div class="info-row"><span class="info-label">Description:</span><span class="info-value">${jobCardData.serviceDescription}</span></div>` : ''}
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">🏢 Partner & Organization</div>
+              <div class="info-grid">
+                <div class="info-row"><span class="info-label">Partner:</span><span class="info-value">${jobCardData.partnerName}</span></div>
+                ${jobCardData.partnerPhone ? `<div class="info-row"><span class="info-label">Partner Phone:</span><span class="info-value">${jobCardData.partnerPhone}</span></div>` : ''}
+                ${jobCardData.partnerEmail ? `<div class="info-row"><span class="info-label">Partner Email:</span><span class="info-value">${jobCardData.partnerEmail}</span></div>` : ''}
+                <div class="info-row"><span class="info-label">OEM:</span><span class="info-value">${jobCardData.oemName}</span></div>
+                <div class="info-row"><span class="info-label">Dealership:</span><span class="info-value">${jobCardData.dealershipName}</span></div>
+                <div class="info-row"><span class="info-label">Showroom:</span><span class="info-value">${jobCardData.showroomName}${jobCardData.showroomCity ? `, ${jobCardData.showroomCity}` : ''}${jobCardData.showroomState ? `, ${jobCardData.showroomState}` : ''}</span></div>
+              </div>
+            </div>
+
+            ${jobCardData.billFromName || jobCardData.billToName ? `
+            <div class="section">
+              <div class="section-title">💰 Billing Information</div>
+              <div class="info-grid">
+                ${jobCardData.billFromName ? `<div class="info-row"><span class="info-label">Bill From:</span><span class="info-value">${jobCardData.billFromName}</span></div>` : ''}
+                ${jobCardData.billToName ? `<div class="info-row"><span class="info-label">Bill To:</span><span class="info-value">${jobCardData.billToName}</span></div>` : ''}
+              </div>
+            </div>
+            ` : ''}
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${jobCardLink}" class="button">
+                📋 View Full Job Card Details
+              </a>
+            </div>
+
+            <p style="margin-top: 20px; font-size: 13px; color: #64748b; text-align: center;">
+              This is an automated notification from Pulse VAS. Please process the invoice at your earliest convenience.
+            </p>
+          </div>
+          <div class="footer">
+            <p style="margin: 0;">Pulse VAS - Professional Paint Protection Film Services</p>
+            <p style="margin: 5px 0 0 0;">© ${new Date().getFullYear()} P91 India. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    return this.sendEmail({
+      to: recipientEmails,
+      subject: `📋 Pending Invoice - ${jobCardData.workOrderNumber} | ${jobCardData.vehicleBrand} ${jobCardData.vehicleModel} | ${jobCardData.price}`,
+      html
+    });
+  }
 }
 
 // Export singleton instance
