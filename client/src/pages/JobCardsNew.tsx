@@ -744,13 +744,13 @@ export default function JobCardsNew() {
           <div className="hidden lg:block rounded-lg border border-border overflow-hidden">
             {/* Table Header */}
             <div className="bg-muted/50 border-b border-border px-4 py-3">
-              <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '90px 150px 1fr 140px 1fr 120px 100px 110px 90px'}}>
+              <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '90px 140px 1fr 130px 1fr 150px 100px 100px 80px'}}>
                 <div className="truncate">ID</div>
                 <div className="truncate">Status</div>
-                <div className="truncate">Vehicle Model</div>
+                <div className="truncate">Vehicle</div>
                 <div className="truncate">Reg No</div>
                 <div className="truncate">Service</div>
-                <div className="truncate">Bill From</div>
+                <div className="truncate">Allocated Partner</div>
                 <div className="truncate">Created</div>
                 <div className="truncate">Scheduled</div>
                 <div className="truncate">Actions</div>
@@ -765,7 +765,7 @@ export default function JobCardsNew() {
                   className="px-4 py-4 hover:bg-muted/30 transition-colors"
                   data-testid={`row-job-card-${jobCard.id}`}
                 >
-                  <div className="grid gap-3 items-center min-h-[70px]" style={{gridTemplateColumns: '90px 150px 1fr 140px 1fr 120px 100px 110px 90px'}}>
+                  <div className="grid gap-3 items-center min-h-[70px]" style={{gridTemplateColumns: '90px 140px 1fr 130px 1fr 150px 100px 100px 80px'}}>
                     {/* ID Column */}
                     <div className="min-w-0 overflow-hidden">
                       <span className="font-mono text-sm font-semibold block truncate" data-testid={`text-id-${jobCard.id}`}>
@@ -783,10 +783,10 @@ export default function JobCardsNew() {
                       </div>
                     </div>
 
-                    {/* Vehicle Model Column */}
+                    {/* Vehicle Column - just model name */}
                     <div className="min-w-0 overflow-hidden">
-                      <div className="text-sm font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`} title={jobCard.vehicleDisplay}>
-                        {jobCard.vehicleDisplay}
+                      <div className="text-sm font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`} title={jobCard.workOrder?.vehicleModel?.modelName || jobCard.vehicleDisplay}>
+                        {jobCard.workOrder?.vehicleModel?.modelName || jobCard.vehicleDisplay}
                       </div>
                     </div>
 
@@ -804,15 +804,11 @@ export default function JobCardsNew() {
                       </div>
                     </div>
 
-                    {/* Bill From Column */}
+                    {/* Allocated Partner Column */}
                     <div className="min-w-0 overflow-hidden">
-                      {jobCard.billFrom?.name ? (
-                        <div className="text-sm font-medium truncate" title={jobCard.billFrom.name}>
-                          {jobCard.billFrom.name}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">N/A</span>
-                      )}
+                      <div className="text-sm font-medium truncate" data-testid={`text-partner-${jobCard.id}`} title={jobCard.partnerDisplay}>
+                        {jobCard.partnerDisplay}
+                      </div>
                     </div>
 
                     {/* Created Column */}
@@ -857,7 +853,7 @@ export default function JobCardsNew() {
                 <div className="col-span-1">Status</div>
                 <div className="col-span-2">Vehicle</div>
                 <div className="col-span-2">Reg No</div>
-                <div className="col-span-1">Service</div>
+                <div className="col-span-1">Partner</div>
                 <div className="col-span-1">Actions</div>
               </div>
             </div>
@@ -889,7 +885,7 @@ export default function JobCardsNew() {
                     {/* Vehicle Column */}
                     <div className="col-span-2">
                       <div className="text-xs font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`}>
-                        {jobCard.vehicleDisplay}
+                        {jobCard.workOrder?.vehicleModel?.modelName || jobCard.vehicleDisplay}
                       </div>
                       <div className="text-xs text-muted-foreground truncate" data-testid={`text-service-${jobCard.id}`}>
                         {jobCard.serviceDisplay}
@@ -906,10 +902,10 @@ export default function JobCardsNew() {
                       </div>
                     </div>
 
-                    {/* Service Column */}
+                    {/* Partner Column */}
                     <div className="col-span-1">
-                      <div className="text-xs font-medium truncate" title={jobCard.serviceDisplay}>
-                        {jobCard.serviceDisplay?.split(' ')[0] || 'N/A'}
+                      <div className="text-xs font-medium truncate" data-testid={`text-partner-${jobCard.id}`} title={jobCard.partnerDisplay}>
+                        {jobCard.partnerDisplay}
                       </div>
                     </div>
 
@@ -961,9 +957,9 @@ export default function JobCardsNew() {
                     <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
                       <Car className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-muted-foreground">Vehicle Model</div>
+                        <div className="text-xs text-muted-foreground">Vehicle</div>
                         <div className="font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`}>
-                          {jobCard.vehicleDisplay}
+                          {jobCard.workOrder?.vehicleModel?.modelName || jobCard.vehicleDisplay}
                         </div>
                       </div>
                     </div>
@@ -979,21 +975,21 @@ export default function JobCardsNew() {
                     </div>
 
                     <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
-                      <ServiceIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-muted-foreground">Service</div>
-                        <div className="font-medium truncate" data-testid={`text-service-${jobCard.id}`}>
-                          {jobCard.serviceDisplay}
+                        <div className="text-xs text-muted-foreground">Allocated Partner</div>
+                        <div className="font-medium truncate" data-testid={`text-partner-${jobCard.id}`}>
+                          {jobCard.partnerDisplay}
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
-                      <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <ServiceIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-muted-foreground">Created</div>
-                        <div className="text-xs font-medium" data-testid={`text-created-${jobCard.id}`}>
-                          {formatDate(jobCard.createdAt)}
+                        <div className="text-xs text-muted-foreground">Service</div>
+                        <div className="font-medium truncate" data-testid={`text-service-${jobCard.id}`}>
+                          {jobCard.serviceDisplay}
                         </div>
                       </div>
                     </div>
