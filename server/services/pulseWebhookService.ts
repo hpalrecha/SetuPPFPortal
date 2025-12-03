@@ -87,12 +87,23 @@ export class PulseWebhookService {
       this.validatePayload(payload);
 
       // Create or update partner first (pass full user data for contact details)
-      const partnerId = await this.ensurePartner(payload.user, actorId);
+      // This also creates a PARTNER_ADMIN user if it's a new partner
+      const partnerResult = await this.ensurePartner(payload.user, actorId);
 
       if (payload.action === 'activate') {
-        return await this.activateUser(payload, partnerId, actorId);
+        // If user was already created during partner creation, just return success
+        if (partnerResult.userCreated && partnerResult.userId) {
+          return {
+            success: true,
+            message: 'Partner and user created successfully',
+            userId: partnerResult.userId,
+            partnerId: partnerResult.partnerId
+          };
+        }
+        // Otherwise, handle user activation (for existing partners)
+        return await this.activateUser(payload, partnerResult.partnerId, actorId);
       } else if (payload.action === 'deactivate') {
-        return await this.deactivateUser(payload, partnerId, actorId);
+        return await this.deactivateUser(payload, partnerResult.partnerId, actorId);
       } else {
         throw new Error(`Invalid action: ${payload.action}`);
       }
@@ -108,8 +119,9 @@ export class PulseWebhookService {
   /**
    * Ensure partner exists (create if new, update if exists)
    * Looks up partner by displayName to find existing partners
+   * Also creates a PARTNER_ADMIN user for new partners
    */
-  private async ensurePartner(userData: PulseWebhookPayload['user'], actorId?: string): Promise<string> {
+  private async ensurePartner(userData: PulseWebhookPayload['user'], actorId?: string): Promise<{ partnerId: string; userCreated: boolean; userId?: string }> {
     try {
       // Try to find existing partner by name OR email
       const allPartners = await storage.getPartners({});
@@ -150,7 +162,7 @@ export class PulseWebhookService {
           phone: phoneNumber,
           contactPerson: userData.contactPersonName
         });
-        return existingPartner.id;
+        return { partnerId: existingPartner.id, userCreated: false };
       }
 
       // Create new partner with all contact details
@@ -160,7 +172,7 @@ export class PulseWebhookService {
         canViewJobCardPrice: false
       });
 
-      // Audit log
+      // Audit log for partner
       await storage.createAuditLog({
         actorUserId: actorId,
         entity: 'partner',
@@ -183,11 +195,81 @@ export class PulseWebhookService {
         address: userData.address,
         city: userData.city
       });
-      return newPartner.id;
+
+      // Create PARTNER_ADMIN user for new partner
+      const userId = await this.createPartnerAdminUser(userData, newPartner.id, actorId);
+
+      return { partnerId: newPartner.id, userCreated: true, userId };
     } catch (error: any) {
       console.error('❌ Failed to ensure partner:', error);
       throw new Error(`Failed to create/update partner: ${error.message}`);
     }
+  }
+
+  /**
+   * Create a PARTNER_ADMIN user for a new partner
+   */
+  private async createPartnerAdminUser(userData: PulseWebhookPayload['user'], partnerId: string, actorId?: string): Promise<string> {
+    // Check if user already exists
+    const existingUser = await storage.getUserByEmail(userData.email);
+    if (existingUser) {
+      console.log(`⚠️ User already exists for email: ${userData.email}`);
+      // Update existing user to link to this partner if not already linked
+      if (!existingUser.partnerId) {
+        await storage.updateUser(existingUser.id, {
+          partnerId,
+          isActive: true
+        });
+      }
+      return existingUser.id;
+    }
+
+    // Use contact person name if provided, otherwise extract from email
+    const userName = userData.contactPersonName || 
+      userData.email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+    // Handle both "phone" and "mobile" field names
+    const phoneNumber = userData.phone || userData.mobile;
+
+    // Create new user
+    const tempPassword = this.generateTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
+    
+    // Generate username from email
+    const username = userData.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    const newUser = await storage.createUser({
+      username,
+      email: userData.email,
+      name: userName,
+      phone: phoneNumber,
+      role: 'PARTNER_ADMIN',
+      partnerId,
+      passwordHash,
+      isActive: true
+    });
+
+    // Send welcome email with password reset link
+    if (newUser.email) {
+      await this.sendWelcomeEmail(newUser.email, newUser.name, newUser.id);
+    }
+
+    // Audit log for user
+    await storage.createAuditLog({
+      actorUserId: actorId,
+      entity: 'user',
+      entityId: newUser.id,
+      action: 'CREATED_BY_PULSE',
+      diffJson: {
+        email: userData.email,
+        role: 'PARTNER_ADMIN',
+        partnerId,
+        source: 'pulse_webhook'
+      }
+    });
+
+    console.log(`✅ User created for partner: ${userData.email} (${newUser.id})`);
+    return newUser.id;
   }
 
   /**
