@@ -46,7 +46,8 @@ import {
   MapPinned,
   Package,
   DollarSign,
-  Shield
+  Shield,
+  Hash
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
@@ -743,14 +744,12 @@ export default function JobCardsNew() {
           <div className="hidden lg:block rounded-lg border border-border overflow-hidden">
             {/* Table Header */}
             <div className="bg-muted/50 border-b border-border px-4 py-3">
-              <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '90px 150px 120px 130px 1fr 1fr 150px 120px 100px 110px 90px'}}>
+              <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '90px 150px 1fr 140px 1fr 120px 100px 110px 90px'}}>
                 <div className="truncate">ID</div>
                 <div className="truncate">Status</div>
-                <div className="truncate">Customer</div>
-                <div className="truncate">Phone</div>
-                <div className="truncate">Vehicle</div>
+                <div className="truncate">Vehicle Model</div>
+                <div className="truncate">Reg No</div>
                 <div className="truncate">Service</div>
-                <div className="truncate">Partner</div>
                 <div className="truncate">Bill From</div>
                 <div className="truncate">Created</div>
                 <div className="truncate">Scheduled</div>
@@ -766,7 +765,7 @@ export default function JobCardsNew() {
                   className="px-4 py-4 hover:bg-muted/30 transition-colors"
                   data-testid={`row-job-card-${jobCard.id}`}
                 >
-                  <div className="grid gap-3 items-center min-h-[70px]" style={{gridTemplateColumns: '90px 150px 120px 130px 1fr 1fr 150px 120px 100px 110px 90px'}}>
+                  <div className="grid gap-3 items-center min-h-[70px]" style={{gridTemplateColumns: '90px 150px 1fr 140px 1fr 120px 100px 110px 90px'}}>
                     {/* ID Column */}
                     <div className="min-w-0 overflow-hidden">
                       <span className="font-mono text-sm font-semibold block truncate" data-testid={`text-id-${jobCard.id}`}>
@@ -784,24 +783,17 @@ export default function JobCardsNew() {
                       </div>
                     </div>
 
-                    {/* Customer Column */}
-                    <div className="min-w-0 overflow-hidden">
-                      <div className="text-sm font-medium truncate" data-testid={`text-customer-${jobCard.id}`} title={jobCard.customerName}>
-                        {jobCard.customerName}
-                      </div>
-                    </div>
-
-                    {/* Phone Column */}
-                    <div className="min-w-0 overflow-hidden">
-                      <div className="text-sm text-muted-foreground truncate" data-testid={`text-phone-${jobCard.id}`} title={jobCard.workOrder?.customerPhone || 'N/A'}>
-                        {jobCard.workOrder?.customerPhone || 'N/A'}
-                      </div>
-                    </div>
-
-                    {/* Vehicle Column */}
+                    {/* Vehicle Model Column */}
                     <div className="min-w-0 overflow-hidden">
                       <div className="text-sm font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`} title={jobCard.vehicleDisplay}>
                         {jobCard.vehicleDisplay}
+                      </div>
+                    </div>
+
+                    {/* Reg No (VIN) Column */}
+                    <div className="min-w-0 overflow-hidden">
+                      <div className="text-sm font-medium truncate font-mono" data-testid={`text-regno-${jobCard.id}`} title={jobCard.workOrder?.regNo || 'N/A'}>
+                        {jobCard.workOrder?.regNo || 'N/A'}
                       </div>
                     </div>
 
@@ -809,13 +801,6 @@ export default function JobCardsNew() {
                     <div className="min-w-0 overflow-hidden">
                       <div className="text-sm font-medium truncate" data-testid={`text-service-${jobCard.id}`} title={jobCard.serviceDisplay}>
                         {jobCard.serviceDisplay}
-                      </div>
-                    </div>
-
-                    {/* Partner Column */}
-                    <div className="min-w-0 overflow-hidden">
-                      <div className="text-sm font-medium truncate" data-testid={`text-partner-${jobCard.id}`} title={jobCard.partnerDisplay}>
-                        {jobCard.partnerDisplay}
                       </div>
                     </div>
 
@@ -870,9 +855,9 @@ export default function JobCardsNew() {
               <div className="grid grid-cols-8 gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 <div className="col-span-1">ID</div>
                 <div className="col-span-1">Status</div>
-                <div className="col-span-2">Customer</div>
                 <div className="col-span-2">Vehicle</div>
-                <div className="col-span-1">Partner</div>
+                <div className="col-span-2">Reg No</div>
+                <div className="col-span-1">Service</div>
                 <div className="col-span-1">Actions</div>
               </div>
             </div>
@@ -901,16 +886,6 @@ export default function JobCardsNew() {
                       </div>
                     </div>
 
-                    {/* Customer Column */}
-                    <div className="col-span-2">
-                      <div className="text-xs font-medium truncate" data-testid={`text-customer-${jobCard.id}`}>
-                        {jobCard.customerName}
-                      </div>
-                      <div className="text-xs text-muted-foreground truncate" data-testid={`text-phone-${jobCard.id}`}>
-                        {jobCard.workOrder?.customerPhone || 'N/A'}
-                      </div>
-                    </div>
-
                     {/* Vehicle Column */}
                     <div className="col-span-2">
                       <div className="text-xs font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`}>
@@ -921,13 +896,20 @@ export default function JobCardsNew() {
                       </div>
                     </div>
 
-                    {/* Partner Column */}
-                    <div className="col-span-1">
-                      <div className="text-xs font-medium truncate" data-testid={`text-partner-${jobCard.id}`}>
-                        {jobCard.partnerDisplay}
+                    {/* Reg No Column */}
+                    <div className="col-span-2">
+                      <div className="text-xs font-medium truncate font-mono" data-testid={`text-regno-${jobCard.id}`}>
+                        {jobCard.workOrder?.regNo || 'N/A'}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {formatDate(jobCard.createdAt)}
+                      </div>
+                    </div>
+
+                    {/* Service Column */}
+                    <div className="col-span-1">
+                      <div className="text-xs font-medium truncate" title={jobCard.serviceDisplay}>
+                        {jobCard.serviceDisplay?.split(' ')[0] || 'N/A'}
                       </div>
                     </div>
 
@@ -977,21 +959,21 @@ export default function JobCardsNew() {
                   {/* Details Grid */}
                   <div className="grid grid-cols-1 gap-2 text-sm mb-4">
                     <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
-                      <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <Car className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-muted-foreground">Customer</div>
-                        <div className="font-medium truncate" data-testid={`text-customer-${jobCard.id}`}>
-                          {jobCard.customerName}
+                        <div className="text-xs text-muted-foreground">Vehicle Model</div>
+                        <div className="font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`}>
+                          {jobCard.vehicleDisplay}
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
-                      <Car className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <Hash className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-muted-foreground">Vehicle</div>
-                        <div className="font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`}>
-                          {jobCard.vehicleDisplay}
+                        <div className="text-xs text-muted-foreground">Reg No</div>
+                        <div className="font-medium font-mono truncate" data-testid={`text-regno-${jobCard.id}`}>
+                          {jobCard.workOrder?.regNo || 'N/A'}
                         </div>
                       </div>
                     </div>
@@ -1007,33 +989,11 @@ export default function JobCardsNew() {
                     </div>
 
                     <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
-                      <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-muted-foreground">Partner</div>
-                        <div className="font-medium truncate" data-testid={`text-partner-${jobCard.id}`}>
-                          {jobCard.partnerDisplay}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
-                        <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs text-muted-foreground">Created</div>
-                          <div className="text-xs font-medium" data-testid={`text-created-${jobCard.id}`}>
-                            {formatDate(jobCard.createdAt)}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
-                        <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs text-muted-foreground">Phone</div>
-                          <div className="text-xs font-medium truncate" data-testid={`text-phone-${jobCard.id}`}>
-                            {jobCard.workOrder?.customerPhone || 'N/A'}
-                          </div>
+                        <div className="text-xs text-muted-foreground">Created</div>
+                        <div className="text-xs font-medium" data-testid={`text-created-${jobCard.id}`}>
+                          {formatDate(jobCard.createdAt)}
                         </div>
                       </div>
                     </div>
