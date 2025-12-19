@@ -690,6 +690,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Update user (Super Admin and Admin only)
+  app.patch("/api/users/:id",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    auditLog('user', 'update'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const currentUser = req.user!;
+        const { name, email, phone, password, isActive, showServicePrices, allowedStates } = req.body;
+
+        // Get user to verify they exist
+        const existingUser = await storage.getUser(id);
+        if (!existingUser) {
+          return res.status(404).json({ error: "User not found" });
+        }
+
+        // Check if email is being changed and is already in use
+        if (email && email !== existingUser.email) {
+          const userByEmail = await storage.getUserByEmail(email);
+          if (userByEmail && userByEmail.id !== id) {
+            return res.status(400).json({ error: "Email is already in use" });
+          }
+        }
+
+        // Build update object
+        const updates: any = {};
+        if (name !== undefined) updates.name = name;
+        if (email !== undefined) updates.email = email;
+        if (phone !== undefined) updates.phone = phone;
+        if (isActive !== undefined) updates.isActive = isActive;
+        if (showServicePrices !== undefined) updates.showServicePrices = showServicePrices;
+        if (allowedStates !== undefined) updates.allowedStates = allowedStates;
+        
+        // Handle password update
+        if (password && password.length > 0) {
+          const hashedPassword = await bcrypt.hash(password, 10);
+          updates.passwordHash = hashedPassword;
+        }
+
+        const updatedUser = await storage.updateUser(id, updates);
+        if (!updatedUser) {
+          return res.status(500).json({ error: "Failed to update user" });
+        }
+
+        res.json(updatedUser);
+      } catch (error) {
+        console.error("Update user error:", error);
+        res.status(500).json({ error: "Failed to update user" });
+      }
+    }
+  );
+
   // Delete user (Super Admin only)
   app.delete("/api/users/:id",
     authenticate,

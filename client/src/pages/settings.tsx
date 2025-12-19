@@ -14,6 +14,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { ApiClient } from "@/lib/api";
 import { apiRequest } from "@/lib/queryClient";
 import { CreateUserModal } from "@/components/modals/CreateUserModal";
+import { EditUserModal } from "@/components/modals/EditUserModal";
 import { INDIAN_STATES } from "@shared/constants";
 
 export default function SettingsPage() {
@@ -62,6 +63,8 @@ export default function SettingsPage() {
   const [showCreateDealershipModal, setShowCreateDealershipModal] = useState(false);
   const [showCreateShowroomModal, setShowCreateShowroomModal] = useState(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [showEditUserModal, setShowEditUserModal] = useState(false);
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState<any>(null);
   const [selectedRole, setSelectedRole] = useState<string>("all");
 
   // Delete user mutation
@@ -567,7 +570,15 @@ export default function SettingsPage() {
                         <p className="text-sm text-muted-foreground mb-1">{usr.email}</p>
                         <p className="text-xs text-muted-foreground mb-3">{usr.role.replace(/_/g, ' ')}</p>
                         <div className="flex space-x-2">
-                          <Button size="sm" variant="outline" data-testid={`button-edit-user-${usr.id}`}>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => {
+                              setSelectedUserForEdit(usr);
+                              setShowEditUserModal(true);
+                            }}
+                            data-testid={`button-edit-user-${usr.id}`}
+                          >
                             <Edit className="h-3 w-3" />
                           </Button>
                           {user?.role === 'SUPER_ADMIN' && (
@@ -976,6 +987,17 @@ export default function SettingsPage() {
         onOpenChange={setShowCreateUserModal}
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+        }}
+      />
+
+      {/* Edit User Modal */}
+      <EditUserModal
+        open={showEditUserModal}
+        onOpenChange={setShowEditUserModal}
+        user={selectedUserForEdit}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+          setSelectedUserForEdit(null);
         }}
       />
     </div>
