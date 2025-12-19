@@ -41,6 +41,7 @@ export default function WorkOrdersPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const showPrices = user?.showServicePrices !== false;
   
   // Route detection
   const [, listRouteParams] = useRoute("/work-orders");

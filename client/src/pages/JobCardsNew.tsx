@@ -227,6 +227,7 @@ export default function JobCardsNew() {
   const { toast } = useToast();
   const isPartnerUser = user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF';
   const isShowroomUser = user?.role === 'SHOWROOM_MANAGER' || user?.role === 'DEALERSHIP_ADMIN';
+  const showPrices = user?.showServicePrices !== false;
   const { selectedOemId } = useOemContext();
 
   // Fetch and enrich job cards with related data
@@ -1487,18 +1488,20 @@ export default function JobCardsNew() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="space-y-2">
-                      {/* Billing Value */}
-                      <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-3">
-                        <span className="text-sm text-muted-foreground">Job Card Billing Value</span>
-                        <p className="font-bold text-lg text-green-700 dark:text-green-400" data-testid="text-billing-value">
-                          {detailedJobCard.billingValue 
-                            ? `₹${Number(detailedJobCard.billingValue).toLocaleString('en-IN')}` 
-                            : '₹0.00'}
-                        </p>
-                        <span className="text-xs text-muted-foreground">
-                          {detailedJobCard.billingValue ? 'From Work Order' : 'Not set'}
-                        </span>
-                      </div>
+                      {/* Billing Value - hidden when showServicePrices is disabled */}
+                      {showPrices && (
+                        <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                          <span className="text-sm text-muted-foreground">Job Card Billing Value</span>
+                          <p className="font-bold text-lg text-green-700 dark:text-green-400" data-testid="text-billing-value">
+                            {detailedJobCard.billingValue 
+                              ? `₹${Number(detailedJobCard.billingValue).toLocaleString('en-IN')}` 
+                              : '₹0.00'}
+                          </p>
+                          <span className="text-xs text-muted-foreground">
+                            {detailedJobCard.billingValue ? 'From Work Order' : 'Not set'}
+                          </span>
+                        </div>
+                      )}
                       
                       <div>
                         <span className="text-sm text-muted-foreground">Assigned Installer</span>
