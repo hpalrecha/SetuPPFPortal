@@ -25,11 +25,11 @@ export class WorkOrderService {
     // Default billing entity - Plus Nine One Inc
     const plusNineOneInc = {
       name: "Plus Nine One Inc",
-      addressLine1: "123 Business Park",
-      city: "Mumbai",
-      state: "Maharashtra",
-      pincode: "400001",
-      gstin: "27AABCP9999A1Z5"
+      addressLine1: "Ward 117, 49, Bannerghatta Rd, Ayappa Garden, Shanti Nagar",
+      city: "Bengaluru",
+      state: "Karnataka",
+      pincode: "560030",
+      gstin: "29AMIPP3288M1Z6"
     };
 
     let billFrom = plusNineOneInc;
