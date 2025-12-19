@@ -206,6 +206,7 @@ export const users = pgTable("users", {
   profileCompleted: boolean("profile_completed").default(false),
   resetToken: text("reset_token"),
   resetTokenExpiry: timestamp("reset_token_expiry"),
+  showServicePrices: boolean("show_service_prices").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 }, (table) => {
