@@ -43,6 +43,7 @@ export interface AuthUser {
   phoneVerified: boolean;
   profileCompleted: boolean;
   allowedOemIds?: string[];
+  showServicePrices?: boolean;
 }
 
 export interface LoginRequest {

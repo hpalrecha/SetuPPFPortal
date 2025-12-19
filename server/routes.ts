@@ -255,6 +255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         emailVerified: freshUser.emailVerified,
         phoneVerified: freshUser.phoneVerified,
         phone: freshUser.phone || undefined,
+        showServicePrices: freshUser.showServicePrices ?? true,
       };
 
       // Disable caching to ensure fresh user data after profile updates

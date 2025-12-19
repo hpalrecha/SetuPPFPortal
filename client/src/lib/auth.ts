@@ -20,6 +20,7 @@ export interface AuthUser {
   emailVerified?: boolean;
   phoneVerified?: boolean;
   phone?: string;
+  showServicePrices?: boolean;
 }
 
 export interface LoginResponse {

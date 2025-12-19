@@ -47,6 +47,7 @@ const userSchema = z.object({
   partnerId: z.string().optional(),
   allowedStates: z.array(z.string()).optional(),
   isActive: z.boolean().default(true),
+  showServicePrices: z.boolean().default(true),
 });
 
 type UserFormData = z.infer<typeof userSchema>;
@@ -74,6 +75,7 @@ export function CreateUserModal({
       password: "",
       role: "SALES_PERSON",
       isActive: true,
+      showServicePrices: true,
     },
   });
 
@@ -347,6 +349,28 @@ export function CreateUserModal({
                 )}
               />
             )}
+
+            <FormField
+              control={form.control}
+              name="showServicePrices"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">Show Service Prices</FormLabel>
+                    <FormDescription>
+                      Allow this user to see service prices in work orders and job cards
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      data-testid="checkbox-show-service-prices"
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
 
             {selectedRole === 'MANAGER' && (
               <FormField
