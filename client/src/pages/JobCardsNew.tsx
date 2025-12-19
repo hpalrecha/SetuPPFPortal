@@ -47,7 +47,8 @@ import {
   Package,
   DollarSign,
   Shield,
-  Hash
+  Hash,
+  Store
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
@@ -1380,12 +1381,32 @@ export default function JobCardsNew() {
                     <div className="flex items-start gap-3">
                       <Car className="h-4 w-4 text-muted-foreground mt-1" />
                       <div>
-                        <span className="text-sm text-muted-foreground">Vehicle</span>
+                        <span className="text-sm text-muted-foreground">Vehicle Model</span>
                         <p className="font-medium text-sm leading-relaxed">
                           {detailedJobCard.workOrder?.vehicleModel?.modelName || 'N/A'}
                         </p>
                       </div>
                     </div>
+                    <div className="flex items-start gap-3">
+                      <FileText className="h-4 w-4 text-muted-foreground mt-1" />
+                      <div>
+                        <span className="text-sm text-muted-foreground">Registration No.</span>
+                        <p className="font-medium text-sm font-mono" data-testid="text-detail-regno">
+                          {detailedJobCard.workOrder?.regNo || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                    {detailedJobCard.workOrder?.vehicleColor && (
+                      <div className="flex items-start gap-3">
+                        <Car className="h-4 w-4 text-muted-foreground mt-1" />
+                        <div>
+                          <span className="text-sm text-muted-foreground">Color</span>
+                          <p className="font-medium text-sm">
+                            {detailedJobCard.workOrder.vehicleColor}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex items-start gap-3">
                       <ServiceIcon className="h-4 w-4 text-muted-foreground mt-1" />
                       <div>
@@ -1403,6 +1424,54 @@ export default function JobCardsNew() {
                           </p>
                         </div>
                       </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Order Source Card - Showroom/Dealership */}
+                <Card className="col-span-1">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <Store className="h-5 w-5 text-indigo-600" />
+                      <CardTitle className="text-base">Order Placed By</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {detailedJobCard.workOrder?.showroomName && (
+                      <div className="flex items-start gap-3">
+                        <Store className="h-4 w-4 text-muted-foreground mt-1" />
+                        <div>
+                          <span className="text-sm text-muted-foreground">Showroom</span>
+                          <p className="font-medium text-sm" data-testid="text-showroom-name">
+                            {detailedJobCard.workOrder.showroomName}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {detailedJobCard.workOrder?.dealershipName && (
+                      <div className="flex items-start gap-3">
+                        <Building2 className="h-4 w-4 text-muted-foreground mt-1" />
+                        <div>
+                          <span className="text-sm text-muted-foreground">Dealership</span>
+                          <p className="font-medium text-sm" data-testid="text-dealership-name">
+                            {detailedJobCard.workOrder.dealershipName}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {detailedJobCard.workOrder?.oemName && (
+                      <div className="flex items-start gap-3">
+                        <Building2 className="h-4 w-4 text-muted-foreground mt-1" />
+                        <div>
+                          <span className="text-sm text-muted-foreground">OEM</span>
+                          <p className="font-medium text-sm" data-testid="text-oem-name">
+                            {detailedJobCard.workOrder.oemName}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {!detailedJobCard.workOrder?.showroomName && !detailedJobCard.workOrder?.dealershipName && (
+                      <p className="text-sm text-muted-foreground">No source information available</p>
                     )}
                   </CardContent>
                 </Card>
