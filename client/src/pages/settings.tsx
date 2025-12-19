@@ -66,6 +66,7 @@ export default function SettingsPage() {
   const [showEditUserModal, setShowEditUserModal] = useState(false);
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<any>(null);
   const [selectedRole, setSelectedRole] = useState<string>("all");
+  const [userSearchQuery, setUserSearchQuery] = useState("");
 
   // Delete user mutation
   const deleteUserMutation = useMutation({
@@ -153,13 +154,26 @@ export default function SettingsPage() {
   });
   const usersArray = Array.isArray(users) ? users : [];
 
-  // Filter users based on selected role
+  // Filter users based on selected role and search query
   const filteredUsers = useMemo(() => {
-    if (selectedRole === "all") {
-      return usersArray;
+    let result = usersArray;
+    
+    // Filter by role
+    if (selectedRole !== "all") {
+      result = result.filter(u => u.role === selectedRole);
     }
-    return usersArray.filter(u => u.role === selectedRole);
-  }, [usersArray, selectedRole]);
+    
+    // Filter by search query (name or email)
+    if (userSearchQuery.trim()) {
+      const query = userSearchQuery.toLowerCase().trim();
+      result = result.filter(u => 
+        (u.name && u.name.toLowerCase().includes(query)) ||
+        (u.email && u.email.toLowerCase().includes(query))
+      );
+    }
+    
+    return result;
+  }, [usersArray, selectedRole, userSearchQuery]);
 
   // Fetch current user's dealership details if they're a DEALERSHIP_ADMIN
   const { data: myDealership } = useQuery({
@@ -532,26 +546,36 @@ export default function SettingsPage() {
                   </Button>
                 </div>
                 
-                {/* Role Filter */}
-                <div className="flex items-center gap-4">
-                  <Label htmlFor="role-filter" className="text-sm font-medium">Filter by Role:</Label>
-                  <Select value={selectedRole} onValueChange={setSelectedRole}>
-                    <SelectTrigger className="w-[250px]" id="role-filter" data-testid="filter-role">
-                      <SelectValue placeholder="All Roles" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Roles</SelectItem>
-                      <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
-                      <SelectItem value="ADMIN">Admin</SelectItem>
-                      <SelectItem value="MANAGER">Manager</SelectItem>
-                      <SelectItem value="OEM_ADMIN">OEM Admin</SelectItem>
-                      <SelectItem value="DEALERSHIP_ADMIN">Dealership Admin</SelectItem>
-                      <SelectItem value="SHOWROOM_MANAGER">Showroom Manager</SelectItem>
-                      <SelectItem value="SALES_PERSON">Sales Person</SelectItem>
-                      <SelectItem value="PARTNER_ADMIN">Partner Admin</SelectItem>
-                      <SelectItem value="PARTNER_STAFF">Partner Staff</SelectItem>
-                    </SelectContent>
-                  </Select>
+                {/* Search and Role Filter */}
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex-1 min-w-[200px] max-w-[300px]">
+                    <Input
+                      placeholder="Search by name or email..."
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                      data-testid="input-user-search"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="role-filter" className="text-sm font-medium">Role:</Label>
+                    <Select value={selectedRole} onValueChange={setSelectedRole}>
+                      <SelectTrigger className="w-[200px]" id="role-filter" data-testid="filter-role">
+                        <SelectValue placeholder="All Roles" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Roles</SelectItem>
+                        <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                        <SelectItem value="ADMIN">Admin</SelectItem>
+                        <SelectItem value="MANAGER">Manager</SelectItem>
+                        <SelectItem value="OEM_ADMIN">OEM Admin</SelectItem>
+                        <SelectItem value="DEALERSHIP_ADMIN">Dealership Admin</SelectItem>
+                        <SelectItem value="SHOWROOM_MANAGER">Showroom Manager</SelectItem>
+                        <SelectItem value="SALES_PERSON">Sales Person</SelectItem>
+                        <SelectItem value="PARTNER_ADMIN">Partner Admin</SelectItem>
+                        <SelectItem value="PARTNER_STAFF">Partner Staff</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <span className="text-sm text-muted-foreground">
                     Showing {filteredUsers.length} of {usersArray.length} users
                   </span>
