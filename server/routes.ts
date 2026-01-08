@@ -7383,9 +7383,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // For now, skip this check
         }
 
-        // File is already saved by multer to uploads/job-cards/
-        // Generate the URL to serve the file
-        const mediaUrl = `/api/media/job-cards/${req.file.filename}`;
+        // Upload file to Object Storage instead of local disk
+        const objectStorageService = new ObjectStorageService();
+        const fileBuffer = fs.readFileSync(req.file.path);
+        const mediaUrl = await objectStorageService.uploadBuffer(
+          fileBuffer,
+          req.file.originalname,
+          req.file.mimetype
+        );
+
+        // Clean up the local temp file
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (cleanupError) {
+          console.warn('Failed to cleanup temp file:', req.file.path, cleanupError);
+        }
 
         // Save media record to database
         const media = await storage.insertJobCardMedia({
@@ -7395,10 +7407,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           caption
         });
 
+        // Generate signed URL for immediate display
+        const signedUrl = await objectStorageService.getSignedUrl(mediaUrl, 3600);
+
         res.json({ 
           message: "Media uploaded successfully", 
           media,
-          url: mediaUrl 
+          url: signedUrl || mediaUrl 
         });
       } catch (error) {
         console.error("Upload job card media error:", error);

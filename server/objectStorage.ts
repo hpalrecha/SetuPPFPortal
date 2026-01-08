@@ -238,6 +238,35 @@ export class ObjectStorageService {
     });
   }
 
+  // Upload a file buffer directly to object storage (for server-side uploads)
+  async uploadBuffer(buffer: Buffer, filename: string, contentType: string): Promise<string> {
+    const privateObjectDir = this.getPrivateObjectDir();
+    if (!privateObjectDir) {
+      throw new Error(
+        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
+          "tool and set PRIVATE_OBJECT_DIR env var."
+      );
+    }
+
+    const objectId = randomUUID();
+    const extension = filename.split('.').pop() || 'jpg';
+    const fullPath = `${privateObjectDir}/uploads/${objectId}.${extension}`;
+
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+
+    await file.save(buffer, {
+      contentType,
+      metadata: {
+        originalFilename: filename
+      }
+    });
+
+    // Return the normalized path that can be used with getSignedUrl
+    return `/objects/uploads/${objectId}.${extension}`;
+  }
+
   // Generate a signed URL for reading a private object
   async getSignedUrl(objectPath: string, ttlSec: number = 3600): Promise<string | null> {
     try {
