@@ -1388,6 +1388,16 @@ export default function WorkOrdersPage() {
                         >
                           <Eye className="h-3 w-3" />
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => printWorkOrder(order)}
+                          data-testid={`button-print-${order.id}`}
+                          className="text-xs px-2"
+                          title="Print"
+                        >
+                          <Printer className="h-3 w-3" />
+                        </Button>
                         {order.status === 'DRAFT' && (
                           <Button
                             size="sm"
@@ -1501,6 +1511,15 @@ export default function WorkOrdersPage() {
                           className="text-xs px-1"
                         >
                           <Eye className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => printWorkOrder(order)}
+                          data-testid={`button-print-${order.id}`}
+                          className="text-xs px-1"
+                        >
+                          <Printer className="h-3 w-3" />
                         </Button>
                         <Button
                           size="sm"

@@ -1542,15 +1542,25 @@ export default function JobCardsNew() {
                         {job.vehicleDisplay} - {job.serviceDisplay}
                       </p>
                       <p className="text-xs text-muted-foreground mb-2">{job.partnerDisplay}</p>
-                      <Button 
-                        size="sm" 
-                        className="w-full"
-                        onClick={() => handleViewJobCard(job)}
-                        data-testid={`button-view-${job.id}`}
-                      >
-                        <Eye className="h-3 w-3 mr-1" />
-                        View Details
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button 
+                          size="sm" 
+                          className="flex-1"
+                          onClick={() => handleViewJobCard(job)}
+                          data-testid={`button-view-${job.id}`}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          View
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => printJobCard(job)}
+                          data-testid={`button-print-${job.id}`}
+                        >
+                          <Printer className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 ))
@@ -1601,15 +1611,25 @@ export default function JobCardsNew() {
                         <Progress value={getProgressValue(job.status)} className="h-2" />
                       </div>
                       <p className="text-xs text-muted-foreground mb-2">{getProgressValue(job.status)}% complete</p>
-                      <Button 
-                        size="sm" 
-                        className="w-full"
-                        onClick={() => handleViewJobCard(job)}
-                        data-testid={`button-view-${job.id}`}
-                      >
-                        <Eye className="h-3 w-3 mr-1" />
-                        View Details
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button 
+                          size="sm" 
+                          className="flex-1"
+                          onClick={() => handleViewJobCard(job)}
+                          data-testid={`button-view-${job.id}`}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          View
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => printJobCard(job)}
+                          data-testid={`button-print-${job.id}`}
+                        >
+                          <Printer className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 ))
@@ -1656,27 +1676,37 @@ export default function JobCardsNew() {
                         {job.vehicleDisplay} - {job.serviceDisplay}
                       </p>
                       <p className="text-xs text-muted-foreground mb-2">{job.partnerDisplay}</p>
-                      {isShowroomUser ? (
+                      <div className="flex gap-1">
+                        {isShowroomUser ? (
+                          <Button 
+                            size="sm" 
+                            className="flex-1"
+                            onClick={() => handleReviewJob(job.id)}
+                            data-testid={`button-review-${job.id}`}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            Review
+                          </Button>
+                        ) : (
+                          <Button 
+                            size="sm" 
+                            className="flex-1"
+                            onClick={() => handleViewJobCard(job)}
+                            data-testid={`button-view-${job.id}`}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            View
+                          </Button>
+                        )}
                         <Button 
                           size="sm" 
-                          className="w-full"
-                          onClick={() => handleReviewJob(job.id)}
-                          data-testid={`button-review-${job.id}`}
+                          variant="outline"
+                          onClick={() => printJobCard(job)}
+                          data-testid={`button-print-${job.id}`}
                         >
-                          <Eye className="h-3 w-3 mr-1" />
-                          Review
+                          <Printer className="h-3 w-3" />
                         </Button>
-                      ) : (
-                        <Button 
-                          size="sm" 
-                          className="w-full"
-                          onClick={() => handleViewJobCard(job)}
-                          data-testid={`button-view-${job.id}`}
-                        >
-                          <Eye className="h-3 w-3 mr-1" />
-                          View Details
-                        </Button>
-                      )}
+                      </div>
                     </CardContent>
                   </Card>
                 ))
@@ -1726,16 +1756,26 @@ export default function JobCardsNew() {
                       <Badge className="bg-green-100 text-green-800 mb-2">
                         Approved
                       </Badge>
-                      <Button 
-                        size="sm" 
-                        className="w-full"
-                        variant="outline"
-                        onClick={() => handleViewJobCard(job)}
-                        data-testid={`button-view-${job.id}`}
-                      >
-                        <Eye className="h-3 w-3 mr-1" />
-                        View Details
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button 
+                          size="sm" 
+                          className="flex-1"
+                          variant="outline"
+                          onClick={() => handleViewJobCard(job)}
+                          data-testid={`button-view-${job.id}`}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          View
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => printJobCard(job)}
+                          data-testid={`button-print-${job.id}`}
+                        >
+                          <Printer className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 ))
