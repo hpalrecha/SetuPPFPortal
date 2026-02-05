@@ -318,24 +318,27 @@ export default function WorkOrdersPage() {
       return;
     }
 
+    const jobCardIds = order.jobCards?.map((jc: any) => `JC-${jc.id.slice(-6)}`).join(', ') || 'None';
+
     const printContent = `
       <!DOCTYPE html>
       <html>
       <head>
         <title>Work Order - WO-${order.id.slice(-6)}</title>
         <style>
-          @page { size: A4; margin: 20mm; }
+          @page { size: A4; margin: 15mm; }
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.5; color: #333; }
-          .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
-          .header h1 { font-size: 24px; color: #1a5f2a; margin-bottom: 5px; }
-          .header .order-id { font-size: 18px; font-weight: bold; color: #666; }
-          .section { margin-bottom: 20px; }
-          .section-title { font-size: 14px; font-weight: bold; color: #1a5f2a; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 10px; }
-          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-          .field { margin-bottom: 8px; }
-          .field-label { font-weight: bold; color: #666; font-size: 11px; }
-          .field-value { font-size: 13px; }
+          body { font-family: Arial, sans-serif; font-size: 11px; line-height: 1.4; color: #333; }
+          .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 12px; margin-bottom: 15px; }
+          .header h1 { font-size: 22px; color: #1a5f2a; margin-bottom: 5px; }
+          .header .ids { font-size: 14px; font-weight: bold; color: #666; margin-bottom: 8px; }
+          .section { margin-bottom: 15px; }
+          .section-title { font-size: 13px; font-weight: bold; color: #1a5f2a; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 8px; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+          .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+          .field { margin-bottom: 6px; }
+          .field-label { font-weight: bold; color: #666; font-size: 10px; text-transform: uppercase; }
+          .field-value { font-size: 12px; }
           .status-badge { display: inline-block; padding: 4px 12px; border-radius: 4px; font-weight: bold; font-size: 11px; }
           .status-DRAFT { background: #f3f4f6; color: #6b7280; }
           .status-PENDING { background: #fef3c7; color: #d97706; }
@@ -344,14 +347,16 @@ export default function WorkOrdersPage() {
           .status-COMPLETED { background: #dcfce7; color: #16a34a; }
           .status-APPROVED { background: #bbf7d0; color: #15803d; }
           .status-CANCELLED { background: #fee2e2; color: #dc2626; }
-          .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; text-align: center; font-size: 10px; color: #999; }
+          .remarks-box { background: #f9fafb; padding: 10px; border-radius: 4px; border: 1px solid #e5e7eb; }
+          .job-cards-list { background: #f0f9ff; padding: 10px; border-radius: 4px; border: 1px solid #bae6fd; }
+          .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #ddd; text-align: center; font-size: 9px; color: #999; }
           @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
         </style>
       </head>
       <body>
         <div class="header">
           <h1>PULSE VAS - Work Order</h1>
-          <div class="order-id">WO-${order.id.slice(-6)}</div>
+          <div class="ids">WO-${order.id.slice(-6)}</div>
           <span class="status-badge status-${order.status}">${order.status.replace(/_/g, ' ')}</span>
         </div>
 
@@ -385,6 +390,10 @@ export default function WorkOrdersPage() {
               <div class="field-value">${order.vehicleModelName || 'N/A'}</div>
             </div>
             <div class="field">
+              <div class="field-label">Vehicle Color</div>
+              <div class="field-value">${order.color || 'N/A'}</div>
+            </div>
+            <div class="field">
               <div class="field-label">Registration No</div>
               <div class="field-value">${order.regNo || 'N/A'}</div>
             </div>
@@ -392,38 +401,38 @@ export default function WorkOrdersPage() {
               <div class="field-label">VIN Number</div>
               <div class="field-value">${order.vinNumber || 'N/A'}</div>
             </div>
-            <div class="field">
-              <div class="field-label">Color</div>
-              <div class="field-value">${order.color || 'N/A'}</div>
-            </div>
           </div>
         </div>
 
         <div class="section">
-          <div class="section-title">Service & Assignment</div>
+          <div class="section-title">Organization & Service</div>
           <div class="grid">
             <div class="field">
-              <div class="field-label">Service</div>
-              <div class="field-value">${order.serviceName || 'N/A'}</div>
+              <div class="field-label">OEM</div>
+              <div class="field-value">${order.oemName || order.oem?.name || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Dealership</div>
+              <div class="field-value">${order.dealershipName || order.dealership?.name || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Showroom</div>
+              <div class="field-value">${order.showroomName || order.showroom?.name || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">Partner</div>
               <div class="field-value">${order.assignedPartner?.displayName || 'Not Assigned'}</div>
             </div>
             <div class="field">
-              <div class="field-label">Showroom</div>
-              <div class="field-value">${order.showroomName || 'N/A'}</div>
-            </div>
-            <div class="field">
-              <div class="field-label">Dealership</div>
-              <div class="field-value">${order.dealershipName || 'N/A'}</div>
+              <div class="field-label">Service</div>
+              <div class="field-value">${order.serviceName || 'N/A'}</div>
             </div>
           </div>
         </div>
 
         <div class="section">
-          <div class="section-title">Billing Information</div>
-          <div class="grid">
+          <div class="section-title">Billing & Dates</div>
+          <div class="grid-3">
             <div class="field">
               <div class="field-label">Invoice Amount</div>
               <div class="field-value">${order.invoiceAmount ? '₹' + parseFloat(order.invoiceAmount).toLocaleString() : 'N/A'}</div>
@@ -432,13 +441,24 @@ export default function WorkOrdersPage() {
               <div class="field-label">Created Date</div>
               <div class="field-value">${formatDate(order.createdAt)}</div>
             </div>
+            <div class="field">
+              <div class="field-label">Updated Date</div>
+              <div class="field-value">${formatDate(order.updatedAt)}</div>
+            </div>
           </div>
         </div>
+
+        ${order.jobCards && order.jobCards.length > 0 ? `
+        <div class="section">
+          <div class="section-title">Related Job Cards</div>
+          <div class="job-cards-list">${jobCardIds}</div>
+        </div>
+        ` : ''}
 
         ${order.remarks ? `
         <div class="section">
           <div class="section-title">Remarks</div>
-          <div class="field-value">${order.remarks}</div>
+          <div class="remarks-box">${order.remarks}</div>
         </div>
         ` : ''}
 
@@ -454,8 +474,7 @@ export default function WorkOrdersPage() {
     printWindow.focus();
     setTimeout(() => {
       printWindow.print();
-      printWindow.close();
-    }, 250);
+    }, 500);
   };
 
   const handleCreateWorkOrder = () => {
