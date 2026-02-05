@@ -1276,7 +1276,7 @@ export default function JobCardsNew() {
           <div className="hidden lg:block rounded-lg border border-border overflow-hidden">
             {/* Table Header */}
             <div className="bg-muted/50 border-b border-border px-4 py-3">
-              <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '90px 140px 1fr 130px 1fr 150px 100px 100px 80px'}}>
+              <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '90px 140px 1fr 130px 1fr 150px 100px 100px 110px'}}>
                 <div className="truncate">ID</div>
                 <div className="truncate">Status</div>
                 <div className="truncate">Vehicle</div>
@@ -1297,7 +1297,7 @@ export default function JobCardsNew() {
                   className="px-4 py-4 hover:bg-muted/30 transition-colors"
                   data-testid={`row-job-card-${jobCard.id}`}
                 >
-                  <div className="grid gap-3 items-center min-h-[70px]" style={{gridTemplateColumns: '90px 140px 1fr 130px 1fr 150px 100px 100px 80px'}}>
+                  <div className="grid gap-3 items-center min-h-[70px]" style={{gridTemplateColumns: '90px 140px 1fr 130px 1fr 150px 100px 100px 110px'}}>
                     {/* ID Column */}
                     <div className="min-w-0 overflow-hidden">
                       <span className="font-mono text-sm font-semibold block truncate" data-testid={`text-id-${jobCard.id}`}>
