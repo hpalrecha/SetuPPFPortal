@@ -222,7 +222,8 @@ export default function JobCardsNew() {
     status: '',
     partnerId: '',
     showroomId: '',
-    vehicleModel: ''
+    vehicleModel: '',
+    vinNumber: ''
   });
   
   // Combobox open states
@@ -341,13 +342,15 @@ export default function JobCardsNew() {
     const vehicleModel = (jobCard.vehicleDisplay || '').toLowerCase();
     const showroomId = jobCard.workOrder?.showroomId || '';
     const partnerId = jobCard.partnerId || '';
+    const vinNumber = (jobCard.workOrder?.vinNumber || '').toLowerCase();
 
     return (
       (!searchFilters.jobCardNumber || jobCardNumber.includes(searchFilters.jobCardNumber.toLowerCase())) &&
       (!searchFilters.status || status === searchFilters.status) &&
       (!searchFilters.partnerId || partnerId === searchFilters.partnerId) &&
       (!searchFilters.showroomId || showroomId === searchFilters.showroomId) &&
-      (!searchFilters.vehicleModel || vehicleModel.includes(searchFilters.vehicleModel.toLowerCase()))
+      (!searchFilters.vehicleModel || vehicleModel.includes(searchFilters.vehicleModel.toLowerCase())) &&
+      (!searchFilters.vinNumber || vinNumber.includes(searchFilters.vinNumber.toLowerCase()))
     );
   });
 
@@ -645,7 +648,7 @@ export default function JobCardsNew() {
       {/* Search Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             <Input
               placeholder="Job Card Number (e.g., JC-123456)"
               value={searchFilters.jobCardNumber}
@@ -663,8 +666,6 @@ export default function JobCardsNew() {
               <SelectContent>
                 <SelectItem value="AWAITING_ACK">Awaiting Acknowledgment</SelectItem>
                 <SelectItem value="ACKNOWLEDGED">Acknowledged</SelectItem>
-                <SelectItem value="ASSIGNED">Assigned</SelectItem>
-                <SelectItem value="SCHEDULED">Scheduled</SelectItem>
                 <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
                 <SelectItem value="COMPLETED">Completed</SelectItem>
                 <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
@@ -676,6 +677,13 @@ export default function JobCardsNew() {
                 <SelectItem value="CLOSED">Closed</SelectItem>
               </SelectContent>
             </Select>
+
+            <Input
+              placeholder="VIN Number"
+              value={searchFilters.vinNumber}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, vinNumber: e.target.value }))}
+              data-testid="input-vin-search"
+            />
 
             {/* Partner Combobox */}
             <Popover open={partnerComboboxOpen} onOpenChange={setPartnerComboboxOpen}>
@@ -802,7 +810,8 @@ export default function JobCardsNew() {
                 status: '',
                 partnerId: '',
                 showroomId: '',
-                vehicleModel: ''
+                vehicleModel: '',
+                vinNumber: ''
               })}
               data-testid="button-clear-filters"
             >
@@ -830,7 +839,8 @@ export default function JobCardsNew() {
                   status: '',
                   partnerId: '',
                   showroomId: '',
-                  vehicleModel: ''
+                  vehicleModel: '',
+                  vinNumber: ''
                 })}
               >
                 Clear Filters
