@@ -3775,9 +3775,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })
         );
 
+        // Sign batch number image if it exists
+        let signedBatchNumberImage = jobCard.batchNumberImage;
+        if (jobCard.batchNumberImage) {
+          try {
+            signedBatchNumberImage = await objectStorageServiceInstance.getSignedUrl(jobCard.batchNumberImage, 3600) || jobCard.batchNumberImage;
+          } catch (e) {
+            console.error('Failed to sign batch number image URL:', jobCard.batchNumberImage, e);
+          }
+        }
+
         // Build the response with the expected structure
         let result: any = {
           ...jobCard,
+          batchNumberImage: signedBatchNumberImage, // Override with signed URL
           workOrder: {
             ...workOrder,
             vehicleModel: vehicleModel ? {
