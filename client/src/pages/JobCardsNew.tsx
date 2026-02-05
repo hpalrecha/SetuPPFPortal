@@ -529,27 +529,34 @@ export default function JobCardsNew() {
       return;
     }
 
+    const statusLabels: Record<string, string> = {
+      'AWAITING_ACK': 'Awaiting Acknowledgment',
+      'ACKNOWLEDGED': 'Acknowledged',
+      'IN_PROGRESS': 'In Progress',
+      'COMPLETED': 'Completed',
+      'PENDING_APPROVAL': 'Pending Approval',
+      'APPROVED': 'Approved',
+      'PENDING_SALES_INVOICE': 'Pending Sales Invoice',
+      'INVOICE_RAISED': 'Invoice Raised',
+      'WARRANTY_REGISTRATION': 'Warranty Registered',
+      'CANCELLED': 'Cancelled',
+      'CLOSED': 'Closed'
+    };
+
     const printContent = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Job Card - JC-${jobCard.id.slice(-6)}</title>
+        <title>Job Card - ${jobCard.id}</title>
         <style>
-          @page { size: A4; margin: 15mm; }
+          @page { size: A4; margin: 12mm; }
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; font-size: 11px; line-height: 1.4; color: #333; }
-          .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 12px; margin-bottom: 15px; }
-          .header h1 { font-size: 22px; color: #1a5f2a; margin-bottom: 5px; }
-          .header .ids { font-size: 14px; font-weight: bold; color: #666; margin-bottom: 8px; }
-          .header .ids span { margin: 0 10px; }
-          .section { margin-bottom: 15px; }
-          .section-title { font-size: 13px; font-weight: bold; color: #1a5f2a; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 8px; }
-          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-          .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
-          .field { margin-bottom: 6px; }
-          .field-label { font-weight: bold; color: #666; font-size: 10px; text-transform: uppercase; }
-          .field-value { font-size: 12px; }
-          .status-badge { display: inline-block; padding: 4px 12px; border-radius: 4px; font-weight: bold; font-size: 11px; }
+          body { font-family: Arial, sans-serif; font-size: 10px; line-height: 1.3; color: #333; }
+          .header { text-align: center; border-bottom: 2px solid #1a5f2a; padding-bottom: 10px; margin-bottom: 12px; }
+          .header h1 { font-size: 20px; color: #1a5f2a; margin-bottom: 4px; }
+          .header .ids { font-size: 11px; color: #666; margin-bottom: 6px; }
+          .header .ids div { margin: 2px 0; }
+          .status-badge { display: inline-block; padding: 4px 12px; border-radius: 4px; font-weight: bold; font-size: 10px; }
           .status-AWAITING_ACK { background: #fee2e2; color: #dc2626; }
           .status-ACKNOWLEDGED { background: #fef3c7; color: #d97706; }
           .status-IN_PROGRESS { background: #dbeafe; color: #2563eb; }
@@ -561,12 +568,23 @@ export default function JobCardsNew() {
           .status-WARRANTY_REGISTRATION { background: #a5f3fc; color: #0891b2; }
           .status-CANCELLED { background: #fecaca; color: #b91c1c; }
           .status-CLOSED { background: #d1d5db; color: #374151; }
-          .photos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+          .section { margin-bottom: 10px; page-break-inside: avoid; }
+          .section-title { font-size: 11px; font-weight: bold; color: #1a5f2a; border-bottom: 1px solid #ddd; padding-bottom: 3px; margin-bottom: 6px; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+          .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px 12px; }
+          .grid-5 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap: 4px 8px; }
+          .field { margin-bottom: 4px; }
+          .field-label { font-weight: bold; color: #666; font-size: 9px; text-transform: uppercase; }
+          .field-value { font-size: 10px; word-wrap: break-word; }
+          .billing-box { background: #f9fafb; padding: 8px; border-radius: 4px; border: 1px solid #e5e7eb; margin-bottom: 4px; }
+          .billing-box .title { font-weight: bold; font-size: 10px; margin-bottom: 4px; color: #1a5f2a; }
+          .photos-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin-top: 6px; }
           .photo-item { text-align: center; }
-          .photo-item img { max-width: 100%; max-height: 150px; border: 1px solid #ddd; border-radius: 4px; }
-          .photo-label { font-size: 10px; font-weight: bold; color: #666; margin-top: 4px; }
-          .remarks-box { background: #f9fafb; padding: 10px; border-radius: 4px; border: 1px solid #e5e7eb; }
-          .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #ddd; text-align: center; font-size: 9px; color: #999; }
+          .photo-item img { max-width: 100%; max-height: 120px; border: 1px solid #ddd; border-radius: 4px; }
+          .photo-label { font-size: 9px; font-weight: bold; color: #666; margin-top: 2px; }
+          .remarks-box { background: #f9fafb; padding: 6px; border-radius: 4px; border: 1px solid #e5e7eb; font-size: 10px; }
+          .settlement-box { background: #f0fdf4; padding: 6px; border-radius: 4px; border: 1px solid #bbf7d0; }
+          .footer { margin-top: 15px; padding-top: 8px; border-top: 1px solid #ddd; text-align: center; font-size: 8px; color: #999; }
           @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
         </style>
       </head>
@@ -574,18 +592,20 @@ export default function JobCardsNew() {
         <div class="header">
           <h1>PULSE VAS - Job Card</h1>
           <div class="ids">
-            <span>Job Card: JC-${jobCard.id.slice(-6)}</span>
-            <span>|</span>
-            <span>Work Order: WO-${jobCard.workOrderId?.slice(-6) || 'N/A'}</span>
+            <div><strong>Job Card ID:</strong> ${jobCard.id}</div>
+            <div><strong>Work Order ID:</strong> ${jobCard.workOrderId || 'N/A'}</div>
           </div>
-          <span class="status-badge status-${jobCard.status}">${jobCard.status.replace(/_/g, ' ')}</span>
+          <span class="status-badge status-${jobCard.status}">${statusLabels[jobCard.status] || jobCard.status.replace(/_/g, ' ')}</span>
+          <div style="font-size: 9px; color: #666; margin-top: 6px;">
+            Created: ${formatDateTime(jobCard.createdAt)} | Updated: ${formatDateTime(jobCard.updatedAt)}
+          </div>
         </div>
 
         <div class="section">
           <div class="section-title">Customer Information</div>
           <div class="grid">
             <div class="field">
-              <div class="field-label">Customer Name</div>
+              <div class="field-label">Name</div>
               <div class="field-value">${jobCard.workOrder?.customerName || 'N/A'}</div>
             </div>
             <div class="field">
@@ -604,15 +624,11 @@ export default function JobCardsNew() {
         </div>
 
         <div class="section">
-          <div class="section-title">Vehicle Information</div>
+          <div class="section-title">Vehicle & Service</div>
           <div class="grid">
             <div class="field">
               <div class="field-label">Vehicle Model</div>
-              <div class="field-value">${jobCard.vehicleDisplay || 'N/A'}</div>
-            </div>
-            <div class="field">
-              <div class="field-label">Vehicle Color</div>
-              <div class="field-value">${jobCard.workOrder?.color || 'N/A'}</div>
+              <div class="field-value">${jobCard.vehicleDisplay || jobCard.workOrder?.vehicleModel?.modelName || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">Registration No</div>
@@ -622,57 +638,77 @@ export default function JobCardsNew() {
               <div class="field-label">VIN Number</div>
               <div class="field-value">${jobCard.workOrder?.vinNumber || 'N/A'}</div>
             </div>
+            <div class="field">
+              <div class="field-label">Color</div>
+              <div class="field-value">${jobCard.workOrder?.color || 'N/A'}</div>
+            </div>
+            <div class="field" style="grid-column: span 2;">
+              <div class="field-label">Service</div>
+              <div class="field-value">${jobCard.serviceDisplay || 'N/A'}</div>
+            </div>
+            ${jobCard.workOrder?.serviceCategory?.description ? `
+            <div class="field" style="grid-column: span 2;">
+              <div class="field-label">Description</div>
+              <div class="field-value">${jobCard.workOrder.serviceCategory.description}</div>
+            </div>
+            ` : ''}
           </div>
         </div>
 
         <div class="section">
-          <div class="section-title">Organization & Service</div>
-          <div class="grid">
+          <div class="section-title">Order Placed By</div>
+          <div class="grid-3">
             <div class="field">
-              <div class="field-label">OEM</div>
-              <div class="field-value">${jobCard.workOrder?.oem?.name || 'N/A'}</div>
+              <div class="field-label">Showroom</div>
+              <div class="field-value">${jobCard.workOrder?.showroom?.name || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">Dealership</div>
               <div class="field-value">${jobCard.workOrder?.dealership?.name || 'N/A'}</div>
             </div>
             <div class="field">
-              <div class="field-label">Showroom</div>
-              <div class="field-value">${jobCard.workOrder?.showroom?.name || 'N/A'}</div>
+              <div class="field-label">OEM</div>
+              <div class="field-value">${jobCard.workOrder?.oem?.name || 'N/A'}</div>
             </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Partner Information</div>
+          <div class="grid">
             <div class="field">
               <div class="field-label">Partner</div>
-              <div class="field-value">${jobCard.partnerDisplay || 'N/A'}</div>
+              <div class="field-value">${jobCard.partnerDisplay || jobCard.partner?.displayName || 'N/A'}</div>
             </div>
             <div class="field">
-              <div class="field-label">Service</div>
-              <div class="field-value">${jobCard.serviceDisplay || 'N/A'}</div>
+              <div class="field-label">Business Type</div>
+              <div class="field-value">${jobCard.partner?.businessType || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Contact Person</div>
+              <div class="field-value">${jobCard.partner?.primaryContactName || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Contact Phone</div>
+              <div class="field-value">${jobCard.partner?.primaryContactPhone || 'N/A'}</div>
             </div>
           </div>
         </div>
 
         <div class="section">
           <div class="section-title">Timeline</div>
-          <div class="grid-4">
-            <div class="field">
-              <div class="field-label">Created</div>
-              <div class="field-value">${formatDate(jobCard.createdAt)}</div>
-            </div>
-            <div class="field">
-              <div class="field-label">Scheduled</div>
-              <div class="field-value">${formatDate(jobCard.scheduledDate)}</div>
-            </div>
+          <div class="grid-5">
             <div class="field">
               <div class="field-label">Acknowledged</div>
               <div class="field-value">${jobCard.acknowledgedAt ? formatDateTime(jobCard.acknowledgedAt) : 'N/A'}</div>
             </div>
             <div class="field">
-              <div class="field-label">Started</div>
-              <div class="field-value">${jobCard.startTime ? formatDateTime(jobCard.startTime) : 'N/A'}</div>
+              <div class="field-label">Scheduled</div>
+              <div class="field-value">${jobCard.scheduledDate ? formatDateTime(jobCard.scheduledDate) : (jobCard.scheduledAt ? formatDateTime(jobCard.scheduledAt) : 'N/A')}</div>
             </div>
             <div class="field">
-              <div class="field-label">Ended</div>
-              <div class="field-value">${jobCard.endTime ? formatDateTime(jobCard.endTime) : 'N/A'}</div>
+              <div class="field-label">Started</div>
+              <div class="field-value">${jobCard.startTime ? formatDateTime(jobCard.startTime) : 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">Completed</div>
@@ -685,30 +721,82 @@ export default function JobCardsNew() {
           </div>
         </div>
 
+        <div class="section">
+          <div class="section-title">Additional Details</div>
+          <div class="grid">
+            <div class="field">
+              <div class="field-label">Job Card Billing Value</div>
+              <div class="field-value">${jobCard.invoiceAmount ? '₹' + parseFloat(String(jobCard.invoiceAmount)).toLocaleString('en-IN', {minimumFractionDigits: 2}) : 'Not set'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Assigned Installer</div>
+              <div class="field-value">${jobCard.assignedInstaller || 'Not assigned'}</div>
+            </div>
+            ${jobCard.remarks ? `
+            <div class="field" style="grid-column: span 2;">
+              <div class="field-label">Remarks</div>
+              <div class="field-value">${jobCard.remarks}</div>
+            </div>
+            ` : ''}
+            ${jobCard.batchNumbers ? `
+            <div class="field" style="grid-column: span 2;">
+              <div class="field-label">Batch Numbers</div>
+              <div class="field-value">${jobCard.batchNumbers}</div>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Billing Information</div>
+          <div class="grid">
+            <div class="billing-box">
+              <div class="title">Bill From</div>
+              <div class="field-value">${jobCard.billFromName || jobCard.workOrder?.billFromName || 'N/A'}</div>
+              <div class="field-value" style="font-size: 9px; color: #666;">${jobCard.billFromAddress || jobCard.workOrder?.billFromAddress || ''}</div>
+              ${(jobCard.billFromGstin || jobCard.workOrder?.billFromGstin) ? `<div class="field-value" style="font-size: 9px;">GSTIN: ${jobCard.billFromGstin || jobCard.workOrder?.billFromGstin}</div>` : ''}
+            </div>
+            <div class="billing-box">
+              <div class="title">Bill To${jobCard.billToType || jobCard.workOrder?.billToType ? ` (${jobCard.billToType || jobCard.workOrder?.billToType})` : ''}</div>
+              <div class="field-value">${jobCard.billToName || jobCard.workOrder?.billToName || 'N/A'}</div>
+              <div class="field-value" style="font-size: 9px; color: #666;">${jobCard.billToAddress || jobCard.workOrder?.billToAddress || ''}</div>
+              ${(jobCard.billToGstin || jobCard.workOrder?.billToGstin) ? `<div class="field-value" style="font-size: 9px;">GSTIN: ${jobCard.billToGstin || jobCard.workOrder?.billToGstin}</div>` : ''}
+            </div>
+          </div>
+        </div>
+
         ${(jobCard.preInstallationPhotoFront || jobCard.preInstallationPhotoBack || jobCard.preInstallationPhotoLeft || jobCard.preInstallationPhotoRight) ? `
         <div class="section">
           <div class="section-title">Pre-Installation Photos</div>
           <div class="photos-grid">
-            ${jobCard.preInstallationPhotoFront ? `<div class="photo-item"><img src="${jobCard.preInstallationPhotoFront}" alt="Front" /><div class="photo-label">Front</div></div>` : ''}
-            ${jobCard.preInstallationPhotoBack ? `<div class="photo-item"><img src="${jobCard.preInstallationPhotoBack}" alt="Back" /><div class="photo-label">Back</div></div>` : ''}
-            ${jobCard.preInstallationPhotoLeft ? `<div class="photo-item"><img src="${jobCard.preInstallationPhotoLeft}" alt="Left Side" /><div class="photo-label">Left Side</div></div>` : ''}
-            ${jobCard.preInstallationPhotoRight ? `<div class="photo-item"><img src="${jobCard.preInstallationPhotoRight}" alt="Right Side" /><div class="photo-label">Right Side</div></div>` : ''}
+            ${jobCard.preInstallationPhotoFront ? `<div class="photo-item"><img src="${jobCard.preInstallationPhotoFront}" alt="Front" /><div class="photo-label">Front</div></div>` : '<div class="photo-item"><div style="height:120px;border:1px dashed #ccc;display:flex;align-items:center;justify-content:center;color:#999;">No Photo</div><div class="photo-label">Front</div></div>'}
+            ${jobCard.preInstallationPhotoBack ? `<div class="photo-item"><img src="${jobCard.preInstallationPhotoBack}" alt="Back" /><div class="photo-label">Back</div></div>` : '<div class="photo-item"><div style="height:120px;border:1px dashed #ccc;display:flex;align-items:center;justify-content:center;color:#999;">No Photo</div><div class="photo-label">Back</div></div>'}
+            ${jobCard.preInstallationPhotoLeft ? `<div class="photo-item"><img src="${jobCard.preInstallationPhotoLeft}" alt="Left Side" /><div class="photo-label">Left Side</div></div>` : '<div class="photo-item"><div style="height:120px;border:1px dashed #ccc;display:flex;align-items:center;justify-content:center;color:#999;">No Photo</div><div class="photo-label">Left Side</div></div>'}
+            ${jobCard.preInstallationPhotoRight ? `<div class="photo-item"><img src="${jobCard.preInstallationPhotoRight}" alt="Right Side" /><div class="photo-label">Right Side</div></div>` : '<div class="photo-item"><div style="height:120px;border:1px dashed #ccc;display:flex;align-items:center;justify-content:center;color:#999;">No Photo</div><div class="photo-label">Right Side</div></div>'}
           </div>
-          ${jobCard.preInstallationRemarks ? `<div class="remarks-box" style="margin-top: 10px;"><strong>Pre-Installation Remarks:</strong> ${jobCard.preInstallationRemarks}</div>` : ''}
+          ${jobCard.preInstallationRemarks ? `<div class="remarks-box" style="margin-top: 6px;"><strong>Pre-Installation Remarks:</strong> ${jobCard.preInstallationRemarks}</div>` : ''}
         </div>
         ` : ''}
 
-        ${jobCard.remarks ? `
+        ${(jobCard.salesInvoiceNumber || jobCard.warrantyReferenceNumber) ? `
         <div class="section">
-          <div class="section-title">General Remarks</div>
-          <div class="remarks-box">${jobCard.remarks}</div>
-        </div>
-        ` : ''}
-
-        ${jobCard.partnerRemarks ? `
-        <div class="section">
-          <div class="section-title">Partner Remarks</div>
-          <div class="remarks-box">${jobCard.partnerRemarks}</div>
+          <div class="section-title">Settlement Actions</div>
+          <div class="grid">
+            ${jobCard.salesInvoiceNumber ? `
+            <div class="settlement-box">
+              <div class="field-label">Payment Settlement</div>
+              <div class="field-value">Settled${jobCard.settledAt ? ` on ${formatDateTime(jobCard.settledAt)}` : ''}</div>
+              <div class="field-value"><strong>Invoice:</strong> ${jobCard.salesInvoiceNumber}</div>
+            </div>
+            ` : ''}
+            ${jobCard.warrantyReferenceNumber ? `
+            <div class="settlement-box">
+              <div class="field-label">E-Warranty</div>
+              <div class="field-value">Applied${jobCard.warrantyAppliedAt ? ` on ${formatDateTime(jobCard.warrantyAppliedAt)}` : ''}</div>
+              <div class="field-value"><strong>Ref:</strong> ${jobCard.warrantyReferenceNumber}</div>
+            </div>
+            ` : ''}
+          </div>
         </div>
         ` : ''}
 
