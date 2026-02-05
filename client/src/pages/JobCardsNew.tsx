@@ -223,7 +223,9 @@ export default function JobCardsNew() {
     partnerId: '',
     showroomId: '',
     vehicleModel: '',
-    vinNumber: ''
+    vinNumber: '',
+    dateFrom: '',
+    dateTo: ''
   });
   
   // Combobox open states
@@ -343,6 +345,20 @@ export default function JobCardsNew() {
     const showroomId = jobCard.workOrder?.showroomId || '';
     const partnerId = jobCard.partnerId || '';
     const vinNumber = (jobCard.workOrder?.vinNumber || '').toLowerCase();
+    const createdAt = jobCard.createdAt ? new Date(jobCard.createdAt) : null;
+
+    // Date filter logic
+    let dateMatch = true;
+    if (searchFilters.dateFrom) {
+      const fromDate = new Date(searchFilters.dateFrom);
+      fromDate.setHours(0, 0, 0, 0);
+      if (!createdAt || createdAt < fromDate) dateMatch = false;
+    }
+    if (searchFilters.dateTo) {
+      const toDate = new Date(searchFilters.dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      if (!createdAt || createdAt > toDate) dateMatch = false;
+    }
 
     return (
       (!searchFilters.jobCardNumber || jobCardNumber.includes(searchFilters.jobCardNumber.toLowerCase())) &&
@@ -350,7 +366,8 @@ export default function JobCardsNew() {
       (!searchFilters.partnerId || partnerId === searchFilters.partnerId) &&
       (!searchFilters.showroomId || showroomId === searchFilters.showroomId) &&
       (!searchFilters.vehicleModel || vehicleModel.includes(searchFilters.vehicleModel.toLowerCase())) &&
-      (!searchFilters.vinNumber || vinNumber.includes(searchFilters.vinNumber.toLowerCase()))
+      (!searchFilters.vinNumber || vinNumber.includes(searchFilters.vinNumber.toLowerCase())) &&
+      dateMatch
     );
   });
 
@@ -798,6 +815,28 @@ export default function JobCardsNew() {
             />
           </div>
 
+          {/* Date Range Filters */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-muted-foreground">From Date</label>
+              <Input
+                type="date"
+                value={searchFilters.dateFrom}
+                onChange={(e) => setSearchFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
+                data-testid="input-date-from"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-muted-foreground">To Date</label>
+              <Input
+                type="date"
+                value={searchFilters.dateTo}
+                onChange={(e) => setSearchFilters(prev => ({ ...prev, dateTo: e.target.value }))}
+                data-testid="input-date-to"
+              />
+            </div>
+          </div>
+
           <div className="flex items-center justify-between mt-4">
             <div className="text-sm text-muted-foreground">
               Showing {jobCards.length} of {allJobCards.length} job cards
@@ -811,7 +850,9 @@ export default function JobCardsNew() {
                 partnerId: '',
                 showroomId: '',
                 vehicleModel: '',
-                vinNumber: ''
+                vinNumber: '',
+                dateFrom: '',
+                dateTo: ''
               })}
               data-testid="button-clear-filters"
             >
@@ -840,7 +881,9 @@ export default function JobCardsNew() {
                   partnerId: '',
                   showroomId: '',
                   vehicleModel: '',
-                  vinNumber: ''
+                  vinNumber: '',
+                  dateFrom: '',
+                  dateTo: ''
                 })}
               >
                 Clear Filters

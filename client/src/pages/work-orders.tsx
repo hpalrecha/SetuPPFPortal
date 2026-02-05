@@ -76,7 +76,9 @@ export default function WorkOrdersPage() {
     status: '',
     vehicleModel: '',
     serviceName: '',
-    partnerName: ''
+    partnerName: '',
+    dateFrom: '',
+    dateTo: ''
   });
   
   // Debounce search filters to avoid filtering on every keystroke
@@ -86,7 +88,9 @@ export default function WorkOrdersPage() {
     status: searchFilters.status, // No debounce for dropdown selection
     vehicleModel: useDebounce(searchFilters.vehicleModel, 500),
     serviceName: useDebounce(searchFilters.serviceName, 500),
-    partnerName: useDebounce(searchFilters.partnerName, 500)
+    partnerName: useDebounce(searchFilters.partnerName, 500),
+    dateFrom: searchFilters.dateFrom, // No debounce for date selection
+    dateTo: searchFilters.dateTo // No debounce for date selection
   };
 
   // Check if user can create work orders (showroom managers, dealership admins, sales persons, admin, manager, and super admin)
@@ -169,6 +173,20 @@ export default function WorkOrdersPage() {
     const vehicleModel = ((order as any).vehicleModelName || '').toLowerCase();
     const serviceName = ((order as any).serviceName || '').toLowerCase();
     const partnerName = ((order as any).assignedPartner?.displayName || '').toLowerCase();
+    const createdAt = order.createdAt ? new Date(order.createdAt) : null;
+
+    // Date filter logic
+    let dateMatch = true;
+    if (debouncedSearchFilters.dateFrom) {
+      const fromDate = new Date(debouncedSearchFilters.dateFrom);
+      fromDate.setHours(0, 0, 0, 0);
+      if (!createdAt || createdAt < fromDate) dateMatch = false;
+    }
+    if (debouncedSearchFilters.dateTo) {
+      const toDate = new Date(debouncedSearchFilters.dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      if (!createdAt || createdAt > toDate) dateMatch = false;
+    }
 
     return (
       (!debouncedSearchFilters.workOrderNumber || workOrderNumber.includes(debouncedSearchFilters.workOrderNumber.toLowerCase())) &&
@@ -176,7 +194,8 @@ export default function WorkOrdersPage() {
       (!debouncedSearchFilters.status || status === debouncedSearchFilters.status.toLowerCase()) &&
       (!debouncedSearchFilters.vehicleModel || vehicleModel.includes(debouncedSearchFilters.vehicleModel.toLowerCase())) &&
       (!debouncedSearchFilters.serviceName || serviceName.includes(debouncedSearchFilters.serviceName.toLowerCase())) &&
-      (!debouncedSearchFilters.partnerName || partnerName.includes(debouncedSearchFilters.partnerName.toLowerCase()))
+      (!debouncedSearchFilters.partnerName || partnerName.includes(debouncedSearchFilters.partnerName.toLowerCase())) &&
+      dateMatch
     );
   });
 
@@ -868,6 +887,28 @@ export default function WorkOrdersPage() {
             />
           </div>
 
+          {/* Date Range Filters */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-muted-foreground">From Date</label>
+              <Input
+                type="date"
+                value={searchFilters.dateFrom}
+                onChange={(e) => setSearchFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
+                data-testid="input-date-from"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-muted-foreground">To Date</label>
+              <Input
+                type="date"
+                value={searchFilters.dateTo}
+                onChange={(e) => setSearchFilters(prev => ({ ...prev, dateTo: e.target.value }))}
+                data-testid="input-date-to"
+              />
+            </div>
+          </div>
+
           <div className="flex items-center justify-between mt-4">
             <div className="text-sm text-muted-foreground">
               Showing {workOrders.length} of {allWorkOrders.length} work orders
@@ -881,7 +922,9 @@ export default function WorkOrdersPage() {
                 status: '',
                 vehicleModel: '',
                 serviceName: '',
-                partnerName: ''
+                partnerName: '',
+                dateFrom: '',
+                dateTo: ''
               })}
               data-testid="button-clear-filters"
             >
@@ -910,7 +953,9 @@ export default function WorkOrdersPage() {
                   status: '',
                   vehicleModel: '',
                   serviceName: '',
-                  partnerName: ''
+                  partnerName: '',
+                  dateFrom: '',
+                  dateTo: ''
                 })}
               >
                 Clear Filters
