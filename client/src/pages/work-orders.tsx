@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import logoGreen from "@assets/P91 PULSE logo-01_1761139835394.png";
 
 const statusColors = {
   DRAFT: "bg-gray-100 text-gray-800",
@@ -355,8 +356,11 @@ export default function WorkOrdersPage() {
       </head>
       <body>
         <div class="header">
-          <h1>PULSE VAS - Work Order</h1>
-          <div class="ids">WO-${order.id.slice(-6)}</div>
+          <img src="${logoGreen}" alt="P91 Pulse VAS" style="height: 50px; margin-bottom: 8px;" />
+          <h1>Work Order</h1>
+          <div class="ids">
+            <div><strong>Work Order ID:</strong> ${order.id}</div>
+          </div>
           <span class="status-badge status-${order.status}">${order.status.replace(/_/g, ' ')}</span>
         </div>
 

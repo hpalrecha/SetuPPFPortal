@@ -63,6 +63,7 @@ import DetailerJobDetailModal from "@/components/job-cards/detailer-job-detail-m
 import ApprovalModal from "@/components/job-cards/approval-modal";
 import { ImageModal } from "@/components/ui/image-modal";
 import { ViewPreInstallationModal } from "@/components/modals/ViewPreInstallationModal";
+import logoGreen from "@assets/P91 PULSE logo-01_1761139835394.png";
 
 // Enhanced Job Card types to match API structure
 interface JobCard {
@@ -590,7 +591,8 @@ export default function JobCardsNew() {
       </head>
       <body>
         <div class="header">
-          <h1>PULSE VAS - Job Card</h1>
+          <img src="${logoGreen}" alt="P91 Pulse VAS" style="height: 50px; margin-bottom: 8px;" />
+          <h1>Job Card</h1>
           <div class="ids">
             <div><strong>Job Card ID:</strong> ${jobCard.id}</div>
             <div><strong>Work Order ID:</strong> ${jobCard.workOrderId || 'N/A'}</div>
