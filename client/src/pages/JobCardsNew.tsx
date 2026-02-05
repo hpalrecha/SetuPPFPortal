@@ -314,20 +314,22 @@ export default function JobCardsNew() {
 
   // Fetch all partners for the combobox filter
   const { data: allPartners = [] } = useQuery({
-    queryKey: ['partners'],
+    queryKey: ['partners-filter'],
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/partners');
-      return response.json();
+      const data = await response.json();
+      return Array.isArray(data) ? data : (data.partners || []);
     },
     staleTime: 5 * 60 * 1000
   });
 
   // Fetch all showrooms for the combobox filter
   const { data: allShowrooms = [] } = useQuery({
-    queryKey: ['showrooms'],
+    queryKey: ['showrooms-filter'],
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/showrooms');
-      return response.json();
+      const data = await response.json();
+      return Array.isArray(data) ? data : (data.showrooms || []);
     },
     staleTime: 5 * 60 * 1000
   });
