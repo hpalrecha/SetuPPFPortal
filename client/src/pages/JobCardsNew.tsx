@@ -1358,16 +1358,26 @@ export default function JobCardsNew() {
                     </div>
 
                     {/* Actions Column */}
-                    <div className="min-w-0 overflow-hidden">
+                    <div className="min-w-0 overflow-hidden flex gap-1">
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => handleViewJobCard(jobCard)}
                         data-testid={`button-view-${jobCard.id}`}
-                        className="w-full text-xs px-2"
+                        className="flex-1 text-xs px-2"
                       >
                         <Eye className="h-3 w-3 mr-1" />
                         <span className="hidden xl:inline">View</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => printJobCard(jobCard)}
+                        data-testid={`button-print-${jobCard.id}`}
+                        className="text-xs px-2"
+                        title="Print Job Card"
+                      >
+                        <Printer className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
@@ -1442,15 +1452,25 @@ export default function JobCardsNew() {
                     </div>
 
                     {/* Actions Column */}
-                    <div className="col-span-1">
+                    <div className="col-span-1 flex gap-1">
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => handleViewJobCard(jobCard)}
                         data-testid={`button-view-${jobCard.id}`}
-                        className="w-full text-xs px-2"
+                        className="flex-1 text-xs px-1"
                       >
                         <Eye className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => printJobCard(jobCard)}
+                        data-testid={`button-print-${jobCard.id}`}
+                        className="text-xs px-1"
+                        title="Print"
+                      >
+                        <Printer className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
