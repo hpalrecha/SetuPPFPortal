@@ -228,6 +228,14 @@ export default function JobCardsNew() {
     dateTo: ''
   });
   
+  // Sorting state
+  const [sortField, setSortField] = useState<string>('createdAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  
   // Combobox open states
   const [partnerComboboxOpen, setPartnerComboboxOpen] = useState(false);
   const [showroomComboboxOpen, setShowroomComboboxOpen] = useState(false);
@@ -338,7 +346,7 @@ export default function JobCardsNew() {
   });
 
   // Apply search filters to job cards
-  const jobCards = allJobCards.filter((jobCard) => {
+  const filteredJobCards = allJobCards.filter((jobCard) => {
     const jobCardNumber = `JC-${jobCard.id.slice(-6)}`.toLowerCase();
     const status = (jobCard.status || '').toUpperCase();
     const vehicleModel = (jobCard.vehicleDisplay || '').toLowerCase();
@@ -370,6 +378,50 @@ export default function JobCardsNew() {
       dateMatch
     );
   });
+
+  // Sort filtered job cards
+  const sortedJobCards = [...filteredJobCards].sort((a, b) => {
+    let aVal: any, bVal: any;
+    
+    switch (sortField) {
+      case 'createdAt':
+        aVal = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        bVal = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        break;
+      case 'status':
+        aVal = a.status || '';
+        bVal = b.status || '';
+        break;
+      case 'customerName':
+        aVal = a.customerName?.toLowerCase() || '';
+        bVal = b.customerName?.toLowerCase() || '';
+        break;
+      case 'partner':
+        aVal = a.partnerDisplay?.toLowerCase() || '';
+        bVal = b.partnerDisplay?.toLowerCase() || '';
+        break;
+      default:
+        aVal = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        bVal = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    }
+    
+    if (sortOrder === 'asc') {
+      return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+    } else {
+      return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+    }
+  });
+
+  // Pagination logic
+  const totalPages = Math.ceil(sortedJobCards.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const jobCards = sortedJobCards.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchFilters, sortField, sortOrder]);
 
   // Fetch detailed job card data including media when one is selected
   const { data: detailedJobCard } = useQuery({
@@ -837,34 +889,121 @@ export default function JobCardsNew() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between mt-4">
-            <div className="text-sm text-muted-foreground">
-              Showing {jobCards.length} of {allJobCards.length} job cards
+          {/* Sorting and Pagination Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-4 mt-4">
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {startIndex + 1}-{Math.min(endIndex, sortedJobCards.length)} of {sortedJobCards.length} job cards
+                {sortedJobCards.length < allJobCards.length && ` (filtered from ${allJobCards.length})`}
+              </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSearchFilters({
-                jobCardNumber: '',
-                status: '',
-                partnerId: '',
-                showroomId: '',
-                vehicleModel: '',
-                vinNumber: '',
-                dateFrom: '',
-                dateTo: ''
-              })}
-              data-testid="button-clear-filters"
-            >
-              <Search className="h-4 w-4 mr-2" />
-              Clear Filters
-            </Button>
+            
+            <div className="flex items-center gap-4 flex-wrap">
+              {/* Sort Controls */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Sort by:</span>
+                <Select value={sortField} onValueChange={(v) => setSortField(v)}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="createdAt">Date Created</SelectItem>
+                    <SelectItem value="status">Status</SelectItem>
+                    <SelectItem value="customerName">Customer</SelectItem>
+                    <SelectItem value="partner">Partner</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                >
+                  {sortOrder === 'asc' ? '↑ Asc' : '↓ Desc'}
+                </Button>
+              </div>
+
+              {/* Items per page */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Show:</span>
+                <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(Number(v))}>
+                  <SelectTrigger className="w-[80px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSearchFilters({
+                  jobCardNumber: '',
+                  status: '',
+                  partnerId: '',
+                  showroomId: '',
+                  vehicleModel: '',
+                  vinNumber: '',
+                  dateFrom: '',
+                  dateTo: ''
+                })}
+                data-testid="button-clear-filters"
+              >
+                <Search className="h-4 w-4 mr-2" />
+                Clear Filters
+              </Button>
+            </div>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+              >
+                First
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </Button>
+              <span className="text-sm px-4">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+              >
+                Last
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* No Data State */}
-      {!isLoading && jobCards.length === 0 && allJobCards.length > 0 && (
+      {!isLoading && sortedJobCards.length === 0 && allJobCards.length > 0 && (
         <Card>
           <CardContent className="pt-6">
             <div className="text-center py-12">
