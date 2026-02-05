@@ -533,6 +533,7 @@ export const jobCards = pgTable("job_cards", {
   partnerRemarks: text("partner_remarks"), // Completion remarks from partner
   materialConsumptionJson: jsonb("material_consumption_json"), // Quantities consumed
   batchNumbers: text("batch_numbers"), // Material batch tracking
+  batchNumberImage: text("batch_number_image"), // Photo of batch number sticker/label
   approvalRequestedAt: timestamp("approval_requested_at"),
   approvedAt: timestamp("approved_at"),
   approvedByUserId: uuid("approved_by_user_id").references(() => users.id),
