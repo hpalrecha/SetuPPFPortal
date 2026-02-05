@@ -355,13 +355,17 @@ export default function WorkOrdersPage() {
         </style>
       </head>
       <body>
-        <div class="header">
-          <img src="${logoGreen}" alt="P91 Pulse VAS" style="height: 50px; margin-bottom: 8px;" />
-          <h1>Work Order</h1>
-          <div class="ids">
-            <div><strong>Work Order ID:</strong> ${order.id}</div>
+        <div class="header" style="text-align: left; display: flex; align-items: flex-start; gap: 20px;">
+          <img src="${logoGreen}" alt="P91 Pulse VAS" style="height: 60px;" />
+          <div style="flex: 1;">
+            <h1 style="margin-bottom: 4px;">Work Order</h1>
+            <div class="ids">
+              <div><strong>Work Order ID:</strong> ${order.id}</div>
+            </div>
+            <div style="margin-top: 6px;">
+              <span class="status-badge status-${order.status}">${order.status.replace(/_/g, ' ')}</span>
+            </div>
           </div>
-          <span class="status-badge status-${order.status}">${order.status.replace(/_/g, ' ')}</span>
         </div>
 
         <div class="section">

@@ -590,16 +590,20 @@ export default function JobCardsNew() {
         </style>
       </head>
       <body>
-        <div class="header">
-          <img src="${logoGreen}" alt="P91 Pulse VAS" style="height: 50px; margin-bottom: 8px;" />
-          <h1>Job Card</h1>
-          <div class="ids">
-            <div><strong>Job Card ID:</strong> ${jobCard.id}</div>
-            <div><strong>Work Order ID:</strong> ${jobCard.workOrderId || 'N/A'}</div>
-          </div>
-          <span class="status-badge status-${jobCard.status}">${statusLabels[jobCard.status] || jobCard.status.replace(/_/g, ' ')}</span>
-          <div style="font-size: 9px; color: #666; margin-top: 6px;">
-            Created: ${formatDateTime(jobCard.createdAt)} | Updated: ${formatDateTime(jobCard.updatedAt)}
+        <div class="header" style="text-align: left; display: flex; align-items: flex-start; gap: 20px;">
+          <img src="${logoGreen}" alt="P91 Pulse VAS" style="height: 60px;" />
+          <div style="flex: 1;">
+            <h1 style="margin-bottom: 4px;">Job Card</h1>
+            <div class="ids">
+              <div><strong>Job Card ID:</strong> ${jobCard.id}</div>
+              <div><strong>Work Order ID:</strong> ${jobCard.workOrderId || 'N/A'}</div>
+            </div>
+            <div style="margin-top: 6px;">
+              <span class="status-badge status-${jobCard.status}">${statusLabels[jobCard.status] || jobCard.status.replace(/_/g, ' ')}</span>
+            </div>
+            <div style="font-size: 9px; color: #666; margin-top: 6px;">
+              Created: ${formatDateTime(jobCard.createdAt)} | Updated: ${formatDateTime(jobCard.updatedAt)}
+            </div>
           </div>
         </div>
 
