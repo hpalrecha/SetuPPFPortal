@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import * as XLSX from "xlsx";
 import { useLocation, useRoute } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Eye, Edit, ArrowLeft, Save, XCircle, UserPlus, Send, User, Wrench, Car } from "lucide-react";
+import { Plus, Search, Eye, Edit, ArrowLeft, Save, XCircle, UserPlus, Send, User, Wrench, Car, Download, Printer } from "lucide-react";
 import type { WorkOrder } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -250,6 +251,212 @@ export default function WorkOrdersPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchFilters, sortField, sortOrder]);
+
+  // Format date helper
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', { 
+        year: 'numeric', month: 'short', day: 'numeric' 
+      });
+    } catch {
+      return 'Invalid Date';
+    }
+  };
+
+  const formatDateTime = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleString('en-US', { 
+        year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+    } catch {
+      return 'Invalid Date';
+    }
+  };
+
+  // Export work orders to Excel
+  const exportToExcel = () => {
+    const exportData = sortedWorkOrders.map((wo: any) => ({
+      'Work Order ID': `WO-${wo.id.slice(-6)}`,
+      'Status': wo.status,
+      'Customer Name': wo.customerName || 'N/A',
+      'Customer Phone': wo.customerPhone || 'N/A',
+      'Customer Email': wo.customerEmail || 'N/A',
+      'Vehicle Model': wo.vehicleModelName || 'N/A',
+      'Reg No': wo.regNo || 'N/A',
+      'VIN': wo.vinNumber || 'N/A',
+      'Color': wo.color || 'N/A',
+      'Service': wo.serviceName || 'N/A',
+      'Partner': wo.assignedPartner?.displayName || 'N/A',
+      'Showroom': wo.showroomName || 'N/A',
+      'Dealership': wo.dealershipName || 'N/A',
+      'Created Date': formatDate(wo.createdAt),
+      'Invoice Amount': wo.invoiceAmount ? `₹${wo.invoiceAmount}` : 'N/A',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Work Orders');
+    
+    // Auto-size columns
+    const colWidths = Object.keys(exportData[0] || {}).map(key => ({
+      wch: Math.max(key.length, 15)
+    }));
+    worksheet['!cols'] = colWidths;
+    
+    const dateStr = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(workbook, `work-orders-${dateStr}.xlsx`);
+    toast({ title: 'Export Complete', description: `Exported ${exportData.length} work orders to Excel` });
+  };
+
+  // Print individual work order
+  const printWorkOrder = (order: any) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast({ title: 'Error', description: 'Please allow popups to print', variant: 'destructive' });
+      return;
+    }
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Work Order - WO-${order.id.slice(-6)}</title>
+        <style>
+          @page { size: A4; margin: 20mm; }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.5; color: #333; }
+          .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+          .header h1 { font-size: 24px; color: #1a5f2a; margin-bottom: 5px; }
+          .header .order-id { font-size: 18px; font-weight: bold; color: #666; }
+          .section { margin-bottom: 20px; }
+          .section-title { font-size: 14px; font-weight: bold; color: #1a5f2a; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 10px; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+          .field { margin-bottom: 8px; }
+          .field-label { font-weight: bold; color: #666; font-size: 11px; }
+          .field-value { font-size: 13px; }
+          .status-badge { display: inline-block; padding: 4px 12px; border-radius: 4px; font-weight: bold; font-size: 11px; }
+          .status-DRAFT { background: #f3f4f6; color: #6b7280; }
+          .status-PENDING { background: #fef3c7; color: #d97706; }
+          .status-ASSIGNED { background: #dbeafe; color: #2563eb; }
+          .status-IN_PROGRESS { background: #dbeafe; color: #2563eb; }
+          .status-COMPLETED { background: #dcfce7; color: #16a34a; }
+          .status-APPROVED { background: #bbf7d0; color: #15803d; }
+          .status-CANCELLED { background: #fee2e2; color: #dc2626; }
+          .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; text-align: center; font-size: 10px; color: #999; }
+          @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>PULSE VAS - Work Order</h1>
+          <div class="order-id">WO-${order.id.slice(-6)}</div>
+          <span class="status-badge status-${order.status}">${order.status.replace(/_/g, ' ')}</span>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Customer Information</div>
+          <div class="grid">
+            <div class="field">
+              <div class="field-label">Customer Name</div>
+              <div class="field-value">${order.customerName || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Phone</div>
+              <div class="field-value">${order.customerPhone || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Email</div>
+              <div class="field-value">${order.customerEmail || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Address</div>
+              <div class="field-value">${order.customerAddress || 'N/A'}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Vehicle Information</div>
+          <div class="grid">
+            <div class="field">
+              <div class="field-label">Vehicle Model</div>
+              <div class="field-value">${order.vehicleModelName || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Registration No</div>
+              <div class="field-value">${order.regNo || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">VIN Number</div>
+              <div class="field-value">${order.vinNumber || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Color</div>
+              <div class="field-value">${order.color || 'N/A'}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Service & Assignment</div>
+          <div class="grid">
+            <div class="field">
+              <div class="field-label">Service</div>
+              <div class="field-value">${order.serviceName || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Partner</div>
+              <div class="field-value">${order.assignedPartner?.displayName || 'Not Assigned'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Showroom</div>
+              <div class="field-value">${order.showroomName || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Dealership</div>
+              <div class="field-value">${order.dealershipName || 'N/A'}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Billing Information</div>
+          <div class="grid">
+            <div class="field">
+              <div class="field-label">Invoice Amount</div>
+              <div class="field-value">${order.invoiceAmount ? '₹' + parseFloat(order.invoiceAmount).toLocaleString() : 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Created Date</div>
+              <div class="field-value">${formatDate(order.createdAt)}</div>
+            </div>
+          </div>
+        </div>
+
+        ${order.remarks ? `
+        <div class="section">
+          <div class="section-title">Remarks</div>
+          <div class="field-value">${order.remarks}</div>
+        </div>
+        ` : ''}
+
+        <div class="footer">
+          Printed on ${new Date().toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} | Pulse VAS System
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  };
 
   const handleCreateWorkOrder = () => {
     setShowCreateModal(true);
@@ -1028,6 +1235,17 @@ export default function WorkOrdersPage() {
                 <Search className="h-4 w-4 mr-2" />
                 Clear Filters
               </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportToExcel}
+                disabled={sortedWorkOrders.length === 0}
+                data-testid="button-export-excel"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export Excel
+              </Button>
             </div>
           </div>
 
@@ -1383,16 +1601,26 @@ export default function WorkOrdersPage() {
                   </div>
                   
                   <div className="flex flex-col gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleViewWorkOrder(order.id)}
-                      data-testid={`button-view-${order.id}`}
-                      className="w-full"
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      View Details
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleViewWorkOrder(order.id)}
+                        data-testid={`button-view-${order.id}`}
+                        className="flex-1"
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Details
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => printWorkOrder(order)}
+                        data-testid={`button-print-${order.id}`}
+                      >
+                        <Printer className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <div className="flex gap-2">
                       <Button
                         size="sm"

@@ -4,6 +4,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useOemContext } from '@/hooks/use-oem-context';
 import { useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
+import * as XLSX from "xlsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -51,7 +52,9 @@ import {
   DollarSign,
   Shield,
   Hash,
-  Store
+  Store,
+  Download,
+  Printer
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
@@ -471,6 +474,192 @@ export default function JobCardsNew() {
     } catch {
       return 'Invalid Date';
     }
+  };
+
+  // Export job cards to Excel
+  const exportToExcel = () => {
+    const exportData = sortedJobCards.map((jc) => ({
+      'Job Card ID': `JC-${jc.id.slice(-6)}`,
+      'Status': jc.status,
+      'Customer Name': jc.workOrder?.customerName || 'N/A',
+      'Customer Phone': jc.workOrder?.customerPhone || 'N/A',
+      'Vehicle Model': jc.vehicleDisplay || 'N/A',
+      'Reg No': jc.workOrder?.regNo || 'N/A',
+      'VIN': jc.workOrder?.vinNumber || 'N/A',
+      'Service': jc.serviceDisplay || 'N/A',
+      'Partner': jc.partnerDisplay || 'N/A',
+      'Showroom': jc.workOrder?.showroom?.name || 'N/A',
+      'Created Date': formatDate(jc.createdAt),
+      'Scheduled Date': formatDate(jc.scheduledDate),
+      'Start Time': jc.startTime ? formatDateTime(jc.startTime) : 'N/A',
+      'End Time': jc.endTime ? formatDateTime(jc.endTime) : 'N/A',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Job Cards');
+    
+    // Auto-size columns
+    const colWidths = Object.keys(exportData[0] || {}).map(key => ({
+      wch: Math.max(key.length, 15)
+    }));
+    worksheet['!cols'] = colWidths;
+    
+    XLSX.writeFile(workbook, `job-cards-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    toast({ title: 'Export Complete', description: `Exported ${exportData.length} job cards to Excel` });
+  };
+
+  // Print individual job card
+  const printJobCard = (jobCard: JobCard) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast({ title: 'Error', description: 'Please allow popups to print', variant: 'destructive' });
+      return;
+    }
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Job Card - JC-${jobCard.id.slice(-6)}</title>
+        <style>
+          @page { size: A4; margin: 20mm; }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.5; color: #333; }
+          .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+          .header h1 { font-size: 24px; color: #1a5f2a; margin-bottom: 5px; }
+          .header .job-id { font-size: 18px; font-weight: bold; color: #666; }
+          .section { margin-bottom: 20px; }
+          .section-title { font-size: 14px; font-weight: bold; color: #1a5f2a; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 10px; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+          .field { margin-bottom: 8px; }
+          .field-label { font-weight: bold; color: #666; font-size: 11px; }
+          .field-value { font-size: 13px; }
+          .status-badge { display: inline-block; padding: 4px 12px; border-radius: 4px; font-weight: bold; font-size: 11px; }
+          .status-AWAITING_ACK { background: #fee2e2; color: #dc2626; }
+          .status-IN_PROGRESS { background: #dbeafe; color: #2563eb; }
+          .status-COMPLETED { background: #dcfce7; color: #16a34a; }
+          .status-APPROVED { background: #bbf7d0; color: #15803d; }
+          .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; text-align: center; font-size: 10px; color: #999; }
+          @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>PULSE VAS - Job Card</h1>
+          <div class="job-id">JC-${jobCard.id.slice(-6)}</div>
+          <span class="status-badge status-${jobCard.status}">${jobCard.status.replace(/_/g, ' ')}</span>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Customer Information</div>
+          <div class="grid">
+            <div class="field">
+              <div class="field-label">Customer Name</div>
+              <div class="field-value">${jobCard.workOrder?.customerName || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Phone</div>
+              <div class="field-value">${jobCard.workOrder?.customerPhone || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Email</div>
+              <div class="field-value">${jobCard.workOrder?.customerEmail || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Address</div>
+              <div class="field-value">${jobCard.workOrder?.customerAddress || 'N/A'}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Vehicle Information</div>
+          <div class="grid">
+            <div class="field">
+              <div class="field-label">Vehicle Model</div>
+              <div class="field-value">${jobCard.vehicleDisplay || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Registration No</div>
+              <div class="field-value">${jobCard.workOrder?.regNo || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">VIN Number</div>
+              <div class="field-value">${jobCard.workOrder?.vinNumber || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Color</div>
+              <div class="field-value">${jobCard.workOrder?.color || 'N/A'}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Service Details</div>
+          <div class="grid">
+            <div class="field">
+              <div class="field-label">Service</div>
+              <div class="field-value">${jobCard.serviceDisplay || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Partner</div>
+              <div class="field-value">${jobCard.partnerDisplay || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Showroom</div>
+              <div class="field-value">${jobCard.workOrder?.showroom?.name || 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Dealership</div>
+              <div class="field-value">${jobCard.workOrder?.dealership?.name || 'N/A'}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Timeline</div>
+          <div class="grid">
+            <div class="field">
+              <div class="field-label">Created Date</div>
+              <div class="field-value">${formatDate(jobCard.createdAt)}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Scheduled Date</div>
+              <div class="field-value">${formatDate(jobCard.scheduledDate)}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Start Time</div>
+              <div class="field-value">${jobCard.startTime ? formatDateTime(jobCard.startTime) : 'Not Started'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">End Time</div>
+              <div class="field-value">${jobCard.endTime ? formatDateTime(jobCard.endTime) : 'Not Completed'}</div>
+            </div>
+          </div>
+        </div>
+
+        ${jobCard.remarks ? `
+        <div class="section">
+          <div class="section-title">Remarks</div>
+          <div class="field-value">${jobCard.remarks}</div>
+        </div>
+        ` : ''}
+
+        <div class="footer">
+          Printed on ${format(new Date(), 'MMM dd, yyyy HH:mm')} | Pulse VAS System
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
   };
 
   // Admin approval mutations
@@ -956,6 +1145,17 @@ export default function JobCardsNew() {
                 <Search className="h-4 w-4 mr-2" />
                 Clear Filters
               </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportToExcel}
+                disabled={sortedJobCards.length === 0}
+                data-testid="button-export-excel"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export Excel
+              </Button>
             </div>
           </div>
 
@@ -1262,15 +1462,25 @@ export default function JobCardsNew() {
                     </div>
                   </div>
                   
-                  <Button
-                    size="sm"
-                    className="w-full"
-                    onClick={() => handleViewJobCard(jobCard)}
-                    data-testid={`button-view-${jobCard.id}`}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    View Details
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => handleViewJobCard(jobCard)}
+                      data-testid={`button-view-${jobCard.id}`}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Details
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => printJobCard(jobCard)}
+                      data-testid={`button-print-${jobCard.id}`}
+                    >
+                      <Printer className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
