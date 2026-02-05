@@ -8,6 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
@@ -216,12 +219,15 @@ export default function JobCardsNew() {
   // Search filters state
   const [searchFilters, setSearchFilters] = useState({
     jobCardNumber: '',
-    customerName: '',
     status: '',
-    showroomLocation: '',
-    partnerName: '',
+    partnerId: '',
+    showroomId: '',
     vehicleModel: ''
   });
+  
+  // Combobox open states
+  const [partnerComboboxOpen, setPartnerComboboxOpen] = useState(false);
+  const [showroomComboboxOpen, setShowroomComboboxOpen] = useState(false);
   
   // Get current user for admin check
   const { user } = useAuth();
@@ -306,21 +312,39 @@ export default function JobCardsNew() {
     }
   });
 
+  // Fetch all partners for the combobox filter
+  const { data: allPartners = [] } = useQuery({
+    queryKey: ['partners'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/partners');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000
+  });
+
+  // Fetch all showrooms for the combobox filter
+  const { data: allShowrooms = [] } = useQuery({
+    queryKey: ['showrooms'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/showrooms');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000
+  });
+
   // Apply search filters to job cards
   const jobCards = allJobCards.filter((jobCard) => {
     const jobCardNumber = `JC-${jobCard.id.slice(-6)}`.toLowerCase();
-    const customerName = (jobCard.customerName || '').toLowerCase();
-    const status = (jobCard.status || '').toLowerCase();
-    const showroomLocation = (jobCard.workOrder?.showroomName || '').toLowerCase();
-    const partnerName = (jobCard.partnerDisplay || '').toLowerCase();
+    const status = (jobCard.status || '').toUpperCase();
     const vehicleModel = (jobCard.vehicleDisplay || '').toLowerCase();
+    const showroomId = jobCard.workOrder?.showroomId || '';
+    const partnerId = jobCard.partnerId || '';
 
     return (
       (!searchFilters.jobCardNumber || jobCardNumber.includes(searchFilters.jobCardNumber.toLowerCase())) &&
-      (!searchFilters.customerName || customerName.includes(searchFilters.customerName.toLowerCase())) &&
-      (!searchFilters.status || status === searchFilters.status.toLowerCase()) &&
-      (!searchFilters.showroomLocation || showroomLocation.includes(searchFilters.showroomLocation.toLowerCase())) &&
-      (!searchFilters.partnerName || partnerName.includes(searchFilters.partnerName.toLowerCase())) &&
+      (!searchFilters.status || status === searchFilters.status) &&
+      (!searchFilters.partnerId || partnerId === searchFilters.partnerId) &&
+      (!searchFilters.showroomId || showroomId === searchFilters.showroomId) &&
       (!searchFilters.vehicleModel || vehicleModel.includes(searchFilters.vehicleModel.toLowerCase()))
     );
   });
@@ -619,19 +643,12 @@ export default function JobCardsNew() {
       {/* Search Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             <Input
               placeholder="Job Card Number (e.g., JC-123456)"
               value={searchFilters.jobCardNumber}
               onChange={(e) => setSearchFilters(prev => ({ ...prev, jobCardNumber: e.target.value }))}
               data-testid="input-job-card-search"
-            />
-            
-            <Input
-              placeholder="Customer Name"
-              value={searchFilters.customerName}
-              onChange={(e) => setSearchFilters(prev => ({ ...prev, customerName: e.target.value }))}
-              data-testid="input-customer-search"
             />
 
             <Select 
@@ -642,30 +659,126 @@ export default function JobCardsNew() {
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="PENDING">Pending</SelectItem>
-                <SelectItem value="ASSIGNED">Assigned</SelectItem>
+                <SelectItem value="AWAITING_ACK">Awaiting Acknowledgment</SelectItem>
                 <SelectItem value="ACKNOWLEDGED">Acknowledged</SelectItem>
+                <SelectItem value="ASSIGNED">Assigned</SelectItem>
                 <SelectItem value="SCHEDULED">Scheduled</SelectItem>
                 <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                <SelectItem value="COMPLETED_PENDING_APPROVAL">Pending Approval</SelectItem>
+                <SelectItem value="COMPLETED">Completed</SelectItem>
+                <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
                 <SelectItem value="APPROVED">Approved</SelectItem>
-                <SelectItem value="REWORK_REQUESTED">Rework Requested</SelectItem>
+                <SelectItem value="PENDING_SALES_INVOICE">Pending Invoice</SelectItem>
+                <SelectItem value="INVOICE_RAISED">Invoice Raised</SelectItem>
+                <SelectItem value="WARRANTY_REGISTRATION">Warranty Registered</SelectItem>
+                <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                <SelectItem value="CLOSED">Closed</SelectItem>
               </SelectContent>
             </Select>
 
-            <Input
-              placeholder="Showroom Location"
-              value={searchFilters.showroomLocation}
-              onChange={(e) => setSearchFilters(prev => ({ ...prev, showroomLocation: e.target.value }))}
-              data-testid="input-showroom-search"
-            />
+            {/* Partner Combobox */}
+            <Popover open={partnerComboboxOpen} onOpenChange={setPartnerComboboxOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={partnerComboboxOpen}
+                  className="justify-between w-full font-normal"
+                  data-testid="combobox-partner-filter"
+                >
+                  {searchFilters.partnerId
+                    ? allPartners.find((p: Partner) => p.id === searchFilters.partnerId)?.displayName || 'Select Partner'
+                    : 'All Partners'}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[250px] p-0">
+                <Command>
+                  <CommandInput placeholder="Search partner..." />
+                  <CommandList>
+                    <CommandEmpty>No partner found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value=""
+                        onSelect={() => {
+                          setSearchFilters(prev => ({ ...prev, partnerId: '' }));
+                          setPartnerComboboxOpen(false);
+                        }}
+                      >
+                        <Check className={`mr-2 h-4 w-4 ${!searchFilters.partnerId ? 'opacity-100' : 'opacity-0'}`} />
+                        All Partners
+                      </CommandItem>
+                      {allPartners.map((partner: Partner) => (
+                        <CommandItem
+                          key={partner.id}
+                          value={partner.displayName || partner.companyName || ''}
+                          onSelect={() => {
+                            setSearchFilters(prev => ({ ...prev, partnerId: partner.id }));
+                            setPartnerComboboxOpen(false);
+                          }}
+                        >
+                          <Check className={`mr-2 h-4 w-4 ${searchFilters.partnerId === partner.id ? 'opacity-100' : 'opacity-0'}`} />
+                          {partner.displayName || partner.companyName}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
 
-            <Input
-              placeholder="Partner Name"
-              value={searchFilters.partnerName}
-              onChange={(e) => setSearchFilters(prev => ({ ...prev, partnerName: e.target.value }))}
-              data-testid="input-partner-search"
-            />
+            {/* Showroom Combobox */}
+            <Popover open={showroomComboboxOpen} onOpenChange={setShowroomComboboxOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={showroomComboboxOpen}
+                  className="justify-between w-full font-normal"
+                  data-testid="combobox-showroom-filter"
+                >
+                  {searchFilters.showroomId
+                    ? allShowrooms.find((s: any) => s.id === searchFilters.showroomId)?.name || 'Select Showroom'
+                    : 'All Showrooms'}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-0">
+                <Command>
+                  <CommandInput placeholder="Search showroom..." />
+                  <CommandList>
+                    <CommandEmpty>No showroom found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value=""
+                        onSelect={() => {
+                          setSearchFilters(prev => ({ ...prev, showroomId: '' }));
+                          setShowroomComboboxOpen(false);
+                        }}
+                      >
+                        <Check className={`mr-2 h-4 w-4 ${!searchFilters.showroomId ? 'opacity-100' : 'opacity-0'}`} />
+                        All Showrooms
+                      </CommandItem>
+                      {allShowrooms.map((showroom: any) => (
+                        <CommandItem
+                          key={showroom.id}
+                          value={`${showroom.name} ${showroom.city || ''}`}
+                          onSelect={() => {
+                            setSearchFilters(prev => ({ ...prev, showroomId: showroom.id }));
+                            setShowroomComboboxOpen(false);
+                          }}
+                        >
+                          <Check className={`mr-2 h-4 w-4 ${searchFilters.showroomId === showroom.id ? 'opacity-100' : 'opacity-0'}`} />
+                          <div className="flex flex-col">
+                            <span>{showroom.name}</span>
+                            {showroom.city && <span className="text-xs text-muted-foreground">{showroom.city}</span>}
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
 
             <Input
               placeholder="Vehicle Model"
@@ -684,10 +797,9 @@ export default function JobCardsNew() {
               size="sm"
               onClick={() => setSearchFilters({
                 jobCardNumber: '',
-                customerName: '',
                 status: '',
-                showroomLocation: '',
-                partnerName: '',
+                partnerId: '',
+                showroomId: '',
                 vehicleModel: ''
               })}
               data-testid="button-clear-filters"
@@ -713,10 +825,9 @@ export default function JobCardsNew() {
                 className="mt-4"
                 onClick={() => setSearchFilters({
                   jobCardNumber: '',
-                  customerName: '',
                   status: '',
-                  showroomLocation: '',
-                  partnerName: '',
+                  partnerId: '',
+                  showroomId: '',
                   vehicleModel: ''
                 })}
               >
