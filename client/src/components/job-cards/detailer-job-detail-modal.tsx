@@ -884,6 +884,64 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                 </CardContent>
               </Card>
             )}
+
+            {/* Material Consumption Details (Readonly View) */}
+            {(jobCard?.materialConsumptionJson || jobCard?.batchNumbers || jobCard?.batchNumberImage) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <WrenchIcon className="h-5 w-5 text-gray-600" />
+                    Material Consumption
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {jobCard?.materialConsumptionJson && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {jobCard.materialConsumptionJson.productName && (
+                        <div>
+                          <Label className="text-sm font-medium text-gray-600">Product Name</Label>
+                          <p className="text-sm">{jobCard.materialConsumptionJson.productName}</p>
+                        </div>
+                      )}
+                      {jobCard.materialConsumptionJson.batchNumber && (
+                        <div>
+                          <Label className="text-sm font-medium text-gray-600">Batch Number</Label>
+                          <p className="text-sm">{jobCard.materialConsumptionJson.batchNumber}</p>
+                        </div>
+                      )}
+                      {jobCard.materialConsumptionJson.quantityUsed && (
+                        <div>
+                          <Label className="text-sm font-medium text-gray-600">Quantity Used</Label>
+                          <p className="text-sm">{jobCard.materialConsumptionJson.quantityUsed}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {jobCard?.batchNumbers && !jobCard?.materialConsumptionJson?.batchNumber && (
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">Batch Number</Label>
+                      <p className="text-sm">{jobCard.batchNumbers}</p>
+                    </div>
+                  )}
+                  {jobCard?.batchNumberImage && (
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                        <Camera className="h-4 w-4" />
+                        Batch Number Image
+                      </Label>
+                      <div className="mt-2">
+                        <img 
+                          src={jobCard.batchNumberImage} 
+                          alt="Batch Number" 
+                          className="max-w-xs rounded border shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => window.open(jobCard.batchNumberImage, '_blank')}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 

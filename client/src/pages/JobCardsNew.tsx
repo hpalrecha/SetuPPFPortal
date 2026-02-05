@@ -79,8 +79,13 @@ interface JobCard {
   checklistJson?: string;
   remarks?: string;
   partnerRemarks?: string;
-  materialConsumptionJson?: string;
-  batchNumbers?: string[];
+  materialConsumptionJson?: {
+    productName?: string;
+    batchNumber?: string;
+    quantityUsed?: string;
+  } | null;
+  batchNumbers?: string | string[];
+  batchNumberImage?: string;
   approvalRequestedAt?: string;
   approvedAt?: string;
   approvedByUserId?: string;
@@ -781,6 +786,23 @@ export default function JobCardsNew() {
             ${jobCard.preInstallationPhotoRight ? `<div class="photo-item"><img src="${jobCard.preInstallationPhotoRight}" alt="Right Side" /><div class="photo-label">Right Side</div></div>` : '<div class="photo-item"><div style="height:120px;border:1px dashed #ccc;display:flex;align-items:center;justify-content:center;color:#999;">No Photo</div><div class="photo-label">Right Side</div></div>'}
           </div>
           ${jobCard.preInstallationRemarks ? `<div class="remarks-box" style="margin-top: 6px;"><strong>Pre-Installation Remarks:</strong> ${jobCard.preInstallationRemarks}</div>` : ''}
+        </div>
+        ` : ''}
+
+        ${(jobCard.materialConsumptionJson || jobCard.batchNumbers || jobCard.batchNumberImage) ? `
+        <div class="section">
+          <div class="section-title">Material Consumption</div>
+          <div class="grid">
+            ${jobCard.materialConsumptionJson?.productName ? `<div><div class="field-label">Product Name</div><div class="field-value">${jobCard.materialConsumptionJson.productName}</div></div>` : ''}
+            ${(jobCard.materialConsumptionJson?.batchNumber || jobCard.batchNumbers) ? `<div><div class="field-label">Batch Number</div><div class="field-value">${jobCard.materialConsumptionJson?.batchNumber || jobCard.batchNumbers}</div></div>` : ''}
+            ${jobCard.materialConsumptionJson?.quantityUsed ? `<div><div class="field-label">Quantity Used</div><div class="field-value">${jobCard.materialConsumptionJson.quantityUsed}</div></div>` : ''}
+          </div>
+          ${jobCard.batchNumberImage ? `
+          <div style="margin-top: 10px;">
+            <div class="field-label">Batch Number Image</div>
+            <img src="${jobCard.batchNumberImage}" alt="Batch Number" style="max-width: 200px; max-height: 150px; border: 1px solid #ddd; border-radius: 4px; margin-top: 4px;" />
+          </div>
+          ` : ''}
         </div>
         ` : ''}
 
