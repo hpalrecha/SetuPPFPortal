@@ -2366,6 +2366,19 @@ export default function JobCardsNew() {
                           </div>
                         </div>
                       )}
+                      {detailedJobCard.batchNumberImage && (
+                        <div className="col-span-2">
+                          <span className="text-sm text-muted-foreground">Batch Number Image</span>
+                          <div className="mt-2">
+                            <img 
+                              src={detailedJobCard.batchNumberImage} 
+                              alt="Batch Number" 
+                              className="max-w-[200px] max-h-[150px] rounded border shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => window.open(detailedJobCard.batchNumberImage, '_blank')}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
