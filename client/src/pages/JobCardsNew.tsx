@@ -480,19 +480,31 @@ export default function JobCardsNew() {
   const exportToExcel = () => {
     const exportData = sortedJobCards.map((jc) => ({
       'Job Card ID': `JC-${jc.id.slice(-6)}`,
+      'Work Order ID': jc.workOrderId ? `WO-${jc.workOrderId.slice(-6)}` : 'N/A',
       'Status': jc.status,
       'Customer Name': jc.workOrder?.customerName || 'N/A',
       'Customer Phone': jc.workOrder?.customerPhone || 'N/A',
+      'Customer Email': jc.workOrder?.customerEmail || 'N/A',
+      'Customer Address': jc.workOrder?.customerAddress || 'N/A',
       'Vehicle Model': jc.vehicleDisplay || 'N/A',
+      'Vehicle Color': jc.workOrder?.color || 'N/A',
       'Reg No': jc.workOrder?.regNo || 'N/A',
       'VIN': jc.workOrder?.vinNumber || 'N/A',
       'Service': jc.serviceDisplay || 'N/A',
       'Partner': jc.partnerDisplay || 'N/A',
       'Showroom': jc.workOrder?.showroom?.name || 'N/A',
+      'Dealership': jc.workOrder?.dealership?.name || 'N/A',
+      'OEM': jc.workOrder?.oem?.name || 'N/A',
       'Created Date': formatDate(jc.createdAt),
       'Scheduled Date': formatDate(jc.scheduledDate),
+      'Acknowledged Date': jc.acknowledgedAt ? formatDateTime(jc.acknowledgedAt) : 'N/A',
       'Start Time': jc.startTime ? formatDateTime(jc.startTime) : 'N/A',
       'End Time': jc.endTime ? formatDateTime(jc.endTime) : 'N/A',
+      'Completed Date': jc.completedAt ? formatDateTime(jc.completedAt) : 'N/A',
+      'Approved Date': jc.approvedAt ? formatDateTime(jc.approvedAt) : 'N/A',
+      'Pre-Installation Remarks': jc.preInstallationRemarks || 'N/A',
+      'Partner Remarks': jc.partnerRemarks || 'N/A',
+      'Remarks': jc.remarks || 'N/A',
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
