@@ -4618,6 +4618,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         remarks: z.string().optional(),
         partnerRemarks: z.string().optional(), 
         batchNumbers: z.string().optional(),
+        batchNumberImage: z.string().nullable().optional(), // Photo of batch number sticker/label
         materialConsumptionJson: z.any().optional(), // JSONB field
         checklistJson: z.any().optional() // JSONB field
       });

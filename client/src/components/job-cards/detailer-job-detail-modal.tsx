@@ -29,6 +29,7 @@ interface JobCard {
   partnerRemarks?: string;
   materialConsumptionJson?: any;
   batchNumbers?: string;
+  batchNumberImage?: string;
   checklistJson?: any;
   assignedInstallerId?: string;
   reworkReason?: string;
@@ -119,6 +120,8 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const [materialProductName, setMaterialProductName] = useState('');
   const [materialBatchNumber, setMaterialBatchNumber] = useState('');
   const [materialQuantityUsed, setMaterialQuantityUsed] = useState('');
+  const [batchNumberImage, setBatchNumberImage] = useState<string | null>(null);
+  const [batchNumberImageUploading, setBatchNumberImageUploading] = useState(false);
 
   // No JSON validation needed for form fields
 
@@ -223,6 +226,11 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
 
   const completeJobMutation = useMutation({
     mutationFn: async () => {
+      // Validate batch number image is required when batch number is provided
+      if (materialBatchNumber.trim() && !batchNumberImage) {
+        throw new Error('Batch number image is required when batch number is provided');
+      }
+
       // Create material consumption object from form fields
       let materialConsumptionData = null;
       if (materialProductName.trim() || materialBatchNumber.trim() || materialQuantityUsed.trim()) {
@@ -240,7 +248,8 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
         remarks: completionRemarks,
         checklistJson: checklist,
         materialConsumptionJson: materialConsumptionData,
-        batchNumbers: materialBatchNumber.trim() || null
+        batchNumbers: materialBatchNumber.trim() || null,
+        batchNumberImage: batchNumberImage || null
       });
       return response.json();
     },
@@ -293,6 +302,56 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
       toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
     }
   });
+
+  // Batch number image upload handler
+  const handleBatchNumberImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setBatchNumberImageUploading(true);
+
+      // Get upload URL from the server
+      const uploadUrlResponse = await fetch('/api/objects/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+
+      if (!uploadUrlResponse.ok) {
+        const errorText = await uploadUrlResponse.text();
+        throw new Error(`Failed to get upload URL: ${errorText}`);
+      }
+
+      const { uploadURL } = await uploadUrlResponse.json();
+
+      // Upload the file
+      const uploadResponse = await fetch(uploadURL, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type || 'image/jpeg',
+        },
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload batch number image');
+      }
+
+      setBatchNumberImage(uploadURL);
+      toast({ title: 'Success', description: 'Batch number image uploaded successfully' });
+    } catch (error: any) {
+      toast({ 
+        title: 'Upload Failed', 
+        description: error.message || 'Failed to upload batch number image', 
+        variant: 'destructive' 
+      });
+    } finally {
+      setBatchNumberImageUploading(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     const colors = {
@@ -987,6 +1046,43 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                       onChange={(e) => setMaterialQuantityUsed(e.target.value)}
                       data-testid="input-material-quantity-used"
                     />
+                  </div>
+                </div>
+
+                {/* Batch Number Image Upload - Required when batch number is provided */}
+                <div className="mt-4">
+                  <Label htmlFor="batch-number-image" className="flex items-center gap-2">
+                    <Camera className="h-4 w-4" />
+                    Batch Number Image {materialBatchNumber.trim() && <span className="text-red-500">*</span>}
+                  </Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Upload a photo of the batch number sticker/label {materialBatchNumber.trim() && '(Required when batch number is provided)'}
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <Input
+                      id="batch-number-image"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleBatchNumberImageUpload}
+                      disabled={batchNumberImageUploading}
+                      className="max-w-xs"
+                      data-testid="input-batch-number-image"
+                    />
+                    {batchNumberImageUploading && (
+                      <span className="text-sm text-muted-foreground">Uploading...</span>
+                    )}
+                    {batchNumberImage && (
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-green-600">Image uploaded</span>
+                        <img 
+                          src={batchNumberImage} 
+                          alt="Batch Number" 
+                          className="h-12 w-12 object-cover rounded border cursor-pointer"
+                          onClick={() => window.open(batchNumberImage, '_blank')}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
