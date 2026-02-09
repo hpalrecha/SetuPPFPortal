@@ -113,7 +113,6 @@ export default function WorkOrdersPage() {
       if (filters.status) searchParams.append('status', filters.status);
       if (filters.partnerId) searchParams.append('partnerId', filters.partnerId);
       if (filters.dateFrom) searchParams.append('dateFrom', filters.dateFrom);
-      searchParams.append('limit', filters.limit.toString());
       searchParams.append('offset', filters.offset.toString());
       
       const response = await fetch(`/api/work-orders?${searchParams}`, {
