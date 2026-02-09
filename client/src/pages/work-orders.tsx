@@ -67,7 +67,6 @@ export default function WorkOrdersPage() {
     status: "",
     partnerId: "",
     dateFrom: "",
-    limit: 50,
     offset: 0
   });
 
