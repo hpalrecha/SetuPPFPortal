@@ -3042,13 +3042,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.set('Pragma', 'no-cache');
       res.set('Expires', '0');
       
-      const { status, partnerId, limit = 50, offset = 0 } = req.query;
+      const { status, partnerId, limit, offset = 0 } = req.query;
       
       const filters: any = {
         oemId: req.user!.oemId,
-        limit: parseInt(limit as string),
         offset: parseInt(offset as string)
       };
+      if (limit) {
+        filters.limit = parseInt(limit as string);
+      }
 
       // Add dealership-level filtering for DEALERSHIP_ADMIN users
       if (req.user!.role === 'DEALERSHIP_ADMIN' && req.user!.dealershipId) {
@@ -3475,12 +3477,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.set('Pragma', 'no-cache');
       res.set('Expires', '0');
       
-      const { status, limit = 50, offset = 0 } = req.query;
+      const { status, limit, offset = 0 } = req.query;
       
       const filters: any = {
-        limit: parseInt(limit as string),
         offset: parseInt(offset as string)
       };
+      if (limit) {
+        filters.limit = parseInt(limit as string);
+      }
 
       // Apply role-based filtering with proper OEM tenant isolation
       const selectedOemId = req.headers['x-oem-id'] as string;

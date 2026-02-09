@@ -77,8 +77,8 @@ export const validateParams = (schema: ZodSchema) => {
 export const uuidSchema = z.string().uuid('Invalid UUID format');
 
 export const paginationSchema = z.object({
-  limit: z.string().optional().transform(val => val ? parseInt(val) : 50)
-    .refine(val => val >= 1 && val <= 100, 'Limit must be between 1 and 100'),
+  limit: z.string().optional().transform(val => val ? parseInt(val) : undefined)
+    .refine(val => val === undefined || (val >= 1), 'Limit must be at least 1'),
   offset: z.string().optional().transform(val => val ? parseInt(val) : 0)
     .refine(val => val >= 0, 'Offset must be non-negative')
 });
