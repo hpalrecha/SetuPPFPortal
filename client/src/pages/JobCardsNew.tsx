@@ -232,7 +232,7 @@ export default function JobCardsNew() {
     partnerId: '',
     showroomId: '',
     vehicleModel: '',
-    vinNumber: '',
+    regNo: '',
     dateFrom: '',
     dateTo: ''
   });
@@ -361,7 +361,7 @@ export default function JobCardsNew() {
     const vehicleModel = (jobCard.vehicleDisplay || '').toLowerCase();
     const showroomId = jobCard.workOrder?.showroomId || '';
     const partnerId = jobCard.partnerId || '';
-    const vinNumber = (jobCard.workOrder?.vinNumber || '').toLowerCase();
+    const regNo = (jobCard.workOrder?.regNo || '').toLowerCase();
     const createdAt = jobCard.createdAt ? new Date(jobCard.createdAt) : null;
 
     // Date filter logic
@@ -383,7 +383,7 @@ export default function JobCardsNew() {
       (!searchFilters.partnerId || partnerId === searchFilters.partnerId) &&
       (!searchFilters.showroomId || showroomId === searchFilters.showroomId) &&
       (!searchFilters.vehicleModel || vehicleModel.includes(searchFilters.vehicleModel.toLowerCase())) &&
-      (!searchFilters.vinNumber || vinNumber.includes(searchFilters.vinNumber.toLowerCase())) &&
+      (!searchFilters.regNo || regNo.includes(searchFilters.regNo.toLowerCase())) &&
       dateMatch
     );
   });
@@ -495,7 +495,6 @@ export default function JobCardsNew() {
       'Vehicle Model': jc.vehicleDisplay || 'N/A',
       'Vehicle Color': jc.workOrder?.color || 'N/A',
       'Reg No': jc.workOrder?.regNo || 'N/A',
-      'VIN': jc.workOrder?.vinNumber || 'N/A',
       'Service': jc.serviceDisplay || 'N/A',
       'Partner': jc.partnerDisplay || 'N/A',
       'Showroom': jc.workOrder?.showroom?.name || 'N/A',
@@ -647,7 +646,7 @@ export default function JobCardsNew() {
             </div>
             <div class="field">
               <div class="field-label">VIN Number</div>
-              <div class="field-value">${jobCard.workOrder?.vinNumber || 'N/A'}</div>
+              <div class="field-value">${jobCard.workOrder?.regNo || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">Color</div>
@@ -1118,9 +1117,9 @@ export default function JobCardsNew() {
             </Select>
 
             <Input
-              placeholder="VIN Number"
-              value={searchFilters.vinNumber}
-              onChange={(e) => setSearchFilters(prev => ({ ...prev, vinNumber: e.target.value }))}
+              placeholder="Reg No / VIN"
+              value={searchFilters.regNo}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, regNo: e.target.value }))}
               data-testid="input-vin-search"
             />
 
@@ -1317,7 +1316,7 @@ export default function JobCardsNew() {
                   partnerId: '',
                   showroomId: '',
                   vehicleModel: '',
-                  vinNumber: '',
+                  regNo: '',
                   dateFrom: '',
                   dateTo: ''
                 })}
@@ -1361,7 +1360,7 @@ export default function JobCardsNew() {
                   partnerId: '',
                   showroomId: '',
                   vehicleModel: '',
-                  vinNumber: '',
+                  regNo: '',
                   dateFrom: '',
                   dateTo: ''
                 })}
