@@ -228,6 +228,7 @@ export default function JobCardsNew() {
   // Search filters state
   const [searchFilters, setSearchFilters] = useState({
     jobCardNumber: '',
+    customerName: '',
     status: '',
     partnerId: '',
     showroomId: '',
@@ -362,6 +363,7 @@ export default function JobCardsNew() {
     const showroomId = jobCard.workOrder?.showroomId || '';
     const partnerId = jobCard.partnerId || '';
     const regNo = (jobCard.workOrder?.regNo || '').toLowerCase();
+    const customerName = (jobCard.workOrder?.customerName || '').toLowerCase();
     const createdAt = jobCard.createdAt ? new Date(jobCard.createdAt) : null;
 
     // Date filter logic
@@ -379,6 +381,7 @@ export default function JobCardsNew() {
 
     return (
       (!searchFilters.jobCardNumber || jobCardNumber.includes(searchFilters.jobCardNumber.toLowerCase())) &&
+      (!searchFilters.customerName || customerName.includes(searchFilters.customerName.toLowerCase())) &&
       (!searchFilters.status || status === searchFilters.status) &&
       (!searchFilters.partnerId || partnerId === searchFilters.partnerId) &&
       (!searchFilters.showroomId || showroomId === searchFilters.showroomId) &&
@@ -1117,6 +1120,13 @@ export default function JobCardsNew() {
             </Select>
 
             <Input
+              placeholder="Customer Name"
+              value={searchFilters.customerName}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, customerName: e.target.value }))}
+              data-testid="input-customer-search"
+            />
+
+            <Input
               placeholder="Reg No / VIN"
               value={searchFilters.regNo}
               onChange={(e) => setSearchFilters(prev => ({ ...prev, regNo: e.target.value }))}
@@ -1312,6 +1322,7 @@ export default function JobCardsNew() {
                 size="sm"
                 onClick={() => setSearchFilters({
                   jobCardNumber: '',
+                  customerName: '',
                   status: '',
                   partnerId: '',
                   showroomId: '',
@@ -1356,6 +1367,7 @@ export default function JobCardsNew() {
                 className="mt-4"
                 onClick={() => setSearchFilters({
                   jobCardNumber: '',
+                  customerName: '',
                   status: '',
                   partnerId: '',
                   showroomId: '',
