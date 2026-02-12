@@ -76,6 +76,7 @@ export default function WorkOrdersPage() {
     customerName: '',
     status: '',
     vehicleModel: '',
+    regNo: '',
     serviceName: '',
     partnerName: '',
     dateFrom: '',
@@ -94,12 +95,13 @@ export default function WorkOrdersPage() {
   const debouncedSearchFilters = {
     workOrderNumber: useDebounce(searchFilters.workOrderNumber, 500),
     customerName: useDebounce(searchFilters.customerName, 500),
-    status: searchFilters.status, // No debounce for dropdown selection
+    status: searchFilters.status,
     vehicleModel: useDebounce(searchFilters.vehicleModel, 500),
+    regNo: useDebounce(searchFilters.regNo, 500),
     serviceName: useDebounce(searchFilters.serviceName, 500),
     partnerName: useDebounce(searchFilters.partnerName, 500),
-    dateFrom: searchFilters.dateFrom, // No debounce for date selection
-    dateTo: searchFilters.dateTo // No debounce for date selection
+    dateFrom: searchFilters.dateFrom,
+    dateTo: searchFilters.dateTo
   };
 
   // Check if user can create work orders (showroom managers, dealership admins, sales persons, admin, manager, and super admin)
@@ -179,6 +181,7 @@ export default function WorkOrdersPage() {
     const customerName = (order.customerName || '').toLowerCase();
     const status = (order.status || '').toLowerCase();
     const vehicleModel = ((order as any).vehicleModelName || '').toLowerCase();
+    const regNo = (order.regNo || '').toLowerCase();
     const serviceName = ((order as any).serviceName || '').toLowerCase();
     const partnerName = ((order as any).assignedPartner?.displayName || '').toLowerCase();
     const createdAt = order.createdAt ? new Date(order.createdAt) : null;
@@ -201,6 +204,7 @@ export default function WorkOrdersPage() {
       (!debouncedSearchFilters.customerName || customerName.includes(debouncedSearchFilters.customerName.toLowerCase())) &&
       (!debouncedSearchFilters.status || status === debouncedSearchFilters.status.toLowerCase()) &&
       (!debouncedSearchFilters.vehicleModel || vehicleModel.includes(debouncedSearchFilters.vehicleModel.toLowerCase())) &&
+      (!debouncedSearchFilters.regNo || regNo.includes(debouncedSearchFilters.regNo.toLowerCase())) &&
       (!debouncedSearchFilters.serviceName || serviceName.includes(debouncedSearchFilters.serviceName.toLowerCase())) &&
       (!debouncedSearchFilters.partnerName || partnerName.includes(debouncedSearchFilters.partnerName.toLowerCase())) &&
       dateMatch
@@ -1157,6 +1161,13 @@ export default function WorkOrdersPage() {
             />
 
             <Input
+              placeholder="Reg No / VIN"
+              value={searchFilters.regNo}
+              onChange={(e) => setSearchFilters(prev => ({ ...prev, regNo: e.target.value }))}
+              data-testid="input-regno-search"
+            />
+
+            <Input
               placeholder="Service Name"
               value={searchFilters.serviceName}
               onChange={(e) => setSearchFilters(prev => ({ ...prev, serviceName: e.target.value }))}
@@ -1250,6 +1261,7 @@ export default function WorkOrdersPage() {
                   customerName: '',
                   status: '',
                   vehicleModel: '',
+                  regNo: '',
                   serviceName: '',
                   partnerName: '',
                   dateFrom: '',
@@ -1294,6 +1306,7 @@ export default function WorkOrdersPage() {
                   customerName: '',
                   status: '',
                   vehicleModel: '',
+                  regNo: '',
                   serviceName: '',
                   partnerName: '',
                   dateFrom: '',
