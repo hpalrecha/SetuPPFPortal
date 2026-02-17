@@ -546,7 +546,7 @@ export default function WorkOrdersPage() {
   };
 
   // Check if user can cancel work orders (admins only)
-  const canEditWorkOrder = user && ['SUPER_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'SALES_PERSON'].includes(user.role);
+  const canEditWorkOrder = user && ['SUPER_ADMIN', 'ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'SALES_PERSON'].includes(user.role);
   const canCancelWorkOrder = user && ['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'].includes(user.role);
   const canAllocatePartner = user?.role === 'SUPER_ADMIN';
 

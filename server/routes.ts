@@ -3342,7 +3342,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/work-orders/:id", 
     authenticate, 
-    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'SUPER_ADMIN', 'SALES_PERSON']),
+    requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'SUPER_ADMIN', 'ADMIN', 'SALES_PERSON']),
     requireOEMAccess,
     auditLog('work_order', 'update'),
     async (req, res) => {
