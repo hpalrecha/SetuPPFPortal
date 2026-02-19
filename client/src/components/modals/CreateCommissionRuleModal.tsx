@@ -10,15 +10,16 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Plus, CalendarIcon } from "lucide-react";
+import { Plus, CalendarIcon, Check, ChevronsUpDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { insertCommissionRuleSchema } from "@shared/schema";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
-// Create form schema for commission rule creation
 const commissionRuleFormSchema = z.object({
   organizationLevel: z.enum(["OEM", "DEALERSHIP", "SHOWROOM"]),
   oemId: z.string().optional(),
@@ -56,15 +57,12 @@ interface CreateCommissionRuleModalProps {
 
 export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModalProps) {
   const [open, setOpen] = useState(false);
+  const [dealershipComboboxOpen, setDealershipComboboxOpen] = useState(false);
+  const [showroomComboboxOpen, setShowroomComboboxOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch data for dropdowns
   const { data: oems = [] } = useQuery<any[]>({ queryKey: ["/api/oems"] });
-  const { data: dealershipData } = useQuery<{ dealerships: any[]; total: number }>({ queryKey: ["/api/dealerships?limit=1000"] });
-  const dealerships = dealershipData?.dealerships || [];
-  const { data: showroomData } = useQuery<{ showrooms: any[]; total: number }>({ queryKey: ["/api/showrooms?limit=1000"] });
-  const showrooms = showroomData?.showrooms || [];
   const { data: salesPersons = [] } = useQuery<any[]>({ queryKey: ["/api/sales-persons"] });
   const { data: services = [] } = useQuery<any[]>({ queryKey: ["/api/services"] });
   const { data: serviceCategories = [] } = useQuery<any[]>({ queryKey: ["/api/service-categories"] });
@@ -87,15 +85,45 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
   const selectedOemId = form.watch("oemId");
   const selectedDealershipId = form.watch("dealershipId");
 
-  // Filter dealerships based on selected OEM
-  const filteredDealerships = selectedOemId 
-    ? dealerships.filter((d: any) => d.oemId === selectedOemId)
-    : dealerships;
+  const { data: dealershipData } = useQuery<{ dealerships: any[]; total: number }>({
+    queryKey: ["/api/dealerships", selectedOemId],
+    queryFn: async () => {
+      const url = selectedOemId
+        ? `/api/dealerships?oemId=${selectedOemId}&limit=10000`
+        : '/api/dealerships?limit=10000';
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch dealerships');
+      return response.json();
+    },
+    enabled: open && !!selectedOemId && (organizationLevel === "DEALERSHIP" || organizationLevel === "SHOWROOM"),
+    staleTime: 300000,
+  });
+  const filteredDealerships = dealershipData?.dealerships || [];
 
-  // Filter showrooms based on selected dealership
-  const filteredShowrooms = selectedDealershipId
-    ? showrooms.filter((s: any) => s.dealershipId === selectedDealershipId)
-    : showrooms;
+  const { data: showroomData } = useQuery<{ showrooms: any[]; total: number }>({
+    queryKey: ["/api/showrooms", selectedDealershipId, selectedOemId],
+    queryFn: async () => {
+      const params = new URLSearchParams({ limit: '10000' });
+      if (selectedDealershipId) params.set('dealershipId', selectedDealershipId);
+      if (selectedOemId) params.set('oemId', selectedOemId);
+      const response = await fetch(`/api/showrooms?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch showrooms');
+      return response.json();
+    },
+    enabled: open && !!selectedDealershipId && organizationLevel === "SHOWROOM",
+    staleTime: 300000,
+  });
+  const filteredShowrooms = showroomData?.showrooms || [];
 
   const createCommissionRuleMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -121,16 +149,13 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
   });
 
   const onSubmit = (data: CommissionRuleFormData) => {
-    // Transform form data to API format
     const apiData = {
-      // Set organizational IDs based on level
       oemId: organizationLevel === "OEM" ? data.oemId : undefined,
       dealershipId: organizationLevel === "DEALERSHIP" ? data.dealershipId : undefined,
       showroomId: organizationLevel === "SHOWROOM" ? data.showroomId : undefined,
       
       salesPersonId: data.salesPersonId === "ALL" ? undefined : data.salesPersonId,
       
-      // Set service IDs based on type
       serviceId: serviceType === "SPECIFIC" ? data.serviceId : undefined,
       serviceCategoryId: serviceType === "CATEGORY" ? data.serviceCategoryId : undefined,
       
@@ -158,7 +183,6 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* Organization Level Selection */}
             <FormField
               control={form.control}
               name="organizationLevel"
@@ -167,7 +191,12 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
                   <FormLabel>Organization Level</FormLabel>
                   <FormControl>
                     <RadioGroup
-                      onValueChange={field.onChange}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        form.setValue('oemId', undefined);
+                        form.setValue('dealershipId', undefined);
+                        form.setValue('showroomId', undefined);
+                      }}
                       defaultValue={field.value}
                       className="flex space-x-6"
                       data-testid="radio-organization-level"
@@ -191,7 +220,6 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
               )}
             />
 
-            {/* Organization Selection */}
             {organizationLevel === "OEM" && (
               <FormField
                 control={form.control}
@@ -227,7 +255,14 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Select OEM</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value} data-testid="select-oem-for-dealership">
+                      <Select
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          form.setValue('dealershipId', undefined);
+                        }}
+                        defaultValue={field.value}
+                        data-testid="select-oem-for-dealership"
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select OEM" />
@@ -250,22 +285,57 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
                   control={form.control}
                   name="dealershipId"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="flex flex-col">
                       <FormLabel>Select Dealership</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value} data-testid="select-dealership">
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select Dealership" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {filteredDealerships.map((dealership: any) => (
-                            <SelectItem key={dealership.id} value={dealership.id}>
-                              {dealership.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={dealershipComboboxOpen} onOpenChange={setDealershipComboboxOpen}>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={dealershipComboboxOpen}
+                              className={cn(
+                                "w-full justify-between font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                              disabled={!selectedOemId}
+                            >
+                              {field.value
+                                ? filteredDealerships.find((d: any) => d.id === field.value)?.name || "Select Dealership"
+                                : selectedOemId ? "Select Dealership" : "Select OEM first"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search dealership..." />
+                            <CommandList>
+                              <CommandEmpty>No dealership found.</CommandEmpty>
+                              <CommandGroup className="max-h-64 overflow-auto">
+                                {filteredDealerships.map((dealership: any) => (
+                                  <CommandItem
+                                    key={dealership.id}
+                                    value={dealership.name}
+                                    onSelect={() => {
+                                      field.onChange(dealership.id);
+                                      setDealershipComboboxOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        field.value === dealership.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {dealership.name}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -281,7 +351,15 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Select OEM</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value} data-testid="select-oem-for-showroom">
+                      <Select
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          form.setValue('dealershipId', undefined);
+                          form.setValue('showroomId', undefined);
+                        }}
+                        defaultValue={field.value}
+                        data-testid="select-oem-for-showroom"
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select OEM" />
@@ -304,22 +382,58 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
                   control={form.control}
                   name="dealershipId"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="flex flex-col">
                       <FormLabel>Select Dealership</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value} data-testid="select-dealership-for-showroom">
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select Dealership" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {filteredDealerships.map((dealership: any) => (
-                            <SelectItem key={dealership.id} value={dealership.id}>
-                              {dealership.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={dealershipComboboxOpen} onOpenChange={setDealershipComboboxOpen}>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={dealershipComboboxOpen}
+                              className={cn(
+                                "w-full justify-between font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                              disabled={!selectedOemId}
+                            >
+                              {field.value
+                                ? filteredDealerships.find((d: any) => d.id === field.value)?.name || "Select Dealership"
+                                : selectedOemId ? "Select Dealership" : "Select OEM first"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search dealership..." />
+                            <CommandList>
+                              <CommandEmpty>No dealership found.</CommandEmpty>
+                              <CommandGroup className="max-h-64 overflow-auto">
+                                {filteredDealerships.map((dealership: any) => (
+                                  <CommandItem
+                                    key={dealership.id}
+                                    value={dealership.name}
+                                    onSelect={() => {
+                                      field.onChange(dealership.id);
+                                      form.setValue('showroomId', undefined);
+                                      setDealershipComboboxOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        field.value === dealership.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {dealership.name}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -329,22 +443,57 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
                   control={form.control}
                   name="showroomId"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="flex flex-col">
                       <FormLabel>Select Showroom</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value} data-testid="select-showroom">
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select Showroom" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {filteredShowrooms.map((showroom: any) => (
-                            <SelectItem key={showroom.id} value={showroom.id}>
-                              {showroom.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={showroomComboboxOpen} onOpenChange={setShowroomComboboxOpen}>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={showroomComboboxOpen}
+                              className={cn(
+                                "w-full justify-between font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                              disabled={!selectedDealershipId}
+                            >
+                              {field.value
+                                ? filteredShowrooms.find((s: any) => s.id === field.value)?.name || "Select Showroom"
+                                : selectedDealershipId ? "Select Showroom" : "Select Dealership first"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search showroom..." />
+                            <CommandList>
+                              <CommandEmpty>No showroom found.</CommandEmpty>
+                              <CommandGroup className="max-h-64 overflow-auto">
+                                {filteredShowrooms.map((showroom: any) => (
+                                  <CommandItem
+                                    key={showroom.id}
+                                    value={showroom.name}
+                                    onSelect={() => {
+                                      field.onChange(showroom.id);
+                                      setShowroomComboboxOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        field.value === showroom.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {showroom.name}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -352,7 +501,6 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
               </>
             )}
 
-            {/* Sales Person Selection (Optional) */}
             <FormField
               control={form.control}
               name="salesPersonId"
@@ -379,7 +527,6 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
               )}
             />
 
-            {/* Service Type Selection */}
             <FormField
               control={form.control}
               name="serviceType"
@@ -412,7 +559,6 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
               )}
             />
 
-            {/* Service Category Selection */}
             {serviceType === "CATEGORY" && (
               <FormField
                 control={form.control}
@@ -440,7 +586,6 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
               />
             )}
 
-            {/* Specific Service Selection */}
             {serviceType === "SPECIFIC" && (
               <FormField
                 control={form.control}
@@ -468,7 +613,6 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
               />
             )}
 
-            {/* Commission Type and Value */}
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -514,7 +658,6 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
               />
             </div>
 
-            {/* Cap and Floor Amounts */}
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -559,7 +702,6 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
               />
             </div>
 
-            {/* Effective Dates */}
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -638,7 +780,6 @@ export function CreateCommissionRuleModal({ children }: CreateCommissionRuleModa
               />
             </div>
 
-            {/* Submit Buttons */}
             <div className="flex justify-end space-x-3 pt-6">
               <Button 
                 type="button" 
