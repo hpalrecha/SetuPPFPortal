@@ -5674,12 +5674,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const { id } = req.params;
-        const existing = await storage.getPricingRules();
-        const rule = existing.find((r: any) => r.id === id);
-        if (!rule) {
-          return res.status(404).json({ error: "Pricing rule not found" });
+        const updates = { ...req.body };
+        if (updates.effectiveFrom && typeof updates.effectiveFrom === 'string') {
+          updates.effectiveFrom = new Date(updates.effectiveFrom);
         }
-        const updated = await storage.updatePricingRule(id, req.body);
+        if (updates.effectiveTo && typeof updates.effectiveTo === 'string') {
+          updates.effectiveTo = new Date(updates.effectiveTo);
+        }
+        const updated = await storage.updatePricingRule(id, updates);
         if (!updated) {
           return res.status(404).json({ error: "Pricing rule not found" });
         }
