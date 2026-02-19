@@ -5667,6 +5667,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  app.put("/api/pricing-rules/:id",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    auditLog('pricing_rule', 'update'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+        const existing = await storage.getPricingRules();
+        const rule = existing.find((r: any) => r.id === id);
+        if (!rule) {
+          return res.status(404).json({ error: "Pricing rule not found" });
+        }
+        const updated = await storage.updatePricingRule(id, req.body);
+        if (!updated) {
+          return res.status(404).json({ error: "Pricing rule not found" });
+        }
+        res.json(updated);
+      } catch (error) {
+        console.error("Update pricing rule error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid pricing rule data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to update pricing rule" });
+      }
+    }
+  );
+
   app.delete("/api/pricing-rules/:id", 
     authenticate, 
     requireRole(['SUPER_ADMIN', 'ADMIN']),
