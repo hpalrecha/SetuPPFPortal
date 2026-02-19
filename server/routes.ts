@@ -6447,7 +6447,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/payouts", 
     authenticate, 
     requireOEMAccess,
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
     async (req, res) => {
       try {
         const { status, partnerId } = req.query;
@@ -6469,7 +6469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/commissions-for-settlement", 
     authenticate, 
     requireOEMAccess,
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']),
     async (req, res) => {
       try {
         const { status, salesPersonId, showroomId } = req.query;
