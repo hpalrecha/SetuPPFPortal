@@ -12,13 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Form,
   FormControl,
   FormField,
@@ -26,9 +19,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const salesPersonSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -55,6 +52,7 @@ export function CreateSalesPersonModal({
 }: CreateSalesPersonModalProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [showroomComboboxOpen, setShowroomComboboxOpen] = useState(false);
   const isEditing = !!salesPerson;
 
   const form = useForm<SalesPersonFormData>({
@@ -213,22 +211,56 @@ export function CreateSalesPersonModal({
               control={form.control}
               name="showroomId"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="flex flex-col">
                   <FormLabel>Showroom</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Showroom" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {showrooms?.map((showroom: any) => (
-                        <SelectItem key={showroom.id} value={showroom.id}>
-                          {showroom.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={showroomComboboxOpen} onOpenChange={setShowroomComboboxOpen}>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={showroomComboboxOpen}
+                          className={cn(
+                            "w-full justify-between font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value
+                            ? showrooms.find((s: any) => s.id === field.value)?.name || "Select Showroom"
+                            : "Select Showroom"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Search showroom..." />
+                        <CommandList>
+                          <CommandEmpty>No showroom found.</CommandEmpty>
+                          <CommandGroup className="max-h-64 overflow-auto">
+                            {showrooms.map((showroom: any) => (
+                              <CommandItem
+                                key={showroom.id}
+                                value={showroom.name}
+                                onSelect={() => {
+                                  field.onChange(showroom.id);
+                                  setShowroomComboboxOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    field.value === showroom.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {showroom.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   <FormMessage />
                 </FormItem>
               )}
