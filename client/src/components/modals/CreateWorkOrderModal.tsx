@@ -285,7 +285,8 @@ export function CreateWorkOrderModal({
   });
 
   // Fetch sales persons based on selected showroom
-  const finalShowroomId = isSuperAdmin ? form.watch("showroomId") : user?.showroomId;
+  const selectedShowroomId = form.watch("showroomId");
+  const finalShowroomId = (canSelectOrgHierarchy || isDealershipAdmin) ? selectedShowroomId : user?.showroomId;
   const { data: salesPersons = [] } = useQuery({
     queryKey: ["/api/sales-persons", finalShowroomId],
     queryFn: async () => {
