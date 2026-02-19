@@ -831,32 +831,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         oems = oems.filter(oem => allowedOemIds.includes(oem.id));
       }
       
-      // Get counts for each OEM (only for super admins)
-      if (req.user?.role === 'SUPER_ADMIN') {
-        // Optimize: Get all dealerships and showrooms in 2 queries instead of 2*N queries
-        const dealershipsResponse = await storage.getDealerships();
-        const showroomsResponse = await storage.getShowrooms();
+      // Get counts for each OEM (for super admins and admins)
+      if (req.user?.role === 'SUPER_ADMIN' || req.user?.role === 'ADMIN') {
+        const oemIds = oems.map(o => o.id);
         
-        // Extract arrays from paginated response
-        const allDealerships = dealershipsResponse.dealerships || [];
+        const [allMappings, showroomsResponse] = await Promise.all([
+          storage.getDealershipOemsBulk(
+            (await storage.getDealerships({ limit: 10000 })).dealerships.map(d => d.id)
+          ),
+          storage.getShowrooms({ limit: 10000 })
+        ]);
+        
         const allShowrooms = showroomsResponse.showrooms || [];
         
-        // Count by OEM ID in memory
-        const dealershipCountByOem = allDealerships.reduce((acc: Record<string, number>, d: any) => {
-          const oemIds = d.oemIds || (d.oemId ? [d.oemId] : []);
-          oemIds.forEach((oemId: string) => {
-            acc[oemId] = (acc[oemId] || 0) + 1;
+        const dealershipCountByOem: Record<string, number> = {};
+        allMappings.forEach((mappedOemIds, dealershipId) => {
+          mappedOemIds.forEach((oemId: string) => {
+            dealershipCountByOem[oemId] = (dealershipCountByOem[oemId] || 0) + 1;
           });
-          return acc;
-        }, {} as Record<string, number>);
+        });
         
-        const showroomCountByOem = allShowrooms.reduce((acc: Record<string, number>, s: any) => {
-          const oemIds = s.oemIds || (s.oemId ? [s.oemId] : []);
-          oemIds.forEach((oemId: string) => {
-            acc[oemId] = (acc[oemId] || 0) + 1;
-          });
-          return acc;
-        }, {} as Record<string, number>);
+        const showroomCountByOem: Record<string, number> = {};
+        allShowrooms.forEach((s: any) => {
+          if (s.oemId) {
+            showroomCountByOem[s.oemId] = (showroomCountByOem[s.oemId] || 0) + 1;
+          }
+        });
         
         const oemsWithCounts = oems.map(oem => ({
           ...oem,
