@@ -14,9 +14,15 @@ import { useAuth } from "@/hooks/use-auth";
 export default function PayoutSettlementPage() {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isAdmin = user?.role === 'ADMIN';
   const isOemAdmin = user?.role === 'OEM_ADMIN';
+  const isDealershipAdmin = user?.role === 'DEALERSHIP_ADMIN';
+  const isShowroomManager = user?.role === 'SHOWROOM_MANAGER';
+  const canSeeDetailerPayouts = isSuperAdmin || isAdmin;
+  const canSeeOemRoyalties = isSuperAdmin || isAdmin || isOemAdmin;
+  const defaultPayoutType = isOemAdmin ? "oem_royalties" : (isDealershipAdmin || isShowroomManager ? "sales_persons" : "detailers");
   const [payoutType, setPayoutType] = useState<"detailers" | "sales_persons" | "oem_royalties">(
-    isOemAdmin ? "oem_royalties" : "detailers"
+    defaultPayoutType
   );
   const [settlementData, setSettlementData] = useState<{
     id: string;
@@ -46,7 +52,7 @@ export default function PayoutSettlementPage() {
   // Fetch OEM royalty calculations
   const { data: oemRoyalties = [], isLoading: isLoadingRoyalties } = useQuery({
     queryKey: ["/api/oem-royalty-calculations"],
-    enabled: payoutType === "oem_royalties" && (isSuperAdmin || isOemAdmin)
+    enabled: payoutType === "oem_royalties" && canSeeOemRoyalties
   });
 
   // Settlement mutations
@@ -201,15 +207,17 @@ export default function PayoutSettlementPage() {
         
         {!isOemAdmin && (
           <div className="flex items-center space-x-2 mt-4 sm:mt-0">
-            <Button
-              variant={payoutType === "detailers" ? "default" : "outline"}
-              onClick={() => setPayoutType("detailers")}
-              className="flex items-center space-x-2"
-              data-testid="button-detailer-payouts"
-            >
-              <Wrench className="h-4 w-4" />
-              <span>Detailer Payouts</span>
-            </Button>
+            {canSeeDetailerPayouts && (
+              <Button
+                variant={payoutType === "detailers" ? "default" : "outline"}
+                onClick={() => setPayoutType("detailers")}
+                className="flex items-center space-x-2"
+                data-testid="button-detailer-payouts"
+              >
+                <Wrench className="h-4 w-4" />
+                <span>Detailer Payouts</span>
+              </Button>
+            )}
             <Button
               variant={payoutType === "sales_persons" ? "default" : "outline"}
               onClick={() => setPayoutType("sales_persons")}
@@ -219,7 +227,7 @@ export default function PayoutSettlementPage() {
               <UserCheck className="h-4 w-4" />
               <span>Sales Commissions</span>
             </Button>
-            {isSuperAdmin && (
+            {canSeeOemRoyalties && (
               <Button
                 variant={payoutType === "oem_royalties" ? "default" : "outline"}
                 onClick={() => setPayoutType("oem_royalties")}
