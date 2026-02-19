@@ -4056,15 +4056,14 @@ export class DatabaseStorage implements IStorage {
       ));
     const activeSalesPersons = activeSalesPersonsResult.length;
 
-    // Average commission rate
     const avgCommissionRateResult = await db
       .select({
-        avgRate: sql<number>`AVG(commission_rules.percentage_rate)`
+        avgRate: sql<number>`AVG(CAST(commission_rules.value_numeric AS DECIMAL))`
       })
       .from(commissionRules)
       .where(and(
         eq(commissionRules.oemId, oemId),
-        eq(commissionRules.active, true)
+        eq(commissionRules.status, 'ACTIVE')
       ));
     const avgCommissionRate = avgCommissionRateResult[0]?.avgRate || 0;
 
