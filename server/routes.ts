@@ -3906,7 +3906,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Job Card Approval endpoint
   app.post("/api/job-cards/:id/approve",
     authenticate,
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN']),
     auditLog('job_card', 'approve'),
     async (req, res) => {
       try {
@@ -3932,11 +3932,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           hasAccess = workOrder.oemId === req.user!.oemId;
         } else if (req.user!.role === 'DEALERSHIP_ADMIN') {
           hasAccess = workOrder.dealershipId === req.user!.dealershipId;
+          if (!hasAccess && workOrder.showroomId) {
+            const showroom = await storage.getShowroom(workOrder.showroomId);
+            if (showroom && showroom.dealershipId === req.user!.dealershipId) {
+              hasAccess = true;
+            }
+          }
         } else if (req.user!.role === 'SHOWROOM_MANAGER') {
           hasAccess = workOrder.showroomId === req.user!.showroomId;
         }
 
         if (!hasAccess) {
+          console.log(`❌ Job card approval denied: role=${req.user!.role}, userDealershipId=${req.user!.dealershipId}, workOrderDealershipId=${workOrder.dealershipId}, workOrderShowroomId=${workOrder.showroomId}`);
           return res.status(403).json({ error: "Access denied - insufficient permissions" });
         }
 
