@@ -485,7 +485,7 @@ export const workOrders = pgTable("work_orders", {
   quantity: integer("quantity").default(1),
   estimatedPrice: decimal("estimated_price", { precision: 10, scale: 2 }), // Auto-calculated from pricing rules
   notes: text("notes"),
-  salesPersonId: uuid("sales_person_id").references(() => salesPersons.id),
+  salesPersonId: uuid("sales_person_id"), // References user ID with SALES_PERSON role
   assignedPartnerId: uuid("assigned_partner_id").references(() => partners.id),
   assignedJobCardId: uuid("assigned_job_card_id"),
   customerName: text("customer_name"),
