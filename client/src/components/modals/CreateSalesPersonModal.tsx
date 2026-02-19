@@ -19,6 +19,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Switch } from "@/components/ui/switch";
@@ -52,6 +59,9 @@ export function CreateSalesPersonModal({
 }: CreateSalesPersonModalProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedOemId, setSelectedOemId] = useState<string>("");
+  const [selectedDealershipId, setSelectedDealershipId] = useState<string>("");
+  const [dealershipComboboxOpen, setDealershipComboboxOpen] = useState(false);
   const [showroomComboboxOpen, setShowroomComboboxOpen] = useState(false);
   const isEditing = !!salesPerson;
 
@@ -66,7 +76,6 @@ export function CreateSalesPersonModal({
     },
   });
 
-  // Update form when salesPerson prop changes (for editing)
   useEffect(() => {
     if (salesPerson && open) {
       form.reset({
@@ -76,6 +85,31 @@ export function CreateSalesPersonModal({
         showroomId: salesPerson.showroomId || "",
         active: salesPerson.active ?? true,
       });
+      if (salesPerson.showroomId) {
+        fetch(`/api/showrooms/${salesPerson.showroomId}`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+          credentials: 'include',
+        })
+          .then(r => r.json())
+          .then(showroom => {
+            if (showroom.dealershipId) {
+              setSelectedDealershipId(showroom.dealershipId);
+              fetch(`/api/dealerships/${showroom.dealershipId}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+                credentials: 'include',
+              })
+                .then(r => r.json())
+                .then(dealership => {
+                  if (dealership.oemIds && dealership.oemIds.length > 0) {
+                    setSelectedOemId(dealership.oemIds[0]);
+                  }
+                });
+            }
+            if (showroom.oemId) {
+              setSelectedOemId(showroom.oemId);
+            }
+          });
+      }
     } else if (!salesPerson && open) {
       form.reset({
         name: "",
@@ -84,23 +118,46 @@ export function CreateSalesPersonModal({
         showroomId: "",
         active: true,
       });
+      setSelectedOemId("");
+      setSelectedDealershipId("");
     }
   }, [salesPerson, open, form]);
 
-  // Fetch showrooms
-  const { data: showroomData } = useQuery<{ showrooms: any[]; total: number }>({
-    queryKey: ["/api/showrooms"],
+  const { data: oems = [] } = useQuery<any[]>({
+    queryKey: ["/api/oems"],
+    enabled: open,
+    staleTime: 300000,
+  });
+
+  const { data: dealershipData } = useQuery<{ dealerships: any[]; total: number }>({
+    queryKey: ["/api/dealerships", "salesperson", selectedOemId],
     queryFn: async () => {
-      const response = await fetch('/api/showrooms?limit=1000', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
+      const response = await fetch(`/api/dealerships?oemId=${selectedOemId}&limit=10000`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch dealerships');
+      return response.json();
+    },
+    enabled: open && !!selectedOemId,
+    staleTime: 300000,
+  });
+  const dealerships = dealershipData?.dealerships || [];
+
+  const { data: showroomData } = useQuery<{ showrooms: any[]; total: number }>({
+    queryKey: ["/api/showrooms", "salesperson", selectedDealershipId],
+    queryFn: async () => {
+      const params = new URLSearchParams({ limit: '10000' });
+      if (selectedDealershipId) params.set('dealershipId', selectedDealershipId);
+      const response = await fetch(`/api/showrooms?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to fetch showrooms');
       return response.json();
     },
-    enabled: open,
+    enabled: open && !!selectedDealershipId,
+    staleTime: 300000,
   });
   const showrooms = showroomData?.showrooms || [];
 
@@ -145,7 +202,7 @@ export function CreateSalesPersonModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit' : 'Create'} Sales Person</DialogTitle>
         </DialogHeader>
@@ -207,12 +264,87 @@ export function CreateSalesPersonModal({
               )}
             />
 
+            <FormItem>
+              <FormLabel>Select OEM</FormLabel>
+              <Select
+                value={selectedOemId}
+                onValueChange={(value) => {
+                  setSelectedOemId(value);
+                  setSelectedDealershipId("");
+                  form.setValue('showroomId', '');
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select OEM" />
+                </SelectTrigger>
+                <SelectContent>
+                  {oems.map((oem: any) => (
+                    <SelectItem key={oem.id} value={oem.id}>
+                      {oem.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormItem>
+
+            <FormItem className="flex flex-col">
+              <FormLabel>Select Dealership</FormLabel>
+              <Popover open={dealershipComboboxOpen} onOpenChange={setDealershipComboboxOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={dealershipComboboxOpen}
+                    className={cn(
+                      "w-full justify-between font-normal",
+                      !selectedDealershipId && "text-muted-foreground"
+                    )}
+                    disabled={!selectedOemId}
+                  >
+                    {selectedDealershipId
+                      ? dealerships.find((d: any) => d.id === selectedDealershipId)?.name || "Select Dealership"
+                      : selectedOemId ? "Select Dealership" : "Select OEM first"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search dealership..." />
+                    <CommandList>
+                      <CommandEmpty>No dealership found.</CommandEmpty>
+                      <CommandGroup className="max-h-64 overflow-auto">
+                        {dealerships.map((dealership: any) => (
+                          <CommandItem
+                            key={dealership.id}
+                            value={dealership.name}
+                            onSelect={() => {
+                              setSelectedDealershipId(dealership.id);
+                              form.setValue('showroomId', '');
+                              setDealershipComboboxOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedDealershipId === dealership.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {dealership.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </FormItem>
+
             <FormField
               control={form.control}
               name="showroomId"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Showroom</FormLabel>
+                  <FormLabel>Select Showroom</FormLabel>
                   <Popover open={showroomComboboxOpen} onOpenChange={setShowroomComboboxOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -224,10 +356,11 @@ export function CreateSalesPersonModal({
                             "w-full justify-between font-normal",
                             !field.value && "text-muted-foreground"
                           )}
+                          disabled={!selectedDealershipId}
                         >
                           {field.value
                             ? showrooms.find((s: any) => s.id === field.value)?.name || "Select Showroom"
-                            : "Select Showroom"}
+                            : selectedDealershipId ? "Select Showroom" : "Select Dealership first"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </FormControl>
@@ -266,7 +399,6 @@ export function CreateSalesPersonModal({
               )}
             />
 
-            {/* Active Status */}
             <FormField
               control={form.control}
               name="active"
