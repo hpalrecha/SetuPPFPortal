@@ -120,7 +120,7 @@ export default function SettingsPage() {
     },
     enabled: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.role || ''),
   });
-  const dealershipsArray = Array.isArray(dealerships) ? dealerships : [];
+  const dealershipsArray = Array.isArray(dealerships) ? dealerships : (dealerships?.dealerships || []);
 
   const { data: showrooms } = useQuery({
     queryKey: ["/api/showrooms"],
@@ -136,7 +136,7 @@ export default function SettingsPage() {
     },
     enabled: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.role || ''),
   });
-  const showroomsArray = Array.isArray(showrooms) ? showrooms : [];
+  const showroomsArray = Array.isArray(showrooms) ? showrooms : (showrooms?.showrooms || []);
 
   const { data: users } = useQuery({
     queryKey: ["/api/users"],
