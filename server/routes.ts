@@ -5986,16 +5986,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { oemId, dealershipId } = req.query;
       
-      // If user is not Super Admin, filter by their context
       const filters: any = {};
-      if (oemId) {
-        filters.oemId = oemId as string;
-      } else if (dealershipId) {
+      if (dealershipId) {
         filters.dealershipId = dealershipId as string;
+      } else if (oemId) {
+        filters.oemId = oemId as string;
       } else if (req.user!.showroomId) {
-        // For showroom users, get the showroom's OEM (check showroom BEFORE dealership)
         const showroom = await storage.getShowroom(req.user!.showroomId);
-        if (showroom?.oemId) {
+        if (showroom?.dealershipId) {
+          filters.dealershipId = showroom.dealershipId;
+        } else if (showroom?.oemId) {
           filters.oemId = showroom.oemId;
         }
       } else if (req.user!.dealershipId) {

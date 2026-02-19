@@ -262,11 +262,15 @@ export function CreateWorkOrderModal({
   const vehicleModels = selectedBrandId ? 
     (vehicleData?.find((brand: any) => brand.id === selectedBrandId)?.models || []) : [];
 
-  // Fetch services filtered by OEM context
+  const finalDealershipId = canSelectOrgHierarchy ? selectedDealershipId : user?.dealershipId;
+
   const { data: services = [] } = useQuery({
-    queryKey: ["/api/services", finalOemId],
+    queryKey: ["/api/services", finalOemId, finalDealershipId],
     queryFn: async () => {
-      const url = finalOemId ? `/api/services?oemId=${finalOemId}` : '/api/services';
+      const params = new URLSearchParams();
+      if (finalDealershipId) params.set('dealershipId', finalDealershipId);
+      else if (finalOemId) params.set('oemId', finalOemId);
+      const url = params.toString() ? `/api/services?${params.toString()}` : '/api/services';
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
@@ -277,7 +281,7 @@ export function CreateWorkOrderModal({
       return response.json();
     },
     enabled: !!finalOemId,
-    staleTime: 300000, // Cache for 5 minutes - services rarely change
+    staleTime: 300000,
   });
 
   // Fetch sales persons based on selected showroom
