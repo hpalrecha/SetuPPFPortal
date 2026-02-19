@@ -455,7 +455,7 @@ export const commissionRules = pgTable("commission_rules", {
   dealershipId: uuid("dealership_id").references(() => dealerships.id), // Dealership-level commission (applies to all showrooms under dealership)
   showroomId: uuid("showroom_id").references(() => showrooms.id), // Showroom-level commission (applies only to specific showroom)
   
-  salesPersonId: uuid("sales_person_id").references(() => salesPersons.id), // Optional: specific sales person or applies to all
+  salesPersonId: uuid("sales_person_id"), // References user ID with SALES_PERSON role (not sales_persons table)
   serviceId: uuid("service_id").references(() => services.id), // Optional: specific service or applies to all
   serviceCategoryId: uuid("service_category_id").references(() => serviceCategories.id), // Optional: service category instead of specific service
   type: commissionTypeEnum("type").notNull(), // PERCENT or AMOUNT
