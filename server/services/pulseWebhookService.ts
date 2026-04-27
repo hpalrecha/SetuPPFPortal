@@ -200,7 +200,14 @@ export class PulseWebhookService {
       const userId = await this.createPartnerAdminUser(userData, newPartner.id, actorId);
 
       // Send notification emails to configured recipients
-      await this.sendPartnerApplicationNotifications(userData.name, userData.email, phoneNumber);
+      await this.sendPartnerApplicationNotifications(
+        userData.name,
+        userData.email,
+        phoneNumber,
+        userData.city,
+        userData.state,
+        userData.role
+      );
 
       return { partnerId: newPartner.id, userCreated: true, userId };
     } catch (error: any) {
@@ -440,7 +447,10 @@ export class PulseWebhookService {
   private async sendPartnerApplicationNotifications(
     partnerName: string,
     partnerEmail: string,
-    partnerPhone?: string
+    partnerPhone?: string,
+    partnerCity?: string,
+    partnerState?: string,
+    partnerType?: string
   ): Promise<void> {
     try {
       const setting = await storage.getSystemSetting('partner_application_notification_emails');
@@ -483,6 +493,9 @@ export class PulseWebhookService {
                 <p><strong>Business Name:</strong> ${partnerName}</p>
                 <p><strong>Email:</strong> ${partnerEmail}</p>
                 ${partnerPhone ? `<p><strong>Phone:</strong> ${partnerPhone}</p>` : ''}
+                ${partnerType ? `<p><strong>Partner Type:</strong> ${partnerType}</p>` : ''}
+                ${partnerCity ? `<p><strong>City:</strong> ${partnerCity}</p>` : ''}
+                ${partnerState ? `<p><strong>State:</strong> ${partnerState}</p>` : ''}
               </div>
               <p>The partner account has been created in Pulse VAS and a welcome email with login instructions has been sent to the partner.</p>
               <p style="color: #64748b; font-size: 13px;">This is an automated notification. You are receiving this because your email is configured to receive partner application alerts.</p>
