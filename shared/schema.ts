@@ -1099,3 +1099,15 @@ export const insertKnowledgeHubSchema = createInsertSchema(knowledgeHub).omit({
 export const selectKnowledgeHubSchema = createSelectSchema(knowledgeHub);
 export type InsertKnowledgeHub = z.infer<typeof insertKnowledgeHubSchema>;
 export type KnowledgeHub = z.infer<typeof selectKnowledgeHubSchema>;
+
+// System Settings Table — stores global key/value configuration for the platform
+export const systemSettings = pgTable("system_settings", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit({ id: true, updatedAt: true });
+export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
+export type SystemSetting = typeof systemSettings.$inferSelect;

@@ -33,6 +33,7 @@ import {
   auditLogs,
   knowledgeHub,
   otpVerifications,
+  systemSettings,
   type User, 
   type InsertUser,
   type OtpVerification,
@@ -76,7 +77,8 @@ import {
   type KnowledgeHub,
   type InsertKnowledgeHub,
   type WhatsappTemplate,
-  type InsertWhatsappTemplate
+  type InsertWhatsappTemplate,
+  type SystemSetting
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count, avg, sum, lte, gte, or, isNull, isNotNull, asc, inArray, ne, like, notInArray } from "drizzle-orm";
@@ -468,6 +470,10 @@ export interface IStorage {
   updateKnowledgeHubItem(id: string, updates: any): Promise<any | undefined>;
   deleteKnowledgeHubItem(id: string): Promise<boolean>;
   incrementViewCount(id: string): Promise<void>;
+
+  // System Settings
+  getSystemSetting(key: string): Promise<SystemSetting | undefined>;
+  upsertSystemSetting(key: string, value: any): Promise<SystemSetting>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -4801,6 +4807,26 @@ export class DatabaseStorage implements IStorage {
         )
       );
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async getSystemSetting(key: string): Promise<SystemSetting | undefined> {
+    const [setting] = await db
+      .select()
+      .from(systemSettings)
+      .where(eq(systemSettings.key, key));
+    return setting;
+  }
+
+  async upsertSystemSetting(key: string, value: any): Promise<SystemSetting> {
+    const [setting] = await db
+      .insert(systemSettings)
+      .values({ key, value })
+      .onConflictDoUpdate({
+        target: systemSettings.key,
+        set: { value, updatedAt: new Date() }
+      })
+      .returning();
+    return setting;
   }
 }
 

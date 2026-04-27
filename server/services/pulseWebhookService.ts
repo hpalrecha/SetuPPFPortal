@@ -199,6 +199,9 @@ export class PulseWebhookService {
       // Create PARTNER_ADMIN user for new partner
       const userId = await this.createPartnerAdminUser(userData, newPartner.id, actorId);
 
+      // Send notification emails to configured recipients
+      await this.sendPartnerApplicationNotifications(userData.name, userData.email, phoneNumber);
+
       return { partnerId: newPartner.id, userCreated: true, userId };
     } catch (error: any) {
       console.error('❌ Failed to ensure partner:', error);
@@ -429,6 +432,79 @@ export class PulseWebhookService {
       message: 'User deactivated successfully',
       userId: existingUser.id
     };
+  }
+
+  /**
+   * Send partner application notification emails to configured recipients
+   */
+  private async sendPartnerApplicationNotifications(
+    partnerName: string,
+    partnerEmail: string,
+    partnerPhone?: string
+  ): Promise<void> {
+    try {
+      const setting = await storage.getSystemSetting('partner_application_notification_emails');
+      if (!setting) {
+        console.log('ℹ️ No partner application notification emails configured - skipping');
+        return;
+      }
+
+      const emails: string[] = Array.isArray(setting.value) ? setting.value : [];
+      if (emails.length === 0) {
+        console.log('ℹ️ Partner application notification emails list is empty - skipping');
+        return;
+      }
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>New Partner Application Activated</title>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; }
+            .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .header { background: linear-gradient(135deg, #4db848 0%, #38a334 100%); color: white; padding: 30px 20px; border-radius: 8px 8px 0 0; text-align: center; }
+            .content { padding: 30px; }
+            .details { background: #f0fdf4; border: 1px solid #86efac; padding: 20px; border-radius: 6px; margin: 20px 0; }
+            .footer { background: #f1f5f9; padding: 20px; border-radius: 0 0 8px 8px; text-align: center; color: #64748b; font-size: 13px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1 style="margin: 0; font-size: 24px;">New Partner Application Activated</h1>
+            </div>
+            <div class="content">
+              <p>A new partner application has been activated via the Pulse platform and onboarded to Pulse VAS.</p>
+              <div class="details">
+                <h3 style="margin-top: 0; color: #166534;">Partner Details</h3>
+                <p><strong>Business Name:</strong> ${partnerName}</p>
+                <p><strong>Email:</strong> ${partnerEmail}</p>
+                ${partnerPhone ? `<p><strong>Phone:</strong> ${partnerPhone}</p>` : ''}
+              </div>
+              <p>The partner account has been created in Pulse VAS and a welcome email with login instructions has been sent to the partner.</p>
+              <p style="color: #64748b; font-size: 13px;">This is an automated notification. You are receiving this because your email is configured to receive partner application alerts.</p>
+            </div>
+            <div class="footer">
+              <p>Pulse VAS &mdash; Professional Paint Protection Film Services</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      await emailService.sendEmail({
+        to: emails,
+        subject: `New Partner Application Activated: ${partnerName}`,
+        html
+      });
+
+      console.log(`✅ Partner application notification sent to: ${emails.join(', ')}`);
+    } catch (error) {
+      console.error('❌ Failed to send partner application notification emails:', error);
+    }
   }
 
   /**

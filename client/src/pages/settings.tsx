@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Building, Store, Users, Edit, Trash2 } from "lucide-react";
+import { Plus, Building, Store, Users, Edit, Trash2, Mail, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
@@ -58,6 +58,63 @@ export default function SettingsPage() {
   });
 
   const queryClient = useQueryClient();
+
+  // Partner application notification emails state
+  const [notifEmailInput, setNotifEmailInput] = useState("");
+  const [notifEmails, setNotifEmails] = useState<string[]>([]);
+
+  const { data: notifSetting, isLoading: notifLoading } = useQuery({
+    queryKey: ["/api/system-settings/partner_application_notification_emails"],
+    queryFn: async () => {
+      const res = await fetch('/api/system-settings/partner_application_notification_emails', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to fetch setting');
+      return res.json();
+    },
+    enabled: ['SUPER_ADMIN', 'ADMIN'].includes(user?.role || ''),
+  });
+
+  useEffect(() => {
+    if (notifSetting?.value && Array.isArray(notifSetting.value)) {
+      setNotifEmails(notifSetting.value);
+    }
+  }, [notifSetting]);
+
+  const saveNotifEmailsMutation = useMutation({
+    mutationFn: async (emails: string[]) => {
+      return apiRequest('PUT', '/api/system-settings/partner_application_notification_emails', { value: emails });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/system-settings/partner_application_notification_emails"] });
+      toast({ title: "Saved", description: "Notification email list updated successfully." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to save notification emails.", variant: "destructive" });
+    },
+  });
+
+  const handleAddNotifEmail = () => {
+    const email = notifEmailInput.trim().toLowerCase();
+    if (!email) return;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast({ title: "Invalid email", description: "Please enter a valid email address.", variant: "destructive" });
+      return;
+    }
+    if (notifEmails.includes(email)) {
+      toast({ title: "Already added", description: "This email is already in the list.", variant: "destructive" });
+      return;
+    }
+    setNotifEmails(prev => [...prev, email]);
+    setNotifEmailInput("");
+  };
+
+  const handleRemoveNotifEmail = (email: string) => {
+    setNotifEmails(prev => prev.filter(e => e !== email));
+  };
+
   const [activeOrgTab, setActiveOrgTab] = useState("oems");
   const [showCreateOEMModal, setShowCreateOEMModal] = useState(false);
   const [showCreateDealershipModal, setShowCreateDealershipModal] = useState(false);
@@ -396,6 +453,7 @@ export default function SettingsPage() {
   };
 
   const isSupperAdmin = user?.role === 'SUPER_ADMIN';
+  const isAdminOrAbove = ['SUPER_ADMIN', 'ADMIN'].includes(user?.role || '');
   const isAdminOrManager = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.role || '');
 
   return (
@@ -404,6 +462,72 @@ export default function SettingsPage() {
         <h2 className="text-2xl font-semibold text-foreground">Settings</h2>
         <p className="text-muted-foreground mt-1">Manage your account and system preferences</p>
       </div>
+
+      {/* Partner Application Notification Emails — SUPER_ADMIN / ADMIN only */}
+      {isAdminOrAbove && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              Partner Application Notifications
+            </CardTitle>
+            <CardDescription>
+              Email addresses that receive a notification whenever a new partner application is activated via Pulse.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {notifLoading ? (
+              <p className="text-sm text-muted-foreground">Loading...</p>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    placeholder="Enter email address"
+                    value={notifEmailInput}
+                    onChange={(e) => setNotifEmailInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddNotifEmail(); } }}
+                    className="max-w-sm"
+                    data-testid="input-notif-email"
+                  />
+                  <Button variant="outline" onClick={handleAddNotifEmail} data-testid="button-add-notif-email">
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add
+                  </Button>
+                </div>
+
+                {notifEmails.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {notifEmails.map((email) => (
+                      <Badge key={email} variant="secondary" className="flex items-center gap-1 px-3 py-1 text-sm">
+                        {email}
+                        <button
+                          onClick={() => handleRemoveNotifEmail(email)}
+                          className="ml-1 hover:text-destructive transition-colors"
+                          aria-label={`Remove ${email}`}
+                          data-testid={`button-remove-notif-email-${email}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No notification emails configured. Add at least one email to receive alerts.</p>
+                )}
+
+                <Button
+                  onClick={() => saveNotifEmailsMutation.mutate(notifEmails)}
+                  disabled={saveNotifEmailsMutation.isPending}
+                  data-testid="button-save-notif-emails"
+                >
+                  {saveNotifEmailsMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Organization Management for Super Admin, Admin, and Manager */}
       {isAdminOrManager && (

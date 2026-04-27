@@ -8491,6 +8491,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================================
+  // System Settings Routes (SUPER_ADMIN + ADMIN only)
+  // ============================================================
+
+  app.get('/api/system-settings/:key', authenticate, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthRequest, res) => {
+    try {
+      const { key } = req.params;
+      const setting = await storage.getSystemSetting(key);
+      if (!setting) {
+        return res.json({ key, value: null });
+      }
+      res.json(setting);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put('/api/system-settings/:key', authenticate, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthRequest, res) => {
+    try {
+      const { key } = req.params;
+      const { value } = req.body;
+      if (value === undefined) {
+        return res.status(400).json({ error: 'value is required' });
+      }
+      const setting = await storage.upsertSystemSetting(key, value);
+      res.json(setting);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
