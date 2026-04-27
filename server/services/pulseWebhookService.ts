@@ -508,11 +508,13 @@ export class PulseWebhookService {
         </html>
       `;
 
-      await emailService.sendEmail({
-        to: emails,
-        subject: `New Partner Application Activated: ${partnerName}`,
-        html
-      });
+      await Promise.all(emails.map(email =>
+        emailService.sendEmail({
+          to: email,
+          subject: `New Partner Application Activated: ${partnerName}`,
+          html
+        })
+      ));
 
       console.log(`✅ Partner application notification sent to: ${emails.join(', ')}`);
     } catch (error) {

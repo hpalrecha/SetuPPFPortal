@@ -8515,6 +8515,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (value === undefined) {
         return res.status(400).json({ error: 'value is required' });
       }
+
+      // Key-specific validation
+      if (key === 'partner_application_notification_emails') {
+        if (!Array.isArray(value)) {
+          return res.status(400).json({ error: 'value must be an array of email addresses' });
+        }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const invalid = (value as any[]).filter(e => typeof e !== 'string' || !emailRegex.test(e));
+        if (invalid.length > 0) {
+          return res.status(400).json({ error: `Invalid email addresses: ${invalid.join(', ')}` });
+        }
+      }
+
       const setting = await storage.upsertSystemSetting(key, value);
       res.json(setting);
     } catch (error: any) {
