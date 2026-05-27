@@ -4,3 +4,14 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Replit environment files (Linux-specific, keep local only)
+.cache/
+.replit
+
+# Accidental file with code as filename
+const workOrderIds = Array.from(new Set(   jobCards.map(jc => jc.workOrderId || jc.id || jc.jobCard?.workOrderId).filter(Boolean) ));
+
+# Local environment files
+.env
+.env.local
