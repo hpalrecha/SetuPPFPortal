@@ -508,6 +508,81 @@ The app will be available at `http://localhost:5000`.
 
 ---
 
+## External Connections & Project Connectivity
+
+### Is Pulse VAS Connected to Other Projects?
+
+**YES** - Pulse VAS exchanges data with **1 external system** called **"Pulse"** (a separate partner management system).
+
+| Direction | Connection | Data Exchanged |
+|---|---|---|
+| **Pulse -> Pulse VAS** | Webhook `POST /api/webhooks/pulse/user-access` | Partner name, email, phone, address, GSTIN, PAN, role (STUDIO/INSTALLER), activation/deactivation status |
+| **Pulse VAS -> Pulse** | (Implied callbacks) | Status updates (not visible in this codebase) |
+
+**How it works:**
+- When a partner is **activated** in the Pulse system, Pulse sends a webhook to Pulse VAS
+- Pulse VAS **creates** a new partner organization + PARTNER_ADMIN user account
+- When a partner is **deactivated** in Pulse, Pulse VAS **disables** their accounts
+- All actions are logged in audit logs with `source: 'pulse_webhook'`
+- Security: HMAC-SHA256 signature verification using `PULSE_WEBHOOK_SECRET`
+
+### Third-Party API Services (Not Other Projects)
+
+| Service | Direction | Purpose | Credentials Needed |
+|---|---|---|---|
+| Meta WhatsApp API | Pulse VAS -> Out | Send job notifications to partners | `META_WABA_ACCESS_TOKEN`, `META_WABA_PHONE_NUMBER_ID` |
+| AWS SES / SMTP | Pulse VAS -> Out | Send emails (OTPs, alerts, invoices) | `SES_SMTP_USERNAME`, `SES_SMTP_PASSWORD` |
+| ComBirds SMS | Pulse VAS -> Out | Send OTP SMS codes | `COMBIRDS_OTP_API_KEY` |
+| Google Cloud Storage | Pulse VAS <-> | Store job card photos (private ACLs + signed URLs) | `DEFAULT_OBJECT_STORAGE_BUCKET_ID` |
+
+### Outbound Webhooks (Pulse VAS -> Other Systems)
+
+Pulse VAS **can** notify external systems (ERPs, CRMs, custom tools) when events happen:
+
+| Event | Trigger |
+|---|---|
+| `work_order.created` / `updated` / `cancelled` | Work order changes |
+| `job_card.status_changed` / `approved` / `rejected` | Job card lifecycle |
+| `partner.allocated` | Partner assigned |
+| `commission.calculated` / `payout.settled` | Financial events |
+
+**Status:** Infrastructure exists (`webhook_subscriptions` table, `webhookService` class), but **no active subscriptions exist unless configured in the database**.
+
+### How to Verify Connections
+
+**Check if Pulse webhooks are being received (look at app logs):**
+```
+Search logs for: "Pulse webhook received"
+```
+
+**Check database for Pulse activity:**
+```sql
+-- Partners created by Pulse webhook
+SELECT * FROM partners WHERE created_at > NOW() - INTERVAL '30 days';
+
+-- Audit logs showing Pulse activity
+SELECT * FROM audit_logs WHERE action LIKE '%PULSE%' ORDER BY created_at DESC LIMIT 10;
+
+-- Active webhook subscriptions (outbound to other systems)
+SELECT * FROM webhook_subscriptions WHERE is_active = true;
+```
+
+**Check environment variables:**
+```bash
+echo $PULSE_WEBHOOK_SECRET    # If set, Pulse webhooks are secured
+echo $WEBHOOK_SECRET          # If set, outbound webhooks are configured
+```
+
+### Summary
+
+| Question | Answer |
+|---|---|
+| Connected to the "Pulse" external system? | **YES** - Data flows: Pulse sends partner data, Pulse VAS creates accounts |
+| Connected to other projects in this Replit workspace? | **NO** - No evidence found |
+| Connected to third-party APIs? | **YES** - WhatsApp, Email (AWS SES), SMS (ComBirds), File Storage (GCS) |
+
+---
+
 ## Performance Optimizations
 
 - **31 database indexes** on frequently queried columns (work_orders, job_cards, commissions, etc.)
