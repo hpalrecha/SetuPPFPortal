@@ -65,11 +65,15 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
+  // reusePort is Linux/macOS-only; Windows throws ENOTSUP. Skip it on win32.
+  const listenOpts: { port: number; host: string; reusePort?: boolean } = {
     port,
     host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+  };
+  if (process.platform !== 'win32') {
+    listenOpts.reusePort = true;
+  }
+  server.listen(listenOpts, () => {
     log(`serving on port ${port}`);
   });
 })();
