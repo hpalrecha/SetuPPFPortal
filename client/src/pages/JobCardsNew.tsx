@@ -54,7 +54,8 @@ import {
   Hash,
   Store,
   Download,
-  Printer
+  Printer,
+  RefreshCw
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
@@ -249,6 +250,9 @@ export default function JobCardsNew() {
   // Combobox open states
   const [partnerComboboxOpen, setPartnerComboboxOpen] = useState(false);
   const [showroomComboboxOpen, setShowroomComboboxOpen] = useState(false);
+
+  // Live tracking toggle (auto-polls the list while on)
+  const [liveTracking, setLiveTracking] = useState(false);
   
   // Get current user for admin check
   const { user } = useAuth();
@@ -258,9 +262,11 @@ export default function JobCardsNew() {
   const showPrices = user?.showServicePrices !== false;
   const { selectedOemId } = useOemContext();
 
-  // Fetch and enrich job cards with related data
-  const { data: allJobCards = [], isLoading, error } = useQuery({
+  // Fetch and enrich job cards with related data.
+  // Live Tracking refetches every 10s; otherwise no polling.
+  const { data: allJobCards = [], isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['jobCards'],
+    refetchInterval: liveTracking ? 10000 : false,
     queryFn: async (): Promise<EnrichedJobCard[]> => {
       // Fetch job cards using the proper apiRequest function
       const response = await apiRequest('GET', '/api/job-cards');
@@ -274,32 +280,58 @@ export default function JobCardsNew() {
       ));
       
 
-      // Fetch related data in parallel
+      // Fetch related data in parallel (batched to avoid N+1 requests / 403 spam)
       const [workOrdersData, partnersData] = await Promise.all([
-        // Fetch work orders
-        workOrderIds.length > 0 ? Promise.all(
-          workOrderIds.map(async (id) => {
-            try {
-              const res = await apiRequest('GET', `/api/work-orders/${id}`);
-              return await res.json();
-            } catch {
-              return null;
-            }
-          })
-        ).then(results => results.filter(Boolean)) : [],
-        
-        // Fetch partners using apiRequest (same as work orders)
-        partnerIds.length > 0 ? Promise.all(
-          partnerIds.map(async (id) => {
-            try {
-              const res = await apiRequest('GET', `/api/partners/${id}`);
-              return await res.json();
-            } catch (error) {
-              console.error('❌ Error fetching partner:', id, error);
-              return null;
-            }
-          })
-        ).then(results => results.filter(Boolean)) : []
+        // Work orders: one scoped list call, with per-id fallback for any not
+        // returned (e.g. partner-scoped users whose list omits some referenced WOs)
+        (async () => {
+          if (workOrderIds.length === 0) return [];
+          let list: WorkOrder[] = [];
+          try {
+            const res = await apiRequest('GET', '/api/work-orders');
+            list = await res.json();
+          } catch {
+            list = [];
+          }
+          const map = new Map(list.map((wo: WorkOrder) => [wo.id, wo]));
+          const missing = workOrderIds.filter((id) => !map.has(id as string));
+          const fetched = await Promise.all(
+            missing.map(async (id) => {
+              try {
+                const res = await apiRequest('GET', `/api/work-orders/${id}`);
+                return await res.json();
+              } catch {
+                return null;
+              }
+            })
+          );
+          return [
+            ...workOrderIds.map((id) => map.get(id as string)).filter(Boolean),
+            ...fetched.filter(Boolean),
+          ];
+        })(),
+
+        // Partners: single bulk call per 100 ids (avoids N requests and the
+        // per-partner 403 "Access denied to this partner" errors)
+        (async () => {
+          if (partnerIds.length === 0) return [];
+          const chunks: string[][] = [];
+          for (let i = 0; i < partnerIds.length; i += 100) {
+            chunks.push(partnerIds.slice(i, i + 100) as string[]);
+          }
+          const results = await Promise.all(
+            chunks.map(async (ids) => {
+              try {
+                const res = await apiRequest('POST', '/api/partners/bulk', { ids });
+                return await res.json();
+              } catch (error) {
+                console.error('❌ Error fetching partners (bulk):', error);
+                return [];
+              }
+            })
+          );
+          return results.flat();
+        })(),
       ]);
 
       // Create lookup maps
@@ -1050,14 +1082,28 @@ export default function JobCardsNew() {
         </div>
         <div className="stack-mobile">
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs sm:text-sm hide-mobile">
-              <Target className="h-3 w-3 mr-1" />
+            <Button
+              variant={liveTracking ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setLiveTracking((v) => !v)}
+              className="text-xs sm:text-sm h-8"
+              data-testid="button-live-tracking"
+              title={liveTracking ? 'Live tracking on (refreshes every 10s)' : 'Enable live tracking (refreshes every 10s)'}
+            >
+              <Target className={`h-3 w-3 mr-1 ${liveTracking ? 'animate-pulse' : ''}`} />
               Live Tracking
-            </Badge>
-            <Badge variant="outline" className="text-xs sm:text-sm hide-mobile">
-              <Zap className="h-3 w-3 mr-1" />
-              Auto-Refresh
-            </Badge>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="text-xs sm:text-sm h-8"
+              data-testid="button-refresh"
+              title="Refresh now"
+            >
+              <RefreshCw className={`h-3 w-3 ${isFetching ? 'animate-spin' : ''}`} />
+            </Button>
           </div>
           
           {/* View Toggle */}

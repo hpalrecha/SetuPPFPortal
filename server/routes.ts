@@ -876,15 +876,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get individual OEM by ID
-  app.get("/api/oems/:id", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'PARTNER_ADMIN', 'PARTNER_STAFF']), async (req, res) => {
+  app.get("/api/oems/:id", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'PARTNER_ADMIN', 'PARTNER_STAFF']), async (req, res) => {
     try {
       const { id } = req.params;
       const oem = await storage.getOem(id);
-      
+
       if (!oem) {
         return res.status(404).json({ error: "OEM not found" });
       }
-      
+
       // Check access for partner users
       if (req.user?.role === 'PARTNER_ADMIN' || req.user?.role === 'PARTNER_STAFF') {
         const allowedOemIds = req.user.allowedOemIds || [];
@@ -892,7 +892,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Access denied to this OEM" });
         }
       }
-      
+
+      // OEM admins may only read their own OEM
+      if (req.user?.role === 'OEM_ADMIN' && req.user.oemId !== id) {
+        return res.status(403).json({ error: "Access denied to this OEM" });
+      }
+
       res.json(oem);
     } catch (error) {
       console.error("Get OEM error:", error);
@@ -2733,9 +2738,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // For SUPER_ADMIN, ADMIN, and MANAGER, use the first available OEM or create aggregate metrics
+      // For SUPER_ADMIN, ADMIN, and MANAGER, aggregate metrics across ALL OEMs
       if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
-        // Get first available OEM for super admin, admin, and manager
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) {
           // No OEMs available, return zero metrics
@@ -2752,7 +2756,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         // Use first OEM for dashboard
-        const metrics = await storage.getDashboardMetrics(availableOems[0].id);
+        // Pass no oemId so metrics aggregate across every OEM, not just the first
+        const metrics = await storage.getDashboardMetrics();
         return res.json(metrics);
       }
       
@@ -2780,7 +2785,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/dashboard/charts/orders-trend", authenticate, async (req, res) => {
     try {
-      let oemId: string;
+      let oemId: string | undefined;
       let showroomId: string | undefined;
       let dealershipId: string | undefined;
       
@@ -2788,7 +2793,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) return res.json([]);
-        oemId = availableOems[0].id;
+        oemId = undefined; // aggregate across all OEMs
       } else {
         if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
         oemId = req.user!.oemId;
@@ -2814,12 +2819,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/dashboard/charts/dealership-performance", authenticate, async (req, res) => {
     try {
-      let oemId: string;
+      let oemId: string | undefined;
       
       if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) return res.json([]);
-        oemId = availableOems[0].id;
+        oemId = undefined; // aggregate across all OEMs
       } else {
         if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
         oemId = req.user!.oemId;
@@ -2843,12 +2848,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/dashboard/charts/vehicle-upsells", authenticate, async (req, res) => {
     try {
-      let oemId: string;
+      let oemId: string | undefined;
       
       if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) return res.json([]);
-        oemId = availableOems[0].id;
+        oemId = undefined; // aggregate across all OEMs
       } else {
         if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
         oemId = req.user!.oemId;
@@ -2872,14 +2877,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/dashboard/charts/territory-performance", authenticate, async (req, res) => {
     try {
-      let oemId: string;
+      let oemId: string | undefined;
       let dealershipId: string | undefined;
       let showroomId: string | undefined;
       
       if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) return res.json([]);
-        oemId = availableOems[0].id;
+        oemId = undefined; // aggregate across all OEMs
       } else {
         if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
         oemId = req.user!.oemId;
@@ -2905,14 +2910,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/dashboard/charts/service-popularity", authenticate, async (req, res) => {
     try {
-      let oemId: string;
+      let oemId: string | undefined;
       let dealershipId: string | undefined;
       let showroomId: string | undefined;
       
       if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) return res.json([]);
-        oemId = availableOems[0].id;
+        oemId = undefined; // aggregate across all OEMs
       } else {
         if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
         oemId = req.user!.oemId;
@@ -2938,14 +2943,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/dashboard/charts/monthly-trends", authenticate, async (req, res) => {
     try {
-      let oemId: string;
+      let oemId: string | undefined;
       let dealershipId: string | undefined;
       let showroomId: string | undefined;
       
       if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) return res.json([]);
-        oemId = availableOems[0].id;
+        oemId = undefined; // aggregate across all OEMs
       } else {
         if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
         oemId = req.user!.oemId;
@@ -2969,10 +2974,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Activity timeline (calendar/date-range): work orders registered + jobs
+  // completed, bucketed by day or month, scoped to the caller's tenant.
+  app.get("/api/dashboard/activity", authenticate, async (req: AuthRequest, res) => {
+    try {
+      const granularity = (req.query.granularity === 'month' ? 'month' : 'day') as 'day' | 'month';
+
+      // Default range: last 30 days (day view) or last 12 months (month view)
+      const today = new Date();
+      const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const defFrom = new Date(today);
+      if (granularity === 'month') defFrom.setMonth(defFrom.getMonth() - 11);
+      else defFrom.setDate(defFrom.getDate() - 29);
+
+      const from = typeof req.query.from === 'string' && req.query.from ? req.query.from : fmt(defFrom);
+      const to = typeof req.query.to === 'string' && req.query.to ? req.query.to : fmt(today);
+
+      // Tenant scoping by role (SUPER_ADMIN/ADMIN/MANAGER => all OEMs)
+      const opts: any = { from, to, granularity };
+      const role = req.user!.role;
+      if (role === 'OEM_ADMIN') opts.oemId = req.user!.oemId;
+      else if (role === 'DEALERSHIP_ADMIN') opts.dealershipId = req.user!.dealershipId;
+      else if (role === 'SHOWROOM_MANAGER' || role === 'SALES_PERSON') opts.showroomId = req.user!.showroomId;
+      else if (role === 'PARTNER_ADMIN' || role === 'PARTNER_STAFF') opts.partnerId = req.user!.partnerId;
+
+      const data = await storage.getActivityTimeline(opts);
+      res.json(data);
+    } catch (error) {
+      console.error("Activity timeline error:", error);
+      res.status(500).json({ error: "Failed to fetch activity timeline" });
+    }
+  });
+
   // Reports Metrics API
   app.get("/api/reports/metrics", authenticate, async (req, res) => {
     try {
-      let oemId: string;
+      let oemId: string | undefined;
       let showroomId: string | undefined;
       let dealershipId: string | undefined;
       
@@ -2986,7 +3023,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             customerSatisfaction: { thisMonth: 0, lastMonth: 0, change: 0, isPositive: true }
           });
         }
-        oemId = availableOems[0].id;
+        oemId = undefined; // aggregate across all OEMs
       } else {
         if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
         oemId = req.user!.oemId;
@@ -3005,7 +3042,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Commission Summary Metrics API
   app.get("/api/commissions/summary", authenticate, async (req, res) => {
     try {
-      let oemId: string;
+      let oemId: string | undefined;
       let showroomId: string | undefined;
       let dealershipId: string | undefined;
       
@@ -3018,7 +3055,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             avgCommissionRate: 0
           });
         }
-        oemId = availableOems[0].id;
+        oemId = undefined; // aggregate across all OEMs
       } else {
         if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
         oemId = req.user!.oemId;

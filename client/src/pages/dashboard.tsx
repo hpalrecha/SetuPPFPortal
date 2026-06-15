@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
+import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
 import { 
   BarChart3, 
   Clock, 
@@ -158,6 +159,36 @@ export default function DashboardPage() {
     staleTime: 300000 // Cache for 5 minutes - showroom data doesn't change often
   });
 
+  // Resolve the OEM name for the OEM_ADMIN welcome line
+  const { data: myOem } = useQuery({
+    queryKey: ["/api/oems", user?.oemId, "welcome"],
+    queryFn: async () => {
+      const response = await fetch(`/api/oems/${user?.oemId}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+        credentials: 'include',
+      });
+      if (!response.ok) return null;
+      return response.json();
+    },
+    enabled: user?.role === 'OEM_ADMIN' && !!user?.oemId,
+    staleTime: 300000
+  });
+
+  // Resolve the partner name for the PARTNER_ADMIN / PARTNER_STAFF welcome line
+  const { data: myPartner } = useQuery({
+    queryKey: ["/api/partners", user?.partnerId, "welcome"],
+    queryFn: async () => {
+      const response = await fetch(`/api/partners/${user?.partnerId}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+        credentials: 'include',
+      });
+      if (!response.ok) return null;
+      return response.json();
+    },
+    enabled: (user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF') && !!user?.partnerId,
+    staleTime: 300000
+  });
+
   const { data: servicePopularity = [] } = useQuery<{
     name: string;
     value: number;
@@ -180,6 +211,22 @@ export default function DashboardPage() {
     staleTime: 60000, // Consider data fresh for 1 minute
     enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER'])
   });
+
+  // Human-friendly role label + organisation name for the welcome header
+  const roleLabels: Record<string, string> = {
+    SUPER_ADMIN: 'Super Admin',
+    ADMIN: 'Admin',
+    MANAGER: 'Manager',
+    OEM_ADMIN: 'OEM Admin',
+    DEALERSHIP_ADMIN: 'Dealership Admin',
+    SHOWROOM_MANAGER: 'Showroom Manager',
+    SALES_PERSON: 'Sales Person',
+    PARTNER_ADMIN: 'Partner Admin',
+    PARTNER_STAFF: 'Partner Staff',
+  };
+  const roleLabel = roleLabels[effectiveRole || ''] || 'User';
+  const orgName = myOem?.name || myDealership?.name || myShowroom?.name || myPartner?.displayName || '';
+  const identityLine = `${orgName ? orgName + ' ' : ''}${roleLabel}`;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -214,13 +261,11 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div className="flex-1 min-w-0">
           <h2 className="text-xl sm:text-2xl font-semibold text-foreground truncate">
-            {myDealership ? `Welcome, ${myDealership.name}` : 
-             myShowroom ? `Welcome, ${myShowroom.name}` : 
-             'Dashboard'}
+            Welcome to P91 Pulse VAS{user?.name ? `, ${user.name}` : ''}
           </h2>
           <p className="text-sm sm:text-base text-muted-foreground mt-1">
-            {myDealership ? 'Dealership Portal - ' : myShowroom ? 'Showroom Portal - ' : ''}
-            Overview of your PPF installation operations
+            <span className="font-medium text-foreground">{identityLine}</span>
+            {' · '}Overview of your PPF installation operations
             {viewAsRole && (
               <span className="text-orange-600 font-medium"> (Viewing as {viewAsRole.replace('_', ' ')})</span>
             )}
@@ -260,6 +305,9 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Activity Calendar - registrations & completions by day/month */}
+      <ActivityTimeline />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">

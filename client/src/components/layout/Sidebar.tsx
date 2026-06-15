@@ -62,7 +62,6 @@ const organizationNavigation = [
 ];
 
 const systemNavigation = [
-  { name: "Reports", href: "/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "PARTNER_ADMIN"] },
   { name: "Audit Logs", href: "/audit", icon: History, roles: ["SUPER_ADMIN", "ADMIN", "OEM_ADMIN"] },
   { name: "Settings", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
 ];
@@ -91,6 +90,10 @@ export function Sidebar({ collapsed, onToggle, className, isMobile = false }: Si
   
   const navigation = getFilteredNavigation(user?.role) || [];
 
+  // First visible item of the "System" group (Reports was removed; Audit/Settings remain)
+  const systemHrefs = ["/audit", "/settings"];
+  const firstSystemHref = navigation.find((n) => systemHrefs.includes(n.href))?.href;
+
   return (
     <div className={cn(
       "flex flex-col bg-card border-r border-border transition-all duration-300",
@@ -117,15 +120,15 @@ export function Sidebar({ collapsed, onToggle, className, isMobile = false }: Si
         </Button>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-2">
+      {/* Navigation (scrolls independently of page content) */}
+      <nav className="flex-1 space-y-1 p-2 overflow-y-auto">
         {navigation.map((item, index) => {
           const isActive = location === item.href || 
                           (item.href === "/dashboard" && location === "/");
           
           // Add section divider for organization management (Super Admin, Admin, Manager)
           const isFirstOrgItem = (user?.role === "SUPER_ADMIN" || user?.role === "ADMIN" || user?.role === "MANAGER") && item.href === "/oems";
-          const isFirstSystemItem = item.href === "/reports";
+          const isFirstSystemItem = item.href === firstSystemHref;
           
           return (
             <div key={item.name}>
@@ -143,6 +146,7 @@ export function Sidebar({ collapsed, onToggle, className, isMobile = false }: Si
                 )}
                 onClick={() => navigate(item.href)}
                 data-testid={`nav-${item.href.replace("/", "")}`}
+                title={collapsed ? item.name : undefined}
               >
                 <item.icon className={cn("h-4 w-4", !collapsed && "mr-3")} />
                 {!collapsed && (

@@ -348,7 +348,7 @@ export interface IStorage {
     pendingJobs: number;
     thisMonthEarnings: number;
   }>;
-  getDashboardMetrics(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
+  getDashboardMetrics(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
     activeWorkOrders: number;
     pendingApprovals: number;
     thisMonthRevenue: number;
@@ -360,27 +360,27 @@ export interface IStorage {
   }>;
 
   // Dashboard chart data
-  getOrdersRevenueTrend(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
+  getOrdersRevenueTrend(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
     month: string;
     orders: number;
     revenue: number;
   }[]>;
   
-  getDealershipPerformance(oemId: string): Promise<{
+  getDealershipPerformance(oemId?: string): Promise<{
     name: string;
     orders: number;
     revenue: number;
     growth: number;
   }[]>;
   
-  getVehicleCategoryUpsells(oemId: string): Promise<{
+  getVehicleCategoryUpsells(oemId?: string): Promise<{
     category: string;
     upsells: number;
     upsellRate: number;
     avgValue: number;
   }[]>;
   
-  getTerritoryPerformance(oemId: string, dealershipId?: string, showroomId?: string): Promise<{
+  getTerritoryPerformance(oemId?: string, dealershipId?: string, showroomId?: string): Promise<{
     territory: string;
     orders: number;
     upsells: number;
@@ -388,13 +388,13 @@ export interface IStorage {
     revenue: number;
   }[]>;
   
-  getServicePopularity(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
+  getServicePopularity(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
     name: string;
     value: number;
     color: string;
   }[]>;
   
-  getMonthlyTrends(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
+  getMonthlyTrends(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
     month: string;
     completedOrders: number;
     avgTAT: number;
@@ -402,7 +402,7 @@ export interface IStorage {
   }[]>;
 
   // Reports metrics
-  getReportsMetrics(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
+  getReportsMetrics(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
     totalWorkOrders: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
     avgTAT: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
     firstPassRate: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
@@ -410,7 +410,7 @@ export interface IStorage {
   }>;
 
   // Commissions summary
-  getCommissionsSummary(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
+  getCommissionsSummary(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
     totalCommissionThisMonth: number;
     activeSalesPersons: number;
     avgCommissionRate: number;
@@ -1258,38 +1258,40 @@ export class DatabaseStorage implements IStorage {
     }
 
     const workOrderResults = await query;
-    
-    // Manually populate related data to avoid Drizzle join issues
-    const enrichedWorkOrders = [];
-    for (const wo of workOrderResults) {
-      const enriched = { ...wo };
-      
-      // Fetch vehicle model name
-      if (wo.vehicleModelId) {
-        const vehicleModel = await db.select().from(vehicleModels).where(eq(vehicleModels.id, wo.vehicleModelId)).limit(1);
-        enriched.vehicleModelName = vehicleModel[0]?.modelName || null;
+
+    // Pre-fetch OEM names once (few rows) so the list response includes oemName
+    // without adding a per-row query. The UI's vehicle display depends on this.
+    const oemRows = await db.select({ id: oems.id, name: oems.name }).from(oems);
+    const oemNameMap = new Map(oemRows.map(o => [o.id, o.name]));
+
+    // Batch-fetch related entities to avoid a per-row N+1 (previously ~3 queries
+    // per work order, which was ~50s for 58 rows against the remote DB).
+    const vmIds = Array.from(new Set(workOrderResults.map(w => w.vehicleModelId).filter(Boolean))) as string[];
+    const svcIds = Array.from(new Set(workOrderResults.map(w => w.serviceId).filter(Boolean))) as string[];
+    const partnerIds = Array.from(new Set(workOrderResults.map(w => w.assignedPartnerId).filter(Boolean))) as string[];
+
+    const [vmRows, svcRows, partnerRows] = await Promise.all([
+      vmIds.length ? db.select({ id: vehicleModels.id, modelName: vehicleModels.modelName }).from(vehicleModels).where(inArray(vehicleModels.id, vmIds)) : Promise.resolve([]),
+      svcIds.length ? db.select({ id: services.id, name: services.name }).from(services).where(inArray(services.id, svcIds)) : Promise.resolve([]),
+      partnerIds.length ? db.select({ id: partners.id, displayName: partners.displayName }).from(partners).where(inArray(partners.id, partnerIds)) : Promise.resolve([]),
+    ]);
+
+    const vmMap = new Map(vmRows.map(v => [v.id, v.modelName]));
+    const svcMap = new Map(svcRows.map(s => [s.id, s.name]));
+    const partnerMap = new Map(partnerRows.map(p => [p.id, p]));
+
+    const enrichedWorkOrders = workOrderResults.map(wo => {
+      const enriched: any = { ...wo };
+      enriched.oemName = wo.oemId ? (oemNameMap.get(wo.oemId) || null) : null;
+      enriched.vehicleModelName = wo.vehicleModelId ? (vmMap.get(wo.vehicleModelId) || null) : null;
+      enriched.serviceName = wo.serviceId ? (svcMap.get(wo.serviceId) || null) : null;
+      const p = wo.assignedPartnerId ? partnerMap.get(wo.assignedPartnerId) : undefined;
+      if (p) {
+        enriched.assignedPartner = { id: p.id, displayName: p.displayName };
       }
-      
-      // Fetch service name
-      if (wo.serviceId) {
-        const service = await db.select().from(services).where(eq(services.id, wo.serviceId)).limit(1);
-        enriched.serviceName = service[0]?.name || null;
-      }
-      
-      // Fetch partner name
-      if (wo.assignedPartnerId) {
-        const partner = await db.select().from(partners).where(eq(partners.id, wo.assignedPartnerId)).limit(1);
-        if (partner[0]) {
-          enriched.assignedPartner = {
-            id: partner[0].id,
-            displayName: partner[0].displayName
-          };
-        }
-      }
-      
-      enrichedWorkOrders.push(enriched);
-    }
-    
+      return enriched;
+    });
+
     console.log(`Found ${enrichedWorkOrders.length} work orders`);
     return enrichedWorkOrders;
   }
@@ -3493,7 +3495,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getDashboardMetrics(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
+  async getDashboardMetrics(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
     activeWorkOrders: number;
     pendingApprovals: number;
     thisMonthRevenue: number;
@@ -3503,7 +3505,9 @@ export class DatabaseStorage implements IStorage {
     pendingJobs?: number;
     thisMonthEarnings?: number;
   }> {
-    const conditions = [eq(workOrders.oemId, oemId)];
+    // When oemId is omitted (SUPER_ADMIN / ADMIN / MANAGER), aggregate across ALL OEMs.
+    const conditions = [];
+    if (oemId) conditions.push(eq(workOrders.oemId, oemId));
     if (showroomId) {
       conditions.push(eq(workOrders.showroomId, showroomId));
     }
@@ -3564,14 +3568,16 @@ export class DatabaseStorage implements IStorage {
       avgTAT = Math.round((totalTATHours / completedJobsWithTAT.length / 24) * 10) / 10; // Convert to days with 1 decimal
     }
 
-    // Additional metrics for partner/detailer views
+    // Additional metrics for partner/detailer views.
+    // Count jobs that have been approved OR moved further down the post-approval
+    // pipeline (a completed job rarely stays in the exact 'APPROVED' status).
     const [completedJobsResult] = await db
       .select({ count: count() })
       .from(jobCards)
       .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
       .where(and(
         ...conditions,
-        eq(jobCards.status, 'APPROVED'),
+        inArray(jobCards.status, ['APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED'] as any),
         sql`EXTRACT(MONTH FROM job_cards.completed_at) = EXTRACT(MONTH FROM CURRENT_DATE)`,
         sql`EXTRACT(YEAR FROM job_cards.completed_at) = EXTRACT(YEAR FROM CURRENT_DATE)`
       ));
@@ -3618,12 +3624,13 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getOrdersRevenueTrend(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
+  async getOrdersRevenueTrend(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
     month: string;
     orders: number;
     revenue: number;
   }[]> {
-    const conditions = [eq(workOrders.oemId, oemId)];
+    const conditions = [];
+    if (oemId) conditions.push(eq(workOrders.oemId, oemId));
     if (dealershipId) {
       conditions.push(eq(workOrders.dealershipId, dealershipId));
     }
@@ -3664,7 +3671,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getDealershipPerformance(oemId: string): Promise<{
+  async getDealershipPerformance(oemId?: string): Promise<{
     name: string;
     orders: number;
     revenue: number;
@@ -3683,7 +3690,7 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(jobCards, eq(workOrders.id, jobCards.workOrderId))
       .leftJoin(payouts, eq(jobCards.id, payouts.jobCardId))
       .where(and(
-        eq(workOrders.oemId, oemId),
+        ...(oemId ? [eq(workOrders.oemId, oemId)] : []),
         sql`EXTRACT(MONTH FROM work_orders.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)`,
         sql`EXTRACT(YEAR FROM work_orders.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`
       ))
@@ -3700,7 +3707,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getVehicleCategoryUpsells(oemId: string): Promise<{
+  async getVehicleCategoryUpsells(oemId?: string): Promise<{
     category: string;
     upsells: number;
     upsellRate: number;
@@ -3718,7 +3725,7 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(jobCards, eq(workOrders.id, jobCards.workOrderId))
       .leftJoin(payouts, eq(jobCards.id, payouts.jobCardId))
       .where(and(
-        eq(workOrders.oemId, oemId),
+        ...(oemId ? [eq(workOrders.oemId, oemId)] : []),
         sql`work_orders.created_at >= CURRENT_DATE - INTERVAL '3 months'`
       ))
       .groupBy(vehicleModels.vehicleType)
@@ -3743,7 +3750,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getTerritoryPerformance(oemId: string, dealershipId?: string, showroomId?: string): Promise<{
+  async getTerritoryPerformance(oemId?: string, dealershipId?: string, showroomId?: string): Promise<{
     territory: string;
     orders: number;
     upsells: number;
@@ -3752,11 +3759,11 @@ export class DatabaseStorage implements IStorage {
   }[]> {
     // Get performance by city/territory
     const conditions = [
-      eq(workOrders.oemId, oemId),
       isNotNull(dealerships.city),
       sql`work_orders.created_at >= CURRENT_DATE - INTERVAL '3 months'`
     ];
-    
+    if (oemId) conditions.push(eq(workOrders.oemId, oemId));
+
     if (dealershipId) {
       conditions.push(eq(workOrders.dealershipId, dealershipId));
     }
@@ -3788,12 +3795,13 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getServicePopularity(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
+  async getServicePopularity(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
     name: string;
     value: number;
     color: string;
   }[]> {
-    const conditions = [eq(workOrders.oemId, oemId)];
+    const conditions = [];
+    if (oemId) conditions.push(eq(workOrders.oemId, oemId));
     if (dealershipId) {
       conditions.push(eq(workOrders.dealershipId, dealershipId));
     }
@@ -3825,13 +3833,14 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getMonthlyTrends(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
+  async getMonthlyTrends(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
     month: string;
     completedOrders: number;
     avgTAT: number;
     customerSatisfaction: number;
   }[]> {
-    const conditions = [eq(workOrders.oemId, oemId)];
+    const conditions = [];
+    if (oemId) conditions.push(eq(workOrders.oemId, oemId));
     if (dealershipId) {
       conditions.push(eq(workOrders.dealershipId, dealershipId));
     }
@@ -3852,7 +3861,9 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
       .where(and(
         ...conditions,
-        eq(jobCards.status, 'APPROVED'),
+        // Count jobs that have been approved OR moved further down the post-approval
+        // pipeline (a completed job rarely stays in the exact 'APPROVED' status).
+        inArray(jobCards.status, ['APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED'] as any),
         isNotNull(jobCards.startedAt),
         isNotNull(jobCards.completedAt),
         sql`job_cards.completed_at >= CURRENT_DATE - INTERVAL '9 months'`
@@ -3875,13 +3886,14 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getReportsMetrics(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
+  async getReportsMetrics(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
     totalWorkOrders: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
     avgTAT: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
     firstPassRate: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
     customerSatisfaction: { thisMonth: number; lastMonth: number; change: number; isPositive: boolean };
   }> {
-    const conditions = [eq(workOrders.oemId, oemId)];
+    const conditions = [];
+    if (oemId) conditions.push(eq(workOrders.oemId, oemId));
     if (showroomId) conditions.push(eq(workOrders.showroomId, showroomId));
     if (dealershipId) conditions.push(eq(workOrders.dealershipId, dealershipId));
 
@@ -4029,12 +4041,13 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getCommissionsSummary(oemId: string, showroomId?: string, dealershipId?: string): Promise<{
+  async getCommissionsSummary(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
     totalCommissionThisMonth: number;
     activeSalesPersons: number;
     avgCommissionRate: number;
   }> {
-    const conditions = [eq(workOrders.oemId, oemId)];
+    const conditions = [];
+    if (oemId) conditions.push(eq(workOrders.oemId, oemId));
     if (showroomId) conditions.push(eq(workOrders.showroomId, showroomId));
     if (dealershipId) conditions.push(eq(workOrders.dealershipId, dealershipId));
 
@@ -4068,7 +4081,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(commissionRules)
       .where(and(
-        eq(commissionRules.oemId, oemId),
+        ...(oemId ? [eq(commissionRules.oemId, oemId)] : []),
         eq(commissionRules.status, 'ACTIVE')
       ));
     const avgCommissionRate = avgCommissionRateResult[0]?.avgRate || 0;
@@ -4078,6 +4091,98 @@ export class DatabaseStorage implements IStorage {
       activeSalesPersons,
       avgCommissionRate: Math.round(avgCommissionRate * 10) / 10
     };
+  }
+
+  // Activity timeline: work orders registered + job cards completed, bucketed by
+  // day or month over a custom date range, scoped to the caller's tenant.
+  async getActivityTimeline(opts: {
+    oemId?: string;
+    dealershipId?: string;
+    showroomId?: string;
+    partnerId?: string;
+    from: string;
+    to: string;
+    granularity: 'day' | 'month';
+  }): Promise<{ period: string; label: string; orders: number; completed: number }[]> {
+    const trunc = opts.granularity === 'month' ? 'month' : 'day';
+    const { from, to } = opts;
+
+    // Tenant scoping applied to work_orders
+    const woScope = [] as any[];
+    if (opts.oemId) woScope.push(eq(workOrders.oemId, opts.oemId));
+    if (opts.dealershipId) woScope.push(eq(workOrders.dealershipId, opts.dealershipId));
+    if (opts.showroomId) woScope.push(eq(workOrders.showroomId, opts.showroomId));
+    if (opts.partnerId) woScope.push(eq(workOrders.assignedPartnerId, opts.partnerId));
+
+    // Shared bucket expressions (trunc is a safe literal: 'day' | 'month').
+    // Reuse the same sql object in SELECT and GROUP BY so Postgres treats them as identical.
+    const woBucket = sql<string>`to_char(date_trunc('${sql.raw(trunc)}', work_orders.created_at), 'YYYY-MM-DD')`;
+    const jcBucket = sql<string>`to_char(date_trunc('${sql.raw(trunc)}', job_cards.completed_at), 'YYYY-MM-DD')`;
+
+    // Orders registered, grouped by created_at bucket
+    const orderRows = await db
+      .select({ bucket: woBucket, n: count() })
+      .from(workOrders)
+      .where(and(
+        ...woScope,
+        sql`work_orders.created_at >= ${from}::date AND work_orders.created_at < (${to}::date + 1)`,
+      ))
+      .groupBy(woBucket);
+
+    // Jobs completed (approved-or-later), grouped by completed_at bucket
+    const jcScope = [] as any[];
+    if (opts.partnerId) {
+      jcScope.push(eq(jobCards.partnerId, opts.partnerId));
+    } else {
+      if (opts.oemId) jcScope.push(eq(workOrders.oemId, opts.oemId));
+      if (opts.dealershipId) jcScope.push(eq(workOrders.dealershipId, opts.dealershipId));
+      if (opts.showroomId) jcScope.push(eq(workOrders.showroomId, opts.showroomId));
+    }
+    const completedRows = await db
+      .select({ bucket: jcBucket, n: count() })
+      .from(jobCards)
+      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
+      .where(and(
+        ...jcScope,
+        inArray(jobCards.status, ['APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED'] as any),
+        isNotNull(jobCards.completedAt),
+        sql`job_cards.completed_at >= ${from}::date AND job_cards.completed_at < (${to}::date + 1)`,
+      ))
+      .groupBy(jcBucket);
+
+    const orderMap = new Map(orderRows.map(r => [r.bucket, r.n]));
+    const completedMap = new Map(completedRows.map(r => [r.bucket, r.n]));
+
+    // Build the full ordered list of buckets so the chart has no gaps
+    const buckets: { period: string; label: string }[] = [];
+    const start = new Date(`${from}T00:00:00`);
+    const end = new Date(`${to}T00:00:00`);
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    if (trunc === 'month') {
+      const cur = new Date(start.getFullYear(), start.getMonth(), 1);
+      const last = new Date(end.getFullYear(), end.getMonth(), 1);
+      let guard = 0;
+      while (cur <= last && guard++ < 240) {
+        const period = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-01`;
+        buckets.push({ period, label: `${monthNames[cur.getMonth()]} ${cur.getFullYear()}` });
+        cur.setMonth(cur.getMonth() + 1);
+      }
+    } else {
+      const cur = new Date(start);
+      let guard = 0;
+      while (cur <= end && guard++ < 1000) {
+        const period = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+        buckets.push({ period, label: `${cur.getDate()} ${monthNames[cur.getMonth()]}` });
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+
+    return buckets.map(b => ({
+      period: b.period,
+      label: b.label,
+      orders: Number(orderMap.get(b.period) || 0),
+      completed: Number(completedMap.get(b.period) || 0),
+    }));
   }
 
   // Allocation management implementation
