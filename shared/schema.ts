@@ -22,12 +22,13 @@ export const userRoleEnum = pgEnum('user_role', [
   'SUPER_ADMIN',
   'ADMIN',
   'MANAGER',
-  'OEM_ADMIN', 
+  'OEM_ADMIN',
   'DEALERSHIP_ADMIN',
   'SHOWROOM_MANAGER',
   'SALES_PERSON',
   'PARTNER_ADMIN',
-  'PARTNER_STAFF'
+  'PARTNER_STAFF',
+  'DETAILING_PARTNER'
 ]);
 
 export const partnerTypeEnum = pgEnum('partner_type', ['STUDIO', 'INSTALLER']);
@@ -296,6 +297,18 @@ export const partnerShowroomMapping = pgTable("partner_showroom_mapping", {
   uniquePartnerShowroom: unique("unique_partner_showroom").on(table.partnerId, table.showroomId)
 }));
 
+// Showroom allocation for DETAILING_PARTNER users (subset of their parent partner's showrooms)
+export const detailingPartnerShowrooms = pgTable("detailing_partner_showrooms", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  detailingPartnerId: uuid("detailing_partner_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  showroomId: uuid("showroom_id").references(() => showrooms.id, { onDelete: 'cascade' }).notNull(),
+  status: text("status").default("active").notNull(), // active / inactive
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+}, (table) => ({
+  uniqueDetailingPartnerShowroom: unique("unique_detailing_partner_showroom").on(table.detailingPartnerId, table.showroomId)
+}));
+
 export const allocations = pgTable("allocations", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   level: allocationLevelEnum("level").notNull(),
@@ -485,6 +498,7 @@ export const workOrders = pgTable("work_orders", {
   quantity: integer("quantity").default(1),
   estimatedPrice: decimal("estimated_price", { precision: 10, scale: 2 }), // Auto-calculated from pricing rules
   notes: text("notes"),
+  appointmentAt: timestamp("appointment_at"), // Appointment date and time chosen at booking
   salesPersonId: uuid("sales_person_id"), // References user ID with SALES_PERSON role
   assignedPartnerId: uuid("assigned_partner_id").references(() => partners.id),
   assignedJobCardId: uuid("assigned_job_card_id"),

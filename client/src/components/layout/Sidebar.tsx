@@ -24,7 +24,8 @@ import {
   Car,
   Tag,
   BookOpen,
-  Package
+  Package,
+  HardHat
 } from "lucide-react";
 
 interface SidebarProps {
@@ -36,12 +37,13 @@ interface SidebarProps {
 
 // Navigation items configuration
 const baseNavigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF", "DETAILING_PARTNER"] },
   { name: "Work Orders", href: "/work-orders", icon: ClipboardList, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN"] },
-  { name: "Job Cards", href: "/job-cards", icon: CheckSquare, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
-  { name: "Knowledge Hub", href: "/knowledge-hub", icon: BookOpen, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
+  { name: "Job Cards", href: "/job-cards", icon: CheckSquare, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF", "DETAILING_PARTNER"] },
+  { name: "Knowledge Hub", href: "/knowledge-hub", icon: BookOpen, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF", "DETAILING_PARTNER"] },
   { name: "Partners", href: "/partners", icon: Handshake, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
   { name: "Staff Management", href: "/partner-staff", icon: Users, roles: ["PARTNER_ADMIN"] },
+  { name: "Detailing Partners", href: "/detailing-partners", icon: HardHat, roles: ["PARTNER_ADMIN"] },
   { name: "Payouts & Earnings", href: "/payouts", icon: DollarSign, roles: ["PARTNER_ADMIN"] },
   { name: "Allocations", href: "/allocations", icon: Network, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
   { name: "Services", href: "/services", icon: Shield, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON"] },
@@ -63,7 +65,7 @@ const organizationNavigation = [
 
 const systemNavigation = [
   { name: "Audit Logs", href: "/audit", icon: History, roles: ["SUPER_ADMIN", "ADMIN", "OEM_ADMIN"] },
-  { name: "Settings", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF"] },
+  { name: "Settings", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF", "DETAILING_PARTNER"] },
 ];
 
 const getFilteredNavigation = (userRole: string | undefined) => {

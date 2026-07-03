@@ -398,7 +398,7 @@ export default function DashboardPage() {
         )}
 
         {/* Pending Job Cards - Specific for Detailer roles */}
-        {canViewSection(['PARTNER_ADMIN', 'PARTNER_STAFF']) && (
+        {canViewSection(['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER']) && (
           <Card>
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
@@ -418,7 +418,7 @@ export default function DashboardPage() {
         )}
 
         {/* In Progress Job Cards - Specific for Detailer roles */}
-        {canViewSection(['PARTNER_ADMIN', 'PARTNER_STAFF']) && (
+        {canViewSection(['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER']) && (
           <Card>
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
@@ -444,7 +444,7 @@ export default function DashboardPage() {
         )}
 
         {/* Jobs Completed Card - Specific for Detailer roles */}
-        {canViewSection(['PARTNER_ADMIN', 'PARTNER_STAFF']) && (
+        {canViewSection(['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER']) && (
           <Card>
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">

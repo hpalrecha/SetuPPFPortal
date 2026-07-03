@@ -101,7 +101,7 @@ export default function JobCardListView({
 
   const renderActionButtons = (job: JobCardView) => {
     const isCompleted = ['APPROVED', 'CLOSED'].includes(job.status!);
-    const isPartnerUser = ['PARTNER_ADMIN', 'PARTNER_STAFF'].includes(currentUserRole || '');
+    const isPartnerUser = ['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER'].includes(currentUserRole || '');
     
     // Show different buttons based on status and role
     if (job.status === 'AWAITING_ACK') {

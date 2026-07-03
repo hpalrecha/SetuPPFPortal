@@ -20,7 +20,7 @@ export function OemProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   
   // Check if user is a partner user
-  const isPartnerUser = user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF';
+  const isPartnerUser = user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF' || user?.role === 'DETAILING_PARTNER';
   
   // Get available OEMs for partner users
   const availableOems = user?.allowedOemIds || [];

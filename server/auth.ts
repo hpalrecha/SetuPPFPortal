@@ -162,7 +162,7 @@ export class AuthService {
     // Check OEM access for tenant isolation
     let allowedOemIds: string[] | undefined;
     
-    if (user.role === 'PARTNER_ADMIN' || user.role === 'PARTNER_STAFF') {
+    if (user.role === 'PARTNER_ADMIN' || user.role === 'PARTNER_STAFF' || user.role === 'DETAILING_PARTNER') {
       // For partner users, get allowed OEMs from partner_oems mapping
       if (user.partnerId) {
         const partnerOems = await storage.getPartnerOems(user.partnerId);

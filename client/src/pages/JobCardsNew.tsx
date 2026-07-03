@@ -257,7 +257,7 @@ export default function JobCardsNew() {
   // Get current user for admin check
   const { user } = useAuth();
   const { toast } = useToast();
-  const isPartnerUser = user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF';
+  const isPartnerUser = user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF' || user?.role === 'DETAILING_PARTNER';
   const isShowroomUser = user?.role === 'SHOWROOM_MANAGER' || user?.role === 'DEALERSHIP_ADMIN';
   const showPrices = user?.showServicePrices !== false;
   const { selectedOemId } = useOemContext();
