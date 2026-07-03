@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { useLocation, useRoute } from "wouter";
@@ -38,12 +38,32 @@ const statusColors = {
   CANCELLED: "bg-red-100 text-red-800"
 };
 
+function useBreakpoint() {
+  const [bp, setBp] = useState<'mobile' | 'tablet' | 'desktop'>(() => {
+    if (typeof window === 'undefined') return 'desktop';
+    if (window.innerWidth >= 1024) return 'desktop';
+    if (window.innerWidth >= 768) return 'tablet';
+    return 'mobile';
+  });
+  useEffect(() => {
+    const handler = () => {
+      if (window.innerWidth >= 1024) setBp('desktop');
+      else if (window.innerWidth >= 768) setBp('tablet');
+      else setBp('mobile');
+    };
+    window.addEventListener('resize', handler, { passive: true });
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return bp;
+}
+
 export default function WorkOrdersPage() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const showPrices = user?.showServicePrices !== false;
+  const breakpoint = useBreakpoint();
   
   // Route detection
   const [, listRouteParams] = useRoute("/work-orders");
@@ -175,80 +195,80 @@ export default function WorkOrdersPage() {
     enabled: !!selectedWorkOrder && showEditModal // Only fetch when modal is open
   });
 
-  // Apply search filters to work orders (using debounced filters)
-  const filteredWorkOrders = allWorkOrders.filter((order) => {
-    const workOrderNumber = `WO-${order.id.slice(-6)}`.toLowerCase();
-    const customerName = (order.customerName || '').toLowerCase();
-    const status = (order.status || '').toLowerCase();
-    const vehicleModel = ((order as any).vehicleModelName || '').toLowerCase();
-    const regNo = (order.regNo || '').toLowerCase();
-    const serviceName = ((order as any).serviceName || '').toLowerCase();
-    const partnerName = ((order as any).assignedPartner?.displayName || '').toLowerCase();
-    const createdAt = order.createdAt ? new Date(order.createdAt) : null;
+  // Memoized filter + sort + paginate — only recomputes when inputs actually change
+  const filteredWorkOrders = useMemo(() => {
+    return allWorkOrders.filter((order) => {
+      const workOrderNumber = `WO-${order.id.slice(-6)}`.toLowerCase();
+      const customerName = (order.customerName || '').toLowerCase();
+      const status = (order.status || '').toLowerCase();
+      const vehicleModel = ((order as any).vehicleModelName || '').toLowerCase();
+      const regNo = (order.regNo || '').toLowerCase();
+      const serviceName = ((order as any).serviceName || '').toLowerCase();
+      const partnerName = ((order as any).assignedPartner?.displayName || '').toLowerCase();
+      const createdAt = order.createdAt ? new Date(order.createdAt) : null;
 
-    // Date filter logic
-    let dateMatch = true;
-    if (debouncedSearchFilters.dateFrom) {
-      const fromDate = new Date(debouncedSearchFilters.dateFrom);
-      fromDate.setHours(0, 0, 0, 0);
-      if (!createdAt || createdAt < fromDate) dateMatch = false;
-    }
-    if (debouncedSearchFilters.dateTo) {
-      const toDate = new Date(debouncedSearchFilters.dateTo);
-      toDate.setHours(23, 59, 59, 999);
-      if (!createdAt || createdAt > toDate) dateMatch = false;
-    }
+      let dateMatch = true;
+      if (debouncedSearchFilters.dateFrom) {
+        const fromDate = new Date(debouncedSearchFilters.dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        if (!createdAt || createdAt < fromDate) dateMatch = false;
+      }
+      if (debouncedSearchFilters.dateTo) {
+        const toDate = new Date(debouncedSearchFilters.dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        if (!createdAt || createdAt > toDate) dateMatch = false;
+      }
 
-    return (
-      (!debouncedSearchFilters.workOrderNumber || workOrderNumber.includes(debouncedSearchFilters.workOrderNumber.toLowerCase())) &&
-      (!debouncedSearchFilters.customerName || customerName.includes(debouncedSearchFilters.customerName.toLowerCase())) &&
-      (!debouncedSearchFilters.status || status === debouncedSearchFilters.status.toLowerCase()) &&
-      (!debouncedSearchFilters.vehicleModel || vehicleModel.includes(debouncedSearchFilters.vehicleModel.toLowerCase())) &&
-      (!debouncedSearchFilters.regNo || regNo.includes(debouncedSearchFilters.regNo.toLowerCase())) &&
-      (!debouncedSearchFilters.serviceName || serviceName.includes(debouncedSearchFilters.serviceName.toLowerCase())) &&
-      (!debouncedSearchFilters.partnerName || partnerName.includes(debouncedSearchFilters.partnerName.toLowerCase())) &&
-      dateMatch
-    );
-  });
+      return (
+        (!debouncedSearchFilters.workOrderNumber || workOrderNumber.includes(debouncedSearchFilters.workOrderNumber.toLowerCase())) &&
+        (!debouncedSearchFilters.customerName || customerName.includes(debouncedSearchFilters.customerName.toLowerCase())) &&
+        (!debouncedSearchFilters.status || status === debouncedSearchFilters.status.toLowerCase()) &&
+        (!debouncedSearchFilters.vehicleModel || vehicleModel.includes(debouncedSearchFilters.vehicleModel.toLowerCase())) &&
+        (!debouncedSearchFilters.regNo || regNo.includes(debouncedSearchFilters.regNo.toLowerCase())) &&
+        (!debouncedSearchFilters.serviceName || serviceName.includes(debouncedSearchFilters.serviceName.toLowerCase())) &&
+        (!debouncedSearchFilters.partnerName || partnerName.includes(debouncedSearchFilters.partnerName.toLowerCase())) &&
+        dateMatch
+      );
+    });
+  }, [allWorkOrders, debouncedSearchFilters]);
 
-  // Sort filtered work orders
-  const sortedWorkOrders = [...filteredWorkOrders].sort((a, b) => {
-    let aVal: any, bVal: any;
-    
-    switch (sortField) {
-      case 'createdAt':
-        aVal = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        bVal = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        break;
-      case 'status':
-        aVal = a.status || '';
-        bVal = b.status || '';
-        break;
-      case 'customerName':
-        aVal = a.customerName?.toLowerCase() || '';
-        bVal = b.customerName?.toLowerCase() || '';
-        break;
-      case 'partner':
-        aVal = ((a as any).assignedPartner?.displayName || '').toLowerCase();
-        bVal = ((b as any).assignedPartner?.displayName || '').toLowerCase();
-        break;
-      default:
-        aVal = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        bVal = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-    }
-    
-    if (sortOrder === 'asc') {
-      return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-    } else {
-      return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
-    }
-  });
+  const sortedWorkOrders = useMemo(() => {
+    return [...filteredWorkOrders].sort((a, b) => {
+      let aVal: any, bVal: any;
+      switch (sortField) {
+        case 'createdAt':
+          aVal = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          bVal = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          break;
+        case 'status':
+          aVal = a.status || '';
+          bVal = b.status || '';
+          break;
+        case 'customerName':
+          aVal = a.customerName?.toLowerCase() || '';
+          bVal = b.customerName?.toLowerCase() || '';
+          break;
+        case 'partner':
+          aVal = ((a as any).assignedPartner?.displayName || '').toLowerCase();
+          bVal = ((b as any).assignedPartner?.displayName || '').toLowerCase();
+          break;
+        default:
+          aVal = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          bVal = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      }
+      return sortOrder === 'asc'
+        ? (aVal < bVal ? -1 : aVal > bVal ? 1 : 0)
+        : (aVal > bVal ? -1 : aVal < bVal ? 1 : 0);
+    });
+  }, [filteredWorkOrders, sortField, sortOrder]);
 
-  // Pagination logic
   const totalPages = Math.ceil(sortedWorkOrders.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const workOrders = sortedWorkOrders.slice(startIndex, endIndex);
+  const workOrders = useMemo(
+    () => sortedWorkOrders.slice(startIndex, endIndex),
+    [sortedWorkOrders, startIndex, endIndex]
+  );
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -446,6 +466,14 @@ export default function WorkOrdersPage() {
             <div class="field">
               <div class="field-label">Invoice Amount</div>
               <div class="field-value">${order.invoiceAmount ? '₹' + parseFloat(order.invoiceAmount).toLocaleString() : 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Appointment Date & Time</div>
+              <div class="field-value">${order.appointmentAt ? new Date(order.appointmentAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Sales Person</div>
+              <div class="field-value">${order.salesPersonName || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">Created Date</div>
@@ -655,8 +683,7 @@ export default function WorkOrdersPage() {
   const modalsJSX = (
     <>
       {/* Create/Edit Work Order Modal */}
-      {console.log("MODAL DATA:", { showEditModal, selectedWorkOrder, editWorkOrder, isLoadingEditWorkOrder })}
-      <CreateWorkOrderModal 
+      <CreateWorkOrderModal
         open={showCreateModal || showEditModal}
         onOpenChange={(open) => {
           if (showEditModal) {
@@ -774,12 +801,26 @@ export default function WorkOrdersPage() {
     return (
       <>
         {modalsJSX}
-        <div className="space-y-6">
-          <div className="animate-pulse">
-            <div className="h-8 bg-muted rounded w-48 mb-2"></div>
-            <div className="h-4 bg-muted rounded w-72"></div>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between animate-pulse">
+            <div>
+              <div className="h-7 bg-muted rounded w-40 mb-2" />
+              <div className="h-4 bg-muted rounded w-56" />
+            </div>
+            <div className="h-9 bg-muted rounded w-36" />
           </div>
-          <div className="h-64 bg-muted rounded-lg animate-pulse"></div>
+          <div className="rounded-lg border border-border overflow-hidden animate-pulse">
+            <div className="bg-muted/50 h-10 border-b border-border" />
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="px-4 py-4 border-b border-border flex gap-4 items-center">
+                <div className="h-4 bg-muted rounded w-16 flex-shrink-0" />
+                <div className="h-4 bg-muted rounded w-32" />
+                <div className="h-4 bg-muted rounded w-24" />
+                <div className="h-4 bg-muted rounded w-28 ml-auto" />
+                <div className="h-6 bg-muted rounded w-20" />
+              </div>
+            ))}
+          </div>
         </div>
       </>
     );
@@ -827,6 +868,12 @@ export default function WorkOrdersPage() {
                   <h3 className="font-medium text-sm text-muted-foreground">Created Date</h3>
                   <p className="text-sm">{new Date(workOrder.createdAt!).toLocaleDateString()}</p>
                 </div>
+                {(workOrder as any).appointmentAt && (
+                  <div>
+                    <h3 className="font-medium text-sm text-muted-foreground">Appointment Date & Time</h3>
+                    <p className="text-sm">{new Date((workOrder as any).appointmentAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                  </div>
+                )}
                 {(workOrder as any).submittedAt && (
                   <div>
                     <h3 className="font-medium text-sm text-muted-foreground">Submitted Date</h3>
@@ -1044,13 +1091,11 @@ export default function WorkOrdersPage() {
             <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
               {workOrder.status === 'DRAFT' && canEditWorkOrder && (
                 <>
-                  <Button 
+                  <Button
                     onClick={() => {
-                      console.log("Edit button clicked, workOrder.id:", workOrder.id);
                       setSelectedWorkOrder(workOrder.id);
                       setShowEditModal(true);
-                      console.log("Modal state set to true");
-                    }} 
+                    }}
                     variant="outline"
                     className="w-full sm:w-auto"
                     data-testid="button-edit-work-order"
@@ -1331,7 +1376,7 @@ export default function WorkOrdersPage() {
       {workOrders.length > 0 && (
         <>
           {/* Desktop & Large Table View */}
-          <div className="hidden lg:block rounded-lg border border-border overflow-hidden">
+          <div className={breakpoint === 'desktop' ? "block rounded-lg border border-border overflow-hidden" : "hidden"}>
             {/* Table Header */}
             <div className="bg-muted/50 border-b border-border px-4 py-3">
               <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '100px 1fr 1fr 200px 130px 180px 110px 120px'}}>
@@ -1480,7 +1525,7 @@ export default function WorkOrdersPage() {
           </div>
 
           {/* Tablet Compact View */}
-          <div className="hidden md:block lg:hidden rounded-lg border border-border overflow-hidden">
+          <div className={breakpoint === 'tablet' ? "block rounded-lg border border-border overflow-hidden" : "hidden"}>
             {/* Table Header */}
             <div className="bg-muted/50 border-b border-border px-3 py-2">
               <div className="grid grid-cols-7 gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -1577,7 +1622,7 @@ export default function WorkOrdersPage() {
           </div>
           
           {/* Mobile Card View */}
-          <div className="block md:hidden space-y-4">
+          <div className={breakpoint === 'mobile' ? "block space-y-4" : "hidden"}>
             {workOrders.map((order) => (
               <Card key={order.id} className="shadow-sm border-l-4 border-l-blue-500" data-testid={`card-mobile-work-order-${order.id}`}>
                 <CardContent className="p-4">
@@ -1858,9 +1903,7 @@ export default function WorkOrdersPage() {
       />
 
       {/* Edit Work Order Modal */}
-      {console.log("RENDER CHECK - showEditModal:", showEditModal, "selectedWorkOrder:", selectedWorkOrder)}
       <Dialog open={showEditModal} onOpenChange={(open) => {
-        console.log("Dialog onOpenChange called with:", open);
         setShowEditModal(open);
         if (!open) {
           setSelectedWorkOrder(null);

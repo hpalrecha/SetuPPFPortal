@@ -853,8 +853,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Dealership Management
-  async getDealerships(filters?: { oemId?: string; state?: string; city?: string; search?: string; limit?: number; offset?: number }): Promise<{ dealerships: any[]; total: number }> {
+  async getDealerships(filters?: { oemId?: string; state?: string; city?: string; search?: string; limit?: number; offset?: number; dealershipIds?: string[] }): Promise<{ dealerships: any[]; total: number }> {
     const conditions = [];
+    if (filters?.dealershipIds && filters.dealershipIds.length > 0) {
+      conditions.push(inArray(dealerships.id, filters.dealershipIds));
+    }
     
     // Build filter conditions
     if (filters?.state) {
@@ -1271,16 +1274,19 @@ export class DatabaseStorage implements IStorage {
     const vmIds = Array.from(new Set(workOrderResults.map(w => w.vehicleModelId).filter(Boolean))) as string[];
     const svcIds = Array.from(new Set(workOrderResults.map(w => w.serviceId).filter(Boolean))) as string[];
     const partnerIds = Array.from(new Set(workOrderResults.map(w => w.assignedPartnerId).filter(Boolean))) as string[];
+    const salesPersonUserIds = Array.from(new Set(workOrderResults.map(w => w.salesPersonId).filter(Boolean))) as string[];
 
-    const [vmRows, svcRows, partnerRows] = await Promise.all([
+    const [vmRows, svcRows, partnerRows, salesPersonUserRows] = await Promise.all([
       vmIds.length ? db.select({ id: vehicleModels.id, modelName: vehicleModels.modelName }).from(vehicleModels).where(inArray(vehicleModels.id, vmIds)) : Promise.resolve([]),
       svcIds.length ? db.select({ id: services.id, name: services.name }).from(services).where(inArray(services.id, svcIds)) : Promise.resolve([]),
       partnerIds.length ? db.select({ id: partners.id, displayName: partners.displayName }).from(partners).where(inArray(partners.id, partnerIds)) : Promise.resolve([]),
+      salesPersonUserIds.length ? db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, salesPersonUserIds)) : Promise.resolve([]),
     ]);
 
     const vmMap = new Map(vmRows.map(v => [v.id, v.modelName]));
     const svcMap = new Map(svcRows.map(s => [s.id, s.name]));
     const partnerMap = new Map(partnerRows.map(p => [p.id, p]));
+    const salesPersonUserMap = new Map(salesPersonUserRows.map(u => [u.id, u.name]));
 
     const enrichedWorkOrders = workOrderResults.map(wo => {
       const enriched: any = { ...wo };
@@ -1290,6 +1296,9 @@ export class DatabaseStorage implements IStorage {
       const p = wo.assignedPartnerId ? partnerMap.get(wo.assignedPartnerId) : undefined;
       if (p) {
         enriched.assignedPartner = { id: p.id, displayName: p.displayName };
+      }
+      if (wo.salesPersonId) {
+        enriched.salesPersonName = salesPersonUserMap.get(wo.salesPersonId) || null;
       }
       return enriched;
     });
@@ -1367,12 +1376,18 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      // Fetch sales person details
+      // Fetch sales person details — check users table (primary) then legacy salesPersons table
       if (workOrder.salesPersonId) {
-        const salesPerson = await db.select().from(salesPersons).where(eq(salesPersons.id, workOrder.salesPersonId)).limit(1);
-        if (salesPerson[0]) {
-          enriched.salesPersonName = salesPerson[0].name;
-          enriched.salesPerson = salesPerson[0];
+        const salesPersonUser = await db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(eq(users.id, workOrder.salesPersonId)).limit(1);
+        if (salesPersonUser[0]) {
+          enriched.salesPersonName = salesPersonUser[0].name;
+          enriched.salesPerson = salesPersonUser[0];
+        } else {
+          const salesPerson = await db.select().from(salesPersons).where(eq(salesPersons.id, workOrder.salesPersonId)).limit(1);
+          if (salesPerson[0]) {
+            enriched.salesPersonName = salesPerson[0].name;
+            enriched.salesPerson = salesPerson[0];
+          }
         }
       }
 

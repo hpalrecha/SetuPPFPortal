@@ -40,7 +40,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { ApiClient, apiRequest } from "@/lib/api";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Building, Store, Users, CheckCircle2, Send, FileText, Search } from "lucide-react";
 import { useLocation } from "wouter";
@@ -61,6 +61,7 @@ const workOrderSchema = z.object({
   serviceId: z.string().min(1, "Service is required"),
   quantity: z.number().min(1, "Quantity must be at least 1"),
   salesPersonId: z.string().optional(),
+  appointmentAt: z.string().optional(),
   
   // Customer Information
   customerName: z.string().optional(),
@@ -121,6 +122,7 @@ export function CreateWorkOrderModal({
       dealershipId: initialData.dealershipId || "",
       showroomId: initialData.showroomId || "",
       salesPersonId: initialData.salesPersonId || "",
+      appointmentAt: initialData.appointmentAt ? new Date(initialData.appointmentAt).toISOString().slice(0, 16) : "",
     } : {
       quantity: 1,
       vehicleBrandId: "",
@@ -154,6 +156,7 @@ export function CreateWorkOrderModal({
         dealershipId: initialData.dealershipId || "",
         showroomId: initialData.showroomId || "",
         salesPersonId: initialData.salesPersonId || "",
+        appointmentAt: initialData.appointmentAt ? new Date(initialData.appointmentAt).toISOString().slice(0, 16) : "",
       });
     }
   }, [isEditMode, initialData, open, form]);
@@ -163,16 +166,16 @@ export function CreateWorkOrderModal({
     queryKey: ["/api/oems"],
     queryFn: async () => {
       const response = await fetch('/api/oems', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to fetch OEMs');
       return response.json();
     },
     enabled: canSelectOrgHierarchy,
-    staleTime: 300000, // Cache for 5 minutes - OEMs rarely change
+    staleTime: 900000,  // 15 min — OEMs never change in a session
+    gcTime: 1800000,    // 30 min — keep in memory across modal opens
+    placeholderData: keepPreviousData,
   });
 
   // Watch OEM selection to fetch dealerships
@@ -181,16 +184,16 @@ export function CreateWorkOrderModal({
     queryKey: ["/api/dealerships", selectedOemId],
     queryFn: async () => {
       const response = await fetch(`/api/dealerships?oemId=${selectedOemId}&limit=10000`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to fetch dealerships');
       return response.json();
     },
     enabled: canSelectOrgHierarchy && !!selectedOemId,
-    staleTime: 300000, // Cache for 5 minutes - dealerships rarely change
+    staleTime: 900000,
+    gcTime: 1800000,
+    placeholderData: keepPreviousData,
   });
   const dealerships = dealershipData?.dealerships || [];
 
@@ -200,16 +203,16 @@ export function CreateWorkOrderModal({
     queryKey: ["/api/showrooms", selectedDealershipId, selectedOemId],
     queryFn: async () => {
       const response = await fetch(`/api/showrooms?dealershipId=${selectedDealershipId}&oemId=${selectedOemId}&limit=10000`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to fetch showrooms');
       return response.json();
     },
     enabled: canSelectOrgHierarchy && !!selectedDealershipId && !!selectedOemId,
-    staleTime: 300000, // Cache for 5 minutes - showrooms rarely change
+    staleTime: 900000,
+    gcTime: 1800000,
+    placeholderData: keepPreviousData,
   });
   const showrooms = showroomData?.showrooms || [];
 
@@ -218,16 +221,16 @@ export function CreateWorkOrderModal({
     queryKey: ["/api/showrooms", user?.dealershipId, user?.oemId],
     queryFn: async () => {
       const response = await fetch(`/api/showrooms?dealershipId=${user?.dealershipId}&oemId=${user?.oemId}&limit=1000`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to fetch showrooms');
       return response.json();
     },
     enabled: isDealershipAdmin && !!user?.dealershipId && !!user?.oemId,
-    staleTime: 300000, // Cache for 5 minutes - showrooms rarely change
+    staleTime: 900000,
+    gcTime: 1800000,
+    placeholderData: keepPreviousData,
   });
   const dealershipShowrooms = dealershipShowroomData?.showrooms || [];
 
@@ -239,16 +242,16 @@ export function CreateWorkOrderModal({
     queryKey: ["/api/vehicle-data", finalOemId],
     queryFn: async () => {
       const response = await fetch(`/api/vehicle-data/${finalOemId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to fetch vehicle data');
       return response.json();
     },
     enabled: !!finalOemId,
-    staleTime: 300000, // Cache for 5 minutes - vehicle data rarely changes
+    staleTime: 900000,
+    gcTime: 1800000,
+    placeholderData: keepPreviousData,
   });
 
   // Extract vehicle brands from vehicle data
@@ -272,16 +275,16 @@ export function CreateWorkOrderModal({
       else if (finalOemId) params.set('oemId', finalOemId);
       const url = params.toString() ? `/api/services?${params.toString()}` : '/api/services';
       const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to fetch services');
       return response.json();
     },
     enabled: !!finalOemId,
-    staleTime: 300000,
+    staleTime: 900000,
+    gcTime: 1800000,
+    placeholderData: keepPreviousData,
   });
 
   // Fetch sales persons based on selected showroom
@@ -292,16 +295,16 @@ export function CreateWorkOrderModal({
     queryFn: async () => {
       const url = finalShowroomId ? `/api/sales-persons?showroomId=${finalShowroomId}` : '/api/sales-persons';
       const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to fetch sales persons');
       return response.json();
     },
     enabled: !!finalShowroomId,
-    staleTime: 300000, // Cache for 5 minutes - sales persons rarely change
+    staleTime: 900000,
+    gcTime: 1800000,
+    placeholderData: keepPreviousData,
   });
 
   const onSubmit = async (data: WorkOrderFormData) => {
@@ -814,34 +817,54 @@ export function CreateWorkOrderModal({
                 />
               </div>
 
-              <FormField
-                control={form.control}
-                name="salesPersonId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sales Person (Optional)</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                      data-testid="select-sales-person"
-                    >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="salesPersonId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sales Person (Optional)</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        data-testid="select-sales-person"
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select sales person" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {salesPersons?.map((person: any) => (
+                            <SelectItem key={person.id} value={person.id}>
+                              {person.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="appointmentAt"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Appointment Date & Time (Optional)</FormLabel>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select sales person" />
-                        </SelectTrigger>
+                        <Input
+                          type="datetime-local"
+                          {...field}
+                          data-testid="input-appointment-at"
+                        />
                       </FormControl>
-                      <SelectContent>
-                        {salesPersons?.map((person: any) => (
-                          <SelectItem key={person.id} value={person.id}>
-                            {person.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
             {/* Customer Information */}

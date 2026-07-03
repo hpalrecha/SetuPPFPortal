@@ -9,6 +9,9 @@ export interface JobCardView extends JobCard {
     id: string;
     vehicleModelId: string;
     serviceId: string;
+    salesPersonId?: string;
+    salesPersonName?: string;
+    appointmentAt?: string;
     vehicleModel?: {
       id: string;
       modelName: string;
@@ -237,6 +240,9 @@ export function useJobCards() {
               id: workOrder.id,
               vehicleModelId: workOrder.vehicleModelId,
               serviceId: workOrder.serviceId,
+              salesPersonId: workOrder.salesPersonId,
+              salesPersonName: workOrder.salesPersonName,
+              appointmentAt: workOrder.appointmentAt,
             };
             
             // Add vehicle model with brand

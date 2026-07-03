@@ -2,7 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Bell } from "lucide-react";
+import { Bell, User, Calendar } from "lucide-react";
 
 interface JobCard {
   id: string;
@@ -13,6 +13,8 @@ interface JobCard {
     vehicleBrand?: { name: string };
     vehicleModel?: { modelName: string };
     service?: { name: string };
+    salesPersonName?: string;
+    appointmentAt?: string;
   };
   scheduledAt?: string;
   createdAt: string;
@@ -76,6 +78,20 @@ export function JobCardKanban({
           <p className="text-xs text-muted-foreground">
             {jobCard.partner?.displayName}
           </p>
+          {jobCard.workOrder?.salesPersonName && (
+            <div className="flex items-center gap-1 mt-1">
+              <User className="w-3 h-3 text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">{jobCard.workOrder.salesPersonName}</p>
+            </div>
+          )}
+          {jobCard.workOrder?.appointmentAt && (
+            <div className="flex items-center gap-1 mt-1">
+              <Calendar className="w-3 h-3 text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">
+                {new Date(jobCard.workOrder.appointmentAt).toLocaleDateString()} {new Date(jobCard.workOrder.appointmentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </div>
+          )}
         </div>
 
         {jobCard.status === "IN_PROGRESS" && (

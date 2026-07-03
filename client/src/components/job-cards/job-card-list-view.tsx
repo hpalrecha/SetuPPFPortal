@@ -231,7 +231,7 @@ export default function JobCardListView({
         <div className="rounded-lg border border-border overflow-hidden">
           {/* Table Header */}
           <div className="bg-muted/50 border-b border-border px-4 py-3">
-            <div className="grid grid-cols-[0.8fr_1fr_1fr_1fr_1.5fr_1.5fr_1fr_1fr_1fr_1fr_1.2fr] gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            <div className="grid grid-cols-[0.8fr_1fr_1fr_1fr_1.5fr_1.5fr_1fr_1fr_1fr_1fr_1fr_1fr_1.2fr] gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
               <div>ID</div>
               <div>Status</div>
               <div>Customer</div>
@@ -240,6 +240,8 @@ export default function JobCardListView({
               <div>Service</div>
               <div>Billing Value</div>
               <div>Partner</div>
+              <div>Sales Person</div>
+              <div>Appointment</div>
               <div>Created</div>
               <div>Scheduled</div>
               <div>Actions</div>
@@ -264,7 +266,7 @@ export default function JobCardListView({
                   } ${isCompleted ? 'opacity-75' : ''}`}
                   data-testid={`card-job-${job.id}`}
                 >
-                  <div className="grid grid-cols-[0.8fr_1fr_1fr_1fr_1.5fr_1.5fr_1fr_1fr_1fr_1fr_1.2fr] gap-3 items-center">
+                  <div className="grid grid-cols-[0.8fr_1fr_1fr_1fr_1.5fr_1.5fr_1fr_1fr_1fr_1fr_1fr_1fr_1.2fr] gap-3 items-center">
                     {/* ID Column */}
                     <div>
                       <div className="flex items-center gap-2">
@@ -354,6 +356,25 @@ export default function JobCardListView({
                       <div className="text-xs text-muted-foreground">
                         Partner
                       </div>
+                    </div>
+
+                    {/* Sales Person Column */}
+                    <div>
+                      <div className="text-sm font-medium">
+                        {job.workOrder?.salesPersonName || '—'}
+                      </div>
+                    </div>
+
+                    {/* Appointment Column */}
+                    <div>
+                      {job.workOrder?.appointmentAt ? (
+                        <div>
+                          <div className="text-sm">{new Date(job.workOrder.appointmentAt).toLocaleDateString()}</div>
+                          <div className="text-xs text-muted-foreground">{new Date(job.workOrder.appointmentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">—</div>
+                      )}
                     </div>
 
                     {/* Created Column */}

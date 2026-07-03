@@ -63,29 +63,28 @@ export const requireOEMAccess = async (req: Request, res: Response, next: NextFu
     return next();
   }
 
-  // For partner users, check if they have access to this OEM through partner-OEM mappings
+  // For partner users, partnerId scopes their data — no OEM header required.
+  // If x-oem-id is provided, validate they have access to it; otherwise let through.
   if (req.user.role === 'PARTNER_ADMIN' || req.user.role === 'PARTNER_STAFF') {
     if (!req.user.partnerId) {
       return res.status(400).json({ error: 'Partner user must have partnerId' });
     }
-    
-    // Check tenant isolation for partner requests
-    const oemId = req.headers['x-oem-id'] || req.params.oemId || req.body.oemId;
-    
-    if (!oemId) {
-      return res.status(400).json({ error: 'OEM ID required' });
-    }
-    
-    try {
-      const hasOemAccess = await storage.checkPartnerOemAccess(req.user.partnerId, oemId);
-      if (!hasOemAccess) {
-        return res.status(403).json({ error: 'Access denied to this OEM' });
+
+    const oemId = req.headers['x-oem-id'] as string | undefined;
+
+    if (oemId) {
+      try {
+        const hasOemAccess = await storage.checkPartnerOemAccess(req.user.partnerId, oemId);
+        if (!hasOemAccess) {
+          return res.status(403).json({ error: 'Access denied to this OEM' });
+        }
+      } catch (error) {
+        console.error('Error checking partner OEM access:', error);
+        return res.status(500).json({ error: 'Internal server error' });
       }
-      return next();
-    } catch (error) {
-      console.error('Error checking partner OEM access:', error);
-      return res.status(500).json({ error: 'Internal server error' });
     }
+
+    return next();
   }
 
   // Fallback for any other roles - should not normally reach here
