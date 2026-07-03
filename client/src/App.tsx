@@ -29,6 +29,7 @@ import BrandsPage from "./pages/Brands";
 import RawMaterialsPage from "./pages/RawMaterials";
 import PayoutSettlementPage from "./pages/payout-settlement";
 import PartnerStaffPage from "./pages/partner-staff";
+import DetailingPartnersPage from "./pages/detailing-partners";
 import PayoutsPage from "./pages/payouts";
 import KnowledgeHub from "./pages/KnowledgeHub";
 import MainLayout from "./components/layout/main-layout";
@@ -144,6 +145,10 @@ function Router() {
       <Route
         path="/partner-staff"
         component={() => <ProtectedRoute component={PartnerStaffPage} />}
+      />
+      <Route
+        path="/detailing-partners"
+        component={() => <ProtectedRoute component={DetailingPartnersPage} />}
       />
       <Route
         path="/payouts"

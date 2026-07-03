@@ -819,13 +819,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // OEM Routes
-  app.get("/api/oems", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'PARTNER_ADMIN', 'PARTNER_STAFF']), async (req, res) => {
+  app.get("/api/oems", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER']), async (req, res) => {
     try {
       let oems = await storage.getOems();
       
       // Filter OEMs based on user role and access
       // MANAGER can see ALL OEMs (no filtering), but dealerships/showrooms are filtered by allowedStates
-      if (req.user?.role === 'PARTNER_ADMIN' || req.user?.role === 'PARTNER_STAFF') {
+      if (req.user?.role === 'PARTNER_ADMIN' || req.user?.role === 'PARTNER_STAFF' || req.user?.role === 'DETAILING_PARTNER') {
         // For partner users, only return OEMs they have access to
         const allowedOemIds = req.user.allowedOemIds || [];
         oems = oems.filter(oem => allowedOemIds.includes(oem.id));
@@ -876,7 +876,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get individual OEM by ID
-  app.get("/api/oems/:id", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'PARTNER_ADMIN', 'PARTNER_STAFF']), async (req, res) => {
+  app.get("/api/oems/:id", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER']), async (req, res) => {
     try {
       const { id } = req.params;
       const oem = await storage.getOem(id);
@@ -886,7 +886,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check access for partner users
-      if (req.user?.role === 'PARTNER_ADMIN' || req.user?.role === 'PARTNER_STAFF') {
+      if (req.user?.role === 'PARTNER_ADMIN' || req.user?.role === 'PARTNER_STAFF' || req.user?.role === 'DETAILING_PARTNER') {
         const allowedOemIds = req.user.allowedOemIds || [];
         if (!allowedOemIds.includes(id)) {
           return res.status(403).json({ error: "Access denied to this OEM" });
@@ -2722,13 +2722,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       
       // For partner users, use partner-specific dashboard
-      if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+      if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
         if (!req.user!.partnerId) {
           return res.status(400).json({ error: "Partner ID required" });
         }
-        
-        // Partner staff get metrics only for their assigned job cards
-        if (req.user!.role === 'PARTNER_STAFF') {
+
+        // PARTNER_STAFF and DETAILING_PARTNER get metrics only for their assigned job cards
+        if (req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
           const metrics = await storage.getPartnerStaffDashboardMetrics(req.user!.partnerId, req.user!.id);
           return res.json(metrics);
         } else {
@@ -2996,7 +2996,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (role === 'OEM_ADMIN') opts.oemId = req.user!.oemId;
       else if (role === 'DEALERSHIP_ADMIN') opts.dealershipId = req.user!.dealershipId;
       else if (role === 'SHOWROOM_MANAGER' || role === 'SALES_PERSON') opts.showroomId = req.user!.showroomId;
-      else if (role === 'PARTNER_ADMIN' || role === 'PARTNER_STAFF') opts.partnerId = req.user!.partnerId;
+      else if (role === 'PARTNER_ADMIN' || role === 'PARTNER_STAFF' || role === 'DETAILING_PARTNER') opts.partnerId = req.user!.partnerId;
 
       const data = await storage.getActivityTimeline(opts);
       res.json(data);
@@ -3288,7 +3288,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // SUPER_ADMIN can access any work order
       if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         hasAccess = true;
-      } else if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+      } else if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
         // Partner users can access work orders for job cards assigned to them
         // Check if there's a job card for this work order assigned to their partner
         const jobCards = await storage.getJobCards({ 
@@ -3432,7 +3432,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Job Card Assignment Route
   app.put("/api/job-cards/:id/assign", 
     authenticate, 
-    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF']),
+    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER']),
     auditLog('job_card', 'assign'),
     async (req, res) => {
       try {
@@ -3506,7 +3506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Job Card Routes
   app.get("/api/job-cards", 
     authenticate, 
-    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'SHOWROOM_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SALES_PERSON']),
+    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER', 'SHOWROOM_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SALES_PERSON']),
     async (req, res) => {
     try {
       // Disable HTTP caching for real-time job card updates
@@ -3526,13 +3526,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Apply role-based filtering with proper OEM tenant isolation
       const selectedOemId = req.headers['x-oem-id'] as string;
       
-      if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+      if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
         // Partner users can only see their own job cards
         if (!req.user!.partnerId) {
           return res.status(400).json({ error: "Partner user must have partnerId" });
         }
         filters.partnerId = req.user!.partnerId;
-        
+
         // PARTNER_STAFF can only see job cards assigned to them personally
         if (req.user!.role === 'PARTNER_STAFF') {
           filters.assignedInstallerId = req.user!.id;
@@ -3540,22 +3540,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           console.log(`🔍 Partner Admin ${req.user!.partnerId} requesting all partner job cards with OEM filter: ${selectedOemId || 'NONE'}`);
         }
-        
+
         console.log(`🔍 Current filters:`, filters);
-        
+
         // Validate OEM access for partners using partner-OEM mappings
         if (selectedOemId) {
-          // Check if partner has access to this OEM
           const hasOemAccess = await storage.checkPartnerOemAccess(req.user!.partnerId, selectedOemId);
           if (!hasOemAccess) {
             return res.status(403).json({ error: "Access denied to this OEM" });
           }
           filters.oemId = selectedOemId;
         } else {
-          // NEW: If no OEM selected, show ALL partner job cards without OEM filtering
           console.log(`✅ No OEM filter - showing ${req.user!.role === 'PARTNER_STAFF' ? 'assigned' : 'ALL'} job cards for partner ${req.user!.partnerId}`);
-          // Don't add any oemId filter - let partner see all their allocated job cards
         }
+      } else if (req.user!.role === 'DETAILING_PARTNER') {
+        // Detailing partner sees job cards only for their allocated showrooms
+        if (!req.user!.partnerId) {
+          return res.status(400).json({ error: "Detailing partner user must have partnerId" });
+        }
+        filters.partnerId = req.user!.partnerId;
+        const allocatedShowroomIds = await storage.getDetailingPartnerShowroomIds(req.user!.id);
+        if (allocatedShowroomIds.length === 0) {
+          return res.json([]);
+        }
+        filters.showroomIds = allocatedShowroomIds; // handled in getJobCards
+        console.log(`🔍 Detailing Partner ${req.user!.id} scoped to showrooms: ${allocatedShowroomIds.join(', ')}`);
       } else if (req.user!.role === 'SHOWROOM_MANAGER' || req.user!.role === 'SALES_PERSON') {
         // Showroom managers and sales persons see job cards for their showroom
         if (!req.user!.showroomId) {
@@ -3647,7 +3656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // 🔒 Filter price based on partner permissions (for partner users only)
       let filteredJobCards = jobCards;
-      if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+      if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
         const partner = await storage.getPartner(req.user!.partnerId!);
         if (partner) {
           filteredJobCards = jobCards.map(jc => filterJobCardPrice(jc, partner));
@@ -3664,7 +3673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get individual job card with related data (workOrder, partner)
   app.get("/api/job-cards/:id", 
     authenticate,
-    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'SHOWROOM_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SALES_PERSON']),
+    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER', 'SHOWROOM_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SALES_PERSON']),
     async (req, res) => {
       try {
         // Disable caching to ensure fresh data
@@ -3711,7 +3720,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
           }
-        } else if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+        } else if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
           // Partner users can access job cards assigned to them
           hasAccess = jobCard.partnerId === req.user!.partnerId;
         } else {
@@ -3859,7 +3868,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
 
         // 🔒 Filter price based on partner permissions (for partner users only)
-        if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+        if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
           result = filterJobCardPrice(result, partner);
         }
 
@@ -3873,7 +3882,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/job-cards", 
     authenticate, 
-    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'SHOWROOM_MANAGER']),
+    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER', 'SHOWROOM_MANAGER']),
     auditLog('job_card', 'create'),
     async (req, res) => {
       try {
@@ -4381,7 +4390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (isPartnerDirectBilling) {
           // Partner can settle their own direct billing
-          if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+          if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
             hasAccess = jobCard.partnerId === req.user!.partnerId;
           }
         } else {
@@ -4459,7 +4468,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (isPartnerDirectBilling) {
           // Partner can apply warranty for their own direct billing
-          if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+          if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
             hasAccess = jobCard.partnerId === req.user!.partnerId;
           }
         } else {
@@ -4508,7 +4517,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/job-cards/:id", 
     authenticate,
-    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'SUPER_ADMIN']),
+    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'SUPER_ADMIN']),
     auditLog('job_card', 'update'),
     async (req, res) => {
       try {
@@ -5017,7 +5026,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Job Card Mark as Fixed (for detailers after rework)
   app.post("/api/job-cards/:id/mark-fixed", 
     authenticate, 
-    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF']),
+    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER']),
     auditLog('job_card', 'mark_fixed'),
     async (req, res) => {
       try {
@@ -5038,7 +5047,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Check if partner has access to this job card
-        if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+        if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
           if (jobCard.partnerId !== req.user!.partnerId) {
             return res.status(403).json({ error: "Access denied - this job card is not assigned to your partner" });
           }
@@ -5258,7 +5267,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
           hasAccess = true; // Super admin can access all partners
-        } else if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF') {
+        } else if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
           // Partner users can only access their own partner data
           hasAccess = req.user!.partnerId === id;
         } else if (req.user!.role === 'OEM_ADMIN' || req.user!.role === 'DEALERSHIP_ADMIN' || 
@@ -5552,10 +5561,203 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Get partner's own allocated showrooms (with details, for the UI picker)
+  app.get("/api/partners/:partnerId/showrooms",
+    authenticate,
+    requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN']),
+    async (req, res) => {
+      try {
+        const { partnerId } = req.params;
+        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        const showrooms = await storage.getPartnerShowroomsWithDetails(partnerId);
+        res.json(showrooms);
+      } catch (error) {
+        console.error("Get partner showrooms error:", error);
+        res.status(500).json({ error: "Failed to fetch showrooms" });
+      }
+    }
+  );
+
+  // ── Detailing Partner Management Routes ──────────────────────────────────
+
+  // Return current showroom allocations across all detailing partners for a given partner.
+  // Used by the UI to enforce exclusive showroom assignment (one DP per showroom).
+  // Optional query param: ?excludeUserId=<id> to exclude the DP being edited from "taken" set.
+  app.get("/api/partners/:partnerId/detailing-partners/allocations",
+    authenticate,
+    requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN']),
+    async (req, res) => {
+      try {
+        const { partnerId } = req.params;
+        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        const excludeUserId = req.query.excludeUserId as string | undefined;
+        const allocations = await storage.getDetailingPartnerShowroomAllocations(partnerId, excludeUserId);
+        res.json(allocations);
+      } catch (error) {
+        console.error("Get DP showroom allocations error:", error);
+        res.status(500).json({ error: "Failed to fetch allocations" });
+      }
+    }
+  );
+
+  // List all detailing partners under a partner
+  app.get("/api/partners/:partnerId/detailing-partners",
+    authenticate,
+    requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN']),
+    async (req, res) => {
+      try {
+        const { partnerId } = req.params;
+        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        const list = await storage.getDetailingPartners(partnerId);
+        res.json(list);
+      } catch (error) {
+        console.error("Get detailing partners error:", error);
+        res.status(500).json({ error: "Failed to fetch detailing partners" });
+      }
+    }
+  );
+
+  // Create a detailing partner user under a partner
+  app.post("/api/partners/:partnerId/detailing-partners",
+    authenticate,
+    requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN']),
+    async (req, res) => {
+      try {
+        const { partnerId } = req.params;
+        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        const { username, name, email, phone, password, showroomIds } = req.body;
+        if (!username || !name || !password) {
+          return res.status(400).json({ error: "username, name, and password are required" });
+        }
+        const bcrypt = await import('bcryptjs');
+        const passwordHash = await bcrypt.hash(password, 10);
+        const newUser = await storage.createDetailingPartner(partnerId, { username, name, email, phone, passwordHash });
+        // Allocate showrooms if provided
+        if (showroomIds?.length) {
+          await storage.setDetailingPartnerShowrooms(newUser.id, showroomIds);
+        }
+        res.status(201).json(newUser);
+      } catch (error: any) {
+        console.error("Create detailing partner error:", error);
+        if (error.code === '23505') return res.status(409).json({ error: "Username already exists" });
+        res.status(500).json({ error: "Failed to create detailing partner" });
+      }
+    }
+  );
+
+  // Update a detailing partner
+  app.put("/api/partners/:partnerId/detailing-partners/:userId",
+    authenticate,
+    requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN']),
+    async (req, res) => {
+      try {
+        const { partnerId, userId } = req.params;
+        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        const { showroomIds, password, ...rest } = req.body;
+        const updates: any = { ...rest };
+        if (password) {
+          const bcrypt = await import('bcryptjs');
+          updates.passwordHash = await bcrypt.hash(password, 10);
+        }
+        const updated = await storage.updateDetailingPartner(userId, updates);
+        if (!updated) return res.status(404).json({ error: "Detailing partner not found" });
+        if (showroomIds !== undefined) {
+          await storage.setDetailingPartnerShowrooms(userId, showroomIds);
+        }
+        res.json(updated);
+      } catch (error) {
+        console.error("Update detailing partner error:", error);
+        res.status(500).json({ error: "Failed to update detailing partner" });
+      }
+    }
+  );
+
+  // Delete (soft) a detailing partner
+  app.delete("/api/partners/:partnerId/detailing-partners/:userId",
+    authenticate,
+    requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN']),
+    async (req, res) => {
+      try {
+        const { partnerId, userId } = req.params;
+        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        await storage.deleteDetailingPartner(userId);
+        res.json({ message: "Detailing partner deactivated successfully" });
+      } catch (error) {
+        console.error("Delete detailing partner error:", error);
+        res.status(500).json({ error: "Failed to delete detailing partner" });
+      }
+    }
+  );
+
+  // Get showrooms allocated to a detailing partner
+  app.get("/api/partners/:partnerId/detailing-partners/:userId/showrooms",
+    authenticate,
+    requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN', 'DETAILING_PARTNER']),
+    async (req, res) => {
+      try {
+        const { partnerId, userId } = req.params;
+        if (req.user!.role === 'DETAILING_PARTNER' && req.user!.id !== userId) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        const showrooms = await storage.getDetailingPartnerShowrooms(userId);
+        res.json(showrooms);
+      } catch (error) {
+        console.error("Get detailing partner showrooms error:", error);
+        res.status(500).json({ error: "Failed to fetch showroom allocations" });
+      }
+    }
+  );
+
+  // Set/replace showroom allocations for a detailing partner
+  app.put("/api/partners/:partnerId/detailing-partners/:userId/showrooms",
+    authenticate,
+    requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN']),
+    async (req, res) => {
+      try {
+        const { partnerId, userId } = req.params;
+        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        const { showroomIds } = req.body;
+        if (!Array.isArray(showroomIds)) {
+          return res.status(400).json({ error: "showroomIds must be an array" });
+        }
+        // Guard: only showrooms that belong to this partner's mapping
+        const partnerShowrooms = await storage.getPartnerShowrooms(partnerId);
+        const allowedIds = new Set(partnerShowrooms.map((s: any) => s.showroomId ?? s.id));
+        const invalid = showroomIds.filter(id => !allowedIds.has(id));
+        if (invalid.length) {
+          return res.status(400).json({ error: "Some showrooms are not allocated to this partner", invalid });
+        }
+        await storage.setDetailingPartnerShowrooms(userId, showroomIds);
+        const updated = await storage.getDetailingPartnerShowrooms(userId);
+        res.json(updated);
+      } catch (error) {
+        console.error("Set detailing partner showrooms error:", error);
+        res.status(500).json({ error: "Failed to update showroom allocations" });
+      }
+    }
+  );
+
   // Payout & Earnings Management for Partner Staff
   app.get("/api/partner-staff/payouts",
     authenticate,
-    requireRole(['PARTNER_STAFF', 'PARTNER_ADMIN']),
+    requireRole(['PARTNER_STAFF', 'PARTNER_ADMIN', 'DETAILING_PARTNER']),
     async (req, res) => {
       try {
         const user = req.user!;
@@ -5578,7 +5780,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/partner-staff/earnings-summary",
     authenticate,
-    requireRole(['PARTNER_STAFF', 'PARTNER_ADMIN']),
+    requireRole(['PARTNER_STAFF', 'PARTNER_ADMIN', 'DETAILING_PARTNER']),
     async (req, res) => {
       try {
         const user = req.user!;
@@ -5599,7 +5801,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/partner-staff/service-rates",
     authenticate,
-    requireRole(['PARTNER_STAFF', 'PARTNER_ADMIN']),
+    requireRole(['PARTNER_STAFF', 'PARTNER_ADMIN', 'DETAILING_PARTNER']),
     async (req, res) => {
       try {
         const user = req.user!;
@@ -5621,7 +5823,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Partner Payout Settlement - Allow partners to settle their own payouts  
   app.post("/api/partner-staff/payouts/:id/settle",
     authenticate,
-    requireRole(['PARTNER_STAFF', 'PARTNER_ADMIN']),
+    requireRole(['PARTNER_STAFF', 'PARTNER_ADMIN', 'DETAILING_PARTNER']),
     async (req, res) => {
       try {
         const { id } = req.params;
@@ -5780,7 +5982,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Detailer Pricing Resolution
   app.get("/api/pricing/detailer/:detailerId/service/:serviceId", 
     authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'PARTNER_ADMIN', 'PARTNER_STAFF']),
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER']),
     async (req, res) => {
       try {
         const { detailerId, serviceId } = req.params;
@@ -7451,7 +7653,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // For partner users, verify they have access to this job card
-        if (req.user?.role === 'PARTNER_ADMIN' || req.user?.role === 'PARTNER_STAFF') {
+        if (req.user?.role === 'PARTNER_ADMIN' || req.user?.role === 'PARTNER_STAFF' || req.user?.role === 'DETAILING_PARTNER') {
           if (!req.user.partnerId) {
             return res.status(403).json({ error: "Partner ID not found in user context" });
           }
@@ -7779,6 +7981,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const roleMapping: { [key: string]: string } = {
         'PARTNER_ADMIN': 'INSTALLER',
         'PARTNER_STAFF': 'INSTALLER',
+        'DETAILING_PARTNER': 'INSTALLER',
         'DEALERSHIP_ADMIN': 'DEALERSHIP',
         'SHOWROOM_MANAGER': 'SHOWROOM',
         'SALES_PERSON': 'SHOWROOM'

@@ -8,6 +8,7 @@ import {
   partners,
   partnerOems,
   partnerShowroomMapping,
+  detailingPartnerShowrooms,
   allocations,
   allocationBrands,
   vehicleModels,
@@ -173,10 +174,11 @@ export interface IStorage {
   allocatePartnerManually(workOrderId: string, partnerId: string, userId: string): Promise<{ success: boolean; workOrder?: WorkOrder; jobCard?: JobCard; error?: string }>;
 
   // Job Card management
-  getJobCards(filters?: { 
-    partnerId?: string; 
+  getJobCards(filters?: {
+    partnerId?: string;
     workOrderId?: string;
     showroomId?: string;
+    showroomIds?: string[];
     dealershipId?: string;
     oemId?: string;
     status?: string;
@@ -1442,10 +1444,11 @@ export class DatabaseStorage implements IStorage {
     return workOrder || undefined;
   }
 
-  async getJobCards(filters?: { 
-    partnerId?: string; 
+  async getJobCards(filters?: {
+    partnerId?: string;
     workOrderId?: string;
     showroomId?: string;
+    showroomIds?: string[];
     dealershipId?: string;
     oemId?: string;
     status?: string;
@@ -1453,6 +1456,22 @@ export class DatabaseStorage implements IStorage {
     limit?: number;
     offset?: number;
   }): Promise<JobCard[]> {
+    // DETAILING_PARTNER: filter by multiple allocated showrooms
+    if (filters?.partnerId && filters?.showroomIds?.length) {
+      let query = db.select(jobCards).from(jobCards)
+        .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id));
+      const conditions: any[] = [
+        eq(jobCards.partnerId, filters.partnerId),
+        inArray(workOrders.showroomId, filters.showroomIds),
+      ];
+      if (filters.status) conditions.push(eq(jobCards.status, filters.status as any));
+      if (filters.workOrderId) conditions.push(eq(jobCards.workOrderId, filters.workOrderId));
+      query = query.where(and(...conditions)).orderBy(desc(jobCards.createdAt));
+      if (filters.limit) query = query.limit(filters.limit);
+      if (filters.offset) query = query.offset(filters.offset);
+      return await query;
+    }
+
     // Special handling for partner-based filtering considering allocations
     if (filters?.partnerId && !filters?.oemId && !filters?.dealershipId && !filters?.showroomId) {
       return await this.getJobCardsForPartner(filters.partnerId, {
@@ -1878,6 +1897,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Partner Showroom Mapping management
+  async getPartnerShowroomsWithDetails(partnerId: string): Promise<any[]> {
+    return await db
+      .select({
+        id: showrooms.id,
+        name: showrooms.name,
+        code: showrooms.code,
+        city: showrooms.city,
+        state: showrooms.state,
+      })
+      .from(partnerShowroomMapping)
+      .innerJoin(showrooms, eq(partnerShowroomMapping.showroomId, showrooms.id))
+      .where(and(
+        eq(partnerShowroomMapping.partnerId, partnerId),
+        eq(partnerShowroomMapping.status, 'active')
+      ));
+  }
+
   async getPartnerShowrooms(partnerId: string): Promise<string[]> {
     const mappings = await db
       .select({ showroomId: partnerShowroomMapping.showroomId })
@@ -2009,6 +2045,126 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return !!deletedStaff;
+  }
+
+  // Detailing Partner Management
+  async getDetailingPartners(partnerId: string): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .where(and(
+        eq(users.partnerId, partnerId),
+        eq(users.role, 'DETAILING_PARTNER')
+      ))
+      .orderBy(desc(users.createdAt));
+  }
+
+  async createDetailingPartner(partnerId: string, data: Omit<InsertUser, 'partnerId' | 'role'>): Promise<User> {
+    const [newUser] = await db
+      .insert(users)
+      .values({ ...data, partnerId, role: 'DETAILING_PARTNER', isActive: true })
+      .returning();
+    return newUser;
+  }
+
+  async updateDetailingPartner(userId: string, updates: Partial<InsertUser>): Promise<User | undefined> {
+    const [updated] = await db
+      .update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteDetailingPartner(userId: string): Promise<boolean> {
+    const [deleted] = await db
+      .update(users)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return !!deleted;
+  }
+
+  // Detailing Partner ↔ Showroom allocation
+  async getDetailingPartnerShowroomIds(detailingPartnerId: string): Promise<string[]> {
+    const rows = await db
+      .select({ showroomId: detailingPartnerShowrooms.showroomId })
+      .from(detailingPartnerShowrooms)
+      .where(and(
+        eq(detailingPartnerShowrooms.detailingPartnerId, detailingPartnerId),
+        eq(detailingPartnerShowrooms.status, 'active')
+      ));
+    return rows.map(r => r.showroomId);
+  }
+
+  async setDetailingPartnerShowrooms(detailingPartnerId: string, showroomIds: string[]): Promise<void> {
+    // Deactivate all existing allocations first
+    await db
+      .update(detailingPartnerShowrooms)
+      .set({ status: 'inactive', updatedAt: new Date() })
+      .where(eq(detailingPartnerShowrooms.detailingPartnerId, detailingPartnerId));
+
+    if (showroomIds.length === 0) return;
+
+    for (const showroomId of showroomIds) {
+      const [existing] = await db
+        .select()
+        .from(detailingPartnerShowrooms)
+        .where(and(
+          eq(detailingPartnerShowrooms.detailingPartnerId, detailingPartnerId),
+          eq(detailingPartnerShowrooms.showroomId, showroomId)
+        ));
+      if (existing) {
+        await db
+          .update(detailingPartnerShowrooms)
+          .set({ status: 'active', updatedAt: new Date() })
+          .where(eq(detailingPartnerShowrooms.id, existing.id));
+      } else {
+        await db.insert(detailingPartnerShowrooms).values({ detailingPartnerId, showroomId, status: 'active' });
+      }
+    }
+  }
+
+  async getDetailingPartnerShowrooms(detailingPartnerId: string): Promise<any[]> {
+    return await db
+      .select({
+        id: showrooms.id,
+        name: showrooms.name,
+        code: showrooms.code,
+        city: showrooms.city,
+        state: showrooms.state,
+        status: detailingPartnerShowrooms.status
+      })
+      .from(detailingPartnerShowrooms)
+      .innerJoin(showrooms, eq(detailingPartnerShowrooms.showroomId, showrooms.id))
+      .where(and(
+        eq(detailingPartnerShowrooms.detailingPartnerId, detailingPartnerId),
+        eq(detailingPartnerShowrooms.status, 'active')
+      ));
+  }
+
+  // Returns showroomId → detailingPartnerId for all active allocations under this partner.
+  // Pass excludeUserId when editing so the current DP's own allocations are not counted as "taken".
+  async getDetailingPartnerShowroomAllocations(
+    partnerId: string,
+    excludeUserId?: string
+  ): Promise<{ showroomId: string; detailingPartnerId: string }[]> {
+    const conditions = [
+      eq(users.partnerId, partnerId),
+      eq(users.role, 'DETAILING_PARTNER'),
+      eq(detailingPartnerShowrooms.status, 'active'),
+    ];
+    if (excludeUserId) {
+      conditions.push(ne(detailingPartnerShowrooms.detailingPartnerId, excludeUserId));
+    }
+    return await db
+      .select({
+        showroomId: detailingPartnerShowrooms.showroomId,
+        detailingPartnerId: detailingPartnerShowrooms.detailingPartnerId,
+      })
+      .from(detailingPartnerShowrooms)
+      .innerJoin(users, eq(detailingPartnerShowrooms.detailingPartnerId, users.id))
+      .where(and(...conditions));
   }
 
   // Partner Payout & Earnings Management implementations

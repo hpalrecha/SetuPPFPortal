@@ -116,6 +116,9 @@ function canUserAccessWorkOrder(user: any, workOrder: any): boolean {
     case 'PARTNER_ADMIN':
     case 'PARTNER_STAFF':
       return user.partnerId === workOrder.assignedPartnerId;
+    case 'DETAILING_PARTNER':
+      // Showroom-level check is done at the route layer via getDetailingPartnerShowroomIds
+      return user.partnerId === workOrder.assignedPartnerId;
     default:
       return false;
   }
@@ -128,8 +131,10 @@ function canUserAccessJobCard(user: any, jobCard: any): boolean {
     case 'PARTNER_ADMIN':
     case 'PARTNER_STAFF':
       return user.partnerId === jobCard.partnerId;
+    case 'DETAILING_PARTNER':
+      // Showroom-level check is done at the route layer
+      return user.partnerId === jobCard.partnerId;
     default:
-      // For other roles, need to check via work order
       return true; // Will be validated at work order level
   }
 }
@@ -143,6 +148,7 @@ function canUserAccessPartner(user: any, partner: any): boolean {
       return true;
     case 'PARTNER_ADMIN':
     case 'PARTNER_STAFF':
+    case 'DETAILING_PARTNER':
       return user.partnerId === partner.id;
     default:
       return false;

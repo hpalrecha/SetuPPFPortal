@@ -69,7 +69,7 @@ export default function JobCardKanban({ jobCards, onSendReminder, onReview, onMa
         
         {(columnType === 'ACKNOWLEDGED' || columnType === 'SCHEDULED' || columnType === 'IN_PROGRESS') && (
           <>
-            {['PARTNER_ADMIN', 'PARTNER_STAFF'].includes(currentUserRole || '') && onManageJob && (
+            {['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER'].includes(currentUserRole || '') && onManageJob && (
               <Button 
                 size="sm" 
                 className="w-full mb-2"
