@@ -3074,20 +3074,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Work Order Routes
   app.get("/api/work-orders", authenticate, requireOEMAccess, async (req, res) => {
     try {
-      // Disable caching to ensure fresh data
-      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
-      res.set('Pragma', 'no-cache');
-      res.set('Expires', '0');
-      
+      // Short cache: browsers/proxies can reuse the response for 30 s; stale-while-revalidate
+      // lets the client serve the cached copy while a background refresh happens.
+      res.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+
       const { status, partnerId, limit, offset = 0 } = req.query;
-      
+
       const filters: any = {
         oemId: req.user!.oemId,
-        offset: parseInt(offset as string)
+        offset: parseInt(offset as string),
+        limit: limit ? parseInt(limit as string) : 500, // cap at 500 rows to prevent full-table scans
       };
-      if (limit) {
-        filters.limit = parseInt(limit as string);
-      }
 
       // Add dealership-level filtering for DEALERSHIP_ADMIN users
       if (req.user!.role === 'DEALERSHIP_ADMIN' && req.user!.dealershipId) {
@@ -3097,41 +3094,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.user!.showroomId) {
         filters.showroomId = req.user!.showroomId;
       }
+      // Partner users are scoped to their own partner — ignore any query-param override
+      if (['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER'].includes(req.user!.role) && req.user!.partnerId) {
+        filters.partnerId = req.user!.partnerId;
+      } else if (partnerId) {
+        filters.partnerId = partnerId as string;
+      }
       if (status) filters.status = status as string;
-      if (partnerId) filters.partnerId = partnerId as string;
 
       let workOrders = await storage.getWorkOrders(filters);
       
       // For MANAGER role, filter work orders by allowed states
+      // workOrders.dealershipId is notNull, so we only need to batch-fetch the specific
+      // dealerships referenced — not all dealerships in the system.
       if (req.user!.role === 'MANAGER') {
         const allowedStates = (req.user!.allowedStates as string[]) || [];
-        
-        // Get showrooms and dealerships to check states
-        const showroomIds = workOrders.map(wo => wo.showroomId).filter(Boolean);
-        const showroomsResponse = await storage.getShowrooms({ limit: 10000 });
-        const showroomDealershipMap = new Map<string, string>();
-        showroomsResponse.showrooms.forEach(s => showroomDealershipMap.set(s.id, s.dealershipId));
-        
-        const dealershipIds = [...new Set([
-          ...workOrders.map(wo => wo.dealershipId),
-          ...showroomIds.map(sid => showroomDealershipMap.get(sid))
-        ])].filter(Boolean);
-        
-        const dealershipsResponse = await storage.getDealerships();
-        const dealershipStates = new Map<string, string>();
-        dealershipsResponse.dealerships.forEach(d => {
-          if (d.state) dealershipStates.set(d.id, d.state);
-        });
-        
-        // Filter work orders based on dealership/showroom state
-        workOrders = workOrders.filter(wo => {
-          let dealershipId = wo.dealershipId;
-          if (!dealershipId && wo.showroomId) {
-            dealershipId = showroomDealershipMap.get(wo.showroomId) || '';
-          }
-          const state = dealershipStates.get(dealershipId);
-          return state && allowedStates.includes(state);
-        });
+        if (allowedStates.length > 0 && workOrders.length > 0) {
+          const uniqueDealershipIds = [...new Set(workOrders.map(wo => wo.dealershipId).filter(Boolean))];
+          const dealershipsResponse = await storage.getDealerships({ dealershipIds: uniqueDealershipIds });
+          const dealershipStates = new Map<string, string>();
+          dealershipsResponse.dealerships.forEach(d => { if (d.state) dealershipStates.set(d.id, d.state); });
+          workOrders = workOrders.filter(wo => {
+            const state = dealershipStates.get(wo.dealershipId);
+            return state && allowedStates.includes(state);
+          });
+        }
       }
       
       res.json(workOrders);
@@ -3160,7 +3147,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           regNo: requestData.regNo && requestData.regNo.trim() !== '' ? requestData.regNo : null,
           notes: requestData.notes && requestData.notes.trim() !== '' ? requestData.notes : null,
           customerEmail: requestData.customerEmail && requestData.customerEmail.trim() !== '' ? requestData.customerEmail : null,
-          customerAddress: requestData.customerAddress && requestData.customerAddress.trim() !== '' ? requestData.customerAddress : null
+          customerAddress: requestData.customerAddress && requestData.customerAddress.trim() !== '' ? requestData.customerAddress : null,
+          appointmentAt: requestData.appointmentAt && requestData.appointmentAt.trim() !== '' ? new Date(requestData.appointmentAt) : null,
         };
         
         // Ensure user can only create for their OEM/showroom (except Super Admin, Admin, and Manager)
@@ -3407,6 +3395,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             updates[field] = null;
           }
         });
+        // Convert empty string or parse date for appointmentAt
+        if (updates.appointmentAt === '') {
+          updates.appointmentAt = null;
+        } else if (updates.appointmentAt && typeof updates.appointmentAt === 'string') {
+          updates.appointmentAt = new Date(updates.appointmentAt);
+        }
         
         const workOrder = await storage.updateWorkOrder(req.params.id, updates);
         
