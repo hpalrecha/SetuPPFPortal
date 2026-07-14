@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
+import ConnectionsSection from "@/components/dashboard/ConnectionsSection";
 import { 
   BarChart3, 
   Clock, 
@@ -495,6 +496,11 @@ export default function DashboardPage() {
           </Card>
         )}
       </div>
+
+      {/* Connections - assigned dealerships/showrooms/partners + territory */}
+      {canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER']) && (
+        <ConnectionsSection />
+      )}
 
       {/* Analytics Charts Section */}
       <div className="space-y-6">

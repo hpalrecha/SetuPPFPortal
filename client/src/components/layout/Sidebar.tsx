@@ -24,8 +24,7 @@ import {
   Car,
   Tag,
   BookOpen,
-  Package,
-  HardHat
+  Package
 } from "lucide-react";
 
 interface SidebarProps {
@@ -42,8 +41,8 @@ const baseNavigation = [
   { name: "Job Cards", href: "/job-cards", icon: CheckSquare, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF", "DETAILING_PARTNER"] },
   { name: "Knowledge Hub", href: "/knowledge-hub", icon: BookOpen, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF", "DETAILING_PARTNER"] },
   { name: "Partners", href: "/partners", icon: Handshake, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
+  { name: "Pending Pulse Users", href: "/pulse-pending-users", icon: Users, roles: ["SUPER_ADMIN", "ADMIN"] },
   { name: "Staff Management", href: "/partner-staff", icon: Users, roles: ["PARTNER_ADMIN"] },
-  { name: "Detailing Partners", href: "/detailing-partners", icon: HardHat, roles: ["PARTNER_ADMIN"] },
   { name: "Payouts & Earnings", href: "/payouts", icon: DollarSign, roles: ["PARTNER_ADMIN"] },
   { name: "Allocations", href: "/allocations", icon: Network, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
   { name: "Services", href: "/services", icon: Shield, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON"] },

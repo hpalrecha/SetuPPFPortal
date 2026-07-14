@@ -84,6 +84,32 @@ import {
 import { db } from "./db";
 import { eq, and, desc, sql, count, avg, sum, lte, gte, or, isNull, isNotNull, asc, inArray, ne, like, notInArray } from "drizzle-orm";
 
+// Dashboard "connections" data (assigned dealerships/showrooms/partners + derived territory)
+export interface ConnectionEntity {
+  id: string;
+  name: string;
+  city: string | null;
+  state: string | null;
+}
+
+export interface ConnectionsResponse {
+  dealerships?: { count: number; items: ConnectionEntity[] };
+  showrooms?: { count: number; items: ConnectionEntity[] };
+  partners?: { count: number; items: ConnectionEntity[] };
+  territory: { count: number; items: { state: string; cities: string[] }[] };
+}
+
+// Structural subset of AuthUser (server/auth.ts) — avoids a storage->auth import
+export interface ConnectionScopeUser {
+  id: string;
+  role: string;
+  oemId?: string;
+  dealershipId?: string;
+  showroomId?: string;
+  partnerId?: string;
+  allowedStates?: string[];
+}
+
 export interface IStorage {
   // User management
   getUser(id: string): Promise<User | undefined>;
@@ -360,6 +386,7 @@ export interface IStorage {
     pendingJobs?: number;
     thisMonthEarnings?: number;
   }>;
+  getUserConnections(user: ConnectionScopeUser): Promise<ConnectionsResponse>;
 
   // Dashboard chart data
   getOrdersRevenueTrend(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
@@ -1912,32 +1939,73 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Partner Showroom Mapping management
-  async getPartnerShowroomsWithDetails(partnerId: string): Promise<any[]> {
-    return await db
-      .select({
-        id: showrooms.id,
-        name: showrooms.name,
-        code: showrooms.code,
-        city: showrooms.city,
-        state: showrooms.state,
-      })
+  // A partner's showrooms come from three sources: direct partner-showroom
+  // mapping, SHOWROOM-level allocations, and DEALERSHIP-level allocations
+  // (which cascade to every active showroom under that dealership).
+  async getEffectivePartnerShowroomRows(partnerId: string): Promise<{
+    id: string; name: string; code: string | null; city: string | null; state: string | null; dealershipId: string;
+  }[]> {
+    const cols = {
+      id: showrooms.id,
+      name: showrooms.name,
+      code: showrooms.code,
+      city: showrooms.city,
+      state: showrooms.state,
+      dealershipId: showrooms.dealershipId,
+    };
+
+    const mapped = await db
+      .select(cols)
       .from(partnerShowroomMapping)
       .innerJoin(showrooms, eq(partnerShowroomMapping.showroomId, showrooms.id))
       .where(and(
         eq(partnerShowroomMapping.partnerId, partnerId),
         eq(partnerShowroomMapping.status, 'active')
       ));
+
+    const allocatedShowrooms = await db
+      .select(cols)
+      .from(allocations)
+      .innerJoin(showrooms, eq(allocations.levelId, showrooms.id))
+      .where(and(
+        eq(allocations.partnerId, partnerId),
+        eq(allocations.level, 'SHOWROOM'),
+        eq(allocations.active, true)
+      ));
+
+    const allocatedDealershipIds = await db
+      .select({ id: allocations.levelId })
+      .from(allocations)
+      .where(and(
+        eq(allocations.partnerId, partnerId),
+        eq(allocations.level, 'DEALERSHIP'),
+        eq(allocations.active, true)
+      ));
+
+    const dealershipCascadeShowrooms = allocatedDealershipIds.length > 0
+      ? await db
+          .select(cols)
+          .from(showrooms)
+          .where(and(
+            inArray(showrooms.dealershipId, allocatedDealershipIds.map(d => d.id)),
+            eq(showrooms.active, true)
+          ))
+      : [];
+
+    const byId = new Map<string, typeof mapped[number]>();
+    for (const row of [...mapped, ...allocatedShowrooms, ...dealershipCascadeShowrooms]) {
+      byId.set(row.id, row);
+    }
+    return Array.from(byId.values());
+  }
+
+  async getPartnerShowroomsWithDetails(partnerId: string): Promise<any[]> {
+    return this.getEffectivePartnerShowroomRows(partnerId);
   }
 
   async getPartnerShowrooms(partnerId: string): Promise<string[]> {
-    const mappings = await db
-      .select({ showroomId: partnerShowroomMapping.showroomId })
-      .from(partnerShowroomMapping)
-      .where(and(
-        eq(partnerShowroomMapping.partnerId, partnerId),
-        eq(partnerShowroomMapping.status, 'active')
-      ));
-    return mappings.map(m => m.showroomId);
+    const rows = await this.getEffectivePartnerShowroomRows(partnerId);
+    return rows.map(r => r.id);
   }
 
   async setPartnerShowrooms(partnerId: string, showroomIds: string[]): Promise<void> {
@@ -2015,14 +2083,28 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Partner Staff Management implementations
+  // Includes both staff types under a partner; inactive staff are returned too
+  // so the page's Activate/Deactivate controls work.
   async getPartnerStaff(partnerId: string): Promise<User[]> {
     return await db
       .select()
       .from(users)
       .where(and(
         eq(users.partnerId, partnerId),
-        eq(users.role, 'PARTNER_STAFF'),
-        eq(users.isActive, true)
+        inArray(users.role, ['PARTNER_STAFF', 'DETAILING_PARTNER'])
+      ))
+      .orderBy(desc(users.createdAt));
+  }
+
+  // Staff users created via the Pulse webhook without a resolvable partner tag;
+  // they wait in the admin "pending assignment" list until assigned manually.
+  async getUnassignedPulseUsers(): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .where(and(
+        isNull(users.partnerId),
+        inArray(users.role, ['PARTNER_STAFF', 'DETAILING_PARTNER'])
       ))
       .orderBy(desc(users.createdAt));
   }
@@ -2063,43 +2145,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Detailing Partner Management
-  async getDetailingPartners(partnerId: string): Promise<User[]> {
-    return await db
-      .select()
-      .from(users)
-      .where(and(
-        eq(users.partnerId, partnerId),
-        eq(users.role, 'DETAILING_PARTNER')
-      ))
-      .orderBy(desc(users.createdAt));
-  }
-
-  async createDetailingPartner(partnerId: string, data: Omit<InsertUser, 'partnerId' | 'role'>): Promise<User> {
-    const [newUser] = await db
-      .insert(users)
-      .values({ ...data, partnerId, role: 'DETAILING_PARTNER', isActive: true })
-      .returning();
-    return newUser;
-  }
-
-  async updateDetailingPartner(userId: string, updates: Partial<InsertUser>): Promise<User | undefined> {
-    const [updated] = await db
-      .update(users)
-      .set({ ...updates, updatedAt: new Date() })
-      .where(eq(users.id, userId))
-      .returning();
-    return updated || undefined;
-  }
-
-  async deleteDetailingPartner(userId: string): Promise<boolean> {
-    const [deleted] = await db
-      .update(users)
-      .set({ isActive: false, updatedAt: new Date() })
-      .where(eq(users.id, userId))
-      .returning();
-    return !!deleted;
-  }
-
   // Detailing Partner ↔ Showroom allocation
   async getDetailingPartnerShowroomIds(detailingPartnerId: string): Promise<string[]> {
     const rows = await db
@@ -2158,15 +2203,16 @@ export class DatabaseStorage implements IStorage {
       ));
   }
 
-  // Returns showroomId → detailingPartnerId for all active allocations under this partner.
-  // Pass excludeUserId when editing so the current DP's own allocations are not counted as "taken".
-  async getDetailingPartnerShowroomAllocations(
+  // Returns showroomId → staffId for all active allocations under this partner,
+  // across BOTH staff types (a showroom may only be assigned to one staff member).
+  // Pass excludeUserId when editing so the current staff member's own allocations are not counted as "taken".
+  async getPartnerStaffShowroomAllocations(
     partnerId: string,
     excludeUserId?: string
-  ): Promise<{ showroomId: string; detailingPartnerId: string }[]> {
+  ): Promise<{ showroomId: string; staffId: string }[]> {
     const conditions = [
       eq(users.partnerId, partnerId),
-      eq(users.role, 'DETAILING_PARTNER'),
+      inArray(users.role, ['PARTNER_STAFF', 'DETAILING_PARTNER']),
       eq(detailingPartnerShowrooms.status, 'active'),
     ];
     if (excludeUserId) {
@@ -2175,7 +2221,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select({
         showroomId: detailingPartnerShowrooms.showroomId,
-        detailingPartnerId: detailingPartnerShowrooms.detailingPartnerId,
+        staffId: detailingPartnerShowrooms.detailingPartnerId,
       })
       .from(detailingPartnerShowrooms)
       .innerJoin(users, eq(detailingPartnerShowrooms.detailingPartnerId, users.id))
@@ -3664,6 +3710,231 @@ export class DatabaseStorage implements IStorage {
       pendingJobs: pendingJobsResult?.count || 0,
       thisMonthEarnings: 0 // Hidden for staff
     };
+  }
+
+  // Dashboard connections: role-scoped assigned dealerships/showrooms/partners + derived territory
+  async getUserConnections(user: ConnectionScopeUser): Promise<ConnectionsResponse> {
+    const dealershipCols = { id: dealerships.id, name: dealerships.name, city: dealerships.city, state: dealerships.state };
+    const showroomCols = { id: showrooms.id, name: showrooms.name, city: showrooms.city, state: showrooms.state, dealershipId: showrooms.dealershipId };
+    const partnerCols = { id: partners.id, name: partners.displayName, city: partners.city, state: partners.state };
+    const empty: ConnectionsResponse = { territory: { count: 0, items: [] } };
+
+    switch (user.role) {
+      case 'PARTNER_ADMIN':
+      case 'PARTNER_STAFF': {
+        if (!user.partnerId) return empty;
+        // Includes showrooms cascaded from any DEALERSHIP-level allocation
+        const showroomRows = await this.getEffectivePartnerShowroomRows(user.partnerId);
+        const allocatedDealerships = await db
+          .select(dealershipCols)
+          .from(allocations)
+          .innerJoin(dealerships, eq(allocations.levelId, dealerships.id))
+          .where(and(
+            eq(allocations.partnerId, user.partnerId),
+            eq(allocations.level, 'DEALERSHIP'),
+            eq(allocations.active, true)
+          ));
+        const parentIds = Array.from(new Set(showroomRows.map(s => s.dealershipId)));
+        const parentDealerships = parentIds.length > 0
+          ? await db.select(dealershipCols).from(dealerships).where(inArray(dealerships.id, parentIds))
+          : [];
+        const dealershipRows = Array.from(
+          new Map([...allocatedDealerships, ...parentDealerships].map(d => [d.id, d])).values()
+        );
+        return {
+          dealerships: this.toConnectionSection(dealershipRows),
+          showrooms: this.toConnectionSection(showroomRows),
+          territory: this.deriveTerritory([...dealershipRows, ...showroomRows])
+        };
+      }
+
+      case 'DETAILING_PARTNER': {
+        const showroomRows = await db
+          .select(showroomCols)
+          .from(detailingPartnerShowrooms)
+          .innerJoin(showrooms, eq(detailingPartnerShowrooms.showroomId, showrooms.id))
+          .where(and(
+            eq(detailingPartnerShowrooms.detailingPartnerId, user.id),
+            eq(detailingPartnerShowrooms.status, 'active')
+          ));
+        const parentIds = Array.from(new Set(showroomRows.map(s => s.dealershipId)));
+        const dealershipRows = parentIds.length > 0
+          ? await db.select(dealershipCols).from(dealerships).where(inArray(dealerships.id, parentIds))
+          : [];
+        return {
+          dealerships: this.toConnectionSection(dealershipRows),
+          showrooms: this.toConnectionSection(showroomRows),
+          territory: this.deriveTerritory([...dealershipRows, ...showroomRows])
+        };
+      }
+
+      case 'DEALERSHIP_ADMIN': {
+        if (!user.dealershipId) return empty;
+        const [ownDealership] = await db
+          .select(dealershipCols)
+          .from(dealerships)
+          .where(eq(dealerships.id, user.dealershipId));
+        const showroomRows = await db
+          .select(showroomCols)
+          .from(showrooms)
+          .where(and(eq(showrooms.dealershipId, user.dealershipId), eq(showrooms.active, true)));
+        const showroomIds = showroomRows.map(s => s.id);
+        const dealershipAllocPartners = await db
+          .select(partnerCols)
+          .from(allocations)
+          .innerJoin(partners, eq(allocations.partnerId, partners.id))
+          .where(and(
+            eq(allocations.level, 'DEALERSHIP'),
+            eq(allocations.levelId, user.dealershipId),
+            eq(allocations.active, true)
+          ));
+        const showroomAllocPartners = showroomIds.length > 0
+          ? await db
+              .select(partnerCols)
+              .from(allocations)
+              .innerJoin(partners, eq(allocations.partnerId, partners.id))
+              .where(and(
+                eq(allocations.level, 'SHOWROOM'),
+                inArray(allocations.levelId, showroomIds),
+                eq(allocations.active, true)
+              ))
+          : [];
+        const mappedPartners = showroomIds.length > 0
+          ? await db
+              .select(partnerCols)
+              .from(partnerShowroomMapping)
+              .innerJoin(partners, eq(partnerShowroomMapping.partnerId, partners.id))
+              .where(and(
+                inArray(partnerShowroomMapping.showroomId, showroomIds),
+                eq(partnerShowroomMapping.status, 'active')
+              ))
+          : [];
+        return {
+          showrooms: this.toConnectionSection(showroomRows),
+          partners: this.toConnectionSection([...dealershipAllocPartners, ...showroomAllocPartners, ...mappedPartners]),
+          territory: this.deriveTerritory([...(ownDealership ? [ownDealership] : []), ...showroomRows])
+        };
+      }
+
+      case 'SHOWROOM_MANAGER': {
+        if (!user.showroomId) return empty;
+        const [showroomRow] = await db
+          .select(showroomCols)
+          .from(showrooms)
+          .where(eq(showrooms.id, user.showroomId));
+        if (!showroomRow) return empty;
+        const dealershipRows = await db
+          .select(dealershipCols)
+          .from(dealerships)
+          .where(eq(dealerships.id, showroomRow.dealershipId));
+        const allocPartners = await db
+          .select(partnerCols)
+          .from(allocations)
+          .innerJoin(partners, eq(allocations.partnerId, partners.id))
+          .where(and(
+            eq(allocations.level, 'SHOWROOM'),
+            eq(allocations.levelId, user.showroomId),
+            eq(allocations.active, true)
+          ));
+        const mappedPartners = await db
+          .select(partnerCols)
+          .from(partnerShowroomMapping)
+          .innerJoin(partners, eq(partnerShowroomMapping.partnerId, partners.id))
+          .where(and(
+            eq(partnerShowroomMapping.showroomId, user.showroomId),
+            eq(partnerShowroomMapping.status, 'active')
+          ));
+        return {
+          dealerships: this.toConnectionSection(dealershipRows),
+          partners: this.toConnectionSection([...allocPartners, ...mappedPartners]),
+          territory: this.deriveTerritory([showroomRow, ...dealershipRows])
+        };
+      }
+
+      case 'OEM_ADMIN': {
+        if (!user.oemId) return empty;
+        const dealershipRows = await db
+          .select(dealershipCols)
+          .from(dealershipOemMapping)
+          .innerJoin(dealerships, eq(dealershipOemMapping.dealershipId, dealerships.id))
+          .where(and(
+            eq(dealershipOemMapping.oemId, user.oemId),
+            eq(dealershipOemMapping.status, 'active'),
+            eq(dealerships.active, true)
+          ));
+        const showroomRows = await db
+          .select(showroomCols)
+          .from(showrooms)
+          .where(and(eq(showrooms.oemId, user.oemId), eq(showrooms.active, true)));
+        const partnerRows = await db
+          .select(partnerCols)
+          .from(partnerOems)
+          .innerJoin(partners, eq(partnerOems.partnerId, partners.id))
+          .where(and(
+            eq(partnerOems.oemId, user.oemId),
+            eq(partnerOems.active, true),
+            eq(partners.active, true)
+          ));
+        return {
+          dealerships: this.toConnectionSection(dealershipRows),
+          showrooms: this.toConnectionSection(showroomRows),
+          partners: this.toConnectionSection(partnerRows),
+          territory: this.deriveTerritory([...dealershipRows, ...showroomRows])
+        };
+      }
+
+      case 'SUPER_ADMIN':
+      case 'ADMIN':
+      case 'MANAGER': {
+        // MANAGER with allowedStates set sees only those states (hasStateAccess contract)
+        const states = user.role === 'MANAGER' && Array.isArray(user.allowedStates) && user.allowedStates.length > 0
+          ? user.allowedStates
+          : null;
+        const dealershipRows = await db
+          .select(dealershipCols)
+          .from(dealerships)
+          .where(states ? and(eq(dealerships.active, true), inArray(dealerships.state, states)) : eq(dealerships.active, true));
+        const showroomRows = await db
+          .select(showroomCols)
+          .from(showrooms)
+          .where(states ? and(eq(showrooms.active, true), inArray(showrooms.state, states)) : eq(showrooms.active, true));
+        const partnerRows = await db
+          .select(partnerCols)
+          .from(partners)
+          .where(states ? and(eq(partners.active, true), inArray(partners.state, states)) : eq(partners.active, true));
+        return {
+          dealerships: this.toConnectionSection(dealershipRows),
+          showrooms: this.toConnectionSection(showroomRows),
+          partners: this.toConnectionSection(partnerRows),
+          territory: this.deriveTerritory([...dealershipRows, ...showroomRows])
+        };
+      }
+
+      default:
+        return empty;
+    }
+  }
+
+  private toConnectionSection(rows: { id: string; name: string; city: string | null; state: string | null }[]) {
+    const deduped = Array.from(new Map(rows.map(r => [r.id, r])).values());
+    return {
+      count: deduped.length,
+      items: deduped.slice(0, 100).map(({ id, name, city, state }) => ({ id, name, city, state }))
+    };
+  }
+
+  private deriveTerritory(entities: { state: string | null; city: string | null }[]) {
+    const byState = new Map<string, Set<string>>();
+    for (const e of entities) {
+      if (!e.state) continue;
+      const cities = byState.get(e.state) ?? new Set<string>();
+      if (e.city) cities.add(e.city);
+      byState.set(e.state, cities);
+    }
+    const items = Array.from(byState.entries())
+      .map(([state, cities]) => ({ state, cities: Array.from(cities).sort() }))
+      .sort((a, b) => a.state.localeCompare(b.state));
+    return { count: items.length, items };
   }
 
   async getDashboardMetrics(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{

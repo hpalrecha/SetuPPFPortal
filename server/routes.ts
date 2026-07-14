@@ -3006,6 +3006,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Dashboard connections: role-scoped assigned dealerships/showrooms/partners + derived territory
+  app.get("/api/dashboard/connections", authenticate, async (req, res) => {
+    try {
+      // Per-user key: scope derives from partnerId/dealershipId/showroomId/oemId/allowedStates
+      const cacheKey = `connections:${req.user!.role}:${req.user!.id}`;
+      const cachedData = dashboardCache.get(cacheKey);
+      if (cachedData) {
+        return res.json(cachedData);
+      }
+
+      const data = await storage.getUserConnections(req.user!);
+      dashboardCache.set(cacheKey, data);
+      res.json(data);
+    } catch (error) {
+      console.error("Dashboard connections error:", error);
+      res.status(500).json({ error: "Failed to fetch connections" });
+    }
+  });
+
   // Reports Metrics API
   app.get("/api/reports/metrics", authenticate, async (req, res) => {
     try {
@@ -5431,6 +5450,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Request a partner-tagged staff invite link from Pulse.
+  // Staff are onboarded via the Pulse signup form; once approved and granted
+  // Setu access there, Pulse's webhook creates them here under this partner.
+  app.post("/api/partners/:partnerId/staff/pulse-invite",
+    authenticate,
+    requireRole(['PARTNER_ADMIN']),
+    auditLog('partner_staff', 'invite'),
+    async (req, res) => {
+      try {
+        const { partnerId } = req.params;
+
+        // Ensure partner admin can only invite staff for their own partner
+        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+
+        const inviteSchema = z.object({
+          role: z.enum(['PARTNER_STAFF', 'DETAILING_PARTNER']),
+          email: z.string().email().optional().or(z.literal('')),
+        });
+        const { role, email } = inviteSchema.parse(req.body);
+
+        const partner = await storage.getPartner(partnerId);
+        if (!partner) {
+          return res.status(404).json({ error: "Partner not found" });
+        }
+
+        const { pulseApiService } = await import('./services/pulseApiService');
+        const result = await pulseApiService.requestStaffInvite({
+          setuPartnerId: partnerId,
+          setuPartnerName: partner.displayName || 'PPF Setu Partner',
+          userRole: role,
+          email: email || undefined,
+        });
+
+        if (!result.success) {
+          return res.status(502).json({ error: result.error || "Failed to create invite link on Pulse" });
+        }
+
+        res.json({
+          registrationLink: result.registrationLink,
+          expiresAt: result.expiresAt,
+          emailSent: result.emailSent || false,
+        });
+      } catch (error) {
+        console.error("Create pulse staff invite error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid invite data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to create staff invite" });
+      }
+    }
+  );
+
   app.post("/api/partners/:partnerId/staff",
     authenticate,
     requireRole(['PARTNER_ADMIN']),
@@ -5574,12 +5647,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // ── Detailing Partner Management Routes ──────────────────────────────────
+  // ── Partner Staff Showroom Management Routes ─────────────────────────────
+  // Showroom assignment applies uniformly to both staff types (PARTNER_STAFF
+  // and DETAILING_PARTNER). Each showroom can only be assigned to one staff
+  // member at a time within a partner — enforced below.
 
-  // Return current showroom allocations across all detailing partners for a given partner.
-  // Used by the UI to enforce exclusive showroom assignment (one DP per showroom).
-  // Optional query param: ?excludeUserId=<id> to exclude the DP being edited from "taken" set.
-  app.get("/api/partners/:partnerId/detailing-partners/allocations",
+  // Current showroom allocations across all staff for a given partner.
+  // Used by the UI to enforce exclusive showroom assignment (one staff member per showroom).
+  // Optional query param: ?excludeUserId=<id> to exclude the staff member being edited from the "taken" set.
+  app.get("/api/partners/:partnerId/staff-showroom-allocations",
     authenticate,
     requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN']),
     async (req, res) => {
@@ -5589,120 +5665,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Access denied" });
         }
         const excludeUserId = req.query.excludeUserId as string | undefined;
-        const allocations = await storage.getDetailingPartnerShowroomAllocations(partnerId, excludeUserId);
+        const allocations = await storage.getPartnerStaffShowroomAllocations(partnerId, excludeUserId);
         res.json(allocations);
       } catch (error) {
-        console.error("Get DP showroom allocations error:", error);
+        console.error("Get staff showroom allocations error:", error);
         res.status(500).json({ error: "Failed to fetch allocations" });
       }
     }
   );
 
-  // List all detailing partners under a partner
-  app.get("/api/partners/:partnerId/detailing-partners",
+  // Get showrooms allocated to a specific staff member (installer or detailing partner)
+  app.get("/api/partners/:partnerId/staff/:userId/showrooms",
     authenticate,
-    requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN']),
-    async (req, res) => {
-      try {
-        const { partnerId } = req.params;
-        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
-          return res.status(403).json({ error: "Access denied" });
-        }
-        const list = await storage.getDetailingPartners(partnerId);
-        res.json(list);
-      } catch (error) {
-        console.error("Get detailing partners error:", error);
-        res.status(500).json({ error: "Failed to fetch detailing partners" });
-      }
-    }
-  );
-
-  // Create a detailing partner user under a partner
-  app.post("/api/partners/:partnerId/detailing-partners",
-    authenticate,
-    requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN']),
-    async (req, res) => {
-      try {
-        const { partnerId } = req.params;
-        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
-          return res.status(403).json({ error: "Access denied" });
-        }
-        const { username, name, email, phone, password, showroomIds } = req.body;
-        if (!username || !name || !password) {
-          return res.status(400).json({ error: "username, name, and password are required" });
-        }
-        const bcrypt = await import('bcryptjs');
-        const passwordHash = await bcrypt.hash(password, 10);
-        const newUser = await storage.createDetailingPartner(partnerId, { username, name, email, phone, passwordHash });
-        // Allocate showrooms if provided
-        if (showroomIds?.length) {
-          await storage.setDetailingPartnerShowrooms(newUser.id, showroomIds);
-        }
-        res.status(201).json(newUser);
-      } catch (error: any) {
-        console.error("Create detailing partner error:", error);
-        if (error.code === '23505') return res.status(409).json({ error: "Username already exists" });
-        res.status(500).json({ error: "Failed to create detailing partner" });
-      }
-    }
-  );
-
-  // Update a detailing partner
-  app.put("/api/partners/:partnerId/detailing-partners/:userId",
-    authenticate,
-    requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN']),
+    requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER']),
     async (req, res) => {
       try {
         const { partnerId, userId } = req.params;
-        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
-          return res.status(403).json({ error: "Access denied" });
-        }
-        const { showroomIds, password, ...rest } = req.body;
-        const updates: any = { ...rest };
-        if (password) {
-          const bcrypt = await import('bcryptjs');
-          updates.passwordHash = await bcrypt.hash(password, 10);
-        }
-        const updated = await storage.updateDetailingPartner(userId, updates);
-        if (!updated) return res.status(404).json({ error: "Detailing partner not found" });
-        if (showroomIds !== undefined) {
-          await storage.setDetailingPartnerShowrooms(userId, showroomIds);
-        }
-        res.json(updated);
-      } catch (error) {
-        console.error("Update detailing partner error:", error);
-        res.status(500).json({ error: "Failed to update detailing partner" });
-      }
-    }
-  );
-
-  // Delete (soft) a detailing partner
-  app.delete("/api/partners/:partnerId/detailing-partners/:userId",
-    authenticate,
-    requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN']),
-    async (req, res) => {
-      try {
-        const { partnerId, userId } = req.params;
-        if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
-          return res.status(403).json({ error: "Access denied" });
-        }
-        await storage.deleteDetailingPartner(userId);
-        res.json({ message: "Detailing partner deactivated successfully" });
-      } catch (error) {
-        console.error("Delete detailing partner error:", error);
-        res.status(500).json({ error: "Failed to delete detailing partner" });
-      }
-    }
-  );
-
-  // Get showrooms allocated to a detailing partner
-  app.get("/api/partners/:partnerId/detailing-partners/:userId/showrooms",
-    authenticate,
-    requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN', 'DETAILING_PARTNER']),
-    async (req, res) => {
-      try {
-        const { partnerId, userId } = req.params;
-        if (req.user!.role === 'DETAILING_PARTNER' && req.user!.id !== userId) {
+        if (['PARTNER_STAFF', 'DETAILING_PARTNER'].includes(req.user!.role) && req.user!.id !== userId) {
           return res.status(403).json({ error: "Access denied" });
         }
         if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
@@ -5711,38 +5690,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const showrooms = await storage.getDetailingPartnerShowrooms(userId);
         res.json(showrooms);
       } catch (error) {
-        console.error("Get detailing partner showrooms error:", error);
+        console.error("Get staff showrooms error:", error);
         res.status(500).json({ error: "Failed to fetch showroom allocations" });
       }
     }
   );
 
-  // Set/replace showroom allocations for a detailing partner
-  app.put("/api/partners/:partnerId/detailing-partners/:userId/showrooms",
+  // Set/replace showroom allocations for a specific staff member
+  app.put("/api/partners/:partnerId/staff/:userId/showrooms",
     authenticate,
     requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN']),
+    auditLog('partner_staff', 'set_showrooms'),
     async (req, res) => {
       try {
         const { partnerId, userId } = req.params;
         if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
           return res.status(403).json({ error: "Access denied" });
         }
+
+        // Verify the target user is actually staff of this partner
+        const targetUser = await storage.getUser(userId);
+        if (!targetUser || targetUser.partnerId !== partnerId ||
+            !['PARTNER_STAFF', 'DETAILING_PARTNER'].includes(targetUser.role)) {
+          return res.status(404).json({ error: "Staff member not found for this partner" });
+        }
+
         const { showroomIds } = req.body;
         if (!Array.isArray(showroomIds)) {
           return res.status(400).json({ error: "showroomIds must be an array" });
         }
-        // Guard: only showrooms that belong to this partner's mapping
+
+        // Guard 1: only showrooms that belong to this partner (direct, allocated, or dealership-cascaded)
         const partnerShowrooms = await storage.getPartnerShowrooms(partnerId);
-        const allowedIds = new Set(partnerShowrooms.map((s: any) => s.showroomId ?? s.id));
-        const invalid = showroomIds.filter(id => !allowedIds.has(id));
-        if (invalid.length) {
-          return res.status(400).json({ error: "Some showrooms are not allocated to this partner", invalid });
+        const allowedIds = new Set(partnerShowrooms);
+        const notAllocatedToPartner = showroomIds.filter(id => !allowedIds.has(id));
+        if (notAllocatedToPartner.length) {
+          return res.status(400).json({ error: "Some showrooms are not allocated to this partner", invalid: notAllocatedToPartner });
         }
+
+        // Guard 2: a showroom can only be assigned to one staff member at a time
+        const existingAllocations = await storage.getPartnerStaffShowroomAllocations(partnerId, userId);
+        const takenIds = new Set(existingAllocations.map(a => a.showroomId));
+        const alreadyTaken = showroomIds.filter(id => takenIds.has(id));
+        if (alreadyTaken.length) {
+          return res.status(409).json({ error: "Some showrooms are already assigned to another staff member", conflicts: alreadyTaken });
+        }
+
         await storage.setDetailingPartnerShowrooms(userId, showroomIds);
         const updated = await storage.getDetailingPartnerShowrooms(userId);
         res.json(updated);
       } catch (error) {
-        console.error("Set detailing partner showrooms error:", error);
+        console.error("Set staff showrooms error:", error);
         res.status(500).json({ error: "Failed to update showroom allocations" });
       }
     }
@@ -8724,6 +8722,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // ============================================================
+  // Pulse Pending Users (staff created via Pulse webhook without a
+  // resolvable partner tag - SUPER_ADMIN/ADMIN assign them manually)
+  // ============================================================
+
+  app.get('/api/admin/pulse-pending-users', authenticate, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
+    try {
+      const pendingUsers = await storage.getUnassignedPulseUsers();
+      // Never expose password hashes / reset tokens
+      res.json(pendingUsers.map(({ passwordHash, resetToken, resetTokenExpiry, ...u }) => u));
+    } catch (error: any) {
+      console.error('Get pulse pending users error:', error);
+      res.status(500).json({ error: 'Failed to fetch pending users' });
+    }
+  });
+
+  app.post('/api/admin/pulse-pending-users/:userId/assign',
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    auditLog('user', 'assign_partner'),
+    async (req, res) => {
+      try {
+        const { userId } = req.params;
+        const assignSchema = z.object({ partnerId: z.string().uuid("Valid partner ID is required") });
+        const { partnerId } = assignSchema.parse(req.body);
+
+        const user = await storage.getUser(userId);
+        if (!user) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+        if (!['PARTNER_STAFF', 'DETAILING_PARTNER'].includes(user.role)) {
+          return res.status(400).json({ error: 'User is not a partner staff user' });
+        }
+        if (user.partnerId) {
+          return res.status(409).json({ error: 'User is already assigned to a partner' });
+        }
+
+        const partner = await storage.getPartner(partnerId);
+        if (!partner || !partner.active) {
+          return res.status(400).json({ error: 'Partner not found or inactive' });
+        }
+
+        const updatedUser = await storage.updateUser(userId, { partnerId });
+
+        await storage.createAuditLog({
+          actorUserId: req.user!.id,
+          entity: 'user',
+          entityId: userId,
+          action: 'ASSIGNED_PARTNER_BY_ADMIN',
+          diffJson: { partnerId, role: user.role, source: 'pulse_pending_assignment' }
+        });
+
+        res.json(updatedUser);
+      } catch (error: any) {
+        console.error('Assign pulse pending user error:', error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: 'Invalid data', details: error.errors });
+        }
+        res.status(500).json({ error: 'Failed to assign partner' });
+      }
+    }
+  );
 
   // ============================================================
   // System Settings Routes (SUPER_ADMIN + ADMIN only)

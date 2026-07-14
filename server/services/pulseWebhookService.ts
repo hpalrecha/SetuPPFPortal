@@ -21,6 +21,15 @@ interface PulseWebhookPayload {
     pincode?: string; // Partner pincode (optional)
     gstin?: string; // Partner GSTIN (optional)
     pan?: string; // Partner PAN (optional)
+    // Staff-level fields (absent for legacy partner-level payloads):
+    userLevel?: 'PARTNER' | 'STAFF'; // STAFF = user under an existing partner
+    setuRole?: 'PARTNER_STAFF' | 'DETAILING_PARTNER'; // Setu role for STAFF users
+    setuPartnerId?: string | null; // Our partner UUID (from the invite tag), if known
+    territory?: { // For future territory-based auto-assignment
+      state?: string;
+      city?: string;
+      postalCode?: string;
+    };
   };
   timestamp: string;
 }
@@ -78,13 +87,25 @@ export class PulseWebhookService {
     message: string;
     userId?: string;
     partnerId?: string;
+    pendingAssignment?: boolean;
   }> {
     try {
       // Log received payload for debugging
       console.log('📥 Pulse webhook payload received:', JSON.stringify(payload, null, 2));
-      
+
       // Validate payload
       this.validatePayload(payload);
+
+      // Staff-level users (installer staff / detailing partners invited by a
+      // Setu partner) live UNDER an existing partner — they must never go
+      // through ensurePartner, which would create a bogus partner named after
+      // the person.
+      if (payload.user.userLevel === 'STAFF') {
+        if (payload.action === 'activate') {
+          return await this.handleStaffActivate(payload, actorId);
+        }
+        return await this.handleStaffDeactivate(payload, actorId);
+      }
 
       // Create or update partner first (pass full user data for contact details)
       // This also creates a PARTNER_ADMIN user if it's a new partner
@@ -390,6 +411,199 @@ export class PulseWebhookService {
   }
 
   /**
+   * Activate a staff-level user (PARTNER_STAFF / DETAILING_PARTNER).
+   * If the tagged Setu partner is known and active, the user is created under
+   * it; otherwise the user is created unassigned (partnerId null) and surfaces
+   * in the admin "pending assignment" list for manual assignment.
+   */
+  private async handleStaffActivate(payload: PulseWebhookPayload, actorId?: string): Promise<{
+    success: boolean;
+    message: string;
+    userId?: string;
+    partnerId?: string;
+    pendingAssignment?: boolean;
+  }> {
+    const staffRole = payload.user.setuRole!;
+    const phoneNumber = payload.user.phone || payload.user.mobile;
+    const userName = payload.user.name || payload.user.contactPersonName ||
+      payload.user.email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+    // Resolve the partner from the invite tag (if any)
+    let resolvedPartnerId: string | null = null;
+    if (payload.user.setuPartnerId) {
+      const partner = await storage.getPartner(payload.user.setuPartnerId);
+      if (partner && partner.active) {
+        resolvedPartnerId = partner.id;
+      } else {
+        console.warn(`⚠️ Tagged Setu partner not found or inactive: ${payload.user.setuPartnerId} - creating staff as unassigned`);
+      }
+    }
+
+    const pulseMetadata = {
+      state: payload.user.territory?.state,
+      city: payload.user.territory?.city,
+      postalCode: payload.user.territory?.postalCode,
+      requestedSetuPartnerId: payload.user.setuPartnerId || undefined,
+      source: 'pulse_webhook'
+    };
+
+    const existingUser = await storage.getUserByEmail(payload.user.email);
+
+    if (existingUser) {
+      // Never silently repurpose a non-partner account (admins, dealership users, ...)
+      const partnerScopedRoles = ['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER'];
+      if (existingUser.partnerId && !partnerScopedRoles.includes(existingUser.role)) {
+        return {
+          success: false,
+          message: `Email belongs to an existing non-partner user (role ${existingUser.role})`
+        };
+      }
+      if (!existingUser.partnerId && !partnerScopedRoles.includes(existingUser.role)) {
+        return {
+          success: false,
+          message: `Email belongs to an existing user with role ${existingUser.role}`
+        };
+      }
+
+      // Idempotent update: reactivate and refresh details. Never null-out or
+      // silently switch an existing partner assignment.
+      const updates: any = {
+        isActive: true,
+        role: staffRole,
+        phone: phoneNumber || existingUser.phone,
+        pulseMetadata
+      };
+      if (!existingUser.partnerId && resolvedPartnerId) {
+        updates.partnerId = resolvedPartnerId;
+      } else if (existingUser.partnerId && resolvedPartnerId && existingUser.partnerId !== resolvedPartnerId) {
+        console.warn(`⚠️ Staff ${payload.user.email} already assigned to partner ${existingUser.partnerId}; keeping existing assignment (Pulse tagged ${resolvedPartnerId})`);
+      }
+
+      await storage.updateUser(existingUser.id, updates);
+
+      await storage.createAuditLog({
+        actorUserId: actorId,
+        entity: 'user',
+        entityId: existingUser.id,
+        action: 'ACTIVATED_BY_PULSE',
+        diffJson: {
+          email: payload.user.email,
+          role: staffRole,
+          userLevel: 'STAFF',
+          partnerId: existingUser.partnerId || resolvedPartnerId,
+          source: 'pulse_webhook'
+        }
+      });
+
+      const finalPartnerId = existingUser.partnerId || resolvedPartnerId;
+      console.log(`✅ Staff user activated: ${payload.user.email} (${staffRole})${finalPartnerId ? ` under partner ${finalPartnerId}` : ' - pending assignment'}`);
+
+      return {
+        success: true,
+        message: finalPartnerId ? 'Staff user activated' : 'Staff user activated - pending partner assignment',
+        userId: existingUser.id,
+        partnerId: finalPartnerId || undefined,
+        pendingAssignment: !finalPartnerId
+      };
+    }
+
+    // Create new staff user
+    const tempPassword = this.generateTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
+    const username = payload.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    const newUser = await storage.createUser({
+      username,
+      email: payload.user.email,
+      name: userName,
+      phone: phoneNumber,
+      role: staffRole,
+      partnerId: resolvedPartnerId,
+      pulseMetadata,
+      passwordHash,
+      isActive: true
+    });
+
+    // Send welcome email with password reset link
+    if (newUser.email) {
+      await this.sendWelcomeEmail(newUser.email, newUser.name, newUser.id);
+    }
+
+    await storage.createAuditLog({
+      actorUserId: actorId,
+      entity: 'user',
+      entityId: newUser.id,
+      action: 'CREATED_BY_PULSE',
+      diffJson: {
+        email: payload.user.email,
+        role: staffRole,
+        userLevel: 'STAFF',
+        partnerId: resolvedPartnerId,
+        territory: payload.user.territory,
+        source: 'pulse_webhook'
+      }
+    });
+
+    console.log(`✅ Staff user created: ${payload.user.email} (${staffRole})${resolvedPartnerId ? ` under partner ${resolvedPartnerId}` : ' - pending assignment'}`);
+
+    return {
+      success: true,
+      message: resolvedPartnerId ? 'Staff user created' : 'Staff user created - pending partner assignment',
+      userId: newUser.id,
+      partnerId: resolvedPartnerId || undefined,
+      pendingAssignment: !resolvedPartnerId
+    };
+  }
+
+  /**
+   * Deactivate a staff-level user by email (no ensurePartner involved)
+   */
+  private async handleStaffDeactivate(payload: PulseWebhookPayload, actorId?: string): Promise<{
+    success: boolean;
+    message: string;
+    userId?: string;
+  }> {
+    const existingUser = await storage.getUserByEmail(payload.user.email);
+
+    if (!existingUser) {
+      return {
+        success: false,
+        message: 'User not found'
+      };
+    }
+
+    if (!existingUser.isActive) {
+      return {
+        success: true,
+        message: 'User already inactive',
+        userId: existingUser.id
+      };
+    }
+
+    await storage.updateUser(existingUser.id, { isActive: false });
+
+    await storage.createAuditLog({
+      actorUserId: actorId,
+      entity: 'user',
+      entityId: existingUser.id,
+      action: 'DEACTIVATED_BY_PULSE',
+      diffJson: {
+        email: payload.user.email,
+        userLevel: 'STAFF',
+        source: 'pulse_webhook'
+      }
+    });
+
+    console.log(`✅ Staff user deactivated: ${payload.user.email}`);
+
+    return {
+      success: true,
+      message: 'Staff user deactivated successfully',
+      userId: existingUser.id
+    };
+  }
+
+  /**
    * Deactivate user
    */
   private async deactivateUser(payload: PulseWebhookPayload, partnerId: string, actorId?: string): Promise<{
@@ -622,6 +836,15 @@ export class PulseWebhookService {
       throw new Error('Missing required field: user.email');
     }
 
+    if (payload.user.userLevel === 'STAFF') {
+      // Staff-level payloads carry a Setu role instead of a partner type
+      if (payload.action === 'activate' &&
+          !['PARTNER_STAFF', 'DETAILING_PARTNER'].includes(payload.user.setuRole || '')) {
+        throw new Error('Invalid setuRole - only PARTNER_STAFF and DETAILING_PARTNER are supported for staff users');
+      }
+      return this.validateTimestamp(payload);
+    }
+
     if (!payload.user.name) {
       throw new Error('Missing required field: user.name (partner business name)');
     }
@@ -634,12 +857,18 @@ export class PulseWebhookService {
       throw new Error('Invalid partner type - only STUDIO and INSTALLER are supported');
     }
 
-    // Validate timestamp is recent (within 5 minutes)
+    this.validateTimestamp(payload);
+  }
+
+  /**
+   * Warn if the webhook timestamp is stale (within 5 minutes expected)
+   */
+  private validateTimestamp(payload: PulseWebhookPayload): void {
     if (payload.timestamp) {
       const timestamp = new Date(payload.timestamp);
       const now = new Date();
       const diffMinutes = (now.getTime() - timestamp.getTime()) / (1000 * 60);
-      
+
       if (diffMinutes > 5) {
         console.warn('⚠️ Webhook timestamp is more than 5 minutes old');
       }

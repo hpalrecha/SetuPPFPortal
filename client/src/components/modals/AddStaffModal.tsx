@@ -7,10 +7,18 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Form,
   FormControl,
@@ -20,16 +28,22 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { Copy, Check } from "lucide-react";
 
-const staffSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  email: z.string().email("Valid email is required"),
-  phone: z.string().optional(),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+// Staff are onboarded through the Pulse platform: this modal generates a
+// partner-tagged Pulse registration link. Once the person registers on Pulse,
+// is approved, and is granted Setu access there, they appear in this portal
+// under this partner automatically.
+const inviteSchema = z.object({
+  role: z.enum(["PARTNER_STAFF", "DETAILING_PARTNER"]),
+  email: z
+    .string()
+    .email("Enter a valid email")
+    .optional()
+    .or(z.literal("")),
 });
 
-type StaffFormData = z.infer<typeof staffSchema>;
+type InviteFormData = z.infer<typeof inviteSchema>;
 
 interface AddStaffModalProps {
   partnerId: string;
@@ -44,55 +58,61 @@ export function AddStaffModal({
 }: AddStaffModalProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [inviteResult, setInviteResult] = useState<{
+    registrationLink: string;
+    expiresAt?: string;
+    emailSent: boolean;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  const form = useForm<StaffFormData>({
-    resolver: zodResolver(staffSchema),
+  const form = useForm<InviteFormData>({
+    resolver: zodResolver(inviteSchema),
     defaultValues: {
-      name: "",
+      role: "PARTNER_STAFF",
       email: "",
-      phone: "",
-      password: "",
     },
   });
 
-  const handleSubmit = async (data: StaffFormData) => {
+  const handleSubmit = async (data: InviteFormData) => {
     setIsLoading(true);
 
     try {
-      // Send plain password - backend will handle hashing securely
-      const staffData = {
-        name: data.name,
-        email: data.email,
-        phone: data.phone || undefined,
-        password: data.password, // Backend will hash this securely
-      };
-
-      const response = await fetch(`/api/partners/${partnerId}/staff`, {
+      const response = await fetch(`/api/partners/${partnerId}/staff/pulse-invite`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${localStorage.getItem('auth_token')}`,
         },
         credentials: 'include',
-        body: JSON.stringify(staffData),
+        body: JSON.stringify({
+          role: data.role,
+          email: data.email || undefined,
+        }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to create staff member");
+        throw new Error(errorData.error || "Failed to generate invite link");
       }
 
-      toast({
-        title: "Success",
-        description: "Staff member added successfully",
+      const result = await response.json();
+      setInviteResult({
+        registrationLink: result.registrationLink,
+        expiresAt: result.expiresAt,
+        emailSent: result.emailSent,
       });
 
-      onSuccess();
+      toast({
+        title: "Invite link generated",
+        description: result.emailSent
+          ? "The invitation has also been emailed."
+          : "Share the link with your staff member to register on Pulse.",
+      });
     } catch (error: any) {
-      console.error("Error adding staff member:", error);
+      console.error("Error generating staff invite:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to add staff member",
+        description: error.message || "Failed to generate invite link",
         variant: "destructive",
       });
     } finally {
@@ -100,110 +120,152 @@ export function AddStaffModal({
     }
   };
 
+  const handleCopy = async () => {
+    if (!inviteResult?.registrationLink) return;
+    try {
+      await navigator.clipboard.writeText(inviteResult.registrationLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({
+        title: "Copy failed",
+        description: "Select and copy the link manually.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md" data-testid="modal-add-staff">
         <DialogHeader>
-          <DialogTitle>Add Staff Member</DialogTitle>
+          <DialogTitle>Invite Staff Member</DialogTitle>
+          <DialogDescription>
+            Staff register through P91 Pulse. After approval and Setu access
+            being granted there, they will appear under your partner account here.
+          </DialogDescription>
         </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Full Name</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Enter staff member's full name"
-                      data-testid="input-staff-name"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+        {inviteResult ? (
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium mb-2">Registration link</p>
+              <div className="flex items-center gap-2">
+                <Input
+                  readOnly
+                  value={inviteResult.registrationLink}
+                  className="text-xs"
+                  data-testid="input-invite-link"
+                  onFocus={(e) => e.target.select()}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={handleCopy}
+                  data-testid="button-copy-invite-link"
+                >
+                  {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              {inviteResult.expiresAt && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Expires on {new Date(inviteResult.expiresAt).toLocaleDateString()}.
+                </p>
               )}
-            />
-
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email Address</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="email"
-                      placeholder="Enter email address"
-                      data-testid="input-staff-email"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+              {inviteResult.emailSent && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  The invitation has also been sent by email.
+                </p>
               )}
-            />
-
-            <FormField
-              control={form.control}
-              name="phone"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Phone Number (Optional)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="tel"
-                      placeholder="Enter phone number"
-                      data-testid="input-staff-phone"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="Enter password (min 6 characters)"
-                      data-testid="input-staff-password"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            </div>
 
             <DialogFooter className="gap-2">
               <Button
                 type="button"
                 variant="outline"
-                onClick={onClose}
-                disabled={isLoading}
-                data-testid="button-cancel-add-staff"
+                onClick={() => {
+                  setInviteResult(null);
+                  form.reset();
+                }}
+                data-testid="button-new-invite"
               >
-                Cancel
+                New Invite
               </Button>
               <Button
-                type="submit"
-                disabled={isLoading}
-                data-testid="button-submit-add-staff"
+                type="button"
+                onClick={onSuccess}
+                data-testid="button-done-invite"
               >
-                {isLoading ? "Adding..." : "Add Staff Member"}
+                Done
               </Button>
             </DialogFooter>
-          </form>
-        </Form>
+          </div>
+        ) : (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>User Type</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-staff-role">
+                          <SelectValue placeholder="Select user type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="PARTNER_STAFF">Installer (Partner Staff)</SelectItem>
+                        <SelectItem value="DETAILING_PARTNER">Detailing Partner</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email Address (Optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        placeholder="Send the invite link by email"
+                        data-testid="input-staff-email"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter className="gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  disabled={isLoading}
+                  data-testid="button-cancel-add-staff"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  data-testid="button-submit-add-staff"
+                >
+                  {isLoading ? "Generating..." : "Generate Invite Link"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        )}
       </DialogContent>
     </Dialog>
   );

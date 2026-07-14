@@ -29,7 +29,7 @@ import BrandsPage from "./pages/Brands";
 import RawMaterialsPage from "./pages/RawMaterials";
 import PayoutSettlementPage from "./pages/payout-settlement";
 import PartnerStaffPage from "./pages/partner-staff";
-import DetailingPartnersPage from "./pages/detailing-partners";
+import PulsePendingUsersPage from "./pages/pulse-pending-users";
 import PayoutsPage from "./pages/payouts";
 import KnowledgeHub from "./pages/KnowledgeHub";
 import MainLayout from "./components/layout/main-layout";
@@ -147,8 +147,8 @@ function Router() {
         component={() => <ProtectedRoute component={PartnerStaffPage} />}
       />
       <Route
-        path="/detailing-partners"
-        component={() => <ProtectedRoute component={DetailingPartnersPage} />}
+        path="/pulse-pending-users"
+        component={() => <ProtectedRoute component={PulsePendingUsersPage} />}
       />
       <Route
         path="/payouts"

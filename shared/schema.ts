@@ -208,6 +208,16 @@ export const users = pgTable("users", {
   resetToken: text("reset_token"),
   resetTokenExpiry: timestamp("reset_token_expiry"),
   showServicePrices: boolean("show_service_prices").default(true),
+  // Data carried over from the Pulse platform for webhook-created staff users:
+  // { state, city, postalCode, pulseUserId, requestedSetuPartnerId, source }
+  pulseMetadata: jsonb("pulse_metadata").$type<{
+    state?: string;
+    city?: string;
+    postalCode?: string;
+    pulseUserId?: string;
+    requestedSetuPartnerId?: string;
+    source?: string;
+  }>(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 }, (table) => {

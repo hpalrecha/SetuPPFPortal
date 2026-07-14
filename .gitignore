@@ -15,3 +15,4 @@ const workOrderIds = Array.from(new Set(   jobCards.map(jc => jc.workOrderId || 
 # Local environment files
 .env
 .env.local
+.claude/settings.local.json

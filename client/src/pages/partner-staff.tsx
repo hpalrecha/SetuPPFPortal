@@ -3,11 +3,43 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, User, Phone, Mail, Shield, Edit, Trash2, UserCheck, UserX } from "lucide-react";
+import { Plus, User, Phone, Mail, Shield, Edit, Trash2, UserCheck, UserX, MapPin } from "lucide-react";
 import type { User as StaffUser } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { AddStaffModal } from "../components/modals/AddStaffModal";
 import { EditStaffModal } from "../components/modals/EditStaffModal";
+import { EditShowroomModal } from "../components/modals/EditShowroomModal";
+
+const authHeaders = () => ({ 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` });
+
+// A staff member's specific showroom assignment (installer or detailing
+// partner — both use the same assignment mechanism, one showroom per staff member).
+function StaffShowroomBadges({ partnerId, userId }: { partnerId: string; userId: string }) {
+  const { data: showrooms = [] } = useQuery({
+    queryKey: ["/api/partners", partnerId, "staff", userId, "showrooms"],
+    queryFn: async () => {
+      const r = await fetch(`/api/partners/${partnerId}/staff/${userId}/showrooms`, {
+        headers: authHeaders(),
+        credentials: "include",
+      });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!partnerId && !!userId,
+    staleTime: 60000,
+  });
+
+  if (!showrooms.length) return <span className="text-xs text-muted-foreground">No showrooms assigned</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {showrooms.map((s: any) => (
+        <Badge key={s.id} variant="secondary" className="text-xs">
+          <MapPin className="h-2.5 w-2.5 mr-1" />{s.name}
+        </Badge>
+      ))}
+    </div>
+  );
+}
 
 export default function PartnerStaffPage() {
   const queryClient = useQueryClient();
@@ -15,6 +47,7 @@ export default function PartnerStaffPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffUser | null>(null);
+  const [editingShowroomsFor, setEditingShowroomsFor] = useState<StaffUser | null>(null);
 
   // Get current user's partner ID from session
   const { data: currentUser } = useQuery({
@@ -54,7 +87,6 @@ export default function PartnerStaffPage() {
       return response.json();
     },
     enabled: !!partnerId,
-    staleTime: 300000 // Cache for 5 minutes - staff data doesn't change often
   });
 
   const handleAddStaff = () => {
@@ -172,7 +204,7 @@ export default function PartnerStaffPage() {
         </div>
         <Button onClick={handleAddStaff} data-testid="button-add-staff">
           <Plus className="mr-2 h-4 w-4" />
-          Add Staff Member
+          Invite Staff Member
         </Button>
       </div>
 
@@ -226,11 +258,11 @@ export default function PartnerStaffPage() {
             <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-muted-foreground mb-2">No Staff Members</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              You haven't added any staff members yet. Add your first detailer to get started.
+              You haven't added any staff members yet. Invite your first installer or detailing partner to get started.
             </p>
             <Button onClick={handleAddStaff} data-testid="button-add-first-staff">
               <Plus className="mr-2 h-4 w-4" />
-              Add First Staff Member
+              Invite First Staff Member
             </Button>
           </CardContent>
         </Card>
@@ -252,9 +284,13 @@ export default function PartnerStaffPage() {
                         <Badge variant={staffMember.isActive ? "default" : "secondary"} data-testid={`badge-staff-status-${staffMember.id}`}>
                           {staffMember.isActive ? "Active" : "Inactive"}
                         </Badge>
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                        <Badge
+                          variant="outline"
+                          className={staffMember.role === 'DETAILING_PARTNER' ? "bg-purple-50 text-purple-700" : "bg-blue-50 text-blue-700"}
+                          data-testid={`badge-staff-role-${staffMember.id}`}
+                        >
                           <Shield className="h-3 w-3 mr-1" />
-                          Staff
+                          {staffMember.role === 'DETAILING_PARTNER' ? 'Detailing Partner' : 'Installer (Staff)'}
                         </Badge>
                       </div>
                     </div>
@@ -275,7 +311,22 @@ export default function PartnerStaffPage() {
                       <span data-testid={`text-staff-phone-${staffMember.id}`}>{staffMember.phone}</span>
                     </div>
                   )}
-                  
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs font-medium text-muted-foreground">Showrooms</p>
+                      <button
+                        type="button"
+                        onClick={() => setEditingShowroomsFor(staffMember)}
+                        className="text-xs text-primary hover:underline"
+                        data-testid={`button-edit-showroom-${staffMember.id}`}
+                      >
+                        Edit Showroom
+                      </button>
+                    </div>
+                    <StaffShowroomBadges partnerId={partnerId!} userId={staffMember.id} />
+                  </div>
+
                   <div className="flex space-x-2 pt-2">
                     <Button
                       variant="outline"
@@ -286,7 +337,7 @@ export default function PartnerStaffPage() {
                       <Edit className="h-3 w-3 mr-1" />
                       Edit
                     </Button>
-                    
+
                     <Button
                       variant="outline"
                       size="sm"
@@ -346,6 +397,15 @@ export default function PartnerStaffPage() {
             setShowEditModal(false);
             setEditingStaff(null);
           }}
+        />
+      )}
+
+      {editingShowroomsFor && partnerId && (
+        <EditShowroomModal
+          partnerId={partnerId}
+          staff={editingShowroomsFor}
+          onClose={() => setEditingShowroomsFor(null)}
+          onSuccess={() => setEditingShowroomsFor(null)}
         />
       )}
     </div>
