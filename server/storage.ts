@@ -8,6 +8,7 @@ import {
   partners,
   partnerOems,
   partnerShowroomMapping,
+  partnerStaffAssignments,
   detailingPartnerShowrooms,
   allocations,
   allocationBrands,
@@ -82,7 +83,7 @@ import {
   type SystemSetting
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql, count, avg, sum, lte, gte, or, isNull, isNotNull, asc, inArray, ne, like, notInArray } from "drizzle-orm";
+import { eq, and, desc, sql, count, avg, sum, lte, gte, or, isNull, isNotNull, asc, inArray, ne, like, notInArray, notExists } from "drizzle-orm";
 
 // Dashboard "connections" data (assigned dealerships/showrooms/partners + derived territory)
 export interface ConnectionEntity {
@@ -117,6 +118,7 @@ export interface IStorage {
   getUserByPhone(phone: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUsers(filters?: { oemId?: string; dealershipId?: string; showroomId?: string; role?: string }): Promise<User[]>;
+  getNonShowroomManagerUsers(): Promise<any[]>;
   getSalesPersons(showroomId?: string): Promise<User[]>;
   getSalesPersonMetrics(salesPersonId: string): Promise<{
     activeOrders: number;
@@ -247,7 +249,13 @@ export interface IStorage {
   getPartnerStaff(partnerId: string): Promise<User[]>;
   createPartnerStaff(partnerId: string, staffData: Omit<InsertUser, 'partnerId' | 'role'>): Promise<User>;
   updatePartnerStaff(staffId: string, updates: Partial<InsertUser>): Promise<User | undefined>;
-  deletePartnerStaff(staffId: string): Promise<boolean>;
+  unassignPartnerStaff(partnerId: string, staffId: string): Promise<boolean>;
+
+  // Partner ↔ Staff many-to-many assignments
+  getActiveStaffPartnerIds(userId: string): Promise<string[]>;
+  staffHasPartner(userId: string, partnerId: string): Promise<boolean>;
+  addStaffPartnerAssignments(userId: string, partnerIds: string[], assignedByUserId?: string): Promise<void>;
+  setStaffPartnerAssignments(userId: string, partnerIds: string[], assignedByUserId?: string): Promise<void>;
 
   // Partner Payout & Earnings Management
   getPartnerPayouts(partnerId: string): Promise<any[]>;
@@ -561,6 +569,33 @@ export class DatabaseStorage implements IStorage {
     }
     
     return await query;
+  }
+
+  async getNonShowroomManagerUsers(): Promise<any[]> {
+    return await db.select({
+      id: users.id,
+      username: users.username,
+      name: users.name,
+      email: users.email,
+      phone: users.phone,
+      role: users.role,
+      isActive: users.isActive,
+      partnerId: users.partnerId,
+      partnerName: partners.displayName,
+      oemId: users.oemId,
+      dealershipId: users.dealershipId,
+      showroomId: users.showroomId,
+      allowedStates: users.allowedStates,
+      profileCompleted: users.profileCompleted,
+      showServicePrices: users.showServicePrices,
+      pulseMetadata: users.pulseMetadata,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt
+    })
+    .from(users)
+    .leftJoin(partners, eq(users.partnerId, partners.id))
+    .where(ne(users.role, 'SHOWROOM_MANAGER'))
+    .orderBy(asc(users.name));
   }
 
   async getSalesPersons(showroomId?: string): Promise<User[]> {
@@ -1251,11 +1286,12 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount ?? 0) > 0;
   }
 
-  async getWorkOrders(filters?: { 
-    oemId?: string; 
+  async getWorkOrders(filters?: {
+    oemId?: string;
     dealershipId?: string;
-    showroomId?: string; 
-    partnerId?: string; 
+    showroomId?: string;
+    partnerId?: string;
+    partnerIds?: string[]; // multi-partner staff scoping
     status?: string;
     workOrderIds?: string[];  // Add bulk support
     limit?: number;
@@ -1263,12 +1299,13 @@ export class DatabaseStorage implements IStorage {
   }): Promise<any[]> {
     // Simple query first, then manually populate related data
     let query = db.select().from(workOrders);
-    
+
     const conditions = [];
     if (filters?.oemId) conditions.push(eq(workOrders.oemId, filters.oemId));
     if (filters?.dealershipId) conditions.push(eq(workOrders.dealershipId, filters.dealershipId));
     if (filters?.showroomId) conditions.push(eq(workOrders.showroomId, filters.showroomId));
     if (filters?.partnerId) conditions.push(eq(workOrders.assignedPartnerId, filters.partnerId));
+    if (filters?.partnerIds?.length) conditions.push(inArray(workOrders.assignedPartnerId, filters.partnerIds));
     if (filters?.status) conditions.push(eq(workOrders.status, filters.status as any));
     
     // Add bulk support for multiple work order IDs
@@ -1488,6 +1525,7 @@ export class DatabaseStorage implements IStorage {
 
   async getJobCards(filters?: {
     partnerId?: string;
+    partnerIds?: string[]; // multi-partner staff scoping (across all their working partners)
     workOrderId?: string;
     showroomId?: string;
     showroomIds?: string[];
@@ -1498,6 +1536,23 @@ export class DatabaseStorage implements IStorage {
     limit?: number;
     offset?: number;
   }): Promise<JobCard[]> {
+    // Multi-partner staff: job cards from ANY of their working partners,
+    // narrowed by assignedInstallerId (installer) or showroomIds (detailer).
+    if (filters?.partnerIds?.length) {
+      let query = filters.showroomIds?.length
+        ? db.select(jobCards).from(jobCards).innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
+        : db.select().from(jobCards);
+      const conditions: any[] = [inArray(jobCards.partnerId, filters.partnerIds)];
+      if (filters.showroomIds?.length) conditions.push(inArray(workOrders.showroomId, filters.showroomIds));
+      if (filters.assignedInstallerId) conditions.push(eq(jobCards.assignedInstallerId, filters.assignedInstallerId));
+      if (filters.status) conditions.push(eq(jobCards.status, filters.status as any));
+      if (filters.workOrderId) conditions.push(eq(jobCards.workOrderId, filters.workOrderId));
+      query = query.where(and(...conditions)).orderBy(desc(jobCards.createdAt));
+      if (filters.limit) query = query.limit(filters.limit);
+      if (filters.offset) query = query.offset(filters.offset);
+      return await query;
+    }
+
     // DETAILING_PARTNER: filter by multiple allocated showrooms
     if (filters?.partnerId && filters?.showroomIds?.length) {
       let query = db.select(jobCards).from(jobCards)
@@ -2082,29 +2137,150 @@ export class DatabaseStorage implements IStorage {
     return partnersList;
   }
 
-  // Partner Staff Management implementations
-  // Includes both staff types under a partner; inactive staff are returned too
-  // so the page's Activate/Deactivate controls work.
-  async getPartnerStaff(partnerId: string): Promise<User[]> {
+  // ── Partner ↔ Staff assignments (many-to-many) ────────────────────────────
+  // Staff (PARTNER_STAFF / DETAILING_PARTNER) can work for multiple partners.
+  // The junction table is the single source of truth; users.partnerId is only
+  // used for PARTNER_ADMIN users.
+
+  async getActiveStaffPartnerIds(userId: string): Promise<string[]> {
+    const rows = await db
+      .select({ partnerId: partnerStaffAssignments.partnerId })
+      .from(partnerStaffAssignments)
+      .where(and(
+        eq(partnerStaffAssignments.userId, userId),
+        eq(partnerStaffAssignments.status, 'active')
+      ));
+    return rows.map(r => r.partnerId);
+  }
+
+  async getStaffPartnerAssignments(userId: string): Promise<{
+    partnerId: string; displayName: string; type: string; status: string; createdAt: Date | null;
+  }[]> {
     return await db
+      .select({
+        partnerId: partnerStaffAssignments.partnerId,
+        displayName: partners.displayName,
+        type: partners.type,
+        status: partnerStaffAssignments.status,
+        createdAt: partnerStaffAssignments.createdAt,
+      })
+      .from(partnerStaffAssignments)
+      .innerJoin(partners, eq(partnerStaffAssignments.partnerId, partners.id))
+      .where(and(
+        eq(partnerStaffAssignments.userId, userId),
+        eq(partnerStaffAssignments.status, 'active')
+      ));
+  }
+
+  async staffHasPartner(userId: string, partnerId: string): Promise<boolean> {
+    const [row] = await db
+      .select({ id: partnerStaffAssignments.id })
+      .from(partnerStaffAssignments)
+      .where(and(
+        eq(partnerStaffAssignments.userId, userId),
+        eq(partnerStaffAssignments.partnerId, partnerId),
+        eq(partnerStaffAssignments.status, 'active')
+      ));
+    return !!row;
+  }
+
+  // Add partners to a staff member's working set (reactivates inactive rows)
+  async addStaffPartnerAssignments(userId: string, partnerIds: string[], assignedByUserId?: string): Promise<void> {
+    for (const partnerId of partnerIds) {
+      await db
+        .insert(partnerStaffAssignments)
+        .values({ userId, partnerId, status: 'active', assignedByUserId })
+        .onConflictDoUpdate({
+          target: [partnerStaffAssignments.partnerId, partnerStaffAssignments.userId],
+          set: { status: 'active', assignedByUserId, updatedAt: new Date() }
+        });
+    }
+  }
+
+  // Replace a staff member's working-partner set (empty array = fully unassigned
+  // → they reappear in the Pending Partners queue)
+  async setStaffPartnerAssignments(userId: string, partnerIds: string[], assignedByUserId?: string): Promise<void> {
+    if (partnerIds.length === 0) {
+      await db
+        .update(partnerStaffAssignments)
+        .set({ status: 'inactive', updatedAt: new Date() })
+        .where(eq(partnerStaffAssignments.userId, userId));
+      return;
+    }
+    await db
+      .update(partnerStaffAssignments)
+      .set({ status: 'inactive', updatedAt: new Date() })
+      .where(and(
+        eq(partnerStaffAssignments.userId, userId),
+        notInArray(partnerStaffAssignments.partnerId, partnerIds)
+      ));
+    await this.addStaffPartnerAssignments(userId, partnerIds, assignedByUserId);
+  }
+
+  // All staff users with their aggregated partner sets (for the All Staff tab)
+  async getAllStaffWithPartners(): Promise<(User & { partners: { partnerId: string; displayName: string }[] })[]> {
+    const staffUsers = await db
       .select()
       .from(users)
+      .where(inArray(users.role, ['PARTNER_STAFF', 'DETAILING_PARTNER']))
+      .orderBy(desc(users.createdAt));
+    if (staffUsers.length === 0) return [];
+
+    const assignments = await db
+      .select({
+        userId: partnerStaffAssignments.userId,
+        partnerId: partnerStaffAssignments.partnerId,
+        displayName: partners.displayName,
+      })
+      .from(partnerStaffAssignments)
+      .innerJoin(partners, eq(partnerStaffAssignments.partnerId, partners.id))
       .where(and(
-        eq(users.partnerId, partnerId),
+        inArray(partnerStaffAssignments.userId, staffUsers.map(u => u.id)),
+        eq(partnerStaffAssignments.status, 'active')
+      ));
+
+    const byUser = new Map<string, { partnerId: string; displayName: string }[]>();
+    for (const a of assignments) {
+      const list = byUser.get(a.userId) ?? [];
+      list.push({ partnerId: a.partnerId, displayName: a.displayName });
+      byUser.set(a.userId, list);
+    }
+    return staffUsers.map(u => ({ ...u, partners: byUser.get(u.id) ?? [] }));
+  }
+
+  // Partner Staff Management implementations
+  // Staff of a partner = active junction rows; inactive users are returned too
+  // so the page's Activate/Deactivate controls work.
+  async getPartnerStaff(partnerId: string): Promise<User[]> {
+    const rows = await db
+      .select({ user: users })
+      .from(partnerStaffAssignments)
+      .innerJoin(users, eq(partnerStaffAssignments.userId, users.id))
+      .where(and(
+        eq(partnerStaffAssignments.partnerId, partnerId),
+        eq(partnerStaffAssignments.status, 'active'),
         inArray(users.role, ['PARTNER_STAFF', 'DETAILING_PARTNER'])
       ))
       .orderBy(desc(users.createdAt));
+    return rows.map(r => r.user);
   }
 
-  // Staff users created via the Pulse webhook without a resolvable partner tag;
-  // they wait in the admin "pending assignment" list until assigned manually.
+  // Staff users with NO active working-partner assignment; they wait in the
+  // admin "Pending Partners" queue until assigned.
   async getUnassignedPulseUsers(): Promise<User[]> {
     return await db
       .select()
       .from(users)
       .where(and(
-        isNull(users.partnerId),
-        inArray(users.role, ['PARTNER_STAFF', 'DETAILING_PARTNER'])
+        inArray(users.role, ['PARTNER_STAFF', 'DETAILING_PARTNER']),
+        notExists(
+          db.select({ one: sql`1` })
+            .from(partnerStaffAssignments)
+            .where(and(
+              eq(partnerStaffAssignments.userId, users.id),
+              eq(partnerStaffAssignments.status, 'active')
+            ))
+        )
       ))
       .orderBy(desc(users.createdAt));
   }
@@ -2114,12 +2290,12 @@ export class DatabaseStorage implements IStorage {
       .insert(users)
       .values({
         ...staffData,
-        partnerId,
+        partnerId: null,
         role: 'PARTNER_STAFF',
         isActive: true
       })
       .returning();
-    
+    await this.addStaffPartnerAssignments(newStaff.id, [partnerId]);
     return newStaff;
   }
 
@@ -2129,19 +2305,24 @@ export class DatabaseStorage implements IStorage {
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(users.id, staffId))
       .returning();
-    
+
     return updatedStaff || undefined;
   }
 
-  async deletePartnerStaff(staffId: string): Promise<boolean> {
-    // Soft delete by setting isActive to false
-    const [deletedStaff] = await db
-      .update(users)
-      .set({ isActive: false, updatedAt: new Date() })
-      .where(eq(users.id, staffId))
+  // "Unassign" removes only THIS partner's link. When the staff member's last
+  // active assignment is removed they reappear in the Pending Partners queue.
+  async unassignPartnerStaff(partnerId: string, staffId: string): Promise<boolean> {
+    const [row] = await db
+      .update(partnerStaffAssignments)
+      .set({ status: 'inactive', updatedAt: new Date() })
+      .where(and(
+        eq(partnerStaffAssignments.partnerId, partnerId),
+        eq(partnerStaffAssignments.userId, staffId),
+        eq(partnerStaffAssignments.status, 'active')
+      ))
       .returning();
-    
-    return !!deletedStaff;
+
+    return !!row;
   }
 
   // Detailing Partner Management
@@ -2203,18 +2384,14 @@ export class DatabaseStorage implements IStorage {
       ));
   }
 
-  // Returns showroomId → staffId for all active allocations under this partner,
-  // across BOTH staff types (a showroom may only be assigned to one staff member).
+  // Returns showroomId → staffId for ALL active allocations across every
+  // partner — showroom exclusivity is GLOBAL: one showroom can be actively
+  // assigned to at most one staff member, regardless of which partner assigned it.
   // Pass excludeUserId when editing so the current staff member's own allocations are not counted as "taken".
-  async getPartnerStaffShowroomAllocations(
-    partnerId: string,
+  async getGlobalStaffShowroomAllocations(
     excludeUserId?: string
   ): Promise<{ showroomId: string; staffId: string }[]> {
-    const conditions = [
-      eq(users.partnerId, partnerId),
-      inArray(users.role, ['PARTNER_STAFF', 'DETAILING_PARTNER']),
-      eq(detailingPartnerShowrooms.status, 'active'),
-    ];
+    const conditions = [eq(detailingPartnerShowrooms.status, 'active')];
     if (excludeUserId) {
       conditions.push(ne(detailingPartnerShowrooms.detailingPartnerId, excludeUserId));
     }
@@ -2224,7 +2401,6 @@ export class DatabaseStorage implements IStorage {
         staffId: detailingPartnerShowrooms.detailingPartnerId,
       })
       .from(detailingPartnerShowrooms)
-      .innerJoin(users, eq(detailingPartnerShowrooms.detailingPartnerId, users.id))
       .where(and(...conditions));
   }
 

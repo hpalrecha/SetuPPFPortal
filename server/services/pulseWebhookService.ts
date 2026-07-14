@@ -24,7 +24,10 @@ interface PulseWebhookPayload {
     // Staff-level fields (absent for legacy partner-level payloads):
     userLevel?: 'PARTNER' | 'STAFF'; // STAFF = user under an existing partner
     setuRole?: 'PARTNER_STAFF' | 'DETAILING_PARTNER'; // Setu role for STAFF users
-    setuPartnerId?: string | null; // Our partner UUID (from the invite tag), if known
+    setuPartnerId?: string | null; // AUDIT-ONLY tag from the invite — never auto-assigns
+    invitedByUserId?: string | null; // Which Setu user sent the invite (audit)
+    invitedByName?: string | null;
+    invitedByRole?: string | null;
     territory?: { // For future territory-based auto-assignment
       state?: string;
       city?: string;
@@ -428,22 +431,17 @@ export class PulseWebhookService {
     const userName = payload.user.name || payload.user.contactPersonName ||
       payload.user.email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
-    // Resolve the partner from the invite tag (if any)
-    let resolvedPartnerId: string | null = null;
-    if (payload.user.setuPartnerId) {
-      const partner = await storage.getPartner(payload.user.setuPartnerId);
-      if (partner && partner.active) {
-        resolvedPartnerId = partner.id;
-      } else {
-        console.warn(`⚠️ Tagged Setu partner not found or inactive: ${payload.user.setuPartnerId} - creating staff as unassigned`);
-      }
-    }
-
+    // The invite tag is AUDIT-ONLY — it NEVER auto-assigns a working partner.
+    // Every activation lands unassigned; a Setu admin assigns working
+    // partner(s) from the Pending Partners screen (many-to-many).
     const pulseMetadata = {
       state: payload.user.territory?.state,
       city: payload.user.territory?.city,
       postalCode: payload.user.territory?.postalCode,
       requestedSetuPartnerId: payload.user.setuPartnerId || undefined,
+      invitedByUserId: payload.user.invitedByUserId || undefined,
+      invitedByName: payload.user.invitedByName || undefined,
+      invitedByRole: payload.user.invitedByRole || undefined,
       source: 'pulse_webhook'
     };
 
@@ -452,62 +450,43 @@ export class PulseWebhookService {
     if (existingUser) {
       // Never silently repurpose a non-partner account (admins, dealership users, ...)
       const partnerScopedRoles = ['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER'];
-      if (existingUser.partnerId && !partnerScopedRoles.includes(existingUser.role)) {
-        return {
-          success: false,
-          message: `Email belongs to an existing non-partner user (role ${existingUser.role})`
-        };
-      }
-      if (!existingUser.partnerId && !partnerScopedRoles.includes(existingUser.role)) {
+      if (!partnerScopedRoles.includes(existingUser.role)) {
         return {
           success: false,
           message: `Email belongs to an existing user with role ${existingUser.role}`
         };
       }
 
-      // Idempotent update: reactivate and refresh details. Never null-out or
-      // silently switch an existing partner assignment.
-      const updates: any = {
+      // Idempotent update: reactivate and refresh details. Never touch
+      // working-partner assignments here — that's admin-only, in the junction table.
+      await storage.updateUser(existingUser.id, {
         isActive: true,
         role: staffRole,
         phone: phoneNumber || existingUser.phone,
         pulseMetadata
-      };
-      if (!existingUser.partnerId && resolvedPartnerId) {
-        updates.partnerId = resolvedPartnerId;
-      } else if (existingUser.partnerId && resolvedPartnerId && existingUser.partnerId !== resolvedPartnerId) {
-        console.warn(`⚠️ Staff ${payload.user.email} already assigned to partner ${existingUser.partnerId}; keeping existing assignment (Pulse tagged ${resolvedPartnerId})`);
-      }
-
-      await storage.updateUser(existingUser.id, updates);
+      });
 
       await storage.createAuditLog({
         actorUserId: actorId,
         entity: 'user',
         entityId: existingUser.id,
         action: 'ACTIVATED_BY_PULSE',
-        diffJson: {
-          email: payload.user.email,
-          role: staffRole,
-          userLevel: 'STAFF',
-          partnerId: existingUser.partnerId || resolvedPartnerId,
-          source: 'pulse_webhook'
-        }
+        diffJson: { email: payload.user.email, role: staffRole, userLevel: 'STAFF', source: 'pulse_webhook' }
       });
 
-      const finalPartnerId = existingUser.partnerId || resolvedPartnerId;
-      console.log(`✅ Staff user activated: ${payload.user.email} (${staffRole})${finalPartnerId ? ` under partner ${finalPartnerId}` : ' - pending assignment'}`);
+      const partnerIds = await storage.getActiveStaffPartnerIds(existingUser.id);
+      console.log(`✅ Staff user activated: ${payload.user.email} (${staffRole})${partnerIds.length ? ` — ${partnerIds.length} working partner(s)` : ' - pending assignment'}`);
 
       return {
         success: true,
-        message: finalPartnerId ? 'Staff user activated' : 'Staff user activated - pending partner assignment',
+        message: partnerIds.length ? 'Staff user activated' : 'Staff user activated - pending partner assignment',
         userId: existingUser.id,
-        partnerId: finalPartnerId || undefined,
-        pendingAssignment: !finalPartnerId
+        pendingAssignment: partnerIds.length === 0
       };
     }
 
-    // Create new staff user
+    // Create new staff user — always unassigned (partnerId null); the
+    // requested partner is preserved as an audit hint in pulseMetadata only.
     const tempPassword = this.generateTempPassword();
     const passwordHash = await bcrypt.hash(tempPassword, 10);
     const username = payload.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -518,7 +497,7 @@ export class PulseWebhookService {
       name: userName,
       phone: phoneNumber,
       role: staffRole,
-      partnerId: resolvedPartnerId,
+      partnerId: null,
       pulseMetadata,
       passwordHash,
       isActive: true
@@ -538,20 +517,20 @@ export class PulseWebhookService {
         email: payload.user.email,
         role: staffRole,
         userLevel: 'STAFF',
-        partnerId: resolvedPartnerId,
+        requestedSetuPartnerId: payload.user.setuPartnerId,
+        invitedByName: payload.user.invitedByName,
         territory: payload.user.territory,
         source: 'pulse_webhook'
       }
     });
 
-    console.log(`✅ Staff user created: ${payload.user.email} (${staffRole})${resolvedPartnerId ? ` under partner ${resolvedPartnerId}` : ' - pending assignment'}`);
+    console.log(`✅ Staff user created: ${payload.user.email} (${staffRole}) - pending partner assignment`);
 
     return {
       success: true,
-      message: resolvedPartnerId ? 'Staff user created' : 'Staff user created - pending partner assignment',
+      message: 'Staff user created - pending partner assignment',
       userId: newUser.id,
-      partnerId: resolvedPartnerId || undefined,
-      pendingAssignment: !resolvedPartnerId
+      pendingAssignment: true
     };
   }
 

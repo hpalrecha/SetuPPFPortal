@@ -10,6 +10,17 @@ declare global {
   }
 }
 
+// Staff roles whose working-partner set lives in partnerStaffAssignments
+// (many-to-many). PARTNER_ADMIN keeps the single users.partnerId scalar.
+const STAFF_ROLES = ['PARTNER_STAFF', 'DETAILING_PARTNER'];
+
+// Effective working-partner ids for scoping: admins → their single partner,
+// staff → the fresh per-request set attached by `authenticate`.
+export const userPartnerIds = (user: AuthUser): string[] =>
+  STAFF_ROLES.includes(user.role)
+    ? (user.partnerIds ?? [])
+    : (user.partnerId ? [user.partnerId] : []);
+
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
@@ -19,9 +30,15 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
     const token = authHeader.substring(7);
     const user = await authService.verifyToken(token);
-    
+
     if (!user) {
       return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    // Staff partner sets are NOT trusted from the (7-day) token — attach fresh
+    // so Pending Partners edits take effect without re-login.
+    if (STAFF_ROLES.includes(user.role)) {
+      user.partnerIds = await storage.getActiveStaffPartnerIds(user.id);
     }
 
     req.user = user;
@@ -63,19 +80,19 @@ export const requireOEMAccess = async (req: Request, res: Response, next: NextFu
     return next();
   }
 
-  // For partner users, partnerId scopes their data — no OEM header required.
-  // If x-oem-id is provided, validate they have access to it; otherwise let through.
-  if (req.user.role === 'PARTNER_ADMIN' || req.user.role === 'PARTNER_STAFF') {
-    if (!req.user.partnerId) {
-      return res.status(400).json({ error: 'Partner user must have partnerId' });
-    }
+  // For partner users, partner scope drives their data — no OEM header required.
+  // If x-oem-id is provided, validate they have access to it via ANY of their
+  // working partners; otherwise let through. Staff with zero partners pass with
+  // empty scope (their data queries return nothing).
+  if (req.user.role === 'PARTNER_ADMIN' || req.user.role === 'PARTNER_STAFF' || req.user.role === 'DETAILING_PARTNER') {
+    const pids = userPartnerIds(req.user);
 
     const oemId = req.headers['x-oem-id'] as string | undefined;
 
-    if (oemId) {
+    if (oemId && pids.length > 0) {
       try {
-        const hasOemAccess = await storage.checkPartnerOemAccess(req.user.partnerId, oemId);
-        if (!hasOemAccess) {
+        const accessChecks = await Promise.all(pids.map(pid => storage.checkPartnerOemAccess(pid, oemId)));
+        if (!accessChecks.some(Boolean)) {
           return res.status(403).json({ error: 'Access denied to this OEM' });
         }
       } catch (error) {

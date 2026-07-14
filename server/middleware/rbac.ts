@@ -102,6 +102,16 @@ export const resourceOwnershipMiddleware = (resourceType: 'work_order' | 'job_ca
   };
 };
 
+// Staff (PARTNER_STAFF/DETAILING_PARTNER) can work for multiple partners;
+// PARTNER_ADMIN keeps the single scalar. Falls back to user.partnerId when
+// partnerIds isn't attached (e.g. not routed through the main authenticate middleware).
+function effectivePartnerIds(user: any): string[] {
+  if (user.role === 'PARTNER_STAFF' || user.role === 'DETAILING_PARTNER') {
+    return user.partnerIds ?? (user.partnerId ? [user.partnerId] : []);
+  }
+  return user.partnerId ? [user.partnerId] : [];
+}
+
 function canUserAccessWorkOrder(user: any, workOrder: any): boolean {
   switch (user.role) {
     case 'SUPER_ADMIN':
@@ -115,10 +125,9 @@ function canUserAccessWorkOrder(user: any, workOrder: any): boolean {
       return user.showroomId === workOrder.showroomId;
     case 'PARTNER_ADMIN':
     case 'PARTNER_STAFF':
-      return user.partnerId === workOrder.assignedPartnerId;
     case 'DETAILING_PARTNER':
-      // Showroom-level check is done at the route layer via getDetailingPartnerShowroomIds
-      return user.partnerId === workOrder.assignedPartnerId;
+      // Showroom-level check (detailers) is done at the route layer
+      return effectivePartnerIds(user).includes(workOrder.assignedPartnerId);
     default:
       return false;
   }
@@ -130,10 +139,9 @@ function canUserAccessJobCard(user: any, jobCard: any): boolean {
       return true;
     case 'PARTNER_ADMIN':
     case 'PARTNER_STAFF':
-      return user.partnerId === jobCard.partnerId;
     case 'DETAILING_PARTNER':
-      // Showroom-level check is done at the route layer
-      return user.partnerId === jobCard.partnerId;
+      // Showroom-level check (detailers) is done at the route layer
+      return effectivePartnerIds(user).includes(jobCard.partnerId);
     default:
       return true; // Will be validated at work order level
   }
@@ -149,7 +157,7 @@ function canUserAccessPartner(user: any, partner: any): boolean {
     case 'PARTNER_ADMIN':
     case 'PARTNER_STAFF':
     case 'DETAILING_PARTNER':
-      return user.partnerId === partner.id;
+      return effectivePartnerIds(user).includes(partner.id);
     default:
       return false;
   }

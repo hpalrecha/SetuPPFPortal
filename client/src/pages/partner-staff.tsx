@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, User, Phone, Mail, Shield, Edit, Trash2, UserCheck, UserX, MapPin } from "lucide-react";
+import { Plus, User, Phone, Mail, Shield, Edit, UserMinus, UserCheck, UserX, MapPin } from "lucide-react";
 import type { User as StaffUser } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { AddStaffModal } from "../components/modals/AddStaffModal";
@@ -136,8 +136,8 @@ export default function PartnerStaffPage() {
     }
   };
 
-  const handleDeleteStaff = async (staffId: string, name: string) => {
-    if (!confirm(`Are you sure you want to permanently delete "${name}"? This action cannot be undone.`)) {
+  const handleUnassignStaff = async (staffId: string, name: string) => {
+    if (!confirm(`Remove "${name}" from your partner account? They'll be unassigned and available for another admin to reassign to a different partner.`)) {
       return;
     }
 
@@ -151,21 +151,21 @@ export default function PartnerStaffPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete staff member');
+        throw new Error('Failed to unassign staff member');
       }
 
       toast({
         title: "Success",
-        description: `Staff member "${name}" deleted successfully`,
+        description: `"${name}" has been unassigned from your partner account`,
       });
 
       // Refresh the data
       queryClient.invalidateQueries({ queryKey: ["/api/partners", partnerId, "staff"] });
     } catch (error) {
-      console.error('Error deleting staff member:', error);
+      console.error('Error unassigning staff member:', error);
       toast({
         title: "Error",
-        description: "Failed to delete staff member",
+        description: "Failed to unassign staff member",
         variant: "destructive",
       });
     }
@@ -364,12 +364,12 @@ export default function PartnerStaffPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleDeleteStaff(staffMember.id, staffMember.name)}
+                      onClick={() => handleUnassignStaff(staffMember.id, staffMember.name)}
                       className="text-red-600 hover:text-red-700 hover:border-red-300"
-                      data-testid={`button-delete-staff-${staffMember.id}`}
+                      data-testid={`button-unassign-staff-${staffMember.id}`}
                     >
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      Delete
+                      <UserMinus className="h-3 w-3 mr-1" />
+                      Unassign
                     </Button>
                   </div>
                 </div>

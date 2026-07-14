@@ -208,14 +208,18 @@ export const users = pgTable("users", {
   resetToken: text("reset_token"),
   resetTokenExpiry: timestamp("reset_token_expiry"),
   showServicePrices: boolean("show_service_prices").default(true),
-  // Data carried over from the Pulse platform for webhook-created staff users:
-  // { state, city, postalCode, pulseUserId, requestedSetuPartnerId, source }
+  // Data carried over from the Pulse platform for webhook-created staff users.
+  // requestedSetuPartnerId / invitedBy* are AUDIT-ONLY (who invited this person)
+  // — working-partner assignment lives in partnerStaffAssignments.
   pulseMetadata: jsonb("pulse_metadata").$type<{
     state?: string;
     city?: string;
     postalCode?: string;
     pulseUserId?: string;
     requestedSetuPartnerId?: string;
+    invitedByUserId?: string;
+    invitedByName?: string;
+    invitedByRole?: string;
     source?: string;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
@@ -283,6 +287,24 @@ export const partnerMembers = pgTable("partner_members", {
   role: text("role").notNull(), // ADMIN, STAFF
   createdAt: timestamp("created_at").defaultNow()
 });
+
+// Working-partner assignments for staff users (PARTNER_STAFF / DETAILING_PARTNER).
+// A staff member can work for MULTIPLE partners at once; PARTNER_ADMIN users
+// keep the single users.partnerId scalar. Assignment is managed by admins from
+// the Pending Partners screen — invites never auto-assign (audit-only).
+export const partnerStaffAssignments = pgTable("partner_staff_assignments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerId: uuid("partner_id").references(() => partners.id, { onDelete: 'cascade' }).notNull(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  status: text("status").default("active").notNull(), // active / inactive
+  assignedByUserId: uuid("assigned_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+}, (table) => ({
+  uniquePartnerStaff: unique("unique_partner_staff_assignment").on(table.partnerId, table.userId),
+  psaUserIdx: index("partner_staff_assignments_user_idx").on(table.userId),
+  psaPartnerIdx: index("partner_staff_assignments_partner_idx").on(table.partnerId)
+}));
 
 // Partner-OEM mapping for multi-tenant access control
 export const partnerOems = pgTable("partner_oems", {
@@ -809,6 +831,11 @@ export const insertUserSchema = createInsertSchema(users).omit({ id: true, creat
 export const selectUserSchema = createSelectSchema(users);
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = z.infer<typeof selectUserSchema>;
+
+export const insertPartnerStaffAssignmentSchema = createInsertSchema(partnerStaffAssignments).omit({ id: true, createdAt: true, updatedAt: true });
+export const selectPartnerStaffAssignmentSchema = createSelectSchema(partnerStaffAssignments);
+export type InsertPartnerStaffAssignment = z.infer<typeof insertPartnerStaffAssignmentSchema>;
+export type PartnerStaffAssignment = z.infer<typeof selectPartnerStaffAssignmentSchema>;
 
 export const insertOtpVerificationSchema = createInsertSchema(otpVerifications).omit({ id: true, createdAt: true });
 export const selectOtpVerificationSchema = createSelectSchema(otpVerifications);

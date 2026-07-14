@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["client/src/**/*", "shared/**/*", "server/**/*"],
+  "exclude": ["node_modules", "build", "dist", "**/*.test.ts", "client/src/hooks/use-tenant.ts"],
+  "compilerOptions": { "incremental": false }
+}

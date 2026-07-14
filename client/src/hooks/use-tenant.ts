@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, createElement } from 'react';
 import { useAuth } from './use-auth';
 
 interface TenantContextType {
@@ -50,11 +50,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     clearTenant
   };
 
-  return (
-    <TenantContext.Provider value={value}>
-      {children}
-    </TenantContext.Provider>
-  );
+  return createElement(TenantContext.Provider, { value }, children);
 }
 
 export function useTenant(): TenantContextType {

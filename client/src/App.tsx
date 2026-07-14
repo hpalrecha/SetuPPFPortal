@@ -30,6 +30,7 @@ import RawMaterialsPage from "./pages/RawMaterials";
 import PayoutSettlementPage from "./pages/payout-settlement";
 import PartnerStaffPage from "./pages/partner-staff";
 import PulsePendingUsersPage from "./pages/pulse-pending-users";
+import InviteInstallerPage from "./pages/invite-installer";
 import PayoutsPage from "./pages/payouts";
 import KnowledgeHub from "./pages/KnowledgeHub";
 import MainLayout from "./components/layout/main-layout";
@@ -149,6 +150,10 @@ function Router() {
       <Route
         path="/pulse-pending-users"
         component={() => <ProtectedRoute component={PulsePendingUsersPage} />}
+      />
+      <Route
+        path="/invite-installer"
+        component={() => <ProtectedRoute component={InviteInstallerPage} />}
       />
       <Route
         path="/payouts"

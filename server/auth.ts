@@ -37,6 +37,10 @@ export interface AuthUser {
   dealershipId?: string;
   showroomId?: string;
   partnerId?: string;
+  // Working-partner set for staff roles (PARTNER_STAFF / DETAILING_PARTNER).
+  // NEVER signed into the JWT — attached fresh per request by `authenticate`
+  // from partnerStaffAssignments so admin edits apply without re-login.
+  partnerIds?: string[];
   allowedStates?: string[];
   name: string;
   emailVerified: boolean;
@@ -161,19 +165,30 @@ export class AuthService {
 
     // Check OEM access for tenant isolation
     let allowedOemIds: string[] | undefined;
-    
-    if (user.role === 'PARTNER_ADMIN' || user.role === 'PARTNER_STAFF' || user.role === 'DETAILING_PARTNER') {
-      // For partner users, get allowed OEMs from partner_oems mapping
+
+    if (user.role === 'PARTNER_STAFF' || user.role === 'DETAILING_PARTNER') {
+      // Staff can work for MULTIPLE partners: union OEMs across all active
+      // assignments. Zero partners is allowed (empty scope, not locked out
+      // mid-reassignment — they just see empty dashboards until assigned).
+      const staffPartnerIds = await storage.getActiveStaffPartnerIds(user.id);
+      const oemSets = await Promise.all(staffPartnerIds.map(pid => storage.getPartnerOems(pid)));
+      allowedOemIds = Array.from(new Set(oemSets.flat()));
+
+      if (credentials.oemId && !allowedOemIds.includes(credentials.oemId)) {
+        return null;
+      }
+    } else if (user.role === 'PARTNER_ADMIN') {
+      // Partner admins stay single-partner via users.partnerId
       if (user.partnerId) {
         const partnerOems = await storage.getPartnerOems(user.partnerId);
         allowedOemIds = partnerOems;
-        
+
         // If oemId is provided, check if partner has access to it
         if (credentials.oemId && !allowedOemIds?.includes(credentials.oemId)) {
           return null;
         }
       } else {
-        return null; // Partner users must have partnerId
+        return null; // Partner admins must have partnerId
       }
     } else {
       // For non-partner users, use existing OEM check

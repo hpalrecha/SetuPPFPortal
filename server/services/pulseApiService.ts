@@ -8,10 +8,13 @@ import crypto from 'crypto';
  */
 
 export interface StaffInviteRequest {
-  setuPartnerId: string;
-  setuPartnerName: string;
+  setuPartnerId?: string;
+  setuPartnerName?: string;
   userRole: 'PARTNER_STAFF' | 'DETAILING_PARTNER';
   email?: string;
+  inviterUserId?: string;
+  inviterName?: string;
+  inviterRole?: string;
 }
 
 export interface StaffInviteResponse {
@@ -59,6 +62,9 @@ export class PulseApiService {
 
     const payload = {
       ...request,
+      setuInviterUserId: request.inviterUserId,
+      setuInviterName: request.inviterName,
+      setuInviterRole: request.inviterRole,
       timestamp: new Date().toISOString(),
     };
     const body = JSON.stringify(payload);

@@ -25,7 +25,7 @@ import { emailService } from "./services/email-service";
 import { whatsappService } from "./services/whatsapp-service";
 import smsService from "./services/sms-service";
 import { notificationService } from "./services/notificationService";
-import { authenticate, requireRole, requireOEMAccess, auditLog, blockAdminDelete, hasStateAccess } from "./middleware";
+import { authenticate, requireRole, requireOEMAccess, auditLog, blockAdminDelete, hasStateAccess, userPartnerIds } from "./middleware";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { generateOTP, hashOTP, verifyOTP, getOTPExpiry } from "./utils/otp";
 import multer from "multer";
@@ -3113,9 +3113,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.user!.showroomId) {
         filters.showroomId = req.user!.showroomId;
       }
-      // Partner users are scoped to their own partner — ignore any query-param override
-      if (['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER'].includes(req.user!.role) && req.user!.partnerId) {
-        filters.partnerId = req.user!.partnerId;
+      // Partner users are scoped to their own working partner(s) — ignore any query-param override
+      if (['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER'].includes(req.user!.role)) {
+        const pids = userPartnerIds(req.user!);
+        if (pids.length === 0) {
+          return res.json([]); // staff with no assigned partners see nothing
+        }
+        filters.partnerIds = pids;
       } else if (partnerId) {
         filters.partnerId = partnerId as string;
       }
@@ -3463,14 +3467,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Job card not found" });
         }
         
-        // Multi-tenant security: Ensure user can only assign job cards from their partner
-        if (req.user!.partnerId !== jobCard.partnerId) {
+        // Multi-tenant security: caller must have this job card's partner in their working set
+        if (!userPartnerIds(req.user!).includes(jobCard.partnerId)) {
           return res.status(403).json({ error: "Access denied" });
         }
-        
-        // Verify assigned installer belongs to the same partner and is active
+
+        // Verify assignee is active staff (installer or detailing partner —
+        // operationally equal) working for this same partner
         const assignedInstaller = await storage.getUser(assignedInstallerId);
-        if (!assignedInstaller || assignedInstaller.partnerId !== req.user!.partnerId || !assignedInstaller.isActive || assignedInstaller.role !== 'PARTNER_STAFF') {
+        if (!assignedInstaller || !assignedInstaller.isActive ||
+            !['PARTNER_STAFF', 'DETAILING_PARTNER'].includes(assignedInstaller.role) ||
+            !(await storage.staffHasPartner(assignedInstallerId, jobCard.partnerId))) {
           return res.status(400).json({ error: "Invalid installer assignment" });
         }
         
@@ -3539,45 +3546,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Apply role-based filtering with proper OEM tenant isolation
       const selectedOemId = req.headers['x-oem-id'] as string;
       
-      if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
-        // Partner users can only see their own job cards
+      if (req.user!.role === 'PARTNER_ADMIN') {
+        // Single-partner admin — unchanged
         if (!req.user!.partnerId) {
           return res.status(400).json({ error: "Partner user must have partnerId" });
         }
         filters.partnerId = req.user!.partnerId;
+        console.log(`🔍 Partner Admin ${req.user!.partnerId} requesting all partner job cards with OEM filter: ${selectedOemId || 'NONE'}`);
 
-        // PARTNER_STAFF can only see job cards assigned to them personally
-        if (req.user!.role === 'PARTNER_STAFF') {
-          filters.assignedInstallerId = req.user!.id;
-          console.log(`🔍 Partner Staff ${req.user!.id} requesting only their assigned job cards`);
-        } else {
-          console.log(`🔍 Partner Admin ${req.user!.partnerId} requesting all partner job cards with OEM filter: ${selectedOemId || 'NONE'}`);
-        }
-
-        console.log(`🔍 Current filters:`, filters);
-
-        // Validate OEM access for partners using partner-OEM mappings
         if (selectedOemId) {
           const hasOemAccess = await storage.checkPartnerOemAccess(req.user!.partnerId, selectedOemId);
           if (!hasOemAccess) {
             return res.status(403).json({ error: "Access denied to this OEM" });
           }
           filters.oemId = selectedOemId;
+        }
+      } else if (req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
+        // Staff can work for MULTIPLE partners — scope across all active assignments.
+        const pids = userPartnerIds(req.user!);
+        if (pids.length === 0) {
+          return res.json([]); // no working partners yet — pending assignment
+        }
+        filters.partnerIds = pids;
+
+        if (req.user!.role === 'PARTNER_STAFF') {
+          // Installers only see job cards assigned to them personally
+          filters.assignedInstallerId = req.user!.id;
         } else {
-          console.log(`✅ No OEM filter - showing ${req.user!.role === 'PARTNER_STAFF' ? 'assigned' : 'ALL'} job cards for partner ${req.user!.partnerId}`);
+          // Detailing partners are scoped to their allocated showrooms
+          const allocatedShowroomIds = await storage.getDetailingPartnerShowroomIds(req.user!.id);
+          if (allocatedShowroomIds.length === 0) {
+            return res.json([]);
+          }
+          filters.showroomIds = allocatedShowroomIds; // handled in getJobCards
         }
-      } else if (req.user!.role === 'DETAILING_PARTNER') {
-        // Detailing partner sees job cards only for their allocated showrooms
-        if (!req.user!.partnerId) {
-          return res.status(400).json({ error: "Detailing partner user must have partnerId" });
+
+        if (selectedOemId) {
+          const oemChecks = await Promise.all(pids.map(pid => storage.checkPartnerOemAccess(pid, selectedOemId)));
+          if (!oemChecks.some(Boolean)) {
+            return res.status(403).json({ error: "Access denied to this OEM" });
+          }
+          filters.oemId = selectedOemId;
         }
-        filters.partnerId = req.user!.partnerId;
-        const allocatedShowroomIds = await storage.getDetailingPartnerShowroomIds(req.user!.id);
-        if (allocatedShowroomIds.length === 0) {
-          return res.json([]);
-        }
-        filters.showroomIds = allocatedShowroomIds; // handled in getJobCards
-        console.log(`🔍 Detailing Partner ${req.user!.id} scoped to showrooms: ${allocatedShowroomIds.join(', ')}`);
       } else if (req.user!.role === 'SHOWROOM_MANAGER' || req.user!.role === 'SALES_PERSON') {
         // Showroom managers and sales persons see job cards for their showroom
         if (!req.user!.showroomId) {
@@ -5450,6 +5460,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Staff-initiated "Invite Installer"
+  app.post("/api/staff/invite",
+    authenticate,
+    requireRole(['PARTNER_STAFF', 'DETAILING_PARTNER']),
+    auditLog('partner_staff', 'invite'),
+    async (req, res) => {
+      try {
+        const inviteSchema = z.object({
+          email: z.string().email().optional().or(z.literal('')),
+        });
+        const { email } = inviteSchema.parse(req.body);
+
+        const { pulseApiService } = await import('./services/pulseApiService');
+        const result = await pulseApiService.requestStaffInvite({
+          userRole: 'PARTNER_STAFF', // locked
+          email: email || undefined,
+          setuPartnerName: 'P91 Pulse', // no partner tag
+          inviterUserId: req.user!.id,
+          inviterName: req.user!.name,
+          inviterRole: req.user!.role,
+        });
+
+        if (!result.success) {
+          return res.status(502).json({ error: result.error || "Failed to create invite link on Pulse" });
+        }
+
+        res.json({
+          registrationLink: result.registrationLink,
+          expiresAt: result.expiresAt,
+          emailSent: result.emailSent || false,
+        });
+      } catch (error) {
+        console.error("Create staff invite error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid invite data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to create staff invite" });
+      }
+    }
+  );
+
   // Request a partner-tagged staff invite link from Pulse.
   // Staff are onboarded via the Pulse signup form; once approved and granted
   // Setu access there, Pulse's webhook creates them here under this partner.
@@ -5602,28 +5653,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Unassigns a staff member from this partner (does not deactivate their
+  // account) — they surface in the Pending Pulse Users queue for reassignment.
   app.delete("/api/partners/:partnerId/staff/:staffId",
     authenticate,
     requireRole(['PARTNER_ADMIN']),
-    auditLog('partner_staff', 'delete'),
+    auditLog('partner_staff', 'unassign'),
     async (req, res) => {
       try {
         const { partnerId, staffId } = req.params;
-        
-        // Ensure partner admin can only delete their own partner's staff
+
+        // Ensure partner admin can only unassign their own partner's staff
         if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
           return res.status(403).json({ error: "Access denied" });
         }
-        
-        const deleted = await storage.deletePartnerStaff(staffId);
-        if (!deleted) {
-          return res.status(404).json({ error: "Staff member not found" });
+
+        // Removes only THIS partner's assignment; other partners' links remain.
+        const unassigned = await storage.unassignPartnerStaff(partnerId, staffId);
+        if (!unassigned) {
+          return res.status(404).json({ error: "Staff member is not assigned to this partner" });
         }
-        
-        res.json({ message: "Staff member deleted successfully" });
+
+        res.json({ message: "Staff member unassigned from this partner" });
       } catch (error) {
-        console.error("Delete partner staff error:", error);
-        res.status(500).json({ error: "Failed to delete staff member" });
+        console.error("Unassign partner staff error:", error);
+        res.status(500).json({ error: "Failed to unassign staff member" });
       }
     }
   );
@@ -5649,11 +5703,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Partner Staff Showroom Management Routes ─────────────────────────────
   // Showroom assignment applies uniformly to both staff types (PARTNER_STAFF
-  // and DETAILING_PARTNER). Each showroom can only be assigned to one staff
-  // member at a time within a partner — enforced below.
+  // and DETAILING_PARTNER). Showroom exclusivity is GLOBAL: each showroom can
+  // be actively assigned to at most one staff member across ALL partners.
 
-  // Current showroom allocations across all staff for a given partner.
-  // Used by the UI to enforce exclusive showroom assignment (one staff member per showroom).
+  // Current showroom allocations across ALL staff (global taken-set).
+  // Used by the UI to enforce exclusive showroom assignment.
   // Optional query param: ?excludeUserId=<id> to exclude the staff member being edited from the "taken" set.
   app.get("/api/partners/:partnerId/staff-showroom-allocations",
     authenticate,
@@ -5665,7 +5719,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Access denied" });
         }
         const excludeUserId = req.query.excludeUserId as string | undefined;
-        const allocations = await storage.getPartnerStaffShowroomAllocations(partnerId, excludeUserId);
+        const allocations = await storage.getGlobalStaffShowroomAllocations(excludeUserId);
         res.json(allocations);
       } catch (error) {
         console.error("Get staff showroom allocations error:", error);
@@ -5708,10 +5762,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Access denied" });
         }
 
-        // Verify the target user is actually staff of this partner
+        // Verify the target user is actually staff working for this partner
         const targetUser = await storage.getUser(userId);
-        if (!targetUser || targetUser.partnerId !== partnerId ||
-            !['PARTNER_STAFF', 'DETAILING_PARTNER'].includes(targetUser.role)) {
+        if (!targetUser || !['PARTNER_STAFF', 'DETAILING_PARTNER'].includes(targetUser.role) ||
+            !(await storage.staffHasPartner(userId, partnerId))) {
           return res.status(404).json({ error: "Staff member not found for this partner" });
         }
 
@@ -5728,8 +5782,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Some showrooms are not allocated to this partner", invalid: notAllocatedToPartner });
         }
 
-        // Guard 2: a showroom can only be assigned to one staff member at a time
-        const existingAllocations = await storage.getPartnerStaffShowroomAllocations(partnerId, userId);
+        // Guard 2: GLOBAL exclusivity — a showroom can only be assigned to one
+        // staff member at a time, across all partners
+        const existingAllocations = await storage.getGlobalStaffShowroomAllocations(userId);
         const takenIds = new Set(existingAllocations.map(a => a.showroomId));
         const alreadyTaken = showroomIds.filter(id => takenIds.has(id));
         if (alreadyTaken.length) {
@@ -5752,16 +5807,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     requireRole(['PARTNER_STAFF', 'PARTNER_ADMIN', 'DETAILING_PARTNER']),
     async (req, res) => {
       try {
-        const user = req.user!;
-        let partnerId = user.partnerId;
+        const pids = userPartnerIds(req.user!);
+        if (pids.length === 0) return res.json([]);
 
-        // For partner staff, get their own partner's payouts
-        // For partner admin, they can see all their partner's payouts
-        if (!partnerId) {
-          return res.status(400).json({ error: "Partner ID required" });
-        }
-
-        const payouts = await storage.getPartnerPayouts(partnerId);
+        // Union across all working partners (staff), or the single partner (admin)
+        const perPartner = await Promise.all(pids.map(pid => storage.getPartnerPayouts(pid)));
+        const payouts = perPartner.flat();
         res.json(payouts);
       } catch (error) {
         console.error("Get partner payouts error:", error);
@@ -5775,14 +5826,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     requireRole(['PARTNER_STAFF', 'PARTNER_ADMIN', 'DETAILING_PARTNER']),
     async (req, res) => {
       try {
-        const user = req.user!;
-        let partnerId = user.partnerId;
-
-        if (!partnerId) {
-          return res.status(400).json({ error: "Partner ID required" });
+        const pids = userPartnerIds(req.user!);
+        if (pids.length === 0) {
+          return res.json({ totalEarnings: 0, paidAmount: 0, pendingAmount: 0 });
         }
-
-        const summary = await storage.getPartnerEarningsSummary(partnerId);
+        const summaries = await Promise.all(pids.map(pid => storage.getPartnerEarningsSummary(pid)));
+        const summary = summaries.reduce((acc, s: any) => ({
+          totalEarnings: (acc.totalEarnings || 0) + (s.totalEarnings || 0),
+          paidAmount: (acc.paidAmount || 0) + (s.paidAmount || 0),
+          pendingAmount: (acc.pendingAmount || 0) + (s.pendingAmount || 0),
+        }), {} as any);
         res.json(summary);
       } catch (error) {
         console.error("Get earnings summary error:", error);
@@ -5796,15 +5849,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     requireRole(['PARTNER_STAFF', 'PARTNER_ADMIN', 'DETAILING_PARTNER']),
     async (req, res) => {
       try {
-        const user = req.user!;
-        let partnerId = user.partnerId;
-
-        if (!partnerId) {
-          return res.status(400).json({ error: "Partner ID required" });
-        }
-
-        const serviceRates = await storage.getPartnerServiceRates(partnerId);
-        res.json(serviceRates);
+        const pids = userPartnerIds(req.user!);
+        if (pids.length === 0) return res.json([]);
+        const perPartner = await Promise.all(pids.map(pid => storage.getPartnerServiceRates(pid)));
+        res.json(perPartner.flat());
       } catch (error) {
         console.error("Get service rates error:", error);
         res.status(500).json({ error: "Failed to fetch service rates" });
@@ -5830,8 +5878,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Payout not found" });
         }
         
-        // Security check: Partner can only settle their own payouts
-        if (payout.partnerId !== user.partnerId) {
+        // Security check: caller must have this payout's partner in their working set
+        if (!userPartnerIds(user).includes(payout.partnerId)) {
           return res.status(403).json({ error: "Access denied - you can only settle your own payouts" });
         }
         
@@ -8731,14 +8779,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/admin/pulse-pending-users', authenticate, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
     try {
       const pendingUsers = await storage.getUnassignedPulseUsers();
-      // Never expose password hashes / reset tokens
-      res.json(pendingUsers.map(({ passwordHash, resetToken, resetTokenExpiry, ...u }) => u));
+      // Enrich with an "Invited by" audit hint (admin-only — never shown to the invitee)
+      const enriched = await Promise.all(pendingUsers.map(async (u) => {
+        const { passwordHash, resetToken, resetTokenExpiry, ...safe } = u;
+        let invitedByPartnerName: string | null = null;
+        const requestedId = u.pulseMetadata?.requestedSetuPartnerId;
+        if (requestedId) {
+          const p = await storage.getPartner(requestedId);
+          invitedByPartnerName = p?.displayName ?? null;
+        }
+        return { ...safe, invitedByPartnerName, invitedByName: u.pulseMetadata?.invitedByName ?? null };
+      }));
+      res.json(enriched);
     } catch (error: any) {
       console.error('Get pulse pending users error:', error);
       res.status(500).json({ error: 'Failed to fetch pending users' });
     }
   });
 
+  // Assign one or more working partners to a staff member (many-to-many).
   app.post('/api/admin/pulse-pending-users/:userId/assign',
     authenticate,
     requireRole(['SUPER_ADMIN', 'ADMIN']),
@@ -8746,8 +8805,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const { userId } = req.params;
-        const assignSchema = z.object({ partnerId: z.string().uuid("Valid partner ID is required") });
-        const { partnerId } = assignSchema.parse(req.body);
+        const assignSchema = z.object({ partnerIds: z.array(z.string().uuid()).min(1, "Select at least one partner") });
+        const { partnerIds } = assignSchema.parse(req.body);
 
         const user = await storage.getUser(userId);
         if (!user) {
@@ -8756,32 +8815,148 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!['PARTNER_STAFF', 'DETAILING_PARTNER'].includes(user.role)) {
           return res.status(400).json({ error: 'User is not a partner staff user' });
         }
-        if (user.partnerId) {
-          return res.status(409).json({ error: 'User is already assigned to a partner' });
+
+        for (const partnerId of partnerIds) {
+          const partner = await storage.getPartner(partnerId);
+          if (!partner || !partner.active) {
+            return res.status(400).json({ error: `Partner ${partnerId} not found or inactive` });
+          }
         }
 
-        const partner = await storage.getPartner(partnerId);
-        if (!partner || !partner.active) {
-          return res.status(400).json({ error: 'Partner not found or inactive' });
-        }
-
-        const updatedUser = await storage.updateUser(userId, { partnerId });
+        await storage.addStaffPartnerAssignments(userId, partnerIds, req.user!.id);
 
         await storage.createAuditLog({
           actorUserId: req.user!.id,
           entity: 'user',
           entityId: userId,
           action: 'ASSIGNED_PARTNER_BY_ADMIN',
-          diffJson: { partnerId, role: user.role, source: 'pulse_pending_assignment' }
+          diffJson: { partnerIds, role: user.role, source: 'pulse_pending_assignment' }
         });
 
-        res.json(updatedUser);
+        res.json({ success: true, partnerIds });
       } catch (error: any) {
         console.error('Assign pulse pending user error:', error);
         if (error instanceof z.ZodError) {
           return res.status(400).json({ error: 'Invalid data', details: error.errors });
         }
         res.status(500).json({ error: 'Failed to assign partner' });
+      }
+    }
+  );
+
+  // All staff (assigned or not) with their current partner sets — "All Staff" tab
+  app.get('/api/admin/staff-users', authenticate, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
+    try {
+      const staff = await storage.getAllStaffWithPartners();
+      res.json(staff.map(({ passwordHash, resetToken, resetTokenExpiry, ...u }) => u));
+    } catch (error: any) {
+      console.error('Get all staff error:', error);
+      res.status(500).json({ error: 'Failed to fetch staff' });
+    }
+  });
+
+  // Get / replace a staff member's full working-partner set
+  app.get('/api/admin/staff/:userId/partners', authenticate, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
+    try {
+      const assignments = await storage.getStaffPartnerAssignments(req.params.userId);
+      res.json(assignments);
+    } catch (error: any) {
+      console.error('Get staff partners error:', error);
+      res.status(500).json({ error: 'Failed to fetch partner assignments' });
+    }
+  });
+
+  app.put('/api/admin/staff/:userId/partners',
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    auditLog('user', 'set_partners'),
+    async (req, res) => {
+      try {
+        const { userId } = req.params;
+        const schema = z.object({ partnerIds: z.array(z.string().uuid()) }); // empty allowed -> back to Pending
+        const { partnerIds } = schema.parse(req.body);
+
+        const user = await storage.getUser(userId);
+        if (!user || !['PARTNER_STAFF', 'DETAILING_PARTNER'].includes(user.role)) {
+          return res.status(404).json({ error: 'Staff member not found' });
+        }
+
+        await storage.setStaffPartnerAssignments(userId, partnerIds, req.user!.id);
+        const assignments = await storage.getStaffPartnerAssignments(userId);
+        res.json(assignments);
+      } catch (error: any) {
+        console.error('Set staff partners error:', error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: 'Invalid data', details: error.errors });
+        }
+      }
+    }
+  );
+
+  // Get all users (excluding SHOWROOM_MANAGER)
+  app.get('/api/admin/all-users', authenticate, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
+    try {
+      const usersList = await storage.getNonShowroomManagerUsers();
+      // Remove sensitive passwordHash and other fields before sending
+      const safeUsers = usersList.map(({ passwordHash, resetToken, resetTokenExpiry, ...u }) => u);
+      res.json(safeUsers);
+    } catch (error: any) {
+      console.error('Get all users error:', error);
+      res.status(500).json({ error: 'Failed to fetch users' });
+    }
+  });
+
+  // Update a user's database role
+  app.put('/api/admin/users/:userId/role',
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    auditLog('user', 'change_role'),
+    async (req, res) => {
+      try {
+        const { userId } = req.params;
+        const schema = z.object({
+          role: z.enum([
+            'SUPER_ADMIN',
+            'ADMIN',
+            'MANAGER',
+            'OEM_ADMIN',
+            'DEALERSHIP_ADMIN',
+            'SHOWROOM_MANAGER',
+            'SALES_PERSON',
+            'PARTNER_ADMIN',
+            'PARTNER_STAFF',
+            'DETAILING_PARTNER'
+          ])
+        });
+        const { role } = schema.parse(req.body);
+
+        const user = await storage.getUser(userId);
+        if (!user) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+
+        const oldRole = user.role;
+        const updatedUser = await storage.updateUser(userId, { role });
+
+        if (!updatedUser) {
+          return res.status(500).json({ error: 'Failed to update user role' });
+        }
+
+        await storage.createAuditLog({
+          actorUserId: req.user!.id,
+          entity: 'user',
+          entityId: userId,
+          action: 'CHANGED_ROLE_BY_ADMIN',
+          diffJson: { oldRole, newRole: role }
+        });
+
+        res.json({ success: true, user: { id: updatedUser.id, role: updatedUser.role } });
+      } catch (error: any) {
+        console.error('Update user role error:', error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: 'Invalid role' });
+        }
+        res.status(500).json({ error: 'Failed to update user role' });
       }
     }
   );
