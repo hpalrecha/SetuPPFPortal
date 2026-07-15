@@ -2846,10 +2846,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/dashboard/charts/vehicle-upsells", authenticate, async (req, res) => {
+  app.get("/api/dashboard/charts/top-partners", authenticate, async (req, res) => {
     try {
       let oemId: string | undefined;
-      
       if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
         const availableOems = await storage.getOems();
         if (availableOems.length === 0) return res.json([]);
@@ -2858,20 +2857,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
         oemId = req.user!.oemId;
       }
-      
-      // Check cache first
-      const cacheKey = `vehicle-upsells:${oemId}`;
+      const cacheKey = `top-partners:${oemId}`;
       const cachedData = dashboardCache.get(cacheKey);
-      if (cachedData) {
-        return res.json(cachedData);
-      }
-      
-      const data = await storage.getVehicleCategoryUpsells(oemId);
+      if (cachedData) return res.json(cachedData);
+      const data = await storage.getTopDetailingPartners(oemId);
       dashboardCache.set(cacheKey, data);
       res.json(data);
     } catch (error) {
-      console.error("Vehicle upsells error:", error);
-      res.status(500).json({ error: "Failed to fetch vehicle upsells data" });
+      console.error("Top detailing partners error:", error);
+      res.status(500).json({ error: "Failed to fetch top detailing partners data" });
+    }
+  });
+
+  app.get("/api/dashboard/charts/top-showrooms", authenticate, async (req, res) => {
+    try {
+      let oemId: string | undefined;
+      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
+        const availableOems = await storage.getOems();
+        if (availableOems.length === 0) return res.json([]);
+        oemId = undefined; // aggregate across all OEMs
+      } else {
+        if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
+        oemId = req.user!.oemId;
+      }
+      const cacheKey = `top-showrooms:${oemId}`;
+      const cachedData = dashboardCache.get(cacheKey);
+      if (cachedData) return res.json(cachedData);
+      const data = await storage.getTopPerformingShowrooms(oemId);
+      dashboardCache.set(cacheKey, data);
+      res.json(data);
+    } catch (error) {
+      console.error("Top performing showrooms error:", error);
+      res.status(500).json({ error: "Failed to fetch top performing showrooms data" });
+    }
+  });
+
+  app.get("/api/dashboard/charts/partner-top-showrooms", authenticate, async (req, res) => {
+    try {
+      if (req.user!.role !== 'PARTNER_ADMIN' || !req.user!.partnerId) {
+        return res.status(400).json({ error: "Partner ID required" });
+      }
+      const cacheKey = `partner-top-showrooms:${req.user!.partnerId}`;
+      const cachedData = dashboardCache.get(cacheKey);
+      if (cachedData) return res.json(cachedData);
+      const data = await storage.getPartnerTopShowrooms(req.user!.partnerId);
+      dashboardCache.set(cacheKey, data);
+      res.json(data);
+    } catch (error) {
+      console.error("Partner top showrooms error:", error);
+      res.status(500).json({ error: "Failed to fetch partner top showrooms data" });
+    }
+  });
+
+  app.get("/api/dashboard/charts/partner-top-detailing-partners", authenticate, async (req, res) => {
+    try {
+      if (req.user!.role !== 'PARTNER_ADMIN' || !req.user!.partnerId) {
+        return res.status(400).json({ error: "Partner ID required" });
+      }
+      const cacheKey = `partner-top-detailing-partners:${req.user!.partnerId}`;
+      const cachedData = dashboardCache.get(cacheKey);
+      if (cachedData) return res.json(cachedData);
+      const data = await storage.getPartnerTopDetailingPartners(req.user!.partnerId);
+      dashboardCache.set(cacheKey, data);
+      res.json(data);
+    } catch (error) {
+      console.error("Partner top detailing partners error:", error);
+      res.status(500).json({ error: "Failed to fetch partner top detailing partners data" });
     }
   });
 

@@ -20,7 +20,6 @@ import {
   Users,
   Activity,
   MapPin,
-  Car,
   Building2,
   Target,
   Eye
@@ -53,6 +52,8 @@ interface DashboardMetrics {
   inProgressJobs?: number;
   completedJobs?: number;
   thisMonthEarnings?: number;
+  completedJobsGrowthPct?: number | null;
+  earningsGrowthPct?: number | null;
 }
 
 // Real-time dashboard with database-driven insights
@@ -102,23 +103,65 @@ export default function DashboardPage() {
     enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN'])
   });
 
-  const { data: vehicleCategoryUpsells = [] } = useQuery<{
-    category: string;
-    upsells: number;
-    upsellRate: number;
-    avgValue: number;
+  const { data: topPartners = [] } = useQuery<{
+    id: string;
+    name: string;
+    completedJobs: number;
+    revenue: number;
+    growth: number;
   }[]>({
-    queryKey: ["/api/dashboard/charts/vehicle-upsells"],
-    refetchInterval: 120000, // Refresh every 2 minutes
-    staleTime: 60000, // Consider data fresh for 1 minute
+    queryKey: ["/api/dashboard/charts/top-partners"],
+    refetchInterval: 120000,
+    staleTime: 60000,
     enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN'])
+  });
+
+  const { data: topShowrooms = [] } = useQuery<{
+    id: string;
+    name: string;
+    orders: number;
+    revenue: number;
+    growth: number;
+  }[]>({
+    queryKey: ["/api/dashboard/charts/top-showrooms"],
+    refetchInterval: 120000,
+    staleTime: 60000,
+    enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN'])
+  });
+
+  const { data: partnerTopShowrooms = [] } = useQuery<{
+    id: string;
+    name: string;
+    dealershipName: string;
+    territory: string;
+    totalJobs: number;
+    completedJobs: number;
+    revenue: number;
+    growth: number;
+  }[]>({
+    queryKey: ["/api/dashboard/charts/partner-top-showrooms"],
+    refetchInterval: 120000,
+    staleTime: 60000,
+    enabled: canViewSection(['PARTNER_ADMIN'])
+  });
+
+  const { data: partnerTopDetailingPartners = [] } = useQuery<{
+    id: string;
+    name: string;
+    showrooms: { id: string; name: string }[];
+    totalJobs: number;
+    completedJobs: number;
+    revenue: number;
+  }[]>({
+    queryKey: ["/api/dashboard/charts/partner-top-detailing-partners"],
+    refetchInterval: 120000,
+    staleTime: 60000,
+    enabled: canViewSection(['PARTNER_ADMIN'])
   });
 
   const { data: territoryPerformance = [] } = useQuery<{
     territory: string;
     orders: number;
-    upsells: number;
-    upsellRate: number;
     revenue: number;
   }[]>({
     queryKey: ["/api/dashboard/charts/territory-performance"],
@@ -205,7 +248,6 @@ export default function DashboardPage() {
     month: string;
     completedOrders: number;
     avgTAT: number;
-    customerSatisfaction: number;
   }[]>({
     queryKey: ["/api/dashboard/charts/monthly-trends"],
     refetchInterval: 120000, // Refresh every 2 minutes
@@ -228,6 +270,23 @@ export default function DashboardPage() {
   const roleLabel = roleLabels[effectiveRole || ''] || 'User';
   const orgName = myOem?.name || myDealership?.name || myShowroom?.name || myPartner?.displayName || '';
   const identityLine = `${orgName ? orgName + ' ' : ''}${roleLabel}`;
+
+  const renderGrowthBadge = (growthPct?: number | null) => {
+    if (growthPct === null || growthPct === undefined) {
+      return <span className="text-muted-foreground">No data from last month</span>;
+    }
+    const isUp = growthPct >= 0;
+    const Icon = isUp ? TrendingUp : TrendingDown;
+    return (
+      <>
+        <span className={`flex items-center ${isUp ? 'text-green-600' : 'text-red-600'}`}>
+          <Icon className="h-3 w-3 mr-1" />
+          {isUp ? '+' : ''}{growthPct}%
+        </span>
+        from last month
+      </>
+    );
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -311,7 +370,7 @@ export default function DashboardPage() {
       <ActivityTimeline />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 ${effectiveRole === 'PARTNER_ADMIN' ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
         {/* Active Work Orders - Visible to Admin, OEM, Dealership, Showroom */}
         {canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']) && (
           <Card>
@@ -460,11 +519,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground mt-2">
-                <span className="text-green-600 flex items-center">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  15%
-                </span>
-                from last month
+                {renderGrowthBadge(metrics?.completedJobsGrowthPct)}
               </p>
             </CardContent>
           </Card>
@@ -486,11 +541,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground mt-2">
-                <span className="text-green-600 flex items-center">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  22%
-                </span>
-                from last month
+                {renderGrowthBadge(metrics?.earningsGrowthPct)}
               </p>
             </CardContent>
           </Card>
@@ -504,6 +555,92 @@ export default function DashboardPage() {
 
       {/* Analytics Charts Section */}
       <div className="space-y-6">
+        {/* Partner: your showrooms (ranked by work) & your detailing partners */}
+        {canViewSection(['PARTNER_ADMIN']) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Building2 className="h-5 w-5" />
+                <span>Your Showrooms</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {partnerTopShowrooms.map((showroom, index) => (
+                  <div key={showroom.id} className="flex items-center justify-between p-3 border border-muted rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                        index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-500' : 'bg-blue-500'
+                      }`}>
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">{showroom.name}</p>
+                        <p className="text-sm text-muted-foreground">{showroom.dealershipName} · {showroom.territory}</p>
+                        <p className="text-sm text-muted-foreground">{showroom.totalJobs} jobs · {showroom.completedJobs} completed</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-foreground">₹{(showroom.revenue / 100000).toFixed(1)}L</p>
+                      <p className="text-sm">{renderGrowthBadge(showroom.growth)}</p>
+                    </div>
+                  </div>
+                ))}
+                {partnerTopShowrooms.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No showroom activity in the last 3 months
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Users className="h-5 w-5" />
+                <span>Your Top Performing Detailing Partners</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {partnerTopDetailingPartners.map((dp, index) => (
+                  <div key={dp.id} className="flex items-center justify-between p-3 border border-muted rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                        index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-500' : 'bg-blue-500'
+                      }`}>
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">{dp.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {dp.totalJobs} jobs · {dp.completedJobs} completed
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {dp.showrooms.length > 0
+                            ? dp.showrooms.map(s => s.name).join(', ')
+                            : 'No showrooms assigned'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-foreground">₹{(dp.revenue / 100000).toFixed(1)}L</p>
+                    </div>
+                  </div>
+                ))}
+                {partnerTopDetailingPartners.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No detailing partners added yet
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        )}
+
         {/* PPF Orders Trend - Visible to Admin, OEM, Dealership */}
         {canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']) && (
           <Card>
@@ -533,59 +670,31 @@ export default function DashboardPage() {
         </Card>
         )}
 
-        {/* Dealership Performance & Vehicle Category Upsells - Visible to Admin, OEM */}
+        {/* Dealership Performance - Visible to Admin, OEM */}
         {canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN']) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Building2 className="h-5 w-5" />
-                <span>Top Performing Dealerships</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={250} className="sm:!h-[300px]">
-                <BarChart data={dealershipPerformance}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
-                  <YAxis />
-                  <Tooltip formatter={(value, name) => [
-                    name === 'growth' ? `${value}%` : value,
-                    name === 'orders' ? 'Orders' : name === 'growth' ? 'Growth' : 'Revenue'
-                  ]} />
-                  <Legend />
-                  <Bar dataKey="orders" fill="#8884d8" name="Orders" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Car className="h-5 w-5" />
-                <span>Vehicle Category Upselling</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={250} className="sm:!h-[300px]">
-                <ComposedChart data={vehicleCategoryUpsells}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="category" angle={-45} textAnchor="end" height={80} />
-                  <YAxis yAxisId="left" />
-                  <YAxis yAxisId="right" orientation="right" />
-                  <Tooltip formatter={(value, name) => [
-                    name === 'upsellRate' ? `${value}%` : value,
-                    name === 'upsells' ? 'Upsells' : 'Upsell Rate'
-                  ]} />
-                  <Legend />
-                  <Bar yAxisId="left" dataKey="upsells" fill="#8884d8" name="Upsells" />
-                  <Line yAxisId="right" type="monotone" dataKey="upsellRate" stroke="#82ca9d" strokeWidth={3} name="Upsell Rate %" />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Building2 className="h-5 w-5" />
+              <span>Top Performing Dealerships</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={250} className="sm:!h-[300px]">
+              <BarChart data={dealershipPerformance}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
+                <YAxis />
+                <Tooltip formatter={(value, name) => [
+                  name === 'growth' ? `${value}%` : value,
+                  name === 'orders' ? 'Orders' : name === 'growth' ? 'Growth' : 'Revenue'
+                ]} />
+                <Legend />
+                <Bar dataKey="orders" fill="#8884d8" name="Orders" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
         )}
 
         {/* Territory Performance & Service Popularity - Visible to Admin, OEM, Dealership */}
@@ -604,13 +713,9 @@ export default function DashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="territory" angle={-45} textAnchor="end" height={80} />
                   <YAxis />
-                  <Tooltip formatter={(value, name) => [
-                    name === 'upsellRate' ? `${value}%` : value,
-                    name === 'orders' ? 'Orders' : name === 'upsells' ? 'Upsells' : 'Upsell Rate'
-                  ]} />
+                  <Tooltip formatter={(value) => [value, 'Orders']} />
                   <Legend />
-                  <Area type="monotone" dataKey="orders" stackId="1" stroke="#8884d8" fill="#8884d8" name="Orders" />
-                  <Area type="monotone" dataKey="upsells" stackId="1" stroke="#82ca9d" fill="#82ca9d" name="Upsells" />
+                  <Area type="monotone" dataKey="orders" stroke="#8884d8" fill="#8884d8" name="Orders" />
                 </AreaChart>
               </ResponsiveContainer>
             </CardContent>
@@ -665,14 +770,12 @@ export default function DashboardPage() {
                 <YAxis yAxisId="left" />
                 <YAxis yAxisId="right" orientation="right" />
                 <Tooltip formatter={(value, name) => [
-                  name === 'avgTAT' ? `${value} days` : name === 'customerSatisfaction' ? `${value}/5` : value,
-                  name === 'completedOrders' ? 'Completed Orders' : 
-                  name === 'avgTAT' ? 'Avg TAT' : 'Customer Satisfaction'
+                  name === 'avgTAT' ? `${value} days` : value,
+                  name === 'completedOrders' ? 'Completed Orders' : 'Avg TAT'
                 ]} />
                 <Legend />
                 <Bar yAxisId="left" dataKey="completedOrders" fill="#8884d8" name="Completed Orders" />
                 <Line yAxisId="right" type="monotone" dataKey="avgTAT" stroke="#ff7300" strokeWidth={2} name="Avg TAT (days)" />
-                <Line yAxisId="right" type="monotone" dataKey="customerSatisfaction" stroke="#82ca9d" strokeWidth={2} name="Customer Satisfaction" />
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
@@ -722,7 +825,7 @@ export default function DashboardPage() {
           {/* Territory Performance Table */}
           <Card>
             <CardHeader>
-              <CardTitle>Territory Upselling Performance</CardTitle>
+              <CardTitle>Territory Performance</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -732,18 +835,100 @@ export default function DashboardPage() {
                       <MapPin className="h-5 w-5 text-blue-600" />
                       <div>
                         <p className="font-medium text-foreground">{territory.territory}</p>
-                        <p className="text-sm text-muted-foreground">{territory.orders} orders, {territory.upsells} upsells</p>
+                        <p className="text-sm text-muted-foreground">{territory.orders} orders</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium text-foreground">{territory.upsellRate.toFixed(1)}%</p>
-                      <p className="text-sm text-muted-foreground">₹{(territory.revenue / 100000).toFixed(1)}L revenue</p>
+                      <p className="font-medium text-foreground">₹{(territory.revenue / 100000).toFixed(1)}L revenue</p>
                     </div>
                   </div>
                 ))}
                 {territoryPerformance.length === 0 && (
                   <div className="text-center py-8 text-muted-foreground">
                     No territory data available yet
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        )}
+
+        {/* Top Detailing Partners & Top Performing Showrooms - Visible to Admin, OEM */}
+        {canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN']) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Users className="h-5 w-5" />
+                <span>Top Detailing Partners</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {topPartners.map((partner, index) => (
+                  <div key={partner.id} className="flex items-center justify-between p-3 border border-muted rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                        index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-500' : 'bg-blue-500'
+                      }`}>
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">{partner.name}</p>
+                        <p className="text-sm text-muted-foreground">{partner.completedJobs} jobs completed</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-foreground">₹{(partner.revenue / 100000).toFixed(1)}L</p>
+                      <p className={`text-sm ${partner.growth > 0 ? 'text-green-600' : partner.growth < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                        {partner.growth > 0 ? '+' : ''}{partner.growth}%
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {topPartners.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No partner data available yet
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Building2 className="h-5 w-5" />
+                <span>Top Performing Showrooms</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {topShowrooms.map((showroom, index) => (
+                  <div key={showroom.id} className="flex items-center justify-between p-3 border border-muted rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                        index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-500' : 'bg-blue-500'
+                      }`}>
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">{showroom.name}</p>
+                        <p className="text-sm text-muted-foreground">{showroom.orders} orders</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-foreground">₹{(showroom.revenue / 100000).toFixed(1)}L</p>
+                      <p className={`text-sm ${showroom.growth > 0 ? 'text-green-600' : showroom.growth < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                        {showroom.growth > 0 ? '+' : ''}{showroom.growth}%
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {topShowrooms.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No showroom data available yet
                   </div>
                 )}
               </div>
