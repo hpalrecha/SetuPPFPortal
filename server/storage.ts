@@ -585,6 +585,7 @@ export class DatabaseStorage implements IStorage {
       oemId: users.oemId,
       dealershipId: users.dealershipId,
       showroomId: users.showroomId,
+      showroomName: showrooms.name,
       allowedStates: users.allowedStates,
       profileCompleted: users.profileCompleted,
       showServicePrices: users.showServicePrices,
@@ -594,7 +595,7 @@ export class DatabaseStorage implements IStorage {
     })
     .from(users)
     .leftJoin(partners, eq(users.partnerId, partners.id))
-    .where(ne(users.role, 'SHOWROOM_MANAGER'))
+    .leftJoin(showrooms, eq(users.showroomId, showrooms.id))
     .orderBy(asc(users.name));
   }
 

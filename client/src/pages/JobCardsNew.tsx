@@ -686,7 +686,7 @@ export default function JobCardsNew() {
           <div class="grid">
             <div class="field">
               <div class="field-label">Vehicle Model</div>
-              <div class="field-value">${jobCard.vehicleDisplay || jobCard.workOrder?.vehicleModel?.modelName || 'N/A'}</div>
+              <div class="field-value">${jobCard.vehicleDisplay || jobCard.workOrder?.vehicleModelName || jobCard.workOrder?.vehicleModel?.modelName || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">Registration No</div>
@@ -704,10 +704,10 @@ export default function JobCardsNew() {
               <div class="field-label">Service</div>
               <div class="field-value">${jobCard.serviceDisplay || 'N/A'}</div>
             </div>
-            ${jobCard.workOrder?.serviceCategory?.description ? `
+            ${(jobCard.workOrder?.serviceDescription || jobCard.workOrder?.serviceCategory?.description) ? `
             <div class="field" style="grid-column: span 2;">
               <div class="field-label">Description</div>
-              <div class="field-value">${jobCard.workOrder.serviceCategory.description}</div>
+              <div class="field-value">${jobCard.workOrder?.serviceDescription || jobCard.workOrder?.serviceCategory?.description}</div>
             </div>
             ` : ''}
           </div>
@@ -718,15 +718,15 @@ export default function JobCardsNew() {
           <div class="grid-3">
             <div class="field">
               <div class="field-label">Showroom</div>
-              <div class="field-value">${jobCard.workOrder?.showroom?.name || 'N/A'}</div>
+              <div class="field-value">${jobCard.workOrder?.showroomName || jobCard.workOrder?.showroom?.name || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">Dealership</div>
-              <div class="field-value">${jobCard.workOrder?.dealership?.name || 'N/A'}</div>
+              <div class="field-value">${jobCard.workOrder?.dealershipName || jobCard.workOrder?.dealership?.name || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">OEM</div>
-              <div class="field-value">${jobCard.workOrder?.oem?.name || 'N/A'}</div>
+              <div class="field-value">${jobCard.workOrder?.oemName || jobCard.workOrder?.oem?.name || 'N/A'}</div>
             </div>
           </div>
         </div>
@@ -744,11 +744,11 @@ export default function JobCardsNew() {
             </div>
             <div class="field">
               <div class="field-label">Contact Person</div>
-              <div class="field-value">${jobCard.partner?.primaryContactName || 'N/A'}</div>
+              <div class="field-value">${jobCard.partner?.contactPersonName || jobCard.partner?.primaryContactName || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">Contact Phone</div>
-              <div class="field-value">${jobCard.partner?.primaryContactPhone || 'N/A'}</div>
+              <div class="field-value">${jobCard.partner?.contactPersonPhone || jobCard.partner?.primaryContactPhone || 'N/A'}</div>
             </div>
           </div>
         </div>

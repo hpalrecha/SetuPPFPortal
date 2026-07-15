@@ -9,8 +9,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { UserPlus, Users, MapPin, ChevronDown, X, Edit, Search } from "lucide-react";
+import { UserPlus, Users, MapPin, ChevronDown, X, Edit, Search, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import type { User as StaffUser, Partner } from "@shared/schema";
 
 const authHeaders = () => ({ 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` });
@@ -61,12 +62,29 @@ function PartnerMultiSelect({
 export default function PulsePendingUsersPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
   const [selectedPartners, setSelectedPartners] = useState<Record<string, string[]>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editingStaff, setEditingStaff] = useState<any | null>(null);
   const [selectedFilterRole, setSelectedFilterRole] = useState<string>("ALL");
   const [userSearchQuery, setUserSearchQuery] = useState<string>("");
   const [editingUserRole, setEditingUserRole] = useState<any | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("pending");
+
+  const headerText: Record<string, { title: string; subtitle: string }> = {
+    pending: {
+      title: "Allocation Staff to Partner",
+      subtitle: "Staff can work for multiple partners. Assign or edit their working-partner set here.",
+    },
+    all: {
+      title: "By All Staff",
+      subtitle: "we mean that it includes all the detailers and installers which are in this Portal",
+    },
+    "all-users": {
+      title: "All Users",
+      subtitle: "All the users present in Portal from OEMs to Installers with edit role option.",
+    },
+  };
 
   const { data: allUsers = [], isLoading: loadingAllUsers } = useQuery<any[]>({
     queryKey: ["/api/admin/all-users"],
@@ -78,16 +96,65 @@ export default function PulsePendingUsersPage() {
   });
 
   const handleChangeRole = async (userId: string, newRole: string) => {
+    const r = await fetch(`/api/admin/users/${userId}/role`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      credentials: 'include',
+      body: JSON.stringify({ role: newRole }),
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Failed to update role');
+  };
+
+  const handleSaveUserEdit = async (userId: string, originalRole: string, updates: {
+    name: string; email: string; phone: string; password: string;
+    isActive: boolean; showServicePrices: boolean; role: string;
+  }) => {
     setBusyId(userId);
     try {
-      const r = await fetch(`/api/admin/users/${userId}/role`, {
-        method: 'PUT',
+      if (updates.role !== originalRole) {
+        await handleChangeRole(userId, updates.role);
+      }
+
+      const patchBody: any = {
+        name: updates.name,
+        email: updates.email,
+        phone: updates.phone,
+        isActive: updates.isActive,
+        showServicePrices: updates.showServicePrices,
+      };
+      if (updates.password) patchBody.password = updates.password;
+
+      const r = await fetch(`/api/users/${userId}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         credentials: 'include',
-        body: JSON.stringify({ role: newRole }),
+        body: JSON.stringify(patchBody),
       });
-      if (!r.ok) throw new Error((await r.json()).error || 'Failed to update role');
-      toast({ title: "User role updated successfully" });
+      if (!r.ok) throw new Error((await r.json()).error || 'Failed to update user');
+
+      toast({ title: "User updated successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/all-users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/staff-users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/pulse-pending-users"] });
+      setEditingUserRole(null);
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!window.confirm(`Are you sure you want to delete ${userName}? This action cannot be undone.`)) return;
+    setBusyId(userId);
+    try {
+      const r = await fetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+        credentials: 'include',
+      });
+      if (!r.ok) throw new Error((await r.json()).error || 'Failed to delete user');
+      toast({ title: "User deleted successfully" });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/all-users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/staff-users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/pulse-pending-users"] });
@@ -185,18 +252,182 @@ export default function PulsePendingUsersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold text-foreground">Pending Partners</h2>
+        <h2 className="text-2xl font-semibold text-foreground">{headerText[activeTab].title}</h2>
         <p className="text-muted-foreground mt-1">
-          Staff can work for multiple partners. Assign or edit their working-partner set here.
+          {headerText[activeTab].subtitle}
         </p>
       </div>
 
-      <Tabs defaultValue="pending">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4">
-          <TabsTrigger value="pending">Pending ({pendingUsers.length})</TabsTrigger>
+          <TabsTrigger value="all-users">All Users</TabsTrigger>
           <TabsTrigger value="all">All Staff</TabsTrigger>
-          <TabsTrigger value="all-users">All Allocations / Users</TabsTrigger>
+          <TabsTrigger value="pending">Pending Allocation ({pendingUsers.length})</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="all-users">
+          {loadingAllUsers ? (
+            <div className="h-64 bg-muted rounded-lg animate-pulse" />
+          ) : (
+            <div className="space-y-4">
+              <div className="flex justify-end gap-2 items-center">
+                <div className="relative">
+                  <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    placeholder="Search name, email, phone, partner..."
+                    className="pl-8 pr-3 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-foreground w-64"
+                  />
+                </div>
+                <span className="text-sm font-medium text-muted-foreground">Filter by Role:</span>
+                <select
+                  value={selectedFilterRole}
+                  onChange={(e) => setSelectedFilterRole(e.target.value)}
+                  className="px-3 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-foreground"
+                >
+                  <option value="ALL">All Roles</option>
+                  <option value="SUPER_ADMIN">Super Admin</option>
+                  <option value="ADMIN">Admin</option>
+                  <option value="MANAGER">Manager</option>
+                  <option value="OEM_ADMIN">OEM Admin</option>
+                  <option value="DEALERSHIP_ADMIN">Dealership Admin</option>
+                  <option value="SHOWROOM_MANAGER">Showroom Manager</option>
+                  <option value="SALES_PERSON">Sales Person</option>
+                  <option value="PARTNER_ADMIN">Partner Admin</option>
+                  <option value="PARTNER_STAFF">Partner Staff / Installer</option>
+                  <option value="DETAILING_PARTNER">Detailing Partner</option>
+                </select>
+              </div>
+
+              <Card><CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email / Phone</TableHead>
+                      <TableHead>User Group</TableHead>
+                      <TableHead>Database Role</TableHead>
+                      <TableHead>Partner / Showroom</TableHead>
+                      <TableHead className="w-[100px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {allUsers
+                      .filter(user => selectedFilterRole === "ALL" || user.role === selectedFilterRole)
+                      .filter(user => {
+                        if (!userSearchQuery.trim()) return true;
+                        const q = userSearchQuery.trim().toLowerCase();
+                        return [user.name, user.email, user.phone, user.partnerName]
+                          .filter(Boolean)
+                          .some((f: string) => f.toLowerCase().includes(q));
+                      })
+                      .map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell className="font-medium">{user.name}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col text-sm">
+                              <span>{user.email || '—'}</span>
+                              <span className="text-xs text-muted-foreground">{user.phone || ''}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={
+                              user.role === 'PARTNER_ADMIN' ? 'bg-orange-50 text-orange-700' :
+                              user.role === 'DETAILING_PARTNER' ? 'bg-purple-50 text-purple-700' :
+                              user.role === 'PARTNER_STAFF' ? 'bg-blue-50 text-blue-700' :
+                              user.role === 'SHOWROOM_MANAGER' ? 'bg-teal-50 text-teal-700' :
+                              'bg-gray-50 text-gray-700'
+                            }>
+                              {user.role === 'SUPER_ADMIN' ? 'Super Admin' :
+                               user.role === 'ADMIN' ? 'Admin' :
+                               user.role === 'MANAGER' ? 'Manager' :
+                               user.role === 'OEM_ADMIN' ? 'OEM Admin' :
+                               user.role === 'DEALERSHIP_ADMIN' ? 'Dealership Admin' :
+                               user.role === 'SHOWROOM_MANAGER' ? 'Showroom Manager' :
+                               user.role === 'SALES_PERSON' ? 'Sales Person' :
+                               user.role === 'PARTNER_ADMIN' ? 'Partner Admin' :
+                               user.role === 'PARTNER_STAFF' ? 'Installer (Staff)' :
+                               user.role === 'DETAILING_PARTNER' ? 'Detailing Partner' : user.role}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">{user.role}</TableCell>
+                          <TableCell className="text-sm">
+                            {user.partnerName ? (
+                              <Badge variant="secondary">{user.partnerName}</Badge>
+                            ) : user.showroomName ? (
+                              <Badge variant="secondary">{user.showroomName}</Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">None</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm" variant="outline"
+                              onClick={() => setEditingUserRole(user)}
+                            >
+                              <Edit className="h-3 w-3 mr-1" />Edit
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </CardContent></Card>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="all">
+          {loadingAllStaff ? (
+            <div className="h-64 bg-muted rounded-lg animate-pulse" />
+          ) : (
+            <Card><CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Working Partners</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allStaff.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">{user.name}</TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={user.role === 'DETAILING_PARTNER' ? "bg-purple-50 text-purple-700" : "bg-blue-50 text-blue-700"}>
+                          {user.role === 'DETAILING_PARTNER' ? 'Detailing Partner' : 'Installer (Staff)'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {user.partners?.length ? (
+                          <div className="flex flex-wrap gap-1">
+                            {user.partners.map((p: any) => (
+                              <Badge key={p.partnerId} variant="secondary" className="text-xs">{p.displayName}</Badge>
+                            ))}
+                          </div>
+                        ) : <span className="text-xs text-muted-foreground">Unassigned</span>}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm" variant="outline"
+                          onClick={() => setEditingStaff({ ...user, _selected: (user.partners || []).map((p: any) => p.partnerId) })}
+                        >
+                          <Edit className="h-3 w-3 mr-1" />Edit
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent></Card>
+          )}
+        </TabsContent>
 
         <TabsContent value="pending">
           {isLoading ? (
@@ -259,165 +490,6 @@ export default function PulsePendingUsersPage() {
             </CardContent></Card>
           )}
         </TabsContent>
-
-        <TabsContent value="all">
-          {loadingAllStaff ? (
-            <div className="h-64 bg-muted rounded-lg animate-pulse" />
-          ) : (
-            <Card><CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Working Partners</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {allStaff.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.name}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={user.role === 'DETAILING_PARTNER' ? "bg-purple-50 text-purple-700" : "bg-blue-50 text-blue-700"}>
-                          {user.role === 'DETAILING_PARTNER' ? 'Detailing Partner' : 'Installer (Staff)'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {user.partners?.length ? (
-                          <div className="flex flex-wrap gap-1">
-                            {user.partners.map((p: any) => (
-                              <Badge key={p.partnerId} variant="secondary" className="text-xs">{p.displayName}</Badge>
-                            ))}
-                          </div>
-                        ) : <span className="text-xs text-muted-foreground">Unassigned</span>}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm" variant="outline"
-                          onClick={() => setEditingStaff({ ...user, _selected: (user.partners || []).map((p: any) => p.partnerId) })}
-                        >
-                          <Edit className="h-3 w-3 mr-1" />Edit
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent></Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="all-users">
-          {loadingAllUsers ? (
-            <div className="h-64 bg-muted rounded-lg animate-pulse" />
-          ) : (
-            <div className="space-y-4">
-              <div className="flex justify-end gap-2 items-center">
-                <div className="relative">
-                  <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={userSearchQuery}
-                    onChange={(e) => setUserSearchQuery(e.target.value)}
-                    placeholder="Search name, email, phone, partner..."
-                    className="pl-8 pr-3 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-foreground w-64"
-                  />
-                </div>
-                <span className="text-sm font-medium text-muted-foreground">Filter by Role:</span>
-                <select
-                  value={selectedFilterRole}
-                  onChange={(e) => setSelectedFilterRole(e.target.value)}
-                  className="px-3 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-foreground"
-                >
-                  <option value="ALL">All Roles</option>
-                  <option value="SUPER_ADMIN">Super Admin</option>
-                  <option value="ADMIN">Admin</option>
-                  <option value="MANAGER">Manager</option>
-                  <option value="OEM_ADMIN">OEM Admin</option>
-                  <option value="DEALERSHIP_ADMIN">Dealership Admin</option>
-                  <option value="SALES_PERSON">Sales Person</option>
-                  <option value="PARTNER_ADMIN">Partner Admin</option>
-                  <option value="PARTNER_STAFF">Partner Staff / Installer</option>
-                  <option value="DETAILING_PARTNER">Detailing Partner</option>
-                </select>
-              </div>
-
-              <Card><CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email / Phone</TableHead>
-                      <TableHead>User Group</TableHead>
-                      <TableHead>Database Role</TableHead>
-                      <TableHead>Partner Company</TableHead>
-                      <TableHead className="w-[100px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {allUsers
-                      .filter(user => selectedFilterRole === "ALL" || user.role === selectedFilterRole)
-                      .filter(user => {
-                        if (!userSearchQuery.trim()) return true;
-                        const q = userSearchQuery.trim().toLowerCase();
-                        return [user.name, user.email, user.phone, user.partnerName]
-                          .filter(Boolean)
-                          .some((f: string) => f.toLowerCase().includes(q));
-                      })
-                      .map((user) => (
-                        <TableRow key={user.id}>
-                          <TableCell className="font-medium">{user.name}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-col text-sm">
-                              <span>{user.email || '—'}</span>
-                              <span className="text-xs text-muted-foreground">{user.phone || ''}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={
-                              user.role === 'PARTNER_ADMIN' ? 'bg-orange-50 text-orange-700' :
-                              user.role === 'DETAILING_PARTNER' ? 'bg-purple-50 text-purple-700' :
-                              user.role === 'PARTNER_STAFF' ? 'bg-blue-50 text-blue-700' :
-                              'bg-gray-50 text-gray-700'
-                            }>
-                              {user.role === 'SUPER_ADMIN' ? 'Super Admin' :
-                               user.role === 'ADMIN' ? 'Admin' :
-                               user.role === 'MANAGER' ? 'Manager' :
-                               user.role === 'OEM_ADMIN' ? 'OEM Admin' :
-                               user.role === 'DEALERSHIP_ADMIN' ? 'Dealership Admin' :
-                               user.role === 'SALES_PERSON' ? 'Sales Person' :
-                               user.role === 'PARTNER_ADMIN' ? 'Partner Admin' :
-                               user.role === 'PARTNER_STAFF' ? 'Installer (Staff)' :
-                               user.role === 'DETAILING_PARTNER' ? 'Detailing Partner' : user.role}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="font-mono text-xs text-muted-foreground">{user.role}</TableCell>
-                          <TableCell className="text-sm">
-                            {user.partnerName ? (
-                              <Badge variant="secondary">{user.partnerName}</Badge>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">None</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="sm" variant="outline"
-                              onClick={() => setEditingUserRole(user)}
-                            >
-                              <Edit className="h-3 w-3 mr-1" />Edit Role
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-              </CardContent></Card>
-            </div>
-          )}
-        </TabsContent>
       </Tabs>
 
       {editingStaff && (
@@ -444,31 +516,60 @@ export default function PulsePendingUsersPage() {
 
       {editingUserRole && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setEditingUserRole(null)}>
-          <Card className="w-96" onClick={(e) => e.stopPropagation()}>
+          <Card className="w-[28rem] max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <CardContent className="p-5 space-y-4">
-              <h3 className="font-semibold text-lg text-foreground">Change User Role</h3>
-              <div className="space-y-2">
-                <div className="text-sm">
-                  <span className="font-medium text-foreground">User: </span>
-                  <span className="text-muted-foreground">{editingUserRole.name}</span>
-                </div>
-                <div className="text-sm">
-                  <span className="font-medium text-foreground">Current Role: </span>
-                  <span className="text-muted-foreground">{editingUserRole.role}</span>
-                </div>
+              <h3 className="font-semibold text-lg text-foreground">Edit User</h3>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Full Name</label>
+                <input
+                  id="edit-user-name"
+                  defaultValue={editingUserRole.name || ''}
+                  className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-sm text-foreground"
+                />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">New Role:</label>
+                <label className="text-sm font-medium text-foreground">Email</label>
+                <input
+                  id="edit-user-email"
+                  type="email"
+                  defaultValue={editingUserRole.email || ''}
+                  className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-sm text-foreground"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Phone</label>
+                <input
+                  id="edit-user-phone"
+                  defaultValue={editingUserRole.phone || ''}
+                  className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-sm text-foreground"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">New Password (leave blank to keep current)</label>
+                <input
+                  id="edit-user-password"
+                  type="password"
+                  placeholder="Enter new password..."
+                  className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-sm text-foreground"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Role</label>
                 <select
                   defaultValue={editingUserRole.role}
-                  id="new-role-select"
+                  id="edit-user-role"
                   className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-sm text-foreground"
                 >
                   <option value="PARTNER_ADMIN">Partner Admin (PARTNER_ADMIN)</option>
                   <option value="DETAILING_PARTNER">Detailing Partner (DETAILING_PARTNER)</option>
                   <option value="PARTNER_STAFF">Partner Staff / Installer (PARTNER_STAFF)</option>
                   <option value="DEALERSHIP_ADMIN">Dealership Admin (DEALERSHIP_ADMIN)</option>
+                  <option value="SHOWROOM_MANAGER">Showroom Manager (SHOWROOM_MANAGER)</option>
                   <option value="SALES_PERSON">Sales Person (SALES_PERSON)</option>
                   <option value="SUPER_ADMIN">Super Admin (SUPER_ADMIN)</option>
                   <option value="ADMIN">Admin (ADMIN)</option>
@@ -477,20 +578,54 @@ export default function PulsePendingUsersPage() {
                 </select>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={() => setEditingUserRole(null)}>Cancel</Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    const select = document.getElementById("new-role-select") as HTMLSelectElement;
-                    if (select) {
-                      handleChangeRole(editingUserRole.id, select.value);
-                    }
-                  }}
-                  disabled={busyId === editingUserRole.id}
-                >
-                  {busyId === editingUserRole.id ? 'Updating...' : 'Update Role'}
-                </Button>
+              <label className="flex items-center justify-between rounded-lg border p-3 cursor-pointer">
+                <div>
+                  <div className="text-sm font-medium text-foreground">Active</div>
+                  <div className="text-xs text-muted-foreground">Deactivate to prevent user from logging in</div>
+                </div>
+                <input id="edit-user-active" type="checkbox" defaultChecked={editingUserRole.isActive ?? true} className="h-4 w-4" />
+              </label>
+
+              <label className="flex items-center justify-between rounded-lg border p-3 cursor-pointer">
+                <div>
+                  <div className="text-sm font-medium text-foreground">Show Service Prices</div>
+                  <div className="text-xs text-muted-foreground">Allow this user to see service prices in work orders and job cards</div>
+                </div>
+                <input id="edit-user-show-prices" type="checkbox" defaultChecked={editingUserRole.showServicePrices ?? true} className="h-4 w-4" />
+              </label>
+
+              <div className="flex justify-between items-center gap-2 pt-2">
+                {currentUser?.role === 'SUPER_ADMIN' ? (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDeleteUser(editingUserRole.id, editingUserRole.name)}
+                    disabled={busyId === editingUserRole.id}
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" />Delete
+                  </Button>
+                ) : <span />}
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setEditingUserRole(null)}>Cancel</Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const name = (document.getElementById("edit-user-name") as HTMLInputElement).value;
+                      const email = (document.getElementById("edit-user-email") as HTMLInputElement).value;
+                      const phone = (document.getElementById("edit-user-phone") as HTMLInputElement).value;
+                      const password = (document.getElementById("edit-user-password") as HTMLInputElement).value;
+                      const role = (document.getElementById("edit-user-role") as HTMLSelectElement).value;
+                      const isActive = (document.getElementById("edit-user-active") as HTMLInputElement).checked;
+                      const showServicePrices = (document.getElementById("edit-user-show-prices") as HTMLInputElement).checked;
+                      handleSaveUserEdit(editingUserRole.id, editingUserRole.role, {
+                        name, email, phone, password, isActive, showServicePrices, role,
+                      });
+                    }}
+                    disabled={busyId === editingUserRole.id}
+                  >
+                    {busyId === editingUserRole.id ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
