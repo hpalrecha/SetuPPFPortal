@@ -68,6 +68,7 @@ export default function PulsePendingUsersPage() {
   const [editingStaff, setEditingStaff] = useState<any | null>(null);
   const [selectedFilterRole, setSelectedFilterRole] = useState<string>("ALL");
   const [userSearchQuery, setUserSearchQuery] = useState<string>("");
+  const [staffSearchQuery, setStaffSearchQuery] = useState<string>("");
   const [editingUserRole, setEditingUserRole] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<string>("pending");
 
@@ -77,7 +78,7 @@ export default function PulsePendingUsersPage() {
       subtitle: "Staff can work for multiple partners. Assign or edit their working-partner set here.",
     },
     all: {
-      title: "By All Staff",
+      title: "All Staff",
       subtitle: "we mean that it includes all the detailers and installers which are in this Portal",
     },
     "all-users": {
@@ -383,6 +384,20 @@ export default function PulsePendingUsersPage() {
           {loadingAllStaff ? (
             <div className="h-64 bg-muted rounded-lg animate-pulse" />
           ) : (
+            <div className="space-y-4">
+              <div className="flex justify-end gap-2 items-center">
+                <div className="relative">
+                  <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={staffSearchQuery}
+                    onChange={(e) => setStaffSearchQuery(e.target.value)}
+                    placeholder="Search name, email, partner..."
+                    className="pl-8 pr-3 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-foreground w-64"
+                  />
+                </div>
+              </div>
+
             <Card><CardContent className="p-0">
               <Table>
                 <TableHeader>
@@ -395,7 +410,16 @@ export default function PulsePendingUsersPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {allStaff.map((user) => (
+                  {allStaff
+                    .filter((user) => {
+                      if (!staffSearchQuery.trim()) return true;
+                      const q = staffSearchQuery.trim().toLowerCase();
+                      const partnerNames = (user.partners || []).map((p: any) => p.displayName);
+                      return [user.name, user.email, ...partnerNames]
+                        .filter(Boolean)
+                        .some((f: string) => f.toLowerCase().includes(q));
+                    })
+                    .map((user) => (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">{user.name}</TableCell>
                       <TableCell>{user.email}</TableCell>
@@ -426,6 +450,7 @@ export default function PulsePendingUsersPage() {
                 </TableBody>
               </Table>
             </CardContent></Card>
+            </div>
           )}
         </TabsContent>
 
@@ -496,7 +521,7 @@ export default function PulsePendingUsersPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setEditingStaff(null)}>
           <Card className="w-96" onClick={(e) => e.stopPropagation()}>
             <CardContent className="p-4 space-y-4">
-              <h3 className="font-semibold">Edit Partners — {editingStaff.name}</h3>
+              <h3 className="font-semibold">Edit Staff — {editingStaff.name}</h3>
               <PartnerMultiSelect
                 partners={activePartners}
                 selected={editingStaff._selected}
