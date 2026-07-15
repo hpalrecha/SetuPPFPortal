@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { UserPlus, Users, MapPin, ChevronDown, X, Edit } from "lucide-react";
+import { UserPlus, Users, MapPin, ChevronDown, X, Edit, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { User as StaffUser, Partner } from "@shared/schema";
 
@@ -65,6 +65,7 @@ export default function PulsePendingUsersPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editingStaff, setEditingStaff] = useState<any | null>(null);
   const [selectedFilterRole, setSelectedFilterRole] = useState<string>("ALL");
+  const [userSearchQuery, setUserSearchQuery] = useState<string>("");
   const [editingUserRole, setEditingUserRole] = useState<any | null>(null);
 
   const { data: allUsers = [], isLoading: loadingAllUsers } = useQuery<any[]>({
@@ -315,6 +316,16 @@ export default function PulsePendingUsersPage() {
           ) : (
             <div className="space-y-4">
               <div className="flex justify-end gap-2 items-center">
+                <div className="relative">
+                  <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    placeholder="Search name, email, phone, partner..."
+                    className="pl-8 pr-3 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-foreground w-64"
+                  />
+                </div>
                 <span className="text-sm font-medium text-muted-foreground">Filter by Role:</span>
                 <select
                   value={selectedFilterRole}
@@ -349,6 +360,13 @@ export default function PulsePendingUsersPage() {
                   <TableBody>
                     {allUsers
                       .filter(user => selectedFilterRole === "ALL" || user.role === selectedFilterRole)
+                      .filter(user => {
+                        if (!userSearchQuery.trim()) return true;
+                        const q = userSearchQuery.trim().toLowerCase();
+                        return [user.name, user.email, user.phone, user.partnerName]
+                          .filter(Boolean)
+                          .some((f: string) => f.toLowerCase().includes(q));
+                      })
                       .map((user) => (
                         <TableRow key={user.id}>
                           <TableCell className="font-medium">{user.name}</TableCell>

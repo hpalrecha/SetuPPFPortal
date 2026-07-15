@@ -314,6 +314,7 @@ export default function WorkOrdersPage() {
       'Partner': wo.assignedPartner?.displayName || 'N/A',
       'Showroom': wo.showroomName || 'N/A',
       'Dealership': wo.dealershipName || 'N/A',
+      'OEM': wo.oemName || 'N/A',
       'Created Date': formatDate(wo.createdAt),
       'Invoice Amount': wo.invoiceAmount ? `₹${wo.invoiceAmount}` : 'N/A',
     }));

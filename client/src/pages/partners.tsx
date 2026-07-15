@@ -319,7 +319,7 @@ export default function PartnersPage() {
       </div>
 
       {/* Edit Partner Modal */}
-      <EditPartnerModal 
+      <EditPartnerModal
         open={showEditModal}
         onOpenChange={setShowEditModal}
         onSuccess={handleModalSuccess}

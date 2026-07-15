@@ -35,17 +35,19 @@ import { ApiClient } from "@/lib/api";
 import { INDIAN_STATES } from "@shared/constants";
 
 const partnerSchema = z.object({
-  displayName: z.string().min(1, "Partner name is required"),
-  type: z.enum(["STUDIO", "INSTALLER"], {
+  displayName: z.string().min(1, "Name is required"),
+  // DETAILING_PARTNER is a UI-only choice — it creates a standalone user (→ Pending
+  // Partners), NOT a partners-table company row. It is never sent as partners.type.
+  type: z.enum(["STUDIO", "INSTALLER", "DETAILING_PARTNER"], {
     required_error: "Partner type is required",
   }),
-  contactPersonName: z.string().min(1, "Contact person name is required"),
+  contactPersonName: z.string().optional(),
   phone: z.string().min(1, "Phone number is required"),
   email: z.string().email("Invalid email address").optional().or(z.literal("")),
   address: z.string().optional(),
-  city: z.string().min(1, "City is required"),
-  state: z.string().min(1, "State is required"),
-  pincode: z.string().min(1, "Pincode is required"),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  pincode: z.string().optional(),
   active: z.boolean(),
   canViewJobCardPrice: z.boolean().optional(),
   serviceCategoryIds: z.array(z.string()).optional(),
@@ -57,14 +59,30 @@ const partnerSchema = z.object({
   billToState: z.string().optional(),
   billToPincode: z.string().optional(),
   billToGstin: z.string().optional(),
-}).refine((data) => {
-  if (data.resetPassword) {
-    return data.newPassword && data.newPassword.length >= 6;
+}).superRefine((data, ctx) => {
+  if (data.type === "DETAILING_PARTNER") {
+    // Standalone detailing-partner login — email required (username derives from it)
+    if (!data.email) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Email is required", path: ["email"] });
+    }
+  } else {
+    // Partner company — contact person + full address required
+    if (!data.contactPersonName) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Contact person name is required", path: ["contactPersonName"] });
+    }
+    if (!data.city) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "City is required", path: ["city"] });
+    }
+    if (!data.state) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "State is required", path: ["state"] });
+    }
+    if (!data.pincode) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Pincode is required", path: ["pincode"] });
+    }
   }
-  return true;
-}, {
-  message: "Password must be at least 6 characters",
-  path: ["newPassword"],
+  if (data.resetPassword && (!data.newPassword || data.newPassword.length < 6)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Password must be at least 6 characters", path: ["newPassword"] });
+  }
 });
 
 type PartnerFormData = z.infer<typeof partnerSchema>;
@@ -215,9 +233,42 @@ export function EditPartnerModal({
   const onSubmit = async (data: PartnerFormData) => {
     setIsLoading(true);
     try {
+      // Detailing Partner: create a standalone user (→ Pending Partners), not a company.
+      if (!isEditing && data.type === "DETAILING_PARTNER") {
+        const response = await fetch("/api/detailing-partners", {
+          method: "POST",
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            name: data.displayName,
+            phone: data.phone,
+            email: data.email,
+            city: data.city || undefined,
+            state: data.state || undefined,
+            pincode: data.pincode || undefined,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(errorData.error || 'Failed to create detailing partner');
+        }
+
+        toast({
+          title: "Detailing Partner created",
+          description: `${data.displayName} has been created. Assign them to a partner from the Pending Partners tab.`,
+        });
+
+        onSuccess();
+        return;
+      }
+
       const endpoint = isEditing ? `/api/partners/${partner.id}` : "/api/partners";
       const method = isEditing ? "PUT" : "POST";
-      
+
       // Prepare request body
       const requestBody: any = { ...data };
       
@@ -269,11 +320,13 @@ export function EditPartnerModal({
     }
   };
 
+  const isDetailingPartner = form.watch("type") === "DETAILING_PARTNER";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Edit' : 'Add'} Partner</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edit Partner' : isDetailingPartner ? 'Add Detailing Partner' : 'Add Partner'}</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -288,10 +341,10 @@ export function EditPartnerModal({
                   name="displayName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Partner Name</FormLabel>
+                      <FormLabel>{isDetailingPartner ? 'Name' : 'Partner Name'}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="Enter partner name"
+                          placeholder={isDetailingPartner ? 'Enter full name' : 'Enter partner name'}
                           {...field}
                           data-testid="input-partner-name"
                         />
@@ -320,12 +373,20 @@ export function EditPartnerModal({
                           >
                             Installer
                           </SelectItem>
-                          <SelectItem 
+                          <SelectItem
                             value="STUDIO"
                             className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                           >
                             Studio
                           </SelectItem>
+                          {!isEditing && (
+                            <SelectItem
+                              value="DETAILING_PARTNER"
+                              className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
+                              Detailing Partner
+                            </SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -334,23 +395,25 @@ export function EditPartnerModal({
                 />
               </div>
 
-              <FormField
-                control={form.control}
-                name="contactPersonName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Contact Person Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Enter contact person name"
-                        {...field}
-                        data-testid="input-contact-name"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {!isDetailingPartner && (
+                <FormField
+                  control={form.control}
+                  name="contactPersonName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contact Person Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter contact person name"
+                          {...field}
+                          data-testid="input-contact-name"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
 
             {/* Contact Information */}
@@ -381,7 +444,7 @@ export function EditPartnerModal({
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email (Optional)</FormLabel>
+                      <FormLabel>{isDetailingPartner ? 'Email' : 'Email (Optional)'}</FormLabel>
                       <FormControl>
                         <Input
                           type="email"
@@ -400,24 +463,26 @@ export function EditPartnerModal({
             {/* Address Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Address Information</h3>
-              
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Address (Optional)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Enter full address"
-                        {...field}
-                        data-testid="textarea-address"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+
+              {!isDetailingPartner && (
+                <FormField
+                  control={form.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Address (Optional)</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Enter full address"
+                          {...field}
+                          data-testid="textarea-address"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
@@ -483,6 +548,8 @@ export function EditPartnerModal({
               </div>
             </div>
 
+            {!isDetailingPartner && (
+            <>
             {/* Billing Address Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Billing Address with GST</h3>
@@ -771,6 +838,8 @@ export function EditPartnerModal({
                 </div>
               )}
             </div>
+            </>
+            )}
 
             <DialogFooter>
               <Button
@@ -786,7 +855,7 @@ export function EditPartnerModal({
                 disabled={isLoading}
                 data-testid="button-save-partner"
               >
-                {isLoading ? "Saving..." : `${isEditing ? 'Update' : 'Add'} Partner`}
+                {isLoading ? "Saving..." : isEditing ? 'Update Partner' : isDetailingPartner ? 'Add Detailing Partner' : 'Add Partner'}
               </Button>
             </DialogFooter>
           </form>

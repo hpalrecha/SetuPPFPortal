@@ -3685,8 +3685,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
           filteredJobCards = jobCards.map(jc => filterJobCardPrice(jc, partner));
         }
       }
+
+      // Fetch user details for all unique assignedInstallerIds to avoid N+1 queries
+      const installerIds = [...new Set(filteredJobCards.map(jc => jc.assignedInstallerId).filter(Boolean))];
+      const installerMap = new Map<string, any>();
+      if (installerIds.length > 0) {
+        const installers = await Promise.all(
+          installerIds.map(id => storage.getUser(id as string))
+        );
+        installers.forEach(inst => {
+          if (inst) {
+            installerMap.set(inst.id, {
+              id: inst.id,
+              name: inst.name,
+              displayName: inst.name,
+              email: inst.email,
+              phone: inst.phone
+            });
+          }
+        });
+      }
+
+      const enrichedFilteredJobCards = filteredJobCards.map(jc => {
+        const assignedInstaller = jc.assignedInstallerId ? installerMap.get(jc.assignedInstallerId) : null;
+        return {
+          ...jc,
+          assignedInstaller
+        };
+      });
       
-      res.json(filteredJobCards);
+      res.json(enrichedFilteredJobCards);
     } catch (error) {
       console.error("Get job cards error:", error);
       res.status(500).json({ error: "Failed to fetch job cards" });
@@ -3858,9 +3886,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        // Get installer details if assigned
+        let assignedInstaller = null;
+        if (jobCard.assignedInstallerId) {
+          const user = await storage.getUser(jobCard.assignedInstallerId);
+          if (user) {
+            assignedInstaller = {
+              id: user.id,
+              name: user.name,
+              displayName: user.name,
+              email: user.email,
+              phone: user.phone
+            };
+          }
+        }
+
         // Build the response with the expected structure
         let result: any = {
           ...jobCard,
+          assignedInstaller, // Added!
           batchNumberImage: signedBatchNumberImage, // Override with signed URL
           workOrder: {
             ...workOrder,
@@ -5267,6 +5311,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Invalid partner data", details: error.errors });
         }
         res.status(500).json({ error: "Failed to create partner" });
+      }
+    }
+  );
+
+  // Create a standalone DETAILING_PARTNER login — no `partners` company row.
+  // Left unassigned (partnerId null, no partnerStaffAssignments row) so it
+  // surfaces in the Pending Partners queue for an admin to assign later.
+  const detailingPartnerSchema = z.object({
+    name: z.string().min(1, "Name is required"),
+    phone: z.string().min(1, "Phone number is required"),
+    email: z.string().email("Invalid email address"),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    pincode: z.string().optional(),
+  });
+
+  app.post("/api/detailing-partners",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN']),
+    auditLog('user', 'create'),
+    async (req, res) => {
+      try {
+        const data = detailingPartnerSchema.parse(req.body);
+
+        const existingUser = await storage.getUserByEmail(data.email);
+        if (existingUser) {
+          return res.status(400).json({ error: `Email ${data.email} is already in use` });
+        }
+
+        const users = await storage.getUsers();
+        const existingUserByPhone = users.find(u => u.phone === data.phone);
+        if (existingUserByPhone) {
+          return res.status(400).json({ error: `Phone number ${data.phone} is already in use` });
+        }
+
+        const defaultPassword = data.phone.slice(-6);
+        const passwordHash = await bcrypt.hash(defaultPassword, 10);
+        const username = generateUsernameFromEmail(data.email);
+
+        const newUser = await storage.createUser({
+          email: data.email,
+          username,
+          phone: data.phone,
+          passwordHash,
+          name: data.name,
+          role: 'DETAILING_PARTNER',
+          partnerId: null,
+          isActive: true,
+          pulseMetadata: {
+            city: data.city,
+            state: data.state,
+            postalCode: data.pincode,
+            invitedByUserId: req.user!.id,
+            invitedByName: req.user!.name,
+            invitedByRole: req.user!.role,
+            source: 'setu_admin_direct_add',
+          },
+        });
+
+        console.log(`✅ Created standalone Detailing Partner: ${username} (${data.email}) - password: ${defaultPassword}`);
+
+        const { passwordHash: _omit, ...safeUser } = newUser;
+        res.status(201).json(safeUser);
+      } catch (error) {
+        console.error("Create detailing partner error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid detailing partner data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to create detailing partner" });
       }
     }
   );

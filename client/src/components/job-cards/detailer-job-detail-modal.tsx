@@ -32,6 +32,7 @@ interface JobCard {
   batchNumberImage?: string;
   checklistJson?: any;
   assignedInstallerId?: string;
+  assignedInstaller?: any;
   reworkReason?: string;
   reworkRequestedAt?: string;
   reworkRequestedBy?: string;
@@ -651,7 +652,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                   </div>
                   {jobCard?.assignedInstallerId && (
                     <div className="mt-2 text-sm text-gray-600" data-testid="text-current-assignment">
-                      Currently assigned to: {teamMembers.find((m: any) => m.id === jobCard?.assignedInstallerId)?.name || 'Unknown'}
+                      Currently assigned to: {jobCard?.assignedInstaller?.name || teamMembers.find((m: any) => m.id === jobCard?.assignedInstallerId)?.name || 'Unknown'}
                     </div>
                   )}
                 </CardContent>

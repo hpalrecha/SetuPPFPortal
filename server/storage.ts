@@ -1339,24 +1339,32 @@ export class DatabaseStorage implements IStorage {
     const svcIds = Array.from(new Set(workOrderResults.map(w => w.serviceId).filter(Boolean))) as string[];
     const partnerIds = Array.from(new Set(workOrderResults.map(w => w.assignedPartnerId).filter(Boolean))) as string[];
     const salesPersonUserIds = Array.from(new Set(workOrderResults.map(w => w.salesPersonId).filter(Boolean))) as string[];
+    const showroomIds = Array.from(new Set(workOrderResults.map(w => w.showroomId).filter(Boolean))) as string[];
+    const dealershipIds = Array.from(new Set(workOrderResults.map(w => w.dealershipId).filter(Boolean))) as string[];
 
-    const [vmRows, svcRows, partnerRows, salesPersonUserRows] = await Promise.all([
+    const [vmRows, svcRows, partnerRows, salesPersonUserRows, showroomRows, dealershipRows] = await Promise.all([
       vmIds.length ? db.select({ id: vehicleModels.id, modelName: vehicleModels.modelName }).from(vehicleModels).where(inArray(vehicleModels.id, vmIds)) : Promise.resolve([]),
       svcIds.length ? db.select({ id: services.id, name: services.name }).from(services).where(inArray(services.id, svcIds)) : Promise.resolve([]),
       partnerIds.length ? db.select({ id: partners.id, displayName: partners.displayName }).from(partners).where(inArray(partners.id, partnerIds)) : Promise.resolve([]),
       salesPersonUserIds.length ? db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, salesPersonUserIds)) : Promise.resolve([]),
+      showroomIds.length ? db.select({ id: showrooms.id, name: showrooms.name }).from(showrooms).where(inArray(showrooms.id, showroomIds)) : Promise.resolve([]),
+      dealershipIds.length ? db.select({ id: dealerships.id, name: dealerships.name }).from(dealerships).where(inArray(dealerships.id, dealershipIds)) : Promise.resolve([]),
     ]);
 
     const vmMap = new Map(vmRows.map(v => [v.id, v.modelName]));
     const svcMap = new Map(svcRows.map(s => [s.id, s.name]));
     const partnerMap = new Map(partnerRows.map(p => [p.id, p]));
     const salesPersonUserMap = new Map(salesPersonUserRows.map(u => [u.id, u.name]));
+    const showroomMap = new Map(showroomRows.map(s => [s.id, s.name]));
+    const dealershipMap = new Map(dealershipRows.map(d => [d.id, d.name]));
 
     const enrichedWorkOrders = workOrderResults.map(wo => {
       const enriched: any = { ...wo };
       enriched.oemName = wo.oemId ? (oemNameMap.get(wo.oemId) || null) : null;
       enriched.vehicleModelName = wo.vehicleModelId ? (vmMap.get(wo.vehicleModelId) || null) : null;
       enriched.serviceName = wo.serviceId ? (svcMap.get(wo.serviceId) || null) : null;
+      enriched.showroomName = wo.showroomId ? (showroomMap.get(wo.showroomId) || null) : null;
+      enriched.dealershipName = wo.dealershipId ? (dealershipMap.get(wo.dealershipId) || null) : null;
       const p = wo.assignedPartnerId ? partnerMap.get(wo.assignedPartnerId) : undefined;
       if (p) {
         enriched.assignedPartner = { id: p.id, displayName: p.displayName };
