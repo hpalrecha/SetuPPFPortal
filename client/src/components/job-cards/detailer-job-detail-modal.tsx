@@ -491,12 +491,8 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                   Complete Job
                 </Button>
               )}
-              {needsRework && (
-                <Button onClick={() => markFixedMutation.mutate()} disabled={markFixedMutation.isPending} className="bg-green-600 hover:bg-green-700" data-testid="button-mark-fixed">
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  {markFixedMutation.isPending ? 'Marking as Fixed...' : 'Mark as Fixed'}
-                </Button>
-              )}
+              {/* Rework is now handled by creating a new linked job card, so the in-place
+                  "Mark as Fixed" action has been retired. This card stays as a historical record. */}
               {canApplyWarranty && (
                 <Button 
                   onClick={() => applyWarrantyMutation.mutate()} 
@@ -565,7 +561,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                       </p>
                     )}
                     <p className="text-sm text-yellow-800 font-medium mt-3">
-                      ⚠️ Please address the issues mentioned above and click "Mark as Fixed" when completed.
+                      ⚠️ A new job card has been created against this work order to redo the work. This card is kept as a record of the original job.
                     </p>
                   </div>
                 </CardContent>

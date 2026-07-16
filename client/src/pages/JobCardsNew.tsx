@@ -95,6 +95,7 @@ interface JobCard {
   approvedByUserId?: string;
   pricingSnapshotJson?: string;
   commissionSnapshotJson?: string;
+  reworkOfJobCardId?: string;
   createdAt?: string;
   updatedAt?: string;
   [key: string]: any;
@@ -172,6 +173,7 @@ const STATUS_COLORS = {
   'IN_PROGRESS': 'bg-blue-100 text-blue-800 border-blue-200',
   'COMPLETED': 'bg-green-100 text-green-800 border-green-200',
   'PENDING_APPROVAL': 'bg-orange-100 text-orange-800 border-orange-200',
+  'REWORK_REQUESTED': 'bg-yellow-100 text-yellow-800 border-yellow-200',
   'APPROVED': 'bg-green-100 text-green-800 border-green-200',
   'PENDING_SALES_INVOICE': 'bg-purple-100 text-purple-800 border-purple-200',
   'INVOICE_RAISED': 'bg-indigo-100 text-indigo-800 border-indigo-200',
@@ -188,6 +190,7 @@ const STATUS_ICONS = {
   'IN_PROGRESS': Wrench,
   'COMPLETED': CheckCircle2,
   'PENDING_APPROVAL': AlertCircle,
+  'REWORK_REQUESTED': RefreshCw,
   'APPROVED': Trophy,
   'PENDING_SALES_INVOICE': DollarSign,
   'INVOICE_RAISED': FileText,
@@ -204,6 +207,7 @@ const STATUS_LABELS = {
   'IN_PROGRESS': 'In Progress',
   'COMPLETED': 'Completed',
   'PENDING_APPROVAL': 'Pending Approval',
+  'REWORK_REQUESTED': 'Rework Requested',
   'APPROVED': 'Approved',
   'PENDING_SALES_INVOICE': 'Pending Invoice',
   'INVOICE_RAISED': 'Invoice Raised',
@@ -226,6 +230,17 @@ export default function JobCardsNew() {
   // Admin-only safe edit of customer / work-order fields
   const [showEditDetailsModal, setShowEditDetailsModal] = useState(false);
   const [editDetailsForm, setEditDetailsForm] = useState({
+    customerName: '',
+    customerPhone: '',
+    customerEmail: '',
+    customerAddress: '',
+    regNo: '',
+    notes: ''
+  });
+  // Rework: creates a new linked job card against the same work order
+  const [showReworkModal, setShowReworkModal] = useState(false);
+  const [reworkForm, setReworkForm] = useState({
+    remarks: '',
     customerName: '',
     customerPhone: '',
     customerEmail: '',
@@ -1046,6 +1061,51 @@ export default function JobCardsNew() {
     }
   });
 
+  // Rework: a job at approval stage or later can be reworked. This creates a NEW job card
+  // against the same work order, freezes the current one as REWORK_REQUESTED, and links them.
+  const REWORK_ALLOWED_FROM = ['COMPLETED', 'PENDING_APPROVAL', 'APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED'];
+  const canRequestRework = ['SUPER_ADMIN', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN'].includes(user?.role || '');
+
+  const openRework = () => {
+    const wo = detailedJobCard?.workOrder || {};
+    setReworkForm({
+      remarks: '',
+      customerName: wo.customerName || '',
+      customerPhone: wo.customerPhone || '',
+      customerEmail: wo.customerEmail || '',
+      customerAddress: wo.customerAddress || '',
+      regNo: wo.regNo || '',
+      notes: wo.notes || ''
+    });
+    setShowReworkModal(true);
+  };
+
+  const reworkMutation = useMutation({
+    mutationFn: async ({ jobCardId, values }: { jobCardId: string; values: typeof reworkForm }) => {
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/request-rework`, values);
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      setShowReworkModal(false);
+      // Jump to the newly created rework card so its lifecycle can continue.
+      if (data?.jobCard?.id) {
+        setSelectedJobCardId(data.jobCard.id);
+      }
+      toast({
+        title: "Rework Requested",
+        description: "A new job card was created against the same work order.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Rework Failed",
+        description: error.message || "Failed to request rework. Please try again.",
+        variant: "destructive"
+      });
+    }
+  });
+
   // Check if user is admin 
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'OEM_ADMIN' || user?.role === 'SHOWROOM_MANAGER' || user?.role === 'DEALERSHIP_ADMIN';
   console.log('User role:', user?.role, 'isAdmin:', isAdmin);
@@ -1069,6 +1129,7 @@ export default function JobCardsNew() {
       IN_PROGRESS: 60,
       COMPLETED: 80,
       PENDING_APPROVAL: 90,
+      REWORK_REQUESTED: 85,
       APPROVED: 92,
       PENDING_SALES_INVOICE: 94,
       INVOICE_RAISED: 96,
@@ -1087,7 +1148,7 @@ export default function JobCardsNew() {
   };
 
   const handleViewJobCard = (jobCard: EnrichedJobCard) => {
-    if (isPartnerUser && ['AWAITING_ACK', 'ACKNOWLEDGED', 'SCHEDULED', 'IN_PROGRESS', 'REWORK_REQUESTED'].includes(jobCard.status || '')) {
+    if (isPartnerUser && ['AWAITING_ACK', 'ACKNOWLEDGED', 'SCHEDULED', 'IN_PROGRESS'].includes(jobCard.status || '')) {
       // Show detailer workflow modal for partner users
       setSelectedDetailerJobCard(jobCard.id);
     } else if (isShowroomUser && ['COMPLETED', 'PENDING_APPROVAL'].includes(jobCard.status || '')) {
@@ -1239,6 +1300,7 @@ export default function JobCardsNew() {
                 <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
                 <SelectItem value="COMPLETED">Completed</SelectItem>
                 <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
+                <SelectItem value="REWORK_REQUESTED">Rework Requested</SelectItem>
                 <SelectItem value="APPROVED">Approved</SelectItem>
                 <SelectItem value="PENDING_SALES_INVOICE">Pending Invoice</SelectItem>
                 <SelectItem value="INVOICE_RAISED">Invoice Raised</SelectItem>
@@ -2176,18 +2238,31 @@ export default function JobCardsNew() {
                   </p>
                 </div>
               </div>
-              {canEditDetails && detailedJobCard && detailedJobCard.status !== 'CLOSED' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={openEditDetails}
-                  className="shrink-0 mr-8"
-                  data-testid="button-edit-details"
-                >
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Edit Details
-                </Button>
-              )}
+              <div className="flex items-center gap-2 shrink-0 mr-8">
+                {canRequestRework && detailedJobCard && REWORK_ALLOWED_FROM.includes(detailedJobCard.status || '') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={openRework}
+                    className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                    data-testid="button-request-rework"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Request Rework
+                  </Button>
+                )}
+                {canEditDetails && detailedJobCard && detailedJobCard.status !== 'CLOSED' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={openEditDetails}
+                    data-testid="button-edit-details"
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit Details
+                  </Button>
+                )}
+              </div>
             </div>
           </DialogHeader>
           
@@ -2220,6 +2295,33 @@ export default function JobCardsNew() {
                         {detailedJobCard.workOrderId}
                       </p>
                     </div>
+                    {detailedJobCard.reworkOfJobCardId && (
+                      <div>
+                        <span className="text-sm text-muted-foreground">Rework of (original job)</span>
+                        <button
+                          onClick={() => setSelectedJobCardId(detailedJobCard.reworkOfJobCardId)}
+                          className="block w-full text-left font-mono text-xs bg-amber-50 text-amber-800 border border-amber-200 px-2 py-1 rounded mt-1 break-all hover:bg-amber-100"
+                          data-testid="link-rework-parent"
+                        >
+                          ↩ JC-{detailedJobCard.reworkOfJobCardId.slice(-6)} — view original
+                        </button>
+                      </div>
+                    )}
+                    {(() => {
+                      const reworkChild = allJobCards.find((jc: any) => jc.reworkOfJobCardId === detailedJobCard.id);
+                      return reworkChild ? (
+                        <div>
+                          <span className="text-sm text-muted-foreground">Reworked as (new job)</span>
+                          <button
+                            onClick={() => setSelectedJobCardId(reworkChild.id)}
+                            className="block w-full text-left font-mono text-xs bg-amber-50 text-amber-800 border border-amber-200 px-2 py-1 rounded mt-1 break-all hover:bg-amber-100"
+                            data-testid="link-rework-child"
+                          >
+                            → JC-{reworkChild.id.slice(-6)} — {STATUS_LABELS[reworkChild.status as keyof typeof STATUS_LABELS] || reworkChild.status}
+                          </button>
+                        </div>
+                      ) : null;
+                    })()}
                     {detailedJobCard.acknowledgedAt && (
                       <div>
                         <span className="text-sm text-muted-foreground">Acknowledged Date</span>
@@ -2769,18 +2871,13 @@ export default function JobCardsNew() {
                           Approve Job Card
                         </Button>
                         <Button
-                          onClick={() => {
-                            const reason = prompt('Please provide a reason for requesting rework:');
-                            if (reason) {
-                              rejectJobCardMutation.mutate({ jobCardId: detailedJobCard.id, reason });
-                            }
-                          }}
-                          disabled={rejectJobCardMutation.isPending}
+                          onClick={openRework}
+                          disabled={reworkMutation.isPending}
                           variant="outline"
                           className="border-red-300 text-red-600 hover:bg-red-50"
                           data-testid="button-reject"
                         >
-                          {rejectJobCardMutation.isPending ? (
+                          {reworkMutation.isPending ? (
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           ) : (
                             <XCircle className="h-4 w-4 mr-2" />
@@ -3021,6 +3118,102 @@ export default function JobCardsNew() {
       )}
 
       {/* Settle Payment Modal */}
+      {/* Rework Modal — creates a NEW job card against the same work order, linked to this one */}
+      <Dialog open={showReworkModal} onOpenChange={setShowReworkModal}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 text-amber-600" />
+              Request Rework
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              This freezes the current job card as <span className="font-medium">Rework Requested</span> and creates a
+              new job card against the same work order. The new card starts fresh and follows the normal flow
+              (non-billable). You can adjust the customer details below before creating it.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="rework-reason">Reason for rework <span className="text-red-500">*</span></Label>
+              <Textarea
+                id="rework-reason"
+                rows={2}
+                placeholder="Describe the issue found…"
+                value={reworkForm.remarks}
+                onChange={(e) => setReworkForm(prev => ({ ...prev, remarks: e.target.value }))}
+                data-testid="input-rework-reason"
+              />
+            </div>
+            <div className="border-t pt-3">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Customer details (optional edit)</p>
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="rework-customer-name">Customer Name</Label>
+                  <Input
+                    id="rework-customer-name"
+                    value={reworkForm.customerName}
+                    onChange={(e) => setReworkForm(prev => ({ ...prev, customerName: e.target.value }))}
+                    data-testid="input-rework-customer-name"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="rework-customer-phone">Phone</Label>
+                    <Input
+                      id="rework-customer-phone"
+                      value={reworkForm.customerPhone}
+                      onChange={(e) => setReworkForm(prev => ({ ...prev, customerPhone: e.target.value }))}
+                      data-testid="input-rework-customer-phone"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="rework-reg-no">Registration No.</Label>
+                    <Input
+                      id="rework-reg-no"
+                      value={reworkForm.regNo}
+                      onChange={(e) => setReworkForm(prev => ({ ...prev, regNo: e.target.value }))}
+                      className="font-mono"
+                      data-testid="input-rework-reg-no"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowReworkModal(false)}
+                data-testid="button-cancel-rework"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (detailedJobCard?.id && reworkForm.remarks.trim()) {
+                    reworkMutation.mutate({ jobCardId: detailedJobCard.id, values: reworkForm });
+                  }
+                }}
+                disabled={!reworkForm.remarks.trim() || reworkMutation.isPending}
+                className="bg-amber-600 hover:bg-amber-700"
+                data-testid="button-confirm-rework"
+              >
+                {reworkMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating…
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Create Rework Job Card
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Details Modal — admin-only safe edit of customer / work-order fields */}
       <Dialog open={showEditDetailsModal} onOpenChange={setShowEditDetailsModal}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">

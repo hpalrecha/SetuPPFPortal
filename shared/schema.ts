@@ -604,6 +604,9 @@ export const jobCards = pgTable("job_cards", {
   reworkRequestedBy: uuid("rework_requested_by").references(() => users.id), // Who requested rework
   reworkCompletedAt: timestamp("rework_completed_at"), // When rework was completed
   reworkCompletedBy: uuid("rework_completed_by").references(() => users.id), // Who completed rework
+  // Rework chaining: when a card is reworked, a NEW card is created against the same work order
+  // and this points back to the original card it reworks (soft link, like work_orders.assigned_job_card_id).
+  reworkOfJobCardId: uuid("rework_of_job_card_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });

@@ -4868,7 +4868,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const validatedData = completionSchema.parse(req.body);
-      
+
+      // Normalize the batch number image to the app-facing "/objects/..."
+      // path, same as the pre-installation photos — the raw presigned upload
+      // URL a client posts here expires in minutes and isn't safe to persist.
+      if (validatedData.batchNumberImage) {
+        const objectStorageService = new ObjectStorageService();
+        validatedData.batchNumberImage = objectStorageService.normalizeObjectEntityPath(
+          validatedData.batchNumberImage
+        );
+      }
+
       const jobCard = await storage.updateJobCard(req.params.id, {
         status: 'PENDING_APPROVAL',
         completedAt: new Date(),
@@ -5127,11 +5137,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Job card not found" });
         }
 
-        // Only allow rework requests on PENDING_APPROVAL or COMPLETED jobs
-        if (jobCard.status !== 'PENDING_APPROVAL' && jobCard.status !== 'COMPLETED') {
-          return res.status(400).json({ 
-            error: "Job card must be pending approval or completed to request rework",
-            currentStatus: jobCard.status 
+        // Rework can be requested once a job has reached approval stage or beyond.
+        const REWORK_ALLOWED_FROM = [
+          'COMPLETED', 'PENDING_APPROVAL', 'APPROVED', 'PENDING_SALES_INVOICE',
+          'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED'
+        ];
+        if (!REWORK_ALLOWED_FROM.includes(jobCard.status || '')) {
+          return res.status(400).json({
+            error: "Rework can only be requested from pending approval or a later stage",
+            currentStatus: jobCard.status
           });
         }
 
@@ -5157,24 +5171,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Access denied to this job card" });
         }
 
-        // Update job card status to REWORK_REQUESTED
+        // Optional: apply the admin's safe-field edits to the shared work order at rework time.
+        // (Same non-cascading whitelist as PATCH /api/job-cards/:id/details.)
+        const ALLOWED_WO_FIELDS = ['customerName', 'customerPhone', 'customerEmail', 'customerAddress', 'regNo', 'notes'];
+        const woUpdates: any = {};
+        for (const field of ALLOWED_WO_FIELDS) {
+          if (!(field in req.body)) continue;
+          let value = req.body[field];
+          if (typeof value === 'string') {
+            value = value.trim();
+            if (field === 'regNo') value = value.toUpperCase().replace(/\s+/g, '');
+            if (value === '') value = null;
+          }
+          woUpdates[field] = value;
+        }
+
+        // 1) Create a NEW job card against the SAME work order. It is a normal card that follows
+        //    the natural lifecycle from AWAITING_ACK. Non-billable (₹0, no payout). Linked to the original.
+        const newJobCard = await storage.createJobCard({
+          workOrderId: jobCard.workOrderId,
+          partnerId: jobCard.partnerId,
+          status: 'AWAITING_ACK',
+          reworkOfJobCardId: jobCard.id,
+          reworkReason: remarks,
+          billingValue: '0',
+          billFrom: jobCard.billFrom || workOrder.billFrom || null,
+          billTo: jobCard.billTo || workOrder.billTo || null,
+          shipTo: jobCard.shipTo || workOrder.shipTo || null,
+          partnerBilledDirectly: jobCard.partnerBilledDirectly || false
+        });
+
+        // 2) Freeze the original card as the historical record of the first attempt.
         const updatedJobCard = await storage.updateJobCard(jobCardId, {
           status: 'REWORK_REQUESTED',
           reworkReason: remarks,
           reworkRequestedAt: new Date(),
           reworkRequestedBy: req.user!.id
         });
-        
-        if (!updatedJobCard) {
-          return res.status(500).json({ error: "Failed to request rework" });
-        }
 
-        // Update work order status as well
+        // 3) Repoint the work order at the new active card, re-open it, and apply any safe-field edits.
         await storage.updateWorkOrder(jobCard.workOrderId, {
-          status: 'REWORK_REQUESTED'
+          ...woUpdates,
+          status: 'ASSIGNED',
+          assignedJobCardId: newJobCard.id
         });
 
-        // Create approval record for audit trail
+        // 4) Audit trail against the original card.
         await storage.createApproval({
           jobCardId,
           approverUserId: req.user!.id,
@@ -5182,11 +5224,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           remarks
         });
 
-        console.log(`🟡 Rework requested on ${jobCard.id} by ${req.user!.role}: '${remarks}'`);
+        console.log(`🟡 Rework on ${jobCard.id} → new card ${newJobCard.id} by ${req.user!.role}: '${remarks}'`);
 
-        res.json({ 
-          message: "Rework requested successfully", 
-          jobCard: updatedJobCard,
+        res.json({
+          message: "Rework requested — a new job card was created against the same work order",
+          jobCard: newJobCard,
+          previousJobCard: updatedJobCard,
           reason: remarks
         });
       } catch (error) {
