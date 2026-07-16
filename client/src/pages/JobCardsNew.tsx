@@ -8,6 +8,8 @@ import * as XLSX from "xlsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -55,7 +57,8 @@ import {
   Store,
   Download,
   Printer,
-  RefreshCw
+  RefreshCw,
+  Pencil
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
@@ -220,6 +223,16 @@ export default function JobCardsNew() {
   const [showSettlePaymentModal, setShowSettlePaymentModal] = useState(false);
   const [showApplyWarrantyModal, setShowApplyWarrantyModal] = useState(false);
   const [showViewPreInstallationModal, setShowViewPreInstallationModal] = useState(false);
+  // Admin-only safe edit of customer / work-order fields
+  const [showEditDetailsModal, setShowEditDetailsModal] = useState(false);
+  const [editDetailsForm, setEditDetailsForm] = useState({
+    customerName: '',
+    customerPhone: '',
+    customerEmail: '',
+    customerAddress: '',
+    regNo: '',
+    notes: ''
+  });
   const [salesInvoiceNumber, setSalesInvoiceNumber] = useState('');
   const [warrantyReferenceNumber, setWarrantyReferenceNumber] = useState('');
   
@@ -254,6 +267,10 @@ export default function JobCardsNew() {
 
   // Live tracking toggle (auto-polls the list while on)
   const [liveTracking, setLiveTracking] = useState(false);
+
+  // "Closed" filter toggle — on by default, hides Warranty Registered cards
+  // from the list. User can turn it off explicitly to see them again.
+  const [hideWarrantyRegistered, setHideWarrantyRegistered] = useState(true);
   
   // Get current user for admin check
   const { user } = useAuth();
@@ -420,7 +437,8 @@ export default function JobCardsNew() {
       (!searchFilters.showroomId || showroomId === searchFilters.showroomId) &&
       (!searchFilters.vehicleModel || vehicleModel.includes(searchFilters.vehicleModel.toLowerCase())) &&
       (!searchFilters.regNo || regNo.includes(searchFilters.regNo.toLowerCase())) &&
-      dateMatch
+      dateMatch &&
+      (!hideWarrantyRegistered || searchFilters.status === 'WARRANTY_REGISTRATION' || status !== 'WARRANTY_REGISTRATION')
     );
   });
 
@@ -989,6 +1007,45 @@ export default function JobCardsNew() {
     }
   });
 
+  // Admin-only: edit the safe (non-cascading) customer / work-order fields shown on the detail.
+  const canEditDetails = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+
+  const openEditDetails = () => {
+    const wo = detailedJobCard?.workOrder || {};
+    setEditDetailsForm({
+      customerName: wo.customerName || '',
+      customerPhone: wo.customerPhone || '',
+      customerEmail: wo.customerEmail || '',
+      customerAddress: wo.customerAddress || '',
+      regNo: wo.regNo || '',
+      notes: wo.notes || ''
+    });
+    setShowEditDetailsModal(true);
+  };
+
+  const editDetailsMutation = useMutation({
+    mutationFn: async ({ jobCardId, values }: { jobCardId: string; values: typeof editDetailsForm }) => {
+      const response = await apiRequest('PATCH', `/api/job-cards/${jobCardId}/details`, values);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards', selectedJobCardId] });
+      setShowEditDetailsModal(false);
+      toast({
+        title: "Details Updated",
+        description: "Customer and work order details were saved.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update details. Please try again.",
+        variant: "destructive"
+      });
+    }
+  });
+
   // Check if user is admin 
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'OEM_ADMIN' || user?.role === 'SHOWROOM_MANAGER' || user?.role === 'DEALERSHIP_ADMIN';
   console.log('User role:', user?.role, 'isAdmin:', isAdmin);
@@ -1096,6 +1153,17 @@ export default function JobCardsNew() {
         <div className="stack-mobile">
           <div className="flex items-center gap-2">
             <Button
+              variant={hideWarrantyRegistered ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setHideWarrantyRegistered((v) => !v)}
+              className="text-xs sm:text-sm h-8"
+              data-testid="button-closed-filter"
+              title={hideWarrantyRegistered ? 'Hiding Warranty Registered cards — click to show them' : 'Showing Warranty Registered cards — click to hide them'}
+            >
+              <Shield className="h-3 w-3 mr-1" />
+              Closed
+            </Button>
+            <Button
               variant={liveTracking ? 'default' : 'outline'}
               size="sm"
               onClick={() => setLiveTracking((v) => !v)}
@@ -1156,16 +1224,18 @@ export default function JobCardsNew() {
               data-testid="input-job-card-search"
             />
 
-            <Select 
-              value={searchFilters.status || undefined} 
-              onValueChange={(value) => setSearchFilters(prev => ({ ...prev, status: value || '' }))}
+            <Select
+              value={searchFilters.status || undefined}
+              onValueChange={(value) => setSearchFilters(prev => ({ ...prev, status: value === 'ALL' ? '' : value }))}
             >
               <SelectTrigger data-testid="select-status-filter">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="ALL">All Status</SelectItem>
                 <SelectItem value="AWAITING_ACK">Awaiting Acknowledgment</SelectItem>
                 <SelectItem value="ACKNOWLEDGED">Acknowledged</SelectItem>
+                <SelectItem value="SCHEDULED">Scheduled</SelectItem>
                 <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
                 <SelectItem value="COMPLETED">Completed</SelectItem>
                 <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
@@ -2092,18 +2162,32 @@ export default function JobCardsNew() {
       }}>
         <DialogContent className="modal-responsive max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b pb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <FileCheck className="h-6 w-6 text-blue-600" />
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <FileCheck className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl font-bold">
+                    Job Card Details - {detailedJobCard?.id}
+                  </DialogTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Comprehensive job card information and status tracking
+                  </p>
+                </div>
               </div>
-              <div>
-                <DialogTitle className="text-xl font-bold">
-                  Job Card Details - {detailedJobCard?.id}
-                </DialogTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Comprehensive job card information and status tracking
-                </p>
-              </div>
+              {canEditDetails && detailedJobCard && detailedJobCard.status !== 'CLOSED' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={openEditDetails}
+                  className="shrink-0 mr-8"
+                  data-testid="button-edit-details"
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit Details
+                </Button>
+              )}
             </div>
           </DialogHeader>
           
@@ -2937,6 +3021,114 @@ export default function JobCardsNew() {
       )}
 
       {/* Settle Payment Modal */}
+      {/* Edit Details Modal — admin-only safe edit of customer / work-order fields */}
+      <Dialog open={showEditDetailsModal} onOpenChange={setShowEditDetailsModal}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-blue-600" />
+              Edit Details
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              These fields belong to the linked work order and update everywhere this job card is shown.
+              Service, vehicle, price, partner and status are not editable here.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="edit-customer-name">Customer Name</Label>
+              <Input
+                id="edit-customer-name"
+                value={editDetailsForm.customerName}
+                onChange={(e) => setEditDetailsForm(prev => ({ ...prev, customerName: e.target.value }))}
+                data-testid="input-edit-customer-name"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-customer-phone">Phone</Label>
+                <Input
+                  id="edit-customer-phone"
+                  value={editDetailsForm.customerPhone}
+                  onChange={(e) => setEditDetailsForm(prev => ({ ...prev, customerPhone: e.target.value }))}
+                  data-testid="input-edit-customer-phone"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-customer-email">Email</Label>
+                <Input
+                  id="edit-customer-email"
+                  type="email"
+                  value={editDetailsForm.customerEmail}
+                  onChange={(e) => setEditDetailsForm(prev => ({ ...prev, customerEmail: e.target.value }))}
+                  data-testid="input-edit-customer-email"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-reg-no">Registration No.</Label>
+              <Input
+                id="edit-reg-no"
+                value={editDetailsForm.regNo}
+                onChange={(e) => setEditDetailsForm(prev => ({ ...prev, regNo: e.target.value }))}
+                className="font-mono"
+                data-testid="input-edit-reg-no"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-customer-address">Address</Label>
+              <Textarea
+                id="edit-customer-address"
+                rows={2}
+                value={editDetailsForm.customerAddress}
+                onChange={(e) => setEditDetailsForm(prev => ({ ...prev, customerAddress: e.target.value }))}
+                data-testid="input-edit-customer-address"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-notes">Notes</Label>
+              <Textarea
+                id="edit-notes"
+                rows={2}
+                value={editDetailsForm.notes}
+                onChange={(e) => setEditDetailsForm(prev => ({ ...prev, notes: e.target.value }))}
+                data-testid="input-edit-notes"
+              />
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowEditDetailsModal(false)}
+                data-testid="button-cancel-edit-details"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (detailedJobCard?.id) {
+                    editDetailsMutation.mutate({ jobCardId: detailedJobCard.id, values: editDetailsForm });
+                  }
+                }}
+                disabled={editDetailsMutation.isPending}
+                data-testid="button-save-edit-details"
+              >
+                {editDetailsMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Save Changes
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showSettlePaymentModal} onOpenChange={setShowSettlePaymentModal}>
         <DialogContent className="max-w-md">
           <DialogHeader>

@@ -4656,6 +4656,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Admin-only "safe edit" of the customer / work-order fields shown on the job card detail.
+  // These 6 fields live only on the work order (the job card displays them via the join), so the
+  // edit writes to work_orders and every JC surface reflects it automatically. Service / vehicle /
+  // price / partner / status / showroom are intentionally NOT editable here — they cascade into
+  // pricing, commission, payout, allocation and tenancy and have their own dedicated flows.
+  app.patch("/api/job-cards/:id/details",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    auditLog('job_card', 'edit_details'),
+    async (req, res) => {
+      try {
+        const jobCard = await storage.getJobCard(req.params.id);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        // Frozen once settled/closed
+        if (jobCard.status === 'CLOSED') {
+          return res.status(409).json({ error: "Cannot edit a CLOSED job card" });
+        }
+
+        if (!jobCard.workOrderId) {
+          return res.status(409).json({ error: "Job card has no linked work order" });
+        }
+
+        // Whitelist — only these non-cascading work-order fields may be edited here.
+        const ALLOWED_FIELDS = ['customerName', 'customerPhone', 'customerEmail', 'customerAddress', 'regNo', 'notes'];
+        const updates: any = {};
+        for (const field of ALLOWED_FIELDS) {
+          if (!(field in req.body)) continue;
+          let value = req.body[field];
+          if (typeof value === 'string') {
+            value = value.trim();
+            if (field === 'regNo') {
+              value = value.toUpperCase().replace(/\s+/g, '');
+            }
+            if (value === '') value = null; // cleared field → null, not empty string
+          }
+          updates[field] = value;
+        }
+
+        if (Object.keys(updates).length === 0) {
+          return res.status(400).json({ error: "No editable fields provided" });
+        }
+
+        const workOrder = await storage.updateWorkOrder(jobCard.workOrderId, updates);
+        if (!workOrder) {
+          return res.status(404).json({ error: "Linked work order not found" });
+        }
+
+        res.json({ success: true, workOrder });
+      } catch (error) {
+        console.error("Edit job card details error:", error);
+        res.status(500).json({ error: "Failed to update job card details" });
+      }
+    }
+  );
+
   // Job Card Actions
   app.post("/api/job-cards/:id/acknowledge", authenticate, async (req, res) => {
     try {
