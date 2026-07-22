@@ -8988,6 +8988,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
    * Pulse webhook endpoint for user access control
    * POST /api/webhooks/pulse/user-access
    */
+  // Pulse SSO: exchange a Pulse identity (already provisioned here) for a VAS
+  // token, so a user logged into Pulse can see their VAS tabs without a second
+  // login. HMAC-guarded exactly like the user-access webhook.
+  app.post("/api/sso/pulse", async (req, res) => {
+    try {
+      // Fail CLOSED: this endpoint mints login tokens, so it must NEVER run
+      // without a verified signature. A missing secret is a misconfiguration,
+      // not a bypass — reject rather than authenticate anyone.
+      if (!process.env.PULSE_WEBHOOK_SECRET) {
+        console.error('❌ /api/sso/pulse called but PULSE_WEBHOOK_SECRET is not configured — refusing to mint tokens');
+        return res.status(503).json({ success: false, error: 'SSO not configured' });
+      }
+      const signature = req.headers['x-pulse-signature'] as string;
+      const payloadString = JSON.stringify(req.body);
+      if (!pulseWebhookService.verifySignature(payloadString, signature || '')) {
+        return res.status(401).json({ success: false, error: 'Invalid signature' });
+      }
+      const identifier = (req.body?.identifier || '').toString();
+      const result = await authService.mintTokenForIdentifier(identifier);
+      if (!result) {
+        return res.status(404).json({ success: false, error: 'No VAS account for this identity' });
+      }
+      return res.json({
+        success: true,
+        token: result.token,
+        user: {
+          id: result.user.id,
+          role: result.user.role,
+          name: result.user.name,
+          email: result.user.email,
+          phone: result.user.phone,
+          partnerId: result.user.partnerId,
+        },
+      });
+    } catch (error: any) {
+      console.error('❌ Pulse SSO error:', error);
+      return res.status(500).json({ success: false, error: error.message || 'Internal server error' });
+    }
+  });
+
   app.post("/api/webhooks/pulse/user-access", async (req, res) => {
     console.log('🔔 Pulse webhook received!');
     console.log('Headers:', JSON.stringify(req.headers, null, 2));

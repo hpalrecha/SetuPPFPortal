@@ -223,6 +223,51 @@ export class AuthService {
     };
   }
 
+  // Single sign-on from Pulse: mint a VAS token for an already-provisioned user
+  // identified by email / phone / username, WITHOUT a password. Guarded upstream
+  // by the HMAC-signed /api/sso/pulse route (Pulse is the identity source of
+  // truth for partner/detailer/installer). Returns null if no matching active
+  // user exists.
+  async mintTokenForIdentifier(identifier: string): Promise<LoginResponse | null> {
+    const id = (identifier || '').trim();
+    if (!id) return null;
+
+    let user = await storage.getUserByEmail(id);
+    if (!user) user = await storage.getUserByPhone(id);
+    if (!user) user = await storage.getUserByUsername(id);
+    if (!user || !user.isActive) return null;
+
+    // Resolve OEM scope the same way login() does (partner roles are multi-OEM).
+    let allowedOemIds: string[] | undefined;
+    if (user.role === 'PARTNER_STAFF' || user.role === 'DETAILING_PARTNER') {
+      const staffPartnerIds = await storage.getActiveStaffPartnerIds(user.id);
+      const oemSets = await Promise.all(staffPartnerIds.map(pid => storage.getPartnerOems(pid)));
+      allowedOemIds = Array.from(new Set(oemSets.flat()));
+    } else if (user.role === 'PARTNER_ADMIN' && user.partnerId) {
+      allowedOemIds = await storage.getPartnerOems(user.partnerId);
+    }
+
+    const authUser: AuthUser = {
+      id: user.id,
+      username: user.username,
+      email: user.email || undefined,
+      phone: user.phone || undefined,
+      role: user.role,
+      oemId: user.oemId || undefined,
+      dealershipId: user.dealershipId || undefined,
+      showroomId: user.showroomId || undefined,
+      partnerId: user.partnerId || undefined,
+      allowedStates: user.allowedStates as string[] | undefined,
+      name: user.name,
+      emailVerified: user.emailVerified || false,
+      phoneVerified: user.phoneVerified || false,
+      profileCompleted: user.profileCompleted || false,
+      allowedOemIds,
+    };
+    const token = jwt.sign(authUser, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    return { user: authUser, token };
+  }
+
   async verifyToken(token: string): Promise<AuthUser | null> {
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as AuthUser;
