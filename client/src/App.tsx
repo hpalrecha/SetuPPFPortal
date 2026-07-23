@@ -9,6 +9,7 @@ import { ProfileCompletionModal } from "./components/modals/ProfileCompletionMod
 import { trackPageView, setUserProperties } from "./lib/ga4";
 import { useEffect } from "react";
 import LoginPage from "./pages/login";
+import SSOPage from "./pages/sso";
 import DashboardPage from "./pages/dashboard";
 import WorkOrdersPage from "./pages/work-orders";
 import JobCardsNew from "./pages/JobCardsNew";
@@ -109,6 +110,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={LoginPage} />
+      <Route path="/sso" component={SSOPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
       <Route

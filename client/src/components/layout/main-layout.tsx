@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 import { cn } from "@/lib/utils";
+import { isEmbedded } from "@/lib/embed";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -46,6 +47,21 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
   if (!user) {
     return null;
+  }
+
+  // Embedded in Pulse: drop VAS's own sidebar + header/logo and render only the
+  // routed page content full-width/height, so the user sees just Pulse's chrome.
+  if (isEmbedded()) {
+    return (
+      <div className="min-h-screen bg-background">
+        <main
+          className="min-h-screen overflow-x-hidden container-responsive"
+          data-testid="main-content"
+        >
+          <div className="py-4 sm:py-6">{children}</div>
+        </main>
+      </div>
+    );
   }
 
   return (

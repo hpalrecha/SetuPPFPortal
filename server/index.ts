@@ -5,6 +5,22 @@ import { setupVite, serveStatic, log } from "./vite";
 import { whatsappService } from "./services/whatsapp-service";
 
 const app = express();
+
+// Allow the VAS UI to be embedded in an <iframe> by the Pulse app (single-login
+// embed). We deliberately do NOT emit X-Frame-Options (which has no allow-list
+// and would block framing); instead we scope framing via CSP frame-ancestors.
+// PULSE_APP_ORIGINS is a space/comma-separated list of allowed parent origins.
+const PULSE_APP_ORIGINS = (process.env.PULSE_APP_ORIGINS || "http://localhost:5173 http://localhost:8080")
+  .split(/[\s,]+/)
+  .filter(Boolean)
+  .join(" ");
+app.use((_req, res, next) => {
+  // Remove any framing denial a proxy/other layer might have set.
+  res.removeHeader("X-Frame-Options");
+  res.setHeader("Content-Security-Policy", `frame-ancestors 'self' ${PULSE_APP_ORIGINS}`);
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
