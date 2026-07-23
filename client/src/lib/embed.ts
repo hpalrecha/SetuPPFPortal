@@ -16,6 +16,12 @@ export function isEmbedded(): boolean {
       sessionStorage.setItem(EMBED_KEY, '1');
       return true;
     }
+    if (q === '0') {
+      // Explicit opt-out (e.g. the super-admin console needs VAS's own nav).
+      // Clear any stale flag so the full chrome is guaranteed to render.
+      sessionStorage.removeItem(EMBED_KEY);
+      return false;
+    }
     return sessionStorage.getItem(EMBED_KEY) === '1';
   } catch {
     return false;
