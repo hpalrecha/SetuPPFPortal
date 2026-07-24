@@ -230,7 +230,7 @@ export interface IStorage {
   updateJobCard(id: string, updates: Partial<InsertJobCard>): Promise<JobCard | undefined>;
 
   // Customer management (customers are derived from work_orders — there is no customers table)
-  getCustomers(filters?: { search?: string; sortBy?: string; sortDir?: 'asc' | 'desc'; limit?: number; offset?: number }): Promise<{ customers: any[]; total: number; totalWorkOrders: number }>;
+  getCustomers(filters?: { search?: string; sortBy?: string; sortDir?: 'asc' | 'desc'; onlyRepeat?: boolean; onlyRework?: boolean; limit?: number; offset?: number }): Promise<{ customers: any[]; total: number; totalWorkOrders: number }>;
   getWorkOrdersByCustomerPhone(phone: string): Promise<any[]>;
   updateCustomerByPhone(phone: string, updates: { customerName?: string | null; customerEmail?: string | null; customerAddress?: string | null; customerPhone?: string | null }): Promise<number>;
   
@@ -1037,7 +1037,7 @@ export class DatabaseStorage implements IStorage {
   // each becomes its own single-visit entry (keyed 'wo:<id>'), because nameless/phoneless orders can't
   // be safely merged — they may be different people. This keeps the customer list reconcilable with the
   // total work-order count (every work order is accounted for exactly once).
-  async getCustomers(filters?: { search?: string; sortBy?: string; sortDir?: 'asc' | 'desc'; limit?: number; offset?: number }): Promise<{ customers: any[]; total: number; totalWorkOrders: number }> {
+  async getCustomers(filters?: { search?: string; sortBy?: string; sortDir?: 'asc' | 'desc'; onlyRepeat?: boolean; onlyRework?: boolean; limit?: number; offset?: number }): Promise<{ customers: any[]; total: number; totalWorkOrders: number }> {
     // Group key: the phone if present, otherwise a per-work-order key so phoneless orders stand alone.
     const groupKey = sql`COALESCE(NULLIF(${workOrders.customerPhone}, ''), 'wo:' || ${workOrders.id}::text)`;
 
@@ -1047,15 +1047,11 @@ export class DatabaseStorage implements IStorage {
       whereClause = sql`(${workOrders.customerName} ILIKE ${p} OR ${workOrders.customerPhone} ILIKE ${p} OR ${workOrders.customerEmail} ILIKE ${p} OR ${workOrders.regNo} ILIKE ${p})`;
     }
 
-    // Totals matching the filter: distinct customer groups, and total work orders (for reconciliation).
-    let countQuery: any = db
-      .select({
-        total: sql<number>`count(distinct ${groupKey})::int`,
-        totalWorkOrders: sql<number>`count(distinct ${workOrders.id})::int`,
-      })
-      .from(workOrders);
-    if (whereClause) countQuery = countQuery.where(whereClause);
-    const [{ total, totalWorkOrders }] = await countQuery;
+    // Post-group (aggregate) filters: "Repeat" = >1 work order; "Rework" = at least one rework job card.
+    const havingParts: any[] = [];
+    if (filters?.onlyRepeat) havingParts.push(sql`count(distinct ${workOrders.id}) > 1`);
+    if (filters?.onlyRework) havingParts.push(sql`count(distinct ${jobCards.id}) FILTER (WHERE ${jobCards.reworkOfJobCardId} IS NOT NULL) > 0`);
+    const havingClause = havingParts.length ? and(...havingParts) : undefined;
 
     // Representative name/email/address = the value from the group's most recent work order.
     let query: any = db
@@ -1089,7 +1085,30 @@ export class DatabaseStorage implements IStorage {
     };
     const sortKey = filters?.sortBy && sortExprMap[filters.sortBy] ? filters.sortBy : 'lastVisit';
     const dir = filters?.sortDir === 'asc' ? asc : desc;
-    query = query.groupBy(groupKey).orderBy(dir(sortExprMap[sortKey]));
+    query = query.groupBy(groupKey);
+    if (havingClause) query = query.having(havingClause);
+    query = query.orderBy(dir(sortExprMap[sortKey]));
+
+    // With aggregate filters, the matching set is bounded (only repeat/rework customers) — fetch it all,
+    // derive the totals, and page in memory. Without them, keep the fast SQL-paginated + cheap-count path.
+    if (havingClause) {
+      const allRows = await query;
+      const total = allRows.length;
+      const totalWorkOrders = allRows.reduce((s: number, r: any) => s + (r.workOrderCount || 0), 0);
+      const start = filters?.offset || 0;
+      const limit = filters?.limit || 50;
+      return { customers: allRows.slice(start, start + limit), total, totalWorkOrders };
+    }
+
+    // Totals (unfiltered path): distinct customer groups, and total work orders (for reconciliation).
+    let countQuery: any = db
+      .select({
+        total: sql<number>`count(distinct ${groupKey})::int`,
+        totalWorkOrders: sql<number>`count(distinct ${workOrders.id})::int`,
+      })
+      .from(workOrders);
+    if (whereClause) countQuery = countQuery.where(whereClause);
+    const [{ total, totalWorkOrders }] = await countQuery;
 
     if (filters?.limit) query = query.limit(filters.limit);
     if (filters?.offset) query = query.offset(filters.offset);

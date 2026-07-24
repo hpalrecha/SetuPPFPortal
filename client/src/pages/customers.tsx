@@ -476,6 +476,8 @@ export default function CustomersPage() {
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
+  const [onlyRepeat, setOnlyRepeat] = useState(false);
+  const [onlyRework, setOnlyRework] = useState(false);
   const [sortBy, setSortBy] = useState<string>('lastVisit');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -496,10 +498,12 @@ export default function CustomersPage() {
   };
 
   const { data, isLoading } = useQuery<{ customers: any[]; total: number; totalWorkOrders: number }>({
-    queryKey: ["/api/customers", search, page, sortBy, sortDir],
+    queryKey: ["/api/customers", search, page, sortBy, sortDir, onlyRepeat, onlyRework],
     queryFn: async () => {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE), sortBy, sortDir });
       if (search) params.set('search', search);
+      if (onlyRepeat) params.set('onlyRepeat', 'true');
+      if (onlyRework) params.set('onlyRework', 'true');
       const res = await fetch(`/api/customers?${params.toString()}`, { headers: authHeaders(), credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch customers');
       return res.json();
@@ -559,6 +563,39 @@ export default function CustomersPage() {
                 data-testid="input-search-customers"
               />
             </div>
+          </div>
+          {/* Quick filters */}
+          <div className="flex items-center gap-2 mt-3 flex-wrap">
+            <span className="text-xs text-muted-foreground">Filter:</span>
+            <Button
+              variant={onlyRepeat ? 'default' : 'outline'}
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => { setOnlyRepeat((v) => !v); setPage(0); }}
+              data-testid="filter-repeat"
+            >
+              <Users className="h-3 w-3 mr-1" /> Repeat customers
+            </Button>
+            <Button
+              variant={onlyRework ? 'default' : 'outline'}
+              size="sm"
+              className={`h-7 text-xs ${onlyRework ? 'bg-amber-600 hover:bg-amber-700' : 'text-amber-800 border-amber-300 hover:bg-amber-50'}`}
+              onClick={() => { setOnlyRework((v) => !v); setPage(0); }}
+              data-testid="filter-rework"
+            >
+              <RotateCcw className="h-3 w-3 mr-1" /> Has rework
+            </Button>
+            {(onlyRepeat || onlyRework) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-muted-foreground"
+                onClick={() => { setOnlyRepeat(false); setOnlyRework(false); setPage(0); }}
+                data-testid="filter-clear"
+              >
+                Clear
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-0">

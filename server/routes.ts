@@ -3588,11 +3588,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
-        const { search, sortBy, sortDir, limit, offset } = req.query;
+        const { search, sortBy, sortDir, onlyRepeat, onlyRework, limit, offset } = req.query;
         const result = await storage.getCustomers({
           search: search ? String(search) : undefined,
           sortBy: sortBy ? String(sortBy) : undefined,
           sortDir: sortDir === 'asc' ? 'asc' : 'desc',
+          onlyRepeat: onlyRepeat === 'true' || onlyRepeat === '1',
+          onlyRework: onlyRework === 'true' || onlyRework === '1',
           limit: limit ? parseInt(String(limit)) : 50,
           offset: offset ? parseInt(String(offset)) : 0,
         });
