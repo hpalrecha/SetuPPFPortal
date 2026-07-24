@@ -3575,8 +3575,207 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Job Card Routes
-  app.get("/api/job-cards", 
-    authenticate, 
+  // ===================================================================
+  // Customer Management
+  // Customers have no table of their own — they are derived from the
+  // customer* fields on work_orders, grouped by phone number. Admin-only.
+  // ===================================================================
+
+  // List customers (grouped by phone) with visit/job/rework counts.
+  app.get("/api/customers",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']),
+    async (req, res) => {
+      try {
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+        const { search, sortBy, sortDir, limit, offset } = req.query;
+        const result = await storage.getCustomers({
+          search: search ? String(search) : undefined,
+          sortBy: sortBy ? String(sortBy) : undefined,
+          sortDir: sortDir === 'asc' ? 'asc' : 'desc',
+          limit: limit ? parseInt(String(limit)) : 50,
+          offset: offset ? parseInt(String(offset)) : 0,
+        });
+        res.json(result);
+      } catch (error) {
+        console.error("Get customers error:", error);
+        res.status(500).json({ error: "Failed to fetch customers" });
+      }
+    });
+
+  // Single customer detail: full visit timeline (work orders → job cards),
+  // each enriched with partner, assigned detailer/installer, material used and rework linkage.
+  app.get("/api/customers/:phone",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']),
+    async (req, res) => {
+      try {
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+        // The key is either a phone number, or 'wo:<id>' for a phone-less single work order.
+        const key = decodeURIComponent(req.params.phone);
+
+        let customerWorkOrders: any[];
+        if (key.startsWith('wo:')) {
+          const wo = await storage.getWorkOrder(key.slice(3));
+          customerWorkOrders = wo ? [wo] : [];
+        } else {
+          customerWorkOrders = await storage.getWorkOrdersByCustomerPhone(key);
+        }
+        if (customerWorkOrders.length === 0) {
+          return res.status(404).json({ error: "Customer not found" });
+        }
+
+        // Job cards per work order (kept aligned by index for assembly below).
+        const jobCardsPerWO = await Promise.all(
+          customerWorkOrders.map(wo => storage.getJobCards({ workOrderId: wo.id }))
+        );
+        const allJobCards = jobCardsPerWO.flat();
+
+        // Batch-fetch all related entities to avoid N+1 queries.
+        const installerIds = [...new Set(allJobCards.map(jc => jc.assignedInstallerId).filter(Boolean))] as string[];
+        const partnerIds = [...new Set(allJobCards.map(jc => jc.partnerId).filter(Boolean))] as string[];
+        const serviceIds = [...new Set(customerWorkOrders.map(wo => wo.serviceId).filter(Boolean))] as string[];
+        const vehicleModelIds = [...new Set(customerWorkOrders.map(wo => wo.vehicleModelId).filter(Boolean))] as string[];
+        const showroomIds = [...new Set(customerWorkOrders.map(wo => wo.showroomId).filter(Boolean))] as string[];
+
+        const [installers, partnersData, servicesData, vehicleModelsData, showroomsData, approvalsPerJC] = await Promise.all([
+          Promise.all(installerIds.map(id => storage.getUser(id))),
+          Promise.all(partnerIds.map(id => storage.getPartner(id))),
+          Promise.all(serviceIds.map(id => storage.getService(id))),
+          Promise.all(vehicleModelIds.map(id => storage.getVehicleModel(id))),
+          Promise.all(showroomIds.map(id => storage.getShowroom(id))),
+          Promise.all(allJobCards.map(jc => storage.getApprovals({ jobCardId: jc.id }))),
+        ]);
+
+        const installerMap = new Map(installers.filter(Boolean).map((u: any) => [u.id, u]));
+        const partnerMap = new Map(partnersData.filter(Boolean).map((p: any) => [p.id, p]));
+        const serviceMap = new Map(servicesData.filter(Boolean).map((s: any) => [s.id, s]));
+        const vehicleMap = new Map(vehicleModelsData.filter(Boolean).map((v: any) => [v.id, v]));
+        const showroomMap = new Map(showroomsData.filter(Boolean).map((s: any) => [s.id, s]));
+        const approvalsMap = new Map(allJobCards.map((jc, i) => [jc.id, approvalsPerJC[i] || []]));
+
+        const visits = customerWorkOrders.map((wo, woIndex) => {
+          const service = wo.serviceId ? serviceMap.get(wo.serviceId) : null;
+          const vehicle = wo.vehicleModelId ? vehicleMap.get(wo.vehicleModelId) : null;
+          const showroom = wo.showroomId ? showroomMap.get(wo.showroomId) : null;
+
+          const cards = jobCardsPerWO[woIndex].map((jc: any) => {
+            const inst = jc.assignedInstallerId ? installerMap.get(jc.assignedInstallerId) : null;
+            const partner = jc.partnerId ? partnerMap.get(jc.partnerId) : null;
+            return {
+              id: jc.id,
+              status: jc.status,
+              isRework: !!jc.reworkOfJobCardId,
+              reworkOfJobCardId: jc.reworkOfJobCardId,
+              reworkReason: jc.reworkReason,
+              reworkRequestedAt: jc.reworkRequestedAt,
+              reworkCompletedAt: jc.reworkCompletedAt,
+              partner: partner ? { id: partner.id, name: partner.displayName || partner.legalName || partner.name } : null,
+              assignedInstaller: inst ? { id: inst.id, name: inst.name, phone: inst.phone } : null,
+              materialConsumption: jc.materialConsumptionJson,
+              batchNumbers: jc.batchNumbers,
+              billingValue: jc.billingValue,
+              scheduledAt: jc.scheduledAt,
+              startedAt: jc.startedAt,
+              completedAt: jc.completedAt,
+              approvedAt: jc.approvedAt,
+              createdAt: jc.createdAt,
+              approvals: approvalsMap.get(jc.id) || [],
+            };
+          });
+
+          return {
+            workOrderId: wo.id,
+            status: wo.status,
+            regNo: wo.regNo,
+            service: service ? { id: service.id, name: service.name } : null,
+            vehicle: vehicle ? { id: vehicle.id, name: vehicle.modelName } : null,
+            variant: wo.variant,
+            showroom: showroom ? { id: showroom.id, name: showroom.name } : null,
+            quantity: wo.quantity,
+            estimatedPrice: wo.estimatedPrice,
+            notes: wo.notes,
+            appointmentAt: wo.appointmentAt,
+            createdAt: wo.createdAt,
+            jobCards: cards,
+          };
+        });
+
+        // Work orders are ordered newest-first from storage.
+        const latest = customerWorkOrders[0];
+        const oldest = customerWorkOrders[customerWorkOrders.length - 1];
+        const reworkCount = allJobCards.filter(jc => jc.reworkOfJobCardId).length;
+
+        res.json({
+          customer: {
+            key,
+            phone: latest.customerPhone || (key.startsWith('wo:') ? null : key),
+            name: latest.customerName,
+            email: latest.customerEmail,
+            address: latest.customerAddress,
+            workOrderCount: customerWorkOrders.length,
+            jobCount: allJobCards.length,
+            reworkCount,
+            firstVisit: oldest?.createdAt,
+            lastVisit: latest?.createdAt,
+          },
+          visits,
+        });
+      } catch (error) {
+        console.error("Get customer detail error:", error);
+        res.status(500).json({ error: "Failed to fetch customer details" });
+      }
+    });
+
+  // Edit a customer's contact details. Writes back to every work order sharing this phone.
+  app.patch("/api/customers/:phone",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']),
+    auditLog('customer', 'update'),
+    async (req, res) => {
+      try {
+        const key = decodeURIComponent(req.params.phone);
+        const bodySchema = z.object({
+          customerName: z.string().trim().optional(),
+          customerEmail: z.string().trim().optional(),
+          customerAddress: z.string().trim().optional(),
+          customerPhone: z.string().trim().optional(),
+        });
+        const data = bodySchema.parse(req.body);
+
+        const updates: any = {};
+        (['customerName', 'customerEmail', 'customerAddress', 'customerPhone'] as const).forEach((k) => {
+          if (data[k] !== undefined) updates[k] = data[k] === '' ? null : data[k];
+        });
+        if (Object.keys(updates).length === 0) {
+          return res.status(400).json({ error: "No fields to update" });
+        }
+
+        let updatedCount: number;
+        if (key.startsWith('wo:')) {
+          // Phone-less single work order — update just that row.
+          const updated = await storage.updateWorkOrder(key.slice(3), updates);
+          updatedCount = updated ? 1 : 0;
+        } else {
+          // Phone group — apply to every work order sharing this phone.
+          updatedCount = await storage.updateCustomerByPhone(key, updates);
+        }
+        res.json({
+          message: `Updated ${updatedCount} work order(s) for this customer`,
+          updatedCount,
+          phone: updates.customerPhone ?? (key.startsWith('wo:') ? null : key),
+        });
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid customer data", details: error.errors });
+        }
+        console.error("Update customer error:", error);
+        res.status(500).json({ error: "Failed to update customer" });
+      }
+    });
+
+  app.get("/api/job-cards",
+    authenticate,
     requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER', 'SHOWROOM_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SALES_PERSON']),
     async (req, res) => {
     try {
@@ -5117,18 +5316,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  app.post("/api/job-cards/:id/request-rework", 
-    authenticate, 
-    requireRole(['SUPER_ADMIN', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN']),
+  app.post("/api/job-cards/:id/request-rework",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN']),
     auditLog('job_card', 'request_rework'),
     async (req, res) => {
       try {
-        // Validate rework request data
+        // Validate rework request data. Optionally the requester can assign the detailer/installer and
+        // pick the roll/material for the rework up front (used by the Customer Management tab).
         const reworkSchema = z.object({
-          remarks: z.string().min(1, "Reason is required for rework requests")
+          remarks: z.string().min(1, "Reason is required for rework requests"),
+          assignedInstallerId: z.string().uuid().optional(),
+          plannedMaterialId: z.string().uuid().optional(),
+          plannedMaterialName: z.string().trim().optional(),
+          plannedQuantity: z.number().positive().optional(),
         });
-        
-        const { remarks } = reworkSchema.parse(req.body);
+
+        const { remarks, assignedInstallerId, plannedMaterialId, plannedMaterialName, plannedQuantity } = reworkSchema.parse(req.body);
         const jobCardId = req.params.id;
         
         // Get job card first to check status and access
@@ -5186,6 +5390,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           woUpdates[field] = value;
         }
 
+        // Optional up-front assignment: validate the chosen detailer belongs to this card's partner.
+        if (assignedInstallerId && !(await storage.staffHasPartner(assignedInstallerId, jobCard.partnerId))) {
+          return res.status(400).json({ error: "Selected detailer is not part of this job's partner" });
+        }
+
+        // Optional up-front roll/material choice (with quantity), stored as the rework card's planned material.
+        const plannedMaterialJson = (plannedMaterialId || plannedMaterialName || plannedQuantity)
+          ? { plannedMaterial: plannedMaterialName || null, plannedRawMaterialId: plannedMaterialId || null, plannedQuantity: plannedQuantity ?? null, plannedByRole: req.user!.role }
+          : undefined;
+
         // 1) Create a NEW job card against the SAME work order. It is a normal card that follows
         //    the natural lifecycle from AWAITING_ACK. Non-billable (₹0, no payout). Linked to the original.
         const newJobCard = await storage.createJobCard({
@@ -5194,6 +5408,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: 'AWAITING_ACK',
           reworkOfJobCardId: jobCard.id,
           reworkReason: remarks,
+          assignedInstallerId: assignedInstallerId || null,
+          materialConsumptionJson: plannedMaterialJson,
           billingValue: '0',
           billFrom: jobCard.billFrom || workOrder.billFrom || null,
           billTo: jobCard.billTo || workOrder.billTo || null,
@@ -5238,6 +5454,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         console.error("Request rework error:", error);
         res.status(500).json({ error: "Failed to request rework" });
+      }
+    }
+  );
+
+  // Options for the admin "Request Rework" dialog: the detailers/installers available under this job's
+  // partner, plus the active roll/material catalogue. Admin-only (used by the Customer Management tab).
+  app.get("/api/job-cards/:id/rework-options",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']),
+    async (req, res) => {
+      try {
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+        const jobCard = await storage.getJobCard(req.params.id);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+        const [staff, materials] = await Promise.all([
+          storage.getPartnerStaff(jobCard.partnerId),
+          storage.getRawMaterials(),
+        ]);
+        res.json({
+          installers: staff.map((u: any) => ({ id: u.id, name: u.name, role: u.role, phone: u.phone })),
+          materials: materials.filter((m: any) => m.active !== false).map((m: any) => ({ id: m.id, name: m.name })),
+        });
+      } catch (error) {
+        console.error("Get rework options error:", error);
+        res.status(500).json({ error: "Failed to fetch rework options" });
       }
     }
   );

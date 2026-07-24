@@ -13,6 +13,7 @@ import SSOPage from "./pages/sso";
 import DashboardPage from "./pages/dashboard";
 import WorkOrdersPage from "./pages/work-orders";
 import JobCardsNew from "./pages/JobCardsNew";
+import CustomersPage from "./pages/customers";
 import PartnersPage from "./pages/partners";
 import AllocationsPage from "./pages/allocations";
 import PricingPage from "./pages/pricing";
@@ -140,6 +141,10 @@ function Router() {
       <Route
         path="/job-cards/:id"
         component={() => <ProtectedRoute component={JobCardsNew} />}
+      />
+      <Route
+        path="/customers"
+        component={() => <ProtectedRoute component={CustomersPage} />}
       />
       <Route
         path="/partners"

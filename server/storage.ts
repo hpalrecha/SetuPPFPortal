@@ -228,6 +228,11 @@ export interface IStorage {
   getJobCard(id: string): Promise<JobCard | undefined>;
   createJobCard(jobCard: InsertJobCard): Promise<JobCard>;
   updateJobCard(id: string, updates: Partial<InsertJobCard>): Promise<JobCard | undefined>;
+
+  // Customer management (customers are derived from work_orders — there is no customers table)
+  getCustomers(filters?: { search?: string; sortBy?: string; sortDir?: 'asc' | 'desc'; limit?: number; offset?: number }): Promise<{ customers: any[]; total: number; totalWorkOrders: number }>;
+  getWorkOrdersByCustomerPhone(phone: string): Promise<any[]>;
+  updateCustomerByPhone(phone: string, updates: { customerName?: string | null; customerEmail?: string | null; customerAddress?: string | null; customerPhone?: string | null }): Promise<number>;
   
   // Job Card Media management
   insertJobCardMedia(media: { jobCardId: string; type: string; url: string; caption?: string }): Promise<any>;
@@ -1022,8 +1027,100 @@ export class DatabaseStorage implements IStorage {
     }
     
     const dealershipsList = await query;
-    
+
     return { dealerships: dealershipsList, total };
+  }
+
+  // ===== Customer management =====
+  // A "customer" has no table of its own — customer identity lives denormalized on work_orders.
+  // We group work orders on phone (the most stable key). Work orders WITHOUT a phone are NOT dropped:
+  // each becomes its own single-visit entry (keyed 'wo:<id>'), because nameless/phoneless orders can't
+  // be safely merged — they may be different people. This keeps the customer list reconcilable with the
+  // total work-order count (every work order is accounted for exactly once).
+  async getCustomers(filters?: { search?: string; sortBy?: string; sortDir?: 'asc' | 'desc'; limit?: number; offset?: number }): Promise<{ customers: any[]; total: number; totalWorkOrders: number }> {
+    // Group key: the phone if present, otherwise a per-work-order key so phoneless orders stand alone.
+    const groupKey = sql`COALESCE(NULLIF(${workOrders.customerPhone}, ''), 'wo:' || ${workOrders.id}::text)`;
+
+    let whereClause: any = undefined;
+    if (filters?.search) {
+      const p = `%${filters.search}%`;
+      whereClause = sql`(${workOrders.customerName} ILIKE ${p} OR ${workOrders.customerPhone} ILIKE ${p} OR ${workOrders.customerEmail} ILIKE ${p} OR ${workOrders.regNo} ILIKE ${p})`;
+    }
+
+    // Totals matching the filter: distinct customer groups, and total work orders (for reconciliation).
+    let countQuery: any = db
+      .select({
+        total: sql<number>`count(distinct ${groupKey})::int`,
+        totalWorkOrders: sql<number>`count(distinct ${workOrders.id})::int`,
+      })
+      .from(workOrders);
+    if (whereClause) countQuery = countQuery.where(whereClause);
+    const [{ total, totalWorkOrders }] = await countQuery;
+
+    // Representative name/email/address = the value from the group's most recent work order.
+    let query: any = db
+      .select({
+        groupKey: sql<string>`COALESCE(NULLIF(${workOrders.customerPhone}, ''), 'wo:' || ${workOrders.id}::text)`,
+        customerPhone: sql<string | null>`max(NULLIF(${workOrders.customerPhone}, ''))`,
+        customerName: sql<string>`(array_agg(${workOrders.customerName} ORDER BY ${workOrders.createdAt} DESC) FILTER (WHERE ${workOrders.customerName} IS NOT NULL))[1]`,
+        customerEmail: sql<string>`(array_agg(${workOrders.customerEmail} ORDER BY ${workOrders.createdAt} DESC) FILTER (WHERE ${workOrders.customerEmail} IS NOT NULL))[1]`,
+        customerAddress: sql<string>`(array_agg(${workOrders.customerAddress} ORDER BY ${workOrders.createdAt} DESC) FILTER (WHERE ${workOrders.customerAddress} IS NOT NULL))[1]`,
+        workOrderCount: sql<number>`count(distinct ${workOrders.id})::int`,
+        jobCount: sql<number>`count(distinct ${jobCards.id})::int`,
+        reworkCount: sql<number>`(count(distinct ${jobCards.id}) FILTER (WHERE ${jobCards.reworkOfJobCardId} IS NOT NULL))::int`,
+        firstVisit: sql<string>`min(${workOrders.createdAt})`,
+        lastVisit: sql<string>`max(${workOrders.createdAt})`,
+        // The customer's most recent job card — used to offer a rework action directly from the list row.
+        latestJobCardId: sql<string | null>`(array_agg(${jobCards.id} ORDER BY ${jobCards.createdAt} DESC) FILTER (WHERE ${jobCards.id} IS NOT NULL))[1]`,
+        latestJobStatus: sql<string | null>`(array_agg(${jobCards.status} ORDER BY ${jobCards.createdAt} DESC) FILTER (WHERE ${jobCards.id} IS NOT NULL))[1]`,
+      })
+      .from(workOrders)
+      .leftJoin(jobCards, eq(jobCards.workOrderId, workOrders.id));
+    if (whereClause) query = query.where(whereClause);
+
+    // Sortable columns (default: most recently seen first).
+    const sortExprMap: Record<string, any> = {
+      name: sql`(array_agg(${workOrders.customerName} ORDER BY ${workOrders.createdAt} DESC) FILTER (WHERE ${workOrders.customerName} IS NOT NULL))[1]`,
+      workOrders: sql`count(distinct ${workOrders.id})`,
+      jobs: sql`count(distinct ${jobCards.id})`,
+      reworks: sql`count(distinct ${jobCards.id}) FILTER (WHERE ${jobCards.reworkOfJobCardId} IS NOT NULL)`,
+      lastVisit: sql`max(${workOrders.createdAt})`,
+      firstVisit: sql`min(${workOrders.createdAt})`,
+    };
+    const sortKey = filters?.sortBy && sortExprMap[filters.sortBy] ? filters.sortBy : 'lastVisit';
+    const dir = filters?.sortDir === 'asc' ? asc : desc;
+    query = query.groupBy(groupKey).orderBy(dir(sortExprMap[sortKey]));
+
+    if (filters?.limit) query = query.limit(filters.limit);
+    if (filters?.offset) query = query.offset(filters.offset);
+
+    const customers = await query;
+    return { customers, total, totalWorkOrders };
+  }
+
+  async getWorkOrdersByCustomerPhone(phone: string): Promise<any[]> {
+    return await db
+      .select()
+      .from(workOrders)
+      .where(eq(workOrders.customerPhone, phone))
+      .orderBy(desc(workOrders.createdAt));
+  }
+
+  // Edits apply to every work order that shares this phone, keeping the customer's records consistent.
+  async updateCustomerByPhone(
+    phone: string,
+    updates: { customerName?: string | null; customerEmail?: string | null; customerAddress?: string | null; customerPhone?: string | null }
+  ): Promise<number> {
+    const set: any = { updatedAt: new Date() };
+    (['customerName', 'customerEmail', 'customerAddress', 'customerPhone'] as const).forEach((k) => {
+      if (updates[k] !== undefined) set[k] = updates[k];
+    });
+    const result = await db
+      .update(workOrders)
+      .set(set)
+      .where(eq(workOrders.customerPhone, phone))
+      .returning({ id: workOrders.id });
+    return result.length;
   }
 
   async getDealershipFilterOptions(): Promise<{ states: Array<{ value: string; count: number }>; cities: Array<{ value: string; count: number }> }> {
