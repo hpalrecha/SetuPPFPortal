@@ -39,7 +39,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-[100dvh] flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -53,9 +53,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
   // routed page content full-width/height, so the user sees just Pulse's chrome.
   if (isEmbedded()) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-[100dvh] bg-background">
         <main
-          className="min-h-screen overflow-x-hidden container-responsive"
+          className="min-h-[100dvh] overflow-x-hidden container-responsive safe-bottom"
           data-testid="main-content"
         >
           <div className="py-4 sm:py-6">{children}</div>
@@ -65,7 +65,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100dvh] bg-background">
       <Header onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)} />
       
       {/* Mobile overlay */}
@@ -84,14 +84,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
           isMobile={isMobile}
           className={cn(
             "transition-all duration-300 z-50",
-            isMobile 
-              ? "fixed left-0 top-16 h-[calc(100vh-4rem)]" 
-              : "relative top-0 h-[calc(100vh-4rem)]"
+            isMobile
+              ? "fixed left-0 top-16 h-[calc(100dvh-4rem)]"
+              : "relative top-0 h-[calc(100dvh-4rem)]"
           )}
         />
         <main className={cn(
           "flex-1 transition-all duration-300 container-responsive",
-          "min-h-[calc(100vh-4rem)] overflow-x-hidden",
+          "min-h-[calc(100dvh-4rem)] overflow-x-hidden safe-bottom",
           // Add margin on desktop when sidebar is expanded
           !isMobile && !sidebarCollapsed && "ml-0"
         )} data-testid="main-content">

@@ -223,6 +223,7 @@
   .table-wrapper {
     @apply w-full overflow-x-auto;
     @apply rounded-lg border border-border;
+    -webkit-overflow-scrolling: touch; /* momentum scroll for wide tables in WebView */
   }
 
   /* Mobile-first button groups */
@@ -279,9 +280,61 @@
   .table-cell-responsive {
     @apply block border-b border-border p-2 text-left;
   }
-  
+
   .table-cell-responsive:before {
     content: attr(data-label) ": ";
     @apply font-medium text-muted-foreground;
+  }
+}
+
+/* ── Mobile / WebView hardening ──────────────────────────────────────────
+   This app is loaded inside the dialer app's full-screen native WebView (and
+   also embedded chromeless inside P91pulse). The rules below make it render
+   like a fitted mobile screen. Styling only — no layout/logic changes.
+   Note: html/body already set overflow-x-hidden above. */
+
+/* Stop rubber-band bleed into the WebView and remove the grey Android tap flash. */
+html,
+body {
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Safe-area helpers for fixed chrome (needs viewport-fit=cover in index.html;
+   resolve to 0 when unsupported, so always harmless). */
+.safe-top    { padding-top:    env(safe-area-inset-top);    }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-x {
+  padding-left:  env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Momentum scrolling for horizontally-scrolling regions. */
+.momentum-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 767px) {
+  /* Inputs below 16px make iOS WebKit zoom-and-stick on focus. Floor them. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Comfortable touch ergonomics without stretching layouts. */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  a[role="button"] {
+    min-height: 40px;
+  }
+}
+
+/* Respect the OS "reduce motion" setting for the drawer transition. */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-transition {
+    transition: none;
   }
 }

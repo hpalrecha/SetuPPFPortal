@@ -126,7 +126,7 @@ export function Sidebar({ collapsed, onToggle, className, isMobile = false }: Si
       </div>
 
       {/* Navigation (scrolls independently of page content) */}
-      <nav className="flex-1 space-y-1 p-2 overflow-y-auto">
+      <nav className="flex-1 space-y-1 p-2 overflow-y-auto momentum-scroll safe-bottom">
         {navigation.map((item, index) => {
           const isActive = location === item.href || 
                           (item.href === "/dashboard" && location === "/");

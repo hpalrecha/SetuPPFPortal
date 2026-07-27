@@ -1,4 +1,5 @@
 import { apiRequest } from "./api";
+import { queryClient } from "./queryClient";
 
 export interface LoginCredentials {
   email: string;
@@ -52,6 +53,16 @@ export class AuthService {
     } finally {
       localStorage.removeItem(this.TOKEN_KEY);
       localStorage.removeItem(this.USER_KEY);
+      localStorage.removeItem('notifications_read');
+      // Drop any per-user OEM selections so the next login starts clean.
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith('selected_oem_id_'))
+        .forEach((k) => localStorage.removeItem(k));
+      // Wipe the in-memory React Query cache. Query keys like ['jobCards'] and
+      // ['/api/work-orders', ...] are not namespaced per user and staleTime is
+      // Infinity, so without this the next user who logs in on this browser
+      // sees the previous user's cached job cards / work orders until a refetch.
+      queryClient.clear();
     }
   }
 

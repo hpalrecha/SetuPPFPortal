@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { AuthService, type AuthUser, type LoginCredentials } from '@/lib/auth';
+import { queryClient } from '@/lib/queryClient';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -50,6 +51,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const credentials: LoginCredentials = { email, password };
       if (oemId) credentials.oemId = oemId;
       
+      // Clear any cache left over from a previous session on this browser
+      // (e.g. a tab close or expired token that never ran logout) so this
+      // user never sees the prior user's cached job cards / work orders.
+      queryClient.clear();
       const { user: loggedInUser } = await AuthService.login(credentials);
       setUser(loggedInUser);
     } catch (error) {
