@@ -236,7 +236,8 @@ export default function JobCardsNew() {
     customerEmail: '',
     customerAddress: '',
     regNo: '',
-    notes: ''
+    notes: '',
+    showroomId: ''
   });
   // Rework: creates a new linked job card against the same work order
   const [showReworkModal, setShowReworkModal] = useState(false);
@@ -1026,6 +1027,25 @@ export default function JobCardsNew() {
   // Admin-only: edit the safe (non-cascading) customer / work-order fields shown on the detail.
   const canEditDetails = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
 
+  // Showrooms under this job card's dealership — for the Edit Details showroom picker.
+  const editDealershipId = detailedJobCard?.workOrder?.dealershipId;
+  const { data: editShowroomData } = useQuery<{ showrooms: any[]; total: number }>({
+    queryKey: ['/api/showrooms', 'edit-details', editDealershipId],
+    queryFn: async () => {
+      const params = new URLSearchParams({ limit: '10000' });
+      if (editDealershipId) params.set('dealershipId', editDealershipId);
+      const response = await fetch(`/api/showrooms?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch showrooms');
+      return response.json();
+    },
+    enabled: showEditDetailsModal && canEditDetails && !!editDealershipId,
+    staleTime: 300000,
+  });
+  const editShowrooms = editShowroomData?.showrooms || [];
+
   const openEditDetails = () => {
     const wo = detailedJobCard?.workOrder || {};
     setEditDetailsForm({
@@ -1034,7 +1054,8 @@ export default function JobCardsNew() {
       customerEmail: wo.customerEmail || '',
       customerAddress: wo.customerAddress || '',
       regNo: wo.regNo || '',
-      notes: wo.notes || ''
+      notes: wo.notes || '',
+      showroomId: wo.showroomId || ''
     });
     setShowEditDetailsModal(true);
   };
@@ -3232,6 +3253,25 @@ export default function JobCardsNew() {
               These fields belong to the linked work order and update everywhere this job card is shown.
               Service, vehicle, price, partner and status are not editable here.
             </p>
+            <div className="space-y-2">
+              <Label htmlFor="edit-showroom">Showroom</Label>
+              <Select
+                value={editDetailsForm.showroomId}
+                onValueChange={(value) => setEditDetailsForm(prev => ({ ...prev, showroomId: value }))}
+              >
+                <SelectTrigger id="edit-showroom" data-testid="select-edit-showroom">
+                  <SelectValue placeholder="Select showroom" />
+                </SelectTrigger>
+                <SelectContent>
+                  {editShowrooms.map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Only showrooms under this job's dealership. Changing it updates the showroom and ship-to address; the bill amount is unchanged.
+              </p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="edit-customer-name">Customer Name</Label>
               <Input

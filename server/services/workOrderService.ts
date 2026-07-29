@@ -116,6 +116,58 @@ export class WorkOrderService {
     };
   }
 
+  // Move a job card's work order to a different showroom (must belong to the SAME
+  // dealership) and recompute the showroom-derived billing snapshot. Pricing is
+  // dealership-level, so estimatedPrice/amount is intentionally left unchanged —
+  // only shipTo (always showroom-derived), billTo (only if that showroom bills
+  // directly), and the showroom itself move. Updates both the work order and the
+  // given job card's own snapshot, since the detail view reads the job card copy.
+  async changeShowroom(jobCardId: string, newShowroomId: string): Promise<WorkOrder> {
+    const jobCard = await storage.getJobCard(jobCardId);
+    if (!jobCard) {
+      throw new Error('Job card not found');
+    }
+    const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+    if (!workOrder) {
+      throw new Error('Work order not found');
+    }
+
+    const showroom = await storage.getShowroom(newShowroomId);
+    if (!showroom) {
+      throw new Error('Showroom not found');
+    }
+    if (showroom.dealershipId !== workOrder.dealershipId) {
+      throw new Error("Showroom does not belong to this work order's dealership");
+    }
+
+    const billingDetails = await this.calculateBillingDetails(
+      workOrder.oemId,
+      workOrder.dealershipId,
+      newShowroomId,
+      jobCard.partnerId || undefined
+    );
+
+    const updatedWorkOrder = await storage.updateWorkOrder(workOrder.id, {
+      showroomId: newShowroomId,
+      billFrom: billingDetails.billFrom,
+      billTo: billingDetails.billTo,
+      shipTo: billingDetails.shipTo
+    });
+
+    // Keep this job card's own billing snapshot in sync with the new showroom.
+    await storage.updateJobCard(jobCard.id, {
+      billFrom: billingDetails.billFrom,
+      billTo: billingDetails.billTo,
+      shipTo: billingDetails.shipTo,
+      partnerBilledDirectly: billingDetails.partnerBilledDirectly
+    });
+
+    if (!updatedWorkOrder) {
+      throw new Error('Failed to update work order showroom');
+    }
+    return updatedWorkOrder;
+  }
+
   async createWorkOrder(data: InsertWorkOrder, userId: string): Promise<WorkOrder> {
     // 💰 Calculate estimated price from pricing rules (with OEM fallback)
     let estimatedPrice = 0;

@@ -4985,13 +4985,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updates[field] = value;
         }
 
-        if (Object.keys(updates).length === 0) {
+        // Showroom is a cascading field (drives shipTo/billTo), handled separately
+        // from the non-cascading whitelist. Must stay within the same dealership;
+        // recomputes billing but leaves the amount unchanged (pricing is dealership-level).
+        const currentWorkOrder = await storage.getWorkOrder(jobCard.workOrderId);
+        const newShowroomId = typeof req.body.showroomId === 'string' ? req.body.showroomId.trim() : '';
+        const showroomChanged = !!newShowroomId && newShowroomId !== currentWorkOrder?.showroomId;
+
+        if (Object.keys(updates).length === 0 && !showroomChanged) {
           return res.status(400).json({ error: "No editable fields provided" });
         }
 
-        const workOrder = await storage.updateWorkOrder(jobCard.workOrderId, updates);
+        let workOrder = currentWorkOrder;
+        if (Object.keys(updates).length > 0) {
+          workOrder = await storage.updateWorkOrder(jobCard.workOrderId, updates);
+        }
         if (!workOrder) {
           return res.status(404).json({ error: "Linked work order not found" });
+        }
+
+        if (showroomChanged) {
+          const { workOrderService } = await import('./services/workOrderService');
+          try {
+            workOrder = await workOrderService.changeShowroom(jobCard.id, newShowroomId);
+          } catch (e: any) {
+            return res.status(400).json({ error: e?.message || "Failed to change showroom" });
+          }
         }
 
         res.json({ success: true, workOrder });
