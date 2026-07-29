@@ -4798,6 +4798,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             hasAccess = workOrder.dealershipId === req.user!.dealershipId;
           } else if (req.user!.role === 'SHOWROOM_MANAGER') {
             hasAccess = workOrder.showroomId === req.user!.showroomId;
+          } else if (req.user!.role === 'PARTNER_ADMIN') {
+            // Partner admin can settle P91-billed cards for their own partner
+            hasAccess = jobCard.partnerId === req.user!.partnerId;
           }
         }
 
@@ -8179,6 +8182,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to get upload URL" });
     }
   });
+
+  // Server-proxied file upload: the browser posts the file here (multipart) and
+  // the server pushes it to S3, returning a stable "/objects/..." path. This
+  // avoids the browser->S3 CORS preflight (the bucket has no CORS policy) and the
+  // SDK's presigned-PUT checksum params that break direct uploads. Mirrors the
+  // Post-Installation photo flow (/api/job-cards/upload-media) but returns just a
+  // URL without creating a job-card media record.
+  app.post("/api/objects/upload-file",
+    authenticate,
+    imageUpload.single('file'),
+    async (req, res) => {
+      try {
+        if (!req.file) {
+          return res.status(400).json({ error: "No file uploaded" });
+        }
+
+        const objectStorageService = new ObjectStorageService();
+        const fileBuffer = fs.readFileSync(req.file.path);
+        const url = await objectStorageService.uploadBuffer(
+          fileBuffer,
+          req.file.originalname,
+          req.file.mimetype
+        );
+
+        // Clean up the local temp file
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (cleanupError) {
+          console.warn('Failed to cleanup temp file:', req.file.path, cleanupError);
+        }
+
+        res.json({ url });
+      } catch (error) {
+        console.error("Upload file error:", error);
+        res.status(500).json({ error: "Failed to upload file" });
+      }
+    }
+  );
 
   // Serve object files (no authentication required - ACL is checked in downloadObject)
   app.get("/objects/*", async (req, res) => {

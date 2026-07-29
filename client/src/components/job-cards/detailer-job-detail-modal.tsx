@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { CalendarIcon, ClockIcon, CheckCircle2, PlayCircle, PauseCircle, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon, Users, Camera, Eye, Shield } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiRequest } from '@/lib/queryClient';
+import { processImage } from '@/lib/imageProcessing';
 import { useToast } from '@/hooks/use-toast';
 import { ImageModal } from '@/components/ui/image-modal';
 import { format } from 'date-fns';
@@ -312,36 +313,23 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     try {
       setBatchNumberImageUploading(true);
 
-      // Get upload URL from the server
-      const uploadUrlResponse = await fetch('/api/objects/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-        credentials: 'include',
+      // Compress/convert (handles HEIC from phones), then upload via the server,
+      // which pushes to S3 and returns a stable "/objects/..." path. Uploading
+      // through the server avoids the browser->S3 CORS preflight that the bucket
+      // rejects (see /api/objects/upload-file).
+      const processed = await processImage(file, {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920,
+        quality: 0.8,
       });
 
-      if (!uploadUrlResponse.ok) {
-        const errorText = await uploadUrlResponse.text();
-        throw new Error(`Failed to get upload URL: ${errorText}`);
-      }
+      const formData = new FormData();
+      formData.append('file', processed.file);
 
-      const { uploadURL } = await uploadUrlResponse.json();
+      const response = await apiRequest('POST', '/api/objects/upload-file', formData);
+      const { url } = await response.json();
 
-      // Upload the file
-      const uploadResponse = await fetch(uploadURL, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type || 'image/jpeg',
-        },
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error('Failed to upload batch number image');
-      }
-
-      setBatchNumberImage(uploadURL);
+      setBatchNumberImage(url);
       toast({ title: 'Success', description: 'Batch number image uploaded successfully' });
     } catch (error: any) {
       toast({ 
@@ -1145,7 +1133,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
 
             {/* Completion Remarks */}
             <div>
-              <Label htmlFor="completion-remarks">Completion Remarks</Label>
+              <Label htmlFor="completion-remarks">Completion Remarks <span className="text-red-500">*</span></Label>
               <Textarea
                 id="completion-remarks"
                 placeholder="Installation completed successfully. Customer satisfied with the work."
