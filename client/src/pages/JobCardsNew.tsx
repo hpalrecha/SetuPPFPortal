@@ -466,7 +466,10 @@ export default function JobCardsNew() {
       (!searchFilters.showroomId || showroomId === searchFilters.showroomId) &&
       (!searchFilters.vehicleModel || vehicleModel.includes(searchFilters.vehicleModel.toLowerCase())) &&
       (!searchFilters.regNo || regNo.includes(searchFilters.regNo.toLowerCase())) &&
-      (!searchFilters.assignedInstallerId || (jobCard.assignedInstallerId || '') === searchFilters.assignedInstallerId) &&
+      (!searchFilters.assignedInstallerId ||
+        (searchFilters.assignedInstallerId === 'UNASSIGNED'
+          ? !jobCard.assignedInstallerId
+          : (jobCard.assignedInstallerId || '') === searchFilters.assignedInstallerId)) &&
       dateMatch &&
       (!hideWarrantyRegistered || searchFilters.status === 'WARRANTY_REGISTRATION' || status !== 'WARRANTY_REGISTRATION')
     );
@@ -1474,6 +1477,7 @@ export default function JobCardsNew() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">All Installers</SelectItem>
+                <SelectItem value="UNASSIGNED">Unassigned</SelectItem>
                 {allInstallers.map((installer: any) => (
                   <SelectItem key={installer.id} value={installer.id}>
                     {installer.name || 'Unnamed'}{installer.role === 'DETAILING_PARTNER' ? ' (Detailing Partner)' : ''}
