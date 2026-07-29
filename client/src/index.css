@@ -130,8 +130,12 @@
     @apply text-sm sm:text-base;
   }
 
-  /* Prevent horizontal overflow */
-  html, body {
+  /* Prevent horizontal overflow.
+     Only on <html>: putting overflow-x on <body> turns body into its own
+     scroll container, and combined with `overscroll-behavior-y: contain`
+     (WebView hardening below) it swallows wheel/touch scroll before it reaches
+     the viewport — freezing vertical page scroll everywhere. */
+  html {
     @apply overflow-x-hidden;
   }
 }
