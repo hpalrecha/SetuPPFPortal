@@ -90,6 +90,7 @@ interface JobCard {
   } | null;
   batchNumbers?: string | string[];
   batchNumberImage?: string;
+  workOrderCreatedByPartner?: boolean;
   approvalRequestedAt?: string;
   approvedAt?: string;
   approvedByUserId?: string;
@@ -2894,8 +2895,11 @@ export default function JobCardsNew() {
 
                 {/* Settlement Section - Post Approval */}
                 {(detailedJobCard.status === 'APPROVED' || detailedJobCard.status === 'PENDING_SALES_INVOICE' || detailedJobCard.status === 'INVOICE_RAISED' || detailedJobCard.status === 'WARRANTY_REGISTRATION' || detailedJobCard.status === 'PAYMENT_PENDING' || detailedJobCard.status === 'CLOSED') && (
-                  (detailedJobCard.partnerBilledDirectly && (user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF')) ||
-                  (!detailedJobCard.partnerBilledDirectly && (isAdmin || (user?.role === 'PARTNER_ADMIN' && detailedJobCard.partnerId === user?.partnerId)))
+                  // Settlement follows who CREATED the work order: partner-created
+                  // (their own) → partner admin settles; P91-created (commission) → admin settles.
+                  (detailedJobCard.workOrderCreatedByPartner
+                    ? (user?.role === 'PARTNER_ADMIN' && detailedJobCard.partnerId === user?.partnerId)
+                    : isAdmin)
                 ) && (
                   <Card className={`col-span-1 lg:col-span-2 xl:col-span-3 border-2 ${detailedJobCard.status === 'CLOSED' ? 'border-gray-200 bg-gray-50/50' : 'border-dashed border-green-200 bg-green-50/50'}`}>
                     <CardHeader className="pb-3">

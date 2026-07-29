@@ -4124,10 +4124,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Get related data
         const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
         const partner = await storage.getPartner(jobCard.partnerId);
-        
+
         if (!workOrder || !partner) {
           return res.status(404).json({ error: "Related data not found" });
         }
+
+        // Whether the work order was created by the partner themselves (vs P91/OEM
+        // side). Drives who gets the settlement option: partner-created = partner
+        // settles; P91-created (commission flow) = admin settles.
+        const workOrderCreator = await storage.getUser(workOrder.createdByUserId);
+        const workOrderCreatedByPartner = workOrderCreator?.role === 'PARTNER_ADMIN';
 
         // Get additional related data
         const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
@@ -4234,6 +4240,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...jobCard,
           assignedInstaller, // Added!
           batchNumberImage: signedBatchNumberImage, // Override with signed URL
+          workOrderCreatedByPartner, // Drives settlement-option visibility
           workOrder: {
             ...workOrder,
             vehicleModel: vehicleModel ? {
@@ -4779,17 +4786,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Associated work order not found" });
         }
 
-        // Permission check: Admin for Plus Nine One billing, Partner for partner direct billing
-        const isPartnerDirectBilling = jobCard.partnerBilledDirectly === true;
+        // Permission check: settlement follows WHO CREATED the work order.
+        // Partner-created work orders (created by a PARTNER_ADMIN) are the
+        // partner's own — that partner settles. Work orders created P91/OEM-side
+        // (commission flow) are settled by admin roles.
+        const workOrderCreator = await storage.getUser(workOrder.createdByUserId);
+        const workOrderCreatedByPartner = workOrderCreator?.role === 'PARTNER_ADMIN';
         let hasAccess = false;
 
-        if (isPartnerDirectBilling) {
-          // Partner can settle their own direct billing
-          if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
+        if (workOrderCreatedByPartner) {
+          // The owning partner admin settles their own work order
+          if (req.user!.role === 'PARTNER_ADMIN') {
             hasAccess = jobCard.partnerId === req.user!.partnerId;
           }
         } else {
-          // Admin roles can settle Plus Nine One billing
+          // Admin roles settle P91-created (commission) work orders
           if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
             hasAccess = true;
           } else if (req.user!.role === 'OEM_ADMIN') {
@@ -4798,9 +4809,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             hasAccess = workOrder.dealershipId === req.user!.dealershipId;
           } else if (req.user!.role === 'SHOWROOM_MANAGER') {
             hasAccess = workOrder.showroomId === req.user!.showroomId;
-          } else if (req.user!.role === 'PARTNER_ADMIN') {
-            // Partner admin can settle P91-billed cards for their own partner
-            hasAccess = jobCard.partnerId === req.user!.partnerId;
           }
         }
 
