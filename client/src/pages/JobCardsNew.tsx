@@ -266,6 +266,7 @@ export default function JobCardsNew() {
     showroomId: '',
     vehicleModel: '',
     regNo: '',
+    assignedInstallerId: '',
     dateFrom: '',
     dateTo: ''
   });
@@ -422,6 +423,17 @@ export default function JobCardsNew() {
     staleTime: 5 * 60 * 1000
   });
 
+  // Fetch installers (PARTNER_STAFF + DETAILING_PARTNER) for the Assigned Installer filter
+  const { data: allInstallers = [] } = useQuery({
+    queryKey: ['installers-filter'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/installers');
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    },
+    staleTime: 5 * 60 * 1000
+  });
+
   // Apply search filters to job cards
   const filteredJobCards = allJobCards.filter((jobCard) => {
     const jobCardNumber = `JC-${jobCard.id.slice(-6)}`.toLowerCase();
@@ -454,6 +466,7 @@ export default function JobCardsNew() {
       (!searchFilters.showroomId || showroomId === searchFilters.showroomId) &&
       (!searchFilters.vehicleModel || vehicleModel.includes(searchFilters.vehicleModel.toLowerCase())) &&
       (!searchFilters.regNo || regNo.includes(searchFilters.regNo.toLowerCase())) &&
+      (!searchFilters.assignedInstallerId || (jobCard.assignedInstallerId || '') === searchFilters.assignedInstallerId) &&
       dateMatch &&
       (!hideWarrantyRegistered || searchFilters.status === 'WARRANTY_REGISTRATION' || status !== 'WARRANTY_REGISTRATION')
     );
@@ -1451,6 +1464,24 @@ export default function JobCardsNew() {
               </PopoverContent>
             </Popover>
 
+            {/* Assigned Installer */}
+            <Select
+              value={searchFilters.assignedInstallerId || undefined}
+              onValueChange={(value) => setSearchFilters(prev => ({ ...prev, assignedInstallerId: value === 'ALL' ? '' : value }))}
+            >
+              <SelectTrigger data-testid="select-installer-filter">
+                <SelectValue placeholder="All Installers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Installers</SelectItem>
+                {allInstallers.map((installer: any) => (
+                  <SelectItem key={installer.id} value={installer.id}>
+                    {installer.name || 'Unnamed'}{installer.role === 'DETAILING_PARTNER' ? ' (Detailing Partner)' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <Input
               placeholder="Vehicle Model"
               value={searchFilters.vehicleModel}
@@ -1541,6 +1572,7 @@ export default function JobCardsNew() {
                   showroomId: '',
                   vehicleModel: '',
                   regNo: '',
+                  assignedInstallerId: '',
                   dateFrom: '',
                   dateTo: ''
                 })}
@@ -1586,6 +1618,7 @@ export default function JobCardsNew() {
                   showroomId: '',
                   vehicleModel: '',
                   regNo: '',
+                  assignedInstallerId: '',
                   dateFrom: '',
                   dateTo: ''
                 })}

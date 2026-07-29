@@ -6076,6 +6076,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Installers (PARTNER_STAFF + DETAILING_PARTNER) for the Job Cards "Assigned
+  // Installer" filter. Admin/org roles get the full system list; partner users are
+  // scoped to their own partner's staff to preserve data isolation.
+  app.get("/api/installers",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'SALES_PERSON', 'PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER']),
+    async (req, res) => {
+      try {
+        let installers: any[];
+        if (['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER'].includes(req.user!.role)) {
+          installers = req.user!.partnerId ? await storage.getPartnerStaff(req.user!.partnerId) : [];
+        } else {
+          const [staff, detailers] = await Promise.all([
+            storage.getUsers({ role: 'PARTNER_STAFF' }),
+            storage.getUsers({ role: 'DETAILING_PARTNER' }),
+          ]);
+          installers = [...staff, ...detailers];
+        }
+        // Only the fields the filter needs.
+        const result = installers
+          .map((u: any) => ({ id: u.id, name: u.name, role: u.role }))
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        res.json(result);
+      } catch (error) {
+        console.error("Get installers error:", error);
+        res.status(500).json({ error: "Failed to fetch installers" });
+      }
+    }
+  );
+
   // Staff-initiated "Invite Installer"
   app.post("/api/staff/invite",
     authenticate,
