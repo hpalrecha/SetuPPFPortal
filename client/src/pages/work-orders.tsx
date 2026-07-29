@@ -124,8 +124,9 @@ export default function WorkOrdersPage() {
     dateTo: searchFilters.dateTo
   };
 
-  // Check if user can create work orders (showroom managers, dealership admins, sales persons, admin, manager, and super admin)
-  const canCreateWorkOrder = user && ['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'SALES_PERSON', 'SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user.role);
+  // Check if user can create work orders (showroom managers, dealership admins, sales persons, admin, manager, super admin,
+  // and partner admins — partner-created work orders are the partner's own: partner-billed, no salesperson, no commission).
+  const canCreateWorkOrder = user && ['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'SALES_PERSON', 'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'PARTNER_ADMIN'].includes(user.role);
 
   // Query for work orders list
   const { data: allWorkOrders = [], isLoading } = useQuery<WorkOrder[]>({
