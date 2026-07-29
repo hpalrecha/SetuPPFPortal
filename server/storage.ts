@@ -33,6 +33,7 @@ import {
   oemRoyaltyRules,
   oemRoyaltyCalculations,
   auditLogs,
+  notificationLogs,
   knowledgeHub,
   otpVerifications,
   systemSettings,
@@ -83,7 +84,7 @@ import {
   type SystemSetting
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql, count, avg, sum, lte, gte, or, isNull, isNotNull, asc, inArray, ne, like, notInArray, notExists } from "drizzle-orm";
+import { eq, and, desc, sql, count, avg, sum, lte, gte, or, isNull, isNotNull, asc, inArray, ne, like, ilike, notInArray, notExists } from "drizzle-orm";
 
 // A job card counts as "completed" once the install is approved. After approval it
 // moves through the billing/settlement pipeline (sales invoice → warranty → payment →
@@ -3780,6 +3781,100 @@ export class DatabaseStorage implements IStorage {
     // For now, just log the notification (can be enhanced to store in DB)
     console.log('Notification:', notification);
     return { id: 'notification-' + Date.now(), ...notification };
+  }
+
+  // ---- Notification logs (outbound sends + in-app bell) --------------------
+
+  // Admin list of outbound notifications with filters + pagination.
+  async getNotificationLogs(filters: {
+    channel?: string;
+    status?: string;
+    eventType?: string;
+    search?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ rows: any[]; total: number }> {
+    const conds: any[] = [];
+    if (filters.channel) conds.push(eq(notificationLogs.channel, filters.channel));
+    if (filters.status) conds.push(eq(notificationLogs.status, filters.status));
+    if (filters.eventType) conds.push(eq(notificationLogs.eventType, filters.eventType));
+    if (filters.dateFrom) conds.push(gte(notificationLogs.createdAt, new Date(filters.dateFrom)));
+    if (filters.dateTo) conds.push(lte(notificationLogs.createdAt, new Date(filters.dateTo)));
+    if (filters.search) {
+      const term = `%${filters.search}%`;
+      conds.push(or(
+        ilike(notificationLogs.recipient, term),
+        ilike(notificationLogs.recipientName, term),
+        ilike(notificationLogs.subject, term),
+      ));
+    }
+    const where = conds.length ? and(...conds) : undefined;
+
+    const limit = Math.min(filters.limit ?? 50, 200);
+    const offset = filters.offset ?? 0;
+
+    // List excludes the (potentially large) payloadJson — fetched on demand in the detail view.
+    const rows = await db
+      .select({
+        id: notificationLogs.id,
+        channel: notificationLogs.channel,
+        status: notificationLogs.status,
+        recipient: notificationLogs.recipient,
+        recipientUserId: notificationLogs.recipientUserId,
+        recipientName: notificationLogs.recipientName,
+        eventType: notificationLogs.eventType,
+        subject: notificationLogs.subject,
+        bodyPreview: notificationLogs.bodyPreview,
+        provider: notificationLogs.provider,
+        errorMessage: notificationLogs.errorMessage,
+        relatedEntityType: notificationLogs.relatedEntityType,
+        relatedEntityId: notificationLogs.relatedEntityId,
+        createdAt: notificationLogs.createdAt,
+      })
+      .from(notificationLogs)
+      .where(where as any)
+      .orderBy(desc(notificationLogs.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const [{ value: total }] = await db
+      .select({ value: count() })
+      .from(notificationLogs)
+      .where(where as any);
+
+    return { rows, total: Number(total) };
+  }
+
+  async getNotificationLogById(id: string): Promise<any | undefined> {
+    const [row] = await db.select().from(notificationLogs).where(eq(notificationLogs.id, id));
+    return row || undefined;
+  }
+
+  // Recent in-app notifications for a specific user (drives the Header bell).
+  async getUserNotifications(userId: string, limit = 20): Promise<any[]> {
+    return db
+      .select()
+      .from(notificationLogs)
+      .where(eq(notificationLogs.recipientUserId, userId))
+      .orderBy(desc(notificationLogs.createdAt))
+      .limit(Math.min(limit, 50));
+  }
+
+  async getUnreadNotificationCount(userId: string): Promise<number> {
+    const [{ value }] = await db
+      .select({ value: count() })
+      .from(notificationLogs)
+      .where(and(eq(notificationLogs.recipientUserId, userId), isNull(notificationLogs.readAt)));
+    return Number(value);
+  }
+
+  // Mark a user's notifications read. Pass specific ids, or omit to mark all of theirs.
+  async markNotificationsRead(userId: string, ids?: string[]): Promise<void> {
+    const conds: any[] = [eq(notificationLogs.recipientUserId, userId), isNull(notificationLogs.readAt)];
+    if (ids && ids.length) conds.push(inArray(notificationLogs.id, ids));
+    await db.update(notificationLogs).set({ readAt: new Date() }).where(and(...conds));
   }
 
   // Vehicle Model methods

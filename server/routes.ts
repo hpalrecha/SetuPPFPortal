@@ -3582,6 +3582,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===================================================================
 
   // List customers (grouped by phone) with visit/job/rework counts.
+  // ---- Notifications --------------------------------------------------------
+  // Admin audit view of every outbound notification (email / whatsapp / sms / push).
+  app.get("/api/notification-logs",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    async (req, res) => {
+      try {
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+        const { channel, status, eventType, search, dateFrom, dateTo, limit, offset } = req.query;
+        const result = await storage.getNotificationLogs({
+          channel: channel ? String(channel) : undefined,
+          status: status ? String(status) : undefined,
+          eventType: eventType ? String(eventType) : undefined,
+          search: search ? String(search) : undefined,
+          dateFrom: dateFrom ? String(dateFrom) : undefined,
+          dateTo: dateTo ? String(dateTo) : undefined,
+          limit: limit ? parseInt(String(limit)) : 50,
+          offset: offset ? parseInt(String(offset)) : 0,
+        });
+        res.json(result);
+      } catch (error) {
+        console.error("Get notification logs error:", error);
+        res.status(500).json({ error: "Failed to fetch notification logs" });
+      }
+    });
+
+  // Full detail (incl. payloadJson / rendered body) for one notification.
+  app.get("/api/notification-logs/:id",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    async (req, res) => {
+      try {
+        const row = await storage.getNotificationLogById(req.params.id);
+        if (!row) return res.status(404).json({ error: "Notification not found" });
+        res.json(row);
+      } catch (error) {
+        console.error("Get notification log detail error:", error);
+        res.status(500).json({ error: "Failed to fetch notification" });
+      }
+    });
+
+  // ---- In-app bell (per-user feed) -----------------------------------------
+  // Current user's recent notifications + unread count. Available to any authenticated user.
+  app.get("/api/notifications/mine",
+    authenticate,
+    async (req, res) => {
+      try {
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+        const userId = req.user!.id;
+        const limit = req.query.limit ? parseInt(String(req.query.limit)) : 20;
+        const [items, unreadCount] = await Promise.all([
+          storage.getUserNotifications(userId, limit),
+          storage.getUnreadNotificationCount(userId),
+        ]);
+        res.json({ items, unreadCount });
+      } catch (error) {
+        console.error("Get my notifications error:", error);
+        res.status(500).json({ error: "Failed to fetch notifications" });
+      }
+    });
+
+  // Mark the current user's notifications read (specific ids, or all when none given).
+  app.post("/api/notifications/mine/read",
+    authenticate,
+    async (req, res) => {
+      try {
+        const userId = req.user!.id;
+        const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : undefined;
+        await storage.markNotificationsRead(userId, ids);
+        res.json({ success: true });
+      } catch (error) {
+        console.error("Mark notifications read error:", error);
+        res.status(500).json({ error: "Failed to update notifications" });
+      }
+    });
+
   app.get("/api/customers",
     authenticate,
     requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']),

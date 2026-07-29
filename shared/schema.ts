@@ -705,6 +705,37 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at").defaultNow()
 });
 
+// Outbound notification log — one row per delivery attempt (email / whatsapp / sms / push).
+// Populated at the transport layer (emailService / whatsappService / smsService) so EVERY
+// send is captured, plus PUSH rows written directly for the in-app bell. `readAt` powers the
+// per-user bell (unread when null). See server/services/notificationLog.ts.
+export const notificationLogs = pgTable("notification_logs", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  channel: text("channel").notNull(),                 // EMAIL | WHATSAPP | SMS | PUSH
+  status: text("status").notNull(),                   // SENT | FAILED
+  recipient: text("recipient"),                       // email address or phone number sent to
+  recipientUserId: uuid("recipient_user_id").references(() => users.id),
+  recipientName: text("recipient_name"),
+  eventType: text("event_type"),                      // e.g. job_card_created, otp, password_reset, sla_ack_overdue
+  subject: text("subject"),                           // email subject / WA template name / sms purpose
+  bodyPreview: text("body_preview"),                  // short plaintext preview of the message
+  payloadJson: jsonb("payload_json"),                 // full html/text/template params for the detail view
+  provider: text("provider"),                         // AWS SES SMTP | Meta WABA | ComBirds | IN_APP | DEV_MODE
+  errorMessage: text("error_message"),                // failure reason when status = FAILED
+  relatedEntityType: text("related_entity_type"),     // job_card | work_order | payout | ...
+  relatedEntityId: text("related_entity_id"),
+  oemId: uuid("oem_id").references(() => oems.id),
+  readAt: timestamp("read_at"),                       // per-user in-app read state (null = unread)
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  recipientUserIdx: index("notif_recipient_user_idx").on(table.recipientUserId),
+  createdAtIdx: index("notif_created_at_idx").on(table.createdAt),
+}));
+
+export const insertNotificationLogSchema = createInsertSchema(notificationLogs).omit({ id: true, createdAt: true });
+export type InsertNotificationLog = z.infer<typeof insertNotificationLogSchema>;
+export type NotificationLog = typeof notificationLogs.$inferSelect;
+
 export const webhookSubscriptions = pgTable("webhook_subscriptions", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantScope: text("tenant_scope"),

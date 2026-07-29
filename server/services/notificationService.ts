@@ -2,6 +2,21 @@ import { storage } from '../storage';
 import type { WorkOrder, JobCard, User } from '@shared/schema';
 import { whatsappService } from './whatsapp-service';
 import { emailService } from './email-service';
+import { logNotification, type NotificationContext } from './notificationLog';
+
+// Derive log context (event type + related entity) from a notification payload's data blob.
+function contextFromPayload(userId: string, payload: NotificationPayload, user?: { name?: string } | null): NotificationContext {
+  const data = payload.data || {};
+  const relatedEntityId = data.jobCardId || data.workOrderId || data.payoutId || undefined;
+  const relatedEntityType = data.jobCardId ? 'job_card' : data.workOrderId ? 'work_order' : data.payoutId ? 'payout' : undefined;
+  return {
+    recipientUserId: userId,
+    recipientName: user?.name,
+    eventType: data.type || payload.type,
+    relatedEntityType,
+    relatedEntityId,
+  };
+}
 
 export interface NotificationPayload {
   title: string;
@@ -42,19 +57,8 @@ export class NotificationService {
     payload: NotificationPayload
   ): Promise<void> {
     try {
-      await storage.createNotification({
-        actorId: userId,
-        channel,
-        subject: payload.title,
-        payloadJson: payload,
-        status: 'PENDING'
-      });
-
-      // In production, integrate with actual notification services:
-      // - Email: SendGrid, AWS SES, Mailgun
-      // - SMS: Twilio, AWS SNS
-      // - Push: Firebase Cloud Messaging, OneSignal
-      
+      // Each channel handler persists its own notification_logs row (email/whatsapp/sms at the
+      // transport layer; push directly below), so there's no separate pre-send record here.
       await this.processNotificationByChannel(channel, userId, payload);
       
       console.log(`✓ Notification sent to user ${userId} via ${channel}:`, payload.title);
@@ -110,7 +114,8 @@ export class NotificationService {
         to: user.email,
         subject: payload.title,
         html: this.formatEmailHTML(payload),
-        text: payload.message
+        text: payload.message,
+        context: contextFromPayload(userId, payload, user),
       });
 
       if (success) {
@@ -171,11 +176,23 @@ export class NotificationService {
   }
 
   private async sendPushNotification(userId: string, payload: NotificationPayload): Promise<void> {
-    // Push notification service integration would go here
-    // Example with Firebase Cloud Messaging
-    if (process.env.FIREBASE_SERVER_KEY) {
-      // TODO: Implement actual push notification sending
-      console.log(`🔔 Push notification sent to user ${userId}`);
+    // "Push" is realised as an in-app notification: we persist a row keyed to the recipient user,
+    // which is what the Header bell reads (unread while read_at is null). If FCM is ever wired up,
+    // the actual device push would go here too.
+    try {
+      const user = await storage.getUser(userId).catch(() => null);
+      await logNotification({
+        channel: 'PUSH',
+        status: 'SENT',
+        recipient: user?.email || user?.phone || userId,
+        provider: process.env.FIREBASE_SERVER_KEY ? 'FCM' : 'IN_APP',
+        subject: payload.title,
+        bodyPreview: payload.message,
+        payloadJson: payload,
+        ...contextFromPayload(userId, payload, user),
+      });
+    } catch (error) {
+      console.error(`❌ Failed to record push notification for user ${userId}:`, error);
     }
   }
 
@@ -189,8 +206,11 @@ export class NotificationService {
 
       const formattedPhone = whatsappService.formatPhoneNumber(user.phone);
       const message = `*${payload.title}*\n\n${payload.message}`;
-      
-      await whatsappService.sendCustomMessage(formattedPhone, message);
+
+      await whatsappService.sendMessage(
+        { to: formattedPhone, type: 'text', text: { body: message } },
+        contextFromPayload(userId, payload, user),
+      );
       console.log(`📱 WhatsApp notification sent to user ${userId} at ${formattedPhone}`);
     } catch (error) {
       console.error(`❌ Failed to send WhatsApp notification to user ${userId}:`, error);

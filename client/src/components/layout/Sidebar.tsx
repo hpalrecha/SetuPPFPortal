@@ -26,7 +26,8 @@ import {
   Tag,
   BookOpen,
   Package,
-  Contact
+  Contact,
+  Bell
 } from "lucide-react";
 
 interface SidebarProps {
@@ -67,6 +68,7 @@ const organizationNavigation = [
 ];
 
 const systemNavigation = [
+  { name: "Notifications", href: "/notifications", icon: Bell, roles: ["SUPER_ADMIN", "ADMIN"] },
   { name: "Audit Logs", href: "/audit", icon: History, roles: ["SUPER_ADMIN", "ADMIN", "OEM_ADMIN"] },
   { name: "Settings", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "OEM_ADMIN", "DEALERSHIP_ADMIN", "SHOWROOM_MANAGER", "SALES_PERSON", "PARTNER_ADMIN", "PARTNER_STAFF", "DETAILING_PARTNER"] },
 ];
@@ -95,8 +97,8 @@ export function Sidebar({ collapsed, onToggle, className, isMobile = false }: Si
   
   const navigation = getFilteredNavigation(user?.role) || [];
 
-  // First visible item of the "System" group (Reports was removed; Audit/Settings remain)
-  const systemHrefs = ["/audit", "/settings"];
+  // First visible item of the "System" group (Notifications/Audit/Settings)
+  const systemHrefs = ["/notifications", "/audit", "/settings"];
   const firstSystemHref = navigation.find((n) => systemHrefs.includes(n.href))?.href;
 
   return (

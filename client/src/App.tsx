@@ -19,6 +19,7 @@ import AllocationsPage from "./pages/allocations";
 import PricingPage from "./pages/pricing";
 import CommissionsPage from "./pages/commissions";
 import AuditPage from "./pages/audit";
+import NotificationsPage from "./pages/notifications";
 import SettingsPage from "./pages/settings";
 import OEMsPage from "./pages/oems";
 import DealershipsPage from "./pages/dealerships";
@@ -225,6 +226,10 @@ function Router() {
       <Route
         path="/audit"
         component={() => <ProtectedRoute component={AuditPage} />}
+      />
+      <Route
+        path="/notifications"
+        component={() => <ProtectedRoute component={NotificationsPage} />}
       />
       <Route
         path="/settings"

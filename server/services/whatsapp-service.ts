@@ -1,5 +1,6 @@
 // Meta WhatsApp Business API integration
 // Uses single WABA configuration for all messages (no brand-specific configs)
+import { logNotification, type NotificationContext } from './notificationLog';
 
 export interface WhatsAppMessage {
   to: string; // Phone number with country code (e.g., +919876543210)
@@ -64,7 +65,26 @@ export class WhatsAppService {
     }
   }
 
-  async sendMessage(message: WhatsAppMessage): Promise<boolean> {
+  async sendMessage(message: WhatsAppMessage, context?: NotificationContext): Promise<boolean> {
+    // The template name doubles as the event type (e.g. job_card_created). Record one
+    // notification-log row per send attempt regardless of dev/prod/failure.
+    const templateName = message.template?.name;
+    const bodyText = message.text?.body || (templateName ? `Template: ${templateName}` : undefined);
+    const record = (status: 'SENT' | 'FAILED', provider: string, errorMessage?: string) => {
+      void logNotification({
+        channel: 'WHATSAPP',
+        status,
+        recipient: this.formatPhoneNumber(message.to),
+        subject: templateName || message.type,
+        eventType: templateName,
+        bodyPreview: bodyText,
+        payloadJson: message,
+        provider,
+        errorMessage,
+        ...(context || {}),
+      });
+    };
+
     try {
       // Use default WABA config
       const wabaConfig = this.config;
@@ -83,6 +103,7 @@ export class WhatsAppService {
         console.log('--- WhatsApp Message Content ---');
         console.log(this.formatMessageForLog(message));
         console.log('--- End WhatsApp Message ---');
+        record('SENT', 'DEV_MODE');
         return true;
       }
 
@@ -112,9 +133,11 @@ export class WhatsAppService {
 
       const result = await response.json();
       console.log(`✅ WhatsApp message sent successfully. Message ID: ${result.messages?.[0]?.id}`);
+      record('SENT', 'Meta WABA');
       return true;
     } catch (error) {
       console.error('❌ Failed to send WhatsApp message:', error);
+      record('FAILED', 'Meta WABA', error instanceof Error ? error.message : String(error));
       return false;
     }
   }

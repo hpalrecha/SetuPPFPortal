@@ -1,3 +1,5 @@
+import { logNotification, type NotificationContext } from './notificationLog';
+
 class ComBirdsSMSService {
   private apiKey: string;
   private senderId: string;
@@ -16,9 +18,24 @@ class ComBirdsSMSService {
     }
   }
 
-  async sendSMS(phoneNumber: string, message: string, templateId?: string): Promise<boolean> {
+  async sendSMS(phoneNumber: string, message: string, templateId?: string, context?: NotificationContext): Promise<boolean> {
+    const record = (status: 'SENT' | 'FAILED', errorMessage?: string) => {
+      void logNotification({
+        channel: 'SMS',
+        status,
+        recipient: phoneNumber,
+        subject: 'SMS',
+        bodyPreview: message,
+        payloadJson: { message, templateId: templateId || this.otpTemplateId, senderId: this.senderId },
+        provider: 'ComBirds',
+        errorMessage,
+        ...(context || {}),
+      });
+    };
+
     if (!this.apiKey) {
       console.error('COMBIRDS API key not configured');
+      record('FAILED', 'COMBIRDS API key not configured');
       return false;
     }
 
@@ -45,14 +62,17 @@ class ComBirdsSMSService {
           statusText: response.statusText,
           error: errorText
         });
+        record('FAILED', `${response.status} ${response.statusText}: ${errorText}`);
         return false;
       }
 
       const data = await response.json();
       console.log(`✅ SMS sent successfully to ${phoneNumber} via COMBIRDS:`, data);
+      record('SENT');
       return true;
     } catch (error) {
       console.error('Error sending SMS via COMBIRDS:', error);
+      record('FAILED', error instanceof Error ? error.message : String(error));
       return false;
     }
   }
@@ -61,9 +81,9 @@ class ComBirdsSMSService {
     // ComBirds OTP Template: "Your {#var#} OTP for verification is: {#var#}. OTP is confidential, refrain from sharing it with anyone. By Edumarc Technologies"
     // We need to replace {#var#} placeholders with actual values
     const message = `Your Pulse VAS OTP for verification is: ${otp}. OTP is confidential, refrain from sharing it with anyone. By Edumarc Technologies`;
-    
+
     // Use the OTP template ID
-    return this.sendSMS(phoneNumber, message, this.otpTemplateId);
+    return this.sendSMS(phoneNumber, message, this.otpTemplateId, { eventType: 'otp' });
   }
 
   isConfigured(): boolean {

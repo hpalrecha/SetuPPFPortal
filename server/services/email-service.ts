@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import fs from 'fs';
 import path from 'path';
+import { logNotification, type NotificationContext } from './notificationLog';
 
 export interface EmailOptions {
   to: string | string[];
@@ -14,6 +15,8 @@ export interface EmailOptions {
     content: Buffer | string;
     contentType?: string;
   }>;
+  // Optional enrichment for the notification log (eventType, recipientUserId, related entity…).
+  context?: NotificationContext;
 }
 
 export class EmailService {
@@ -140,9 +143,26 @@ export class EmailService {
   }
 
   async sendEmail(options: EmailOptions): Promise<boolean> {
-    const { to, subject, html, text, from } = options;
+    const { to, subject, html, text, from, context } = options;
     const recipients = Array.isArray(to) ? to : [to];
     const fromEmail = from || this.senderEmail; // Use custom from or default
+
+    // Record one notification-log row per recipient for this send attempt.
+    const record = (status: 'SENT' | 'FAILED', provider: string, errorMessage?: string) => {
+      for (const r of recipients) {
+        void logNotification({
+          channel: 'EMAIL',
+          status,
+          recipient: r,
+          subject,
+          bodyPreview: text || html,
+          payloadJson: { from: fromEmail, html, text },
+          provider,
+          errorMessage,
+          ...(context || {}),
+        });
+      }
+    };
 
     // Development mode - just log
     if (!this.sesConfigured && !this.smtpConfigured) {
@@ -152,6 +172,7 @@ export class EmailService {
       console.log('Subject:', subject);
       console.log('HTML:', html ? 'Present' : 'Not provided');
       console.log('Text:', text ? 'Present' : 'Not provided');
+      record('SENT', 'DEV_MODE');
       return true;
     }
 
@@ -183,6 +204,7 @@ export class EmailService {
 
         const result = await this.sesClient.send(command);
         console.log(`✅ Email sent via AWS SES SDK from ${fromEmail}:`, result.MessageId);
+        record('SENT', 'AWS SES SDK');
         return true;
       } catch (error) {
         console.error('❌ AWS SES SDK failed, trying SMTP fallback:', error);
@@ -202,14 +224,17 @@ export class EmailService {
 
         const result = await this.smtpTransporter.sendMail(mailOptions);
         console.log(`✅ Email sent via SMTP fallback from ${fromEmail}:`, result.messageId);
+        record('SENT', 'AWS SES SMTP');
         return true;
       } catch (error) {
         console.error('❌ SMTP fallback also failed:', error);
+        record('FAILED', 'AWS SES SMTP', error instanceof Error ? error.message : String(error));
         return false;
       }
     }
 
     console.error('❌ No email service available');
+    record('FAILED', 'NONE', 'No email service available');
     return false;
   }
 
