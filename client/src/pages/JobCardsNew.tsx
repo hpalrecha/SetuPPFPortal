@@ -295,6 +295,9 @@ export default function JobCardsNew() {
   const { user } = useAuth();
   const { toast } = useToast();
   const isPartnerUser = user?.role === 'PARTNER_ADMIN' || user?.role === 'PARTNER_STAFF' || user?.role === 'DETAILING_PARTNER';
+  // A partner admin only sees their own partner's job cards, so the "partner" column is
+  // redundant for them — show the allocated team member (assigned installer) instead.
+  const isPartnerAdminView = user?.role === 'PARTNER_ADMIN';
   const isShowroomUser = user?.role === 'SHOWROOM_MANAGER' || user?.role === 'DEALERSHIP_ADMIN';
   const showPrices = user?.showServicePrices !== false;
   const { selectedOemId } = useOemContext();
@@ -1660,7 +1663,7 @@ export default function JobCardsNew() {
                 <div className="truncate">Vehicle</div>
                 <div className="truncate">Reg No</div>
                 <div className="truncate">Service</div>
-                <div className="truncate">Allocated Partner</div>
+                <div className="truncate">{isPartnerAdminView ? 'Allocated Team' : 'Allocated Partner'}</div>
                 <div className="truncate">Created</div>
                 <div className="truncate">Scheduled</div>
                 <div className="truncate">Actions</div>
@@ -1714,10 +1717,10 @@ export default function JobCardsNew() {
                       </div>
                     </div>
 
-                    {/* Allocated Partner Column */}
+                    {/* Allocated Partner / Team Column */}
                     <div className="min-w-0 overflow-hidden">
-                      <div className="text-sm font-medium truncate" data-testid={`text-partner-${jobCard.id}`} title={jobCard.partnerDisplay}>
-                        {jobCard.partnerDisplay}
+                      <div className="text-sm font-medium truncate" data-testid={`text-partner-${jobCard.id}`} title={isPartnerAdminView ? (jobCard.assignedInstaller?.name || 'Unassigned') : jobCard.partnerDisplay}>
+                        {isPartnerAdminView ? (jobCard.assignedInstaller?.name || 'Unassigned') : jobCard.partnerDisplay}
                       </div>
                     </div>
 
@@ -1773,7 +1776,7 @@ export default function JobCardsNew() {
                 <div className="col-span-1">Status</div>
                 <div className="col-span-2">Vehicle</div>
                 <div className="col-span-2">Reg No</div>
-                <div className="col-span-1">Partner</div>
+                <div className="col-span-1">{isPartnerAdminView ? 'Allocated Team' : 'Partner'}</div>
                 <div className="col-span-1">Actions</div>
               </div>
             </div>
@@ -1822,10 +1825,10 @@ export default function JobCardsNew() {
                       </div>
                     </div>
 
-                    {/* Partner Column */}
+                    {/* Partner / Team Column */}
                     <div className="col-span-1">
-                      <div className="text-xs font-medium truncate" data-testid={`text-partner-${jobCard.id}`} title={jobCard.partnerDisplay}>
-                        {jobCard.partnerDisplay}
+                      <div className="text-xs font-medium truncate" data-testid={`text-partner-${jobCard.id}`} title={isPartnerAdminView ? (jobCard.assignedInstaller?.name || 'Unassigned') : jobCard.partnerDisplay}>
+                        {isPartnerAdminView ? (jobCard.assignedInstaller?.name || 'Unassigned') : jobCard.partnerDisplay}
                       </div>
                     </div>
 
@@ -1907,9 +1910,9 @@ export default function JobCardsNew() {
                     <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
                       <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-muted-foreground">Allocated Partner</div>
+                        <div className="text-xs text-muted-foreground">{isPartnerAdminView ? 'Allocated Team' : 'Allocated Partner'}</div>
                         <div className="font-medium truncate" data-testid={`text-partner-${jobCard.id}`}>
-                          {jobCard.partnerDisplay}
+                          {isPartnerAdminView ? (jobCard.assignedInstaller?.name || 'Unassigned') : jobCard.partnerDisplay}
                         </div>
                       </div>
                     </div>
