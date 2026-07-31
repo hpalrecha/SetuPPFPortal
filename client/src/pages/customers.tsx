@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { displayContact, isPlaceholderContact } from "@shared/placeholderContact";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -278,8 +279,8 @@ function CustomerDetailDialog({
             {/* Contact + stats */}
             <div className="flex flex-wrap items-start justify-between gap-3 border rounded-lg p-3">
               <div className="space-y-1 text-sm">
-                <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-muted-foreground" />{customer.phone || '—'}</div>
-                <div className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 text-muted-foreground" />{customer.email || '—'}</div>
+                <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-muted-foreground" />{displayContact(customer.phone, '—')}</div>
+                <div className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 text-muted-foreground" />{displayContact(customer.email, '—')}</div>
                 <div className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5 text-muted-foreground" />{customer.address || '—'}</div>
               </div>
               <div className="flex gap-4 text-center">
@@ -415,8 +416,8 @@ function EditCustomerDialog({
     setLastKey(customer.key);
     setForm({
       customerName: customer.name || '',
-      customerPhone: customer.phone || '',
-      customerEmail: customer.email || '',
+      customerPhone: displayContact(customer.phone, ''),
+      customerEmail: displayContact(customer.email, ''),
       customerAddress: customer.address || '',
     });
   }
@@ -618,7 +619,7 @@ export default function CustomersPage() {
               ) : customers.length === 0 ? (
                 <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">No customers found.</TableCell></TableRow>
               ) : customers.map((c) => {
-                const hasPhone = !!c.customerPhone;
+                const hasPhone = !!c.customerPhone && !isPlaceholderContact(c.customerPhone);
                 const canRework = !!c.latestJobCardId && REWORK_ALLOWED.has(c.latestJobStatus);
                 return (
                 <TableRow
@@ -638,7 +639,7 @@ export default function CustomersPage() {
                           : <Badge variant="secondary" className="text-[10px]">Customer</Badge>}
                     </div>
                   </TableCell>
-                  <TableCell>{c.customerPhone || <span className="text-muted-foreground italic">no phone</span>}</TableCell>
+                  <TableCell>{hasPhone ? c.customerPhone : <span className="text-muted-foreground italic">no phone</span>}</TableCell>
                   <TableCell className="text-center">{c.workOrderCount}</TableCell>
                   <TableCell className="text-center">{c.jobCount}</TableCell>
                   <TableCell className="text-center">

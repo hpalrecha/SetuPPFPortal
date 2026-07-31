@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { displayContact } from "@shared/placeholderContact";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Eye, Edit } from "lucide-react";
@@ -66,7 +67,7 @@ export default function WorkOrderList({ workOrders, onView, onEdit }: WorkOrderL
                   <td className="py-3 px-4">
                     <div>
                       <p className="text-sm font-medium text-foreground">{order.customerName || "N/A"}</p>
-                      <p className="text-xs text-muted-foreground">{order.customerPhone || ""}</p>
+                      <p className="text-xs text-muted-foreground">{displayContact(order.customerPhone, "")}</p>
                     </div>
                   </td>
                   <td className="py-3 px-4">

@@ -68,6 +68,7 @@ import ApprovalModal from "@/components/job-cards/approval-modal";
 import { ImageModal } from "@/components/ui/image-modal";
 import { ViewPreInstallationModal } from "@/components/modals/ViewPreInstallationModal";
 import logoGreen from "@assets/P91 PULSE logo-01_1761139835394.png";
+import { displayContact } from "@shared/placeholderContact";
 
 // Enhanced Job Card types to match API structure
 interface JobCard {
@@ -591,8 +592,8 @@ export default function JobCardsNew() {
         'Work Order ID': jc.workOrderId ? `WO-${jc.workOrderId.slice(-6)}` : 'N/A',
         'Status': jc.status,
         'Customer Name': jc.workOrder?.customerName || 'N/A',
-        'Customer Phone': jc.workOrder?.customerPhone || 'N/A',
-        'Customer Email': jc.workOrder?.customerEmail || 'N/A',
+        'Customer Phone': displayContact(jc.workOrder?.customerPhone),
+        'Customer Email': displayContact(jc.workOrder?.customerEmail),
         'Customer Address': jc.workOrder?.customerAddress || 'N/A',
         'Vehicle Model': jc.vehicleDisplay || 'N/A',
         'Vehicle Color': jc.workOrder?.color || 'N/A',
@@ -719,11 +720,11 @@ export default function JobCardsNew() {
             </div>
             <div class="field">
               <div class="field-label">Phone</div>
-              <div class="field-value">${jobCard.workOrder?.customerPhone || 'N/A'}</div>
+              <div class="field-value">${displayContact(jobCard.workOrder?.customerPhone)}</div>
             </div>
             <div class="field">
               <div class="field-label">Email</div>
-              <div class="field-value">${jobCard.workOrder?.customerEmail || 'N/A'}</div>
+              <div class="field-value">${displayContact(jobCard.workOrder?.customerEmail)}</div>
             </div>
             <div class="field">
               <div class="field-label">Address</div>
@@ -1066,8 +1067,8 @@ export default function JobCardsNew() {
     const wo = detailedJobCard?.workOrder || {};
     setEditDetailsForm({
       customerName: wo.customerName || '',
-      customerPhone: wo.customerPhone || '',
-      customerEmail: wo.customerEmail || '',
+      customerPhone: displayContact(wo.customerPhone, ''),
+      customerEmail: displayContact(wo.customerEmail, ''),
       customerAddress: wo.customerAddress || '',
       regNo: wo.regNo || '',
       notes: wo.notes || '',
@@ -1109,8 +1110,8 @@ export default function JobCardsNew() {
     setReworkForm({
       remarks: '',
       customerName: wo.customerName || '',
-      customerPhone: wo.customerPhone || '',
-      customerEmail: wo.customerEmail || '',
+      customerPhone: displayContact(wo.customerPhone, ''),
+      customerEmail: displayContact(wo.customerEmail, ''),
       customerAddress: wo.customerAddress || '',
       regNo: wo.regNo || '',
       notes: wo.notes || ''
@@ -2425,7 +2426,7 @@ export default function JobCardsNew() {
                       <div>
                         <span className="text-sm text-muted-foreground">Phone</span>
                         <p className="font-medium font-mono">
-                          {detailedJobCard.workOrder?.customerPhone || 'N/A'}
+                          {displayContact(detailedJobCard.workOrder?.customerPhone)}
                         </p>
                       </div>
                     </div>
@@ -2434,7 +2435,7 @@ export default function JobCardsNew() {
                       <div>
                         <span className="text-sm text-muted-foreground">Email</span>
                         <p className="font-medium text-sm">
-                          {detailedJobCard.workOrder?.customerEmail || 'N/A'}
+                          {displayContact(detailedJobCard.workOrder?.customerEmail)}
                         </p>
                       </div>
                     </div>

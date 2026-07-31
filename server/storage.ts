@@ -85,6 +85,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count, avg, sum, lte, gte, or, isNull, isNotNull, asc, inArray, ne, like, ilike, notInArray, notExists } from "drizzle-orm";
+import { formatPlaceholderPhone, placeholderEmailFor, isBlankContact, isPlaceholderPhone, isPlaceholderEmail } from "./services/placeholderContact";
 
 // A job card counts as "completed" once the install is approved. After approval it
 // moves through the billing/settlement pipeline (sales invoice → warranty → payment →
@@ -1677,18 +1678,78 @@ export class DatabaseStorage implements IStorage {
     return workOrdersWithoutCommissions;
   }
 
+  // Highest placeholder-phone sequence currently in use (0 if none). Placeholder
+  // phones look like "1111" + 6 digits; the sequence is the trailing 6 digits.
+  async getMaxPlaceholderPhoneSequence(): Promise<number> {
+    const result: any = await db.execute(sql`
+      SELECT COALESCE(MAX(CAST(SUBSTRING(regexp_replace(customer_phone, '\\D', '', 'g') FROM 5) AS INTEGER)), 0) AS max_seq
+      FROM work_orders
+      WHERE regexp_replace(customer_phone, '\\D', '', 'g') ~ '^1111[0-9]{6}$'
+    `);
+    const rows = result?.rows ?? result;
+    return Number(rows?.[0]?.max_seq ?? 0);
+  }
+
+  // Fill missing customer phone/email with identifiable placeholders so the work
+  // order can sync to ERPNext/Pulse (both require the fields). Phone gets the next
+  // "1111######" sequence; email is derived from whatever phone ends up set.
+  private async applyPlaceholderContact(data: InsertWorkOrder): Promise<InsertWorkOrder> {
+    const phoneBlank = isBlankContact(data.customerPhone);
+    const emailBlank = isBlankContact(data.customerEmail);
+    if (!phoneBlank && !emailBlank) return data;
+
+    let customerPhone = data.customerPhone;
+    if (phoneBlank) {
+      const nextSeq = (await this.getMaxPlaceholderPhoneSequence()) + 1;
+      customerPhone = formatPlaceholderPhone(nextSeq);
+    }
+    const customerEmail = emailBlank ? placeholderEmailFor(customerPhone!) : data.customerEmail;
+    return { ...data, customerPhone, customerEmail };
+  }
+
   async createWorkOrder(insertWorkOrder: InsertWorkOrder): Promise<WorkOrder> {
+    const withContact = await this.applyPlaceholderContact(insertWorkOrder);
     const [workOrder] = await db
       .insert(workOrders)
-      .values(insertWorkOrder)
+      .values(withContact)
       .returning();
     return workOrder;
   }
 
+  // If an update clears customer phone/email (e.g. an admin edited a work order
+  // whose placeholder was masked to blank in the form), keep the field synced by
+  // re-using the existing placeholder or minting a fresh one — never leave it blank.
+  private async preservePlaceholderContactOnUpdate(id: string, updates: Partial<InsertWorkOrder>): Promise<Partial<InsertWorkOrder>> {
+    const touchesPhone = 'customerPhone' in updates;
+    const touchesEmail = 'customerEmail' in updates;
+    const phoneCleared = touchesPhone && isBlankContact(updates.customerPhone);
+    const emailCleared = touchesEmail && isBlankContact(updates.customerEmail);
+    if (!phoneCleared && !emailCleared) return updates;
+
+    const existing = await this.getWorkOrder(id);
+    const out: Partial<InsertWorkOrder> = { ...updates };
+
+    let phone = touchesPhone ? updates.customerPhone : existing?.customerPhone;
+    if (isBlankContact(phone)) {
+      phone = isPlaceholderPhone(existing?.customerPhone)
+        ? existing!.customerPhone!                                   // keep the same placeholder — no churn
+        : formatPlaceholderPhone((await this.getMaxPlaceholderPhoneSequence()) + 1);
+      out.customerPhone = phone;
+    }
+    let email = touchesEmail ? updates.customerEmail : existing?.customerEmail;
+    if (isBlankContact(email)) {
+      out.customerEmail = isPlaceholderEmail(existing?.customerEmail)
+        ? existing!.customerEmail!
+        : placeholderEmailFor(phone!);
+    }
+    return out;
+  }
+
   async updateWorkOrder(id: string, updates: Partial<InsertWorkOrder>): Promise<WorkOrder | undefined> {
+    const withContact = await this.preservePlaceholderContactOnUpdate(id, updates);
     const [workOrder] = await db
       .update(workOrders)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({ ...withContact, updatedAt: new Date() })
       .where(eq(workOrders.id, id))
       .returning();
     return workOrder || undefined;

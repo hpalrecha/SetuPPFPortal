@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { displayContact } from "@shared/placeholderContact";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -103,6 +104,7 @@ export function CreateWorkOrderModal({
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const canSelectOrgHierarchy = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const isDealershipAdmin = user?.role === 'DEALERSHIP_ADMIN';
+  const isPartnerAdmin = user?.role === 'PARTNER_ADMIN';
 
   const form = useForm<WorkOrderFormData>({
     resolver: zodResolver(workOrderSchema),
@@ -114,8 +116,8 @@ export function CreateWorkOrderModal({
       variant: initialData.variant || "",
       regNo: initialData.regNo || "",
       customerName: initialData.customerName || "",
-      customerPhone: initialData.customerPhone || "",
-      customerEmail: initialData.customerEmail || "",
+      customerPhone: displayContact(initialData.customerPhone, ""),
+      customerEmail: displayContact(initialData.customerEmail, ""),
       customerAddress: initialData.customerAddress || "",
       notes: initialData.notes || "",
       oemId: initialData.oemId || "",
@@ -148,8 +150,8 @@ export function CreateWorkOrderModal({
         variant: initialData.variant || "",
         regNo: initialData.regNo || "",
         customerName: initialData.customerName || "",
-        customerPhone: initialData.customerPhone || "",
-        customerEmail: initialData.customerEmail || "",
+        customerPhone: displayContact(initialData.customerPhone, ""),
+        customerEmail: displayContact(initialData.customerEmail, ""),
         customerAddress: initialData.customerAddress || "",
         notes: initialData.notes || "",
         oemId: initialData.oemId || "",
@@ -234,8 +236,29 @@ export function CreateWorkOrderModal({
   });
   const dealershipShowrooms = dealershipShowroomData?.showrooms || [];
 
+  // Partner admins create work orders under a showroom they're allocated to; the
+  // OEM + dealership are derived from that showroom (they have no org context).
+  const { data: allocatedShowrooms = [] } = useQuery<any[]>({
+    queryKey: ["/api/partner/allocated-showrooms"],
+    queryFn: async () => {
+      const response = await fetch('/api/partner/allocated-showrooms', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch allocated showrooms');
+      return response.json();
+    },
+    enabled: isPartnerAdmin,
+    staleTime: 300000,
+  });
+  const partnerSelectedShowroom = isPartnerAdmin
+    ? allocatedShowrooms.find((s: any) => s.id === form.watch("showroomId"))
+    : undefined;
+
   // Get the OEM ID for vehicle data fetching
-  const finalOemId = canSelectOrgHierarchy ? selectedOemId : user?.oemId;
+  const finalOemId = canSelectOrgHierarchy
+    ? selectedOemId
+    : isPartnerAdmin ? partnerSelectedShowroom?.oemId : user?.oemId;
   
   // Fetch vehicle data (brands and models) based on OEM
   const { data: vehicleData = [] } = useQuery({
@@ -265,7 +288,9 @@ export function CreateWorkOrderModal({
   const vehicleModels = selectedBrandId ? 
     (vehicleData?.find((brand: any) => brand.id === selectedBrandId)?.models || []) : [];
 
-  const finalDealershipId = canSelectOrgHierarchy ? selectedDealershipId : user?.dealershipId;
+  const finalDealershipId = canSelectOrgHierarchy
+    ? selectedDealershipId
+    : isPartnerAdmin ? partnerSelectedShowroom?.dealershipId : user?.dealershipId;
 
   const { data: services = [] } = useQuery({
     queryKey: ["/api/services", finalOemId, finalDealershipId],
@@ -289,7 +314,7 @@ export function CreateWorkOrderModal({
 
   // Fetch sales persons based on selected showroom
   const selectedShowroomId = form.watch("showroomId");
-  const finalShowroomId = (canSelectOrgHierarchy || isDealershipAdmin) ? selectedShowroomId : user?.showroomId;
+  const finalShowroomId = (canSelectOrgHierarchy || isDealershipAdmin || isPartnerAdmin) ? selectedShowroomId : user?.showroomId;
   const { data: salesPersons = [] } = useQuery({
     queryKey: ["/api/sales-persons", finalShowroomId],
     queryFn: async () => {
@@ -341,6 +366,24 @@ export function CreateWorkOrderModal({
         oemId: user!.oemId,
         dealershipId: user!.dealershipId,
         showroomId: data.showroomId,
+      };
+    } else if (isPartnerAdmin) {
+      // PARTNER_ADMIN: pick a showroom they're allocated to; OEM + dealership are
+      // derived from it (server re-validates). No salesperson (partner's own job).
+      if (!data.showroomId || !partnerSelectedShowroom) {
+        toast({
+          title: "Error",
+          description: "Please select a showroom",
+          variant: "destructive",
+        });
+        return;
+      }
+      workOrderData = {
+        ...data,
+        oemId: partnerSelectedShowroom.oemId,
+        dealershipId: partnerSelectedShowroom.dealershipId,
+        showroomId: data.showroomId,
+        salesPersonId: undefined,
       };
     } else {
       // SHOWROOM_MANAGER and SALES_PERSON: Use their showroom
@@ -487,6 +530,48 @@ export function CreateWorkOrderModal({
                     </FormItem>
                   )}
                 />
+              </div>
+            )}
+
+            {/* Showroom Selection (Partner Admin) — OEM + dealership derived from the pick */}
+            {isPartnerAdmin && (
+              <div className="space-y-4 p-4 border border-purple-200 rounded-lg bg-purple-50">
+                <div className="flex items-center gap-2 mb-4">
+                  <Store className="h-5 w-5 text-purple-600" />
+                  <h3 className="text-lg font-medium text-purple-800">Select Showroom</h3>
+                  <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700">Required</Badge>
+                </div>
+                <FormField
+                  control={form.control}
+                  name="showroomId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-purple-700">Showroom</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} data-testid="select-partner-showroom">
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a showroom you're allocated to" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {allocatedShowrooms.length === 0 ? (
+                            <div className="px-2 py-1.5 text-sm text-muted-foreground">No allocated showrooms</div>
+                          ) : allocatedShowrooms.map((s: any) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.name}{s.dealershipName ? ` — ${s.dealershipName}` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {partnerSelectedShowroom && (
+                  <p className="text-xs text-purple-700">
+                    {partnerSelectedShowroom.oemName}{partnerSelectedShowroom.dealershipName ? ` · ${partnerSelectedShowroom.dealershipName}` : ''}
+                  </p>
+                )}
               </div>
             )}
 
@@ -818,6 +903,8 @@ export function CreateWorkOrderModal({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Sales Person — hidden for partner-created work orders (no commission) */}
+                {!isPartnerAdmin && (
                 <FormField
                   control={form.control}
                   name="salesPersonId"
@@ -846,6 +933,7 @@ export function CreateWorkOrderModal({
                     </FormItem>
                   )}
                 />
+                )}
 
                 <FormField
                   control={form.control}

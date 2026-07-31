@@ -12,6 +12,7 @@ import { CalendarIcon, ClockIcon, CheckCircle2, PlayCircle, PauseCircle, UserIco
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiRequest } from '@/lib/queryClient';
 import { processImage } from '@/lib/imageProcessing';
+import { displayContact } from '@shared/placeholderContact';
 import { useToast } from '@/hooks/use-toast';
 import { ImageModal } from '@/components/ui/image-modal';
 import { format } from 'date-fns';
@@ -662,14 +663,14 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                       <Label className="text-sm font-medium text-gray-600">Phone</Label>
                       <p className="text-sm flex items-center gap-1" data-testid="text-customer-phone">
                         <PhoneIcon className="h-3 w-3" />
-                        {jobCard?.workOrder?.customerPhone || "N/A"}
+                        {displayContact(jobCard?.workOrder?.customerPhone)}
                       </p>
                     </div>
                     <div>
                       <Label className="text-sm font-medium text-gray-600">Email</Label>
                       <p className="text-sm flex items-center gap-1" data-testid="text-customer-email">
                         <MailIcon className="h-3 w-3" />
-                        {jobCard?.workOrder?.customerEmail || "N/A"}
+                        {displayContact(jobCard?.workOrder?.customerEmail)}
                       </p>
                     </div>
                   </div>

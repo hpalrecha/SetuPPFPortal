@@ -1,3 +1,4 @@
+import { displayContact, isPlaceholderContact } from './placeholderContact';
 import nodemailer from 'nodemailer';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import fs from 'fs';
@@ -459,8 +460,8 @@ export class EmailService {
             <div class="section">
               <h3>Customer Details</h3>
               <p><strong>Name:</strong> ${jobCardDetails.customerName}</p>
-              <p><strong>Phone:</strong> ${jobCardDetails.customerPhone}</p>
-              <p><strong>Email:</strong> ${jobCardDetails.customerEmail}</p>
+              <p><strong>Phone:</strong> ${displayContact(jobCardDetails.customerPhone)}</p>
+              <p><strong>Email:</strong> ${displayContact(jobCardDetails.customerEmail)}</p>
             </div>
             
             <div class="section">
@@ -1046,8 +1047,8 @@ export class EmailService {
               <div class="section-title">👤 Customer Details</div>
               <div class="info-grid">
                 <div class="info-row"><span class="info-label">Name:</span><span class="info-value">${jobCardData.customerName}</span></div>
-                <div class="info-row"><span class="info-label">Phone:</span><span class="info-value">${jobCardData.customerPhone}</span></div>
-                ${jobCardData.customerEmail ? `<div class="info-row"><span class="info-label">Email:</span><span class="info-value">${jobCardData.customerEmail}</span></div>` : ''}
+                <div class="info-row"><span class="info-label">Phone:</span><span class="info-value">${displayContact(jobCardData.customerPhone)}</span></div>
+                ${!isPlaceholderContact(jobCardData.customerEmail) && jobCardData.customerEmail ? `<div class="info-row"><span class="info-label">Email:</span><span class="info-value">${jobCardData.customerEmail}</span></div>` : ''}
                 ${jobCardData.customerAddress ? `<div class="info-row"><span class="info-label">Address:</span><span class="info-value">${jobCardData.customerAddress}</span></div>` : ''}
               </div>
             </div>

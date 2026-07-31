@@ -1,4 +1,5 @@
 import { storage } from '../storage';
+import { displayContact } from './placeholderContact';
 import { pricingService } from './pricingService';
 import { commissionService } from './commissionService';
 import { notificationService } from './notificationService';
@@ -404,8 +405,8 @@ WORK ORDER DETAILS:
 
 👤 CUSTOMER INFORMATION:
 • Name: ${workOrder.customerName || 'N/A'}
-• Phone: ${workOrder.customerPhone || 'N/A'}
-• Email: ${workOrder.customerEmail || 'N/A'}
+• Phone: ${displayContact(workOrder.customerPhone)}
+• Email: ${displayContact(workOrder.customerEmail)}
 • Address: ${workOrder.customerAddress || 'N/A'}
 
 🚗 VEHICLE INFORMATION:

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { displayContact } from "@shared/placeholderContact";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { useLocation, useRoute } from "wouter";
@@ -305,8 +306,8 @@ export default function WorkOrdersPage() {
       'Work Order ID': `WO-${wo.id.slice(-6)}`,
       'Status': wo.status,
       'Customer Name': wo.customerName || 'N/A',
-      'Customer Phone': wo.customerPhone || 'N/A',
-      'Customer Email': wo.customerEmail || 'N/A',
+      'Customer Phone': displayContact(wo.customerPhone),
+      'Customer Email': displayContact(wo.customerEmail),
       'Vehicle Model': wo.vehicleModelName || 'N/A',
       'Reg No': wo.regNo || 'N/A',
       'VIN': wo.vinNumber || 'N/A',
@@ -401,11 +402,11 @@ export default function WorkOrdersPage() {
             </div>
             <div class="field">
               <div class="field-label">Phone</div>
-              <div class="field-value">${order.customerPhone || 'N/A'}</div>
+              <div class="field-value">${displayContact(order.customerPhone)}</div>
             </div>
             <div class="field">
               <div class="field-label">Email</div>
-              <div class="field-value">${order.customerEmail || 'N/A'}</div>
+              <div class="field-value">${displayContact(order.customerEmail)}</div>
             </div>
             <div class="field">
               <div class="field-label">Address</div>
@@ -949,11 +950,11 @@ export default function WorkOrdersPage() {
               </div>
               <div>
                 <h3 className="font-medium text-sm text-muted-foreground">Phone Number</h3>
-                <p className="text-sm">{workOrder.customerPhone || "N/A"}</p>
+                <p className="text-sm">{displayContact(workOrder.customerPhone)}</p>
               </div>
               <div>
                 <h3 className="font-medium text-sm text-muted-foreground">Email Address</h3>
-                <p className="text-sm">{workOrder.customerEmail || "N/A"}</p>
+                <p className="text-sm">{displayContact(workOrder.customerEmail)}</p>
               </div>
               {workOrder.customerAddress && (
                 <div>
@@ -1431,8 +1432,8 @@ export default function WorkOrdersPage() {
                       <div className="text-sm font-medium truncate" title={order.customerName || "N/A"}>
                         {order.customerName || "N/A"}
                       </div>
-                      <div className="text-xs text-muted-foreground truncate" title={order.customerPhone || ""}>
-                        {order.customerPhone || "No phone"}
+                      <div className="text-xs text-muted-foreground truncate" title={displayContact(order.customerPhone, "")}>
+                        {displayContact(order.customerPhone, "No phone")}
                       </div>
                     </div>
 
@@ -1571,7 +1572,7 @@ export default function WorkOrdersPage() {
                         {order.customerName || "N/A"}
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
-                        {order.customerPhone || "No phone"}
+                        {displayContact(order.customerPhone, "No phone")}
                       </div>
                     </div>
 
@@ -1652,8 +1653,8 @@ export default function WorkOrdersPage() {
                         <div className="font-medium truncate">
                           {order.customerName || "N/A"}
                         </div>
-                        {order.customerPhone && (
-                          <div className="text-xs text-muted-foreground">{order.customerPhone}</div>
+                        {displayContact(order.customerPhone, "") && (
+                          <div className="text-xs text-muted-foreground">{displayContact(order.customerPhone, "")}</div>
                         )}
                       </div>
                     </div>
@@ -1995,7 +1996,7 @@ export default function WorkOrdersPage() {
                     <Input
                       key={`customer-phone-${editWorkOrder.id}`}
                       id="edit-modal-customer-phone"
-                      defaultValue={editWorkOrder.customerPhone || ""}
+                      defaultValue={displayContact(editWorkOrder.customerPhone, "")}
                       data-testid="input-edit-modal-customer-phone"
                     />
                   </div>
@@ -2006,7 +2007,7 @@ export default function WorkOrdersPage() {
                       key={`customer-email-${editWorkOrder.id}`}
                       id="edit-modal-customer-email"
                       type="email"
-                      defaultValue={editWorkOrder.customerEmail || ""}
+                      defaultValue={displayContact(editWorkOrder.customerEmail, "")}
                       data-testid="input-edit-modal-customer-email"
                     />
                   </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { displayContact } from "@shared/placeholderContact";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -215,14 +216,14 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
                         <Label className="text-sm font-medium text-gray-600">Phone</Label>
                         <p className="text-sm flex items-center gap-1" data-testid="text-customer-phone">
                           <PhoneIcon className="h-3 w-3" />
-                          {jobCard?.workOrder?.customerPhone || "N/A"}
+                          {displayContact(jobCard?.workOrder?.customerPhone)}
                         </p>
                       </div>
                       <div>
                         <Label className="text-sm font-medium text-gray-600">Email</Label>
                         <p className="text-sm flex items-center gap-1" data-testid="text-customer-email">
                           <MailIcon className="h-3 w-3" />
-                          {jobCard?.workOrder?.customerEmail || "N/A"}
+                          {displayContact(jobCard?.workOrder?.customerEmail)}
                         </p>
                       </div>
                     </div>

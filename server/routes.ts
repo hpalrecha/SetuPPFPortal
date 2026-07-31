@@ -3225,8 +3225,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
           appointmentAt: requestData.appointmentAt && requestData.appointmentAt.trim() !== '' ? new Date(requestData.appointmentAt) : null,
         };
         
-        // Ensure user can only create for their OEM/showroom (except Super Admin, Admin, and Manager)
-        if (req.user!.role !== 'SUPER_ADMIN' && req.user!.role !== 'ADMIN' && req.user!.role !== 'MANAGER') {
+        // Partner-created work order: the partner's own job. Org is derived from the
+        // chosen showroom (partners have no oem/showroom context), which must be one
+        // they're allocated to. No salesperson ⇒ no commission (partner bills directly).
+        if (req.user!.role === 'PARTNER_ADMIN') {
+          if (!req.user!.partnerId) {
+            return res.status(403).json({ error: "Partner ID not found in user context" });
+          }
+          if (!workOrderData.showroomId) {
+            return res.status(400).json({ error: "Showroom is required" });
+          }
+          const allocatedIds = await storage.getPartnerShowrooms(req.user!.partnerId);
+          if (!allocatedIds.includes(workOrderData.showroomId)) {
+            return res.status(403).json({ error: "Access denied - showroom is not allocated to your partner" });
+          }
+          const showroom = await storage.getShowroom(workOrderData.showroomId);
+          if (!showroom || !showroom.oemId) {
+            return res.status(400).json({ error: "Invalid showroom" });
+          }
+          // Org is derived from the showroom (OEM lives on showrooms.oem_id).
+          workOrderData.showroomId = showroom.id;
+          workOrderData.dealershipId = showroom.dealershipId;
+          workOrderData.oemId = showroom.oemId;
+          workOrderData.salesPersonId = null; // partner-created: no sales commission
+        } else if (req.user!.role !== 'SUPER_ADMIN' && req.user!.role !== 'ADMIN' && req.user!.role !== 'MANAGER') {
+          // Ensure user can only create for their OEM/showroom (except Super Admin, Admin, and Manager)
           workOrderData.oemId = req.user!.oemId!;
           if (req.user!.showroomId) {
             workOrderData.showroomId = req.user!.showroomId;
@@ -6102,6 +6125,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Get installers error:", error);
         res.status(500).json({ error: "Failed to fetch installers" });
+      }
+    }
+  );
+
+  // Showrooms a partner is allocated to (with their dealership + OEM), for the
+  // partner-admin "create work order" flow. Scoped to the caller's own partner so
+  // a partner can only create work orders under showrooms they're allocated to.
+  app.get("/api/partner/allocated-showrooms",
+    authenticate,
+    requireRole(['PARTNER_ADMIN']),
+    async (req, res) => {
+      try {
+        const partnerId = req.user!.partnerId;
+        if (!partnerId) {
+          return res.status(400).json({ error: "Partner ID not found in user context" });
+        }
+        const showroomIds = await storage.getPartnerShowrooms(partnerId);
+        const dealershipCache = new Map<string, any>();
+        const oemCache = new Map<string, any>();
+        const results: any[] = [];
+        for (const sid of showroomIds) {
+          const showroom = await storage.getShowroom(sid);
+          if (!showroom) continue;
+          let dealership = dealershipCache.get(showroom.dealershipId);
+          if (!dealership) {
+            dealership = await storage.getDealership(showroom.dealershipId);
+            dealershipCache.set(showroom.dealershipId, dealership);
+          }
+          // OEM lives on the showroom (showrooms.oem_id), not the dealership.
+          let oem = showroom.oemId ? oemCache.get(showroom.oemId) : null;
+          if (showroom.oemId && !oem) {
+            oem = await storage.getOem(showroom.oemId);
+            oemCache.set(showroom.oemId, oem);
+          }
+          results.push({
+            id: showroom.id,
+            name: showroom.name,
+            dealershipId: showroom.dealershipId,
+            dealershipName: dealership?.name || '',
+            oemId: showroom.oemId || null,
+            oemName: oem?.name || '',
+          });
+        }
+        results.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        res.json(results);
+      } catch (error) {
+        console.error("Get allocated showrooms error:", error);
+        res.status(500).json({ error: "Failed to fetch allocated showrooms" });
       }
     }
   );

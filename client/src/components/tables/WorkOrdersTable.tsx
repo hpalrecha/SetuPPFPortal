@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { displayContact } from "@shared/placeholderContact";
 import { Eye, Edit } from "lucide-react";
 
 interface WorkOrder {
@@ -120,9 +121,9 @@ export function WorkOrdersTable({
                   <p className="text-sm font-medium text-foreground">
                     {workOrder.customerName}
                   </p>
-                  {workOrder.customerPhone && (
+                  {displayContact(workOrder.customerPhone, '') && (
                     <p className="text-xs text-muted-foreground">
-                      {workOrder.customerPhone}
+                      {displayContact(workOrder.customerPhone, '')}
                     </p>
                   )}
                 </div>
