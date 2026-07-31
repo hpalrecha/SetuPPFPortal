@@ -5449,7 +5449,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/job-cards/:id/request-rework",
     authenticate,
-    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'PARTNER_ADMIN']),
     auditLog('job_card', 'request_rework'),
     async (req, res) => {
       try {
@@ -5461,9 +5461,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           plannedMaterialId: z.string().uuid().optional(),
           plannedMaterialName: z.string().trim().optional(),
           plannedQuantity: z.number().positive().optional(),
+          // Rework request details captured in the form.
+          photos: z.array(z.string()).optional(),
+          approxQuantitySq: z.number().nonnegative().optional(),
+          approxCost: z.number().nonnegative().optional(),
+          parts: z.array(z.string()).optional(),
         });
 
-        const { remarks, assignedInstallerId, plannedMaterialId, plannedMaterialName, plannedQuantity } = reworkSchema.parse(req.body);
+        const { remarks, assignedInstallerId, plannedMaterialId, plannedMaterialName, plannedQuantity, photos, approxQuantitySq, approxCost, parts } = reworkSchema.parse(req.body);
+        const reworkDetailsJson = (photos?.length || approxQuantitySq != null || approxCost != null || parts?.length)
+          ? { photos: photos || [], approxQuantitySq: approxQuantitySq ?? null, approxCost: approxCost ?? null, parts: parts || [] }
+          : null;
         const jobCardId = req.params.id;
         
         // Get job card first to check status and access
@@ -5500,10 +5508,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           hasAccess = workOrder.dealershipId === req.user!.dealershipId;
         } else if (req.user!.role === 'SHOWROOM_MANAGER') {
           hasAccess = workOrder.showroomId === req.user!.showroomId;
+        } else if (req.user!.role === 'PARTNER_ADMIN') {
+          hasAccess = jobCard.partnerId === req.user!.partnerId;
         }
 
         if (!hasAccess) {
           return res.status(403).json({ error: "Access denied to this job card" });
+        }
+
+        // Partner-initiated rework does NOT execute immediately — it needs a super
+        // admin's permission first. Freeze the card as REWORK_PERMISSION_REQUESTED,
+        // record the request details + the staff the partner wants to assign, and stop.
+        if (req.user!.role === 'PARTNER_ADMIN') {
+          if (!assignedInstallerId) {
+            return res.status(400).json({ error: "Please assign a detailing partner / staff member for the rework" });
+          }
+          if (!(await storage.staffHasPartner(assignedInstallerId, jobCard.partnerId))) {
+            return res.status(400).json({ error: "Selected staff is not part of your team" });
+          }
+          const pendingDetails = {
+            ...(reworkDetailsJson || { photos: [], approxQuantitySq: null, approxCost: null, parts: [] }),
+            requestedAssigneeId: assignedInstallerId,
+            priorStatus: jobCard.status,
+          };
+          const updated = await storage.updateJobCard(jobCardId, {
+            status: 'REWORK_PERMISSION_REQUESTED',
+            reworkReason: remarks,
+            reworkDetailsJson: pendingDetails,
+            reworkRequestedAt: new Date(),
+            reworkRequestedBy: req.user!.id,
+          });
+          await storage.createApproval({ jobCardId, approverUserId: req.user!.id, status: 'REWORK_PERMISSION_REQUESTED', remarks });
+          console.log(`🟠 Rework PERMISSION requested on ${jobCard.id} by PARTNER_ADMIN ${req.user!.partnerId}: '${remarks}'`);
+          return res.json({ message: "Rework permission requested — awaiting super admin approval", jobCard: updated, pending: true });
         }
 
         // Optional: apply the admin's safe-field edits to the shared work order at rework time.
@@ -5548,10 +5585,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           partnerBilledDirectly: jobCard.partnerBilledDirectly || false
         });
 
-        // 2) Freeze the original card as the historical record of the first attempt.
+        // 2) Freeze the original card as the historical record of the first attempt,
+        //    storing the rework request details (photos, approx qty, affected parts).
         const updatedJobCard = await storage.updateJobCard(jobCardId, {
           status: 'REWORK_REQUESTED',
           reworkReason: remarks,
+          reworkDetailsJson,
           reworkRequestedAt: new Date(),
           reworkRequestedBy: req.user!.id
         });
@@ -5585,6 +5624,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         console.error("Request rework error:", error);
         res.status(500).json({ error: "Failed to request rework" });
+      }
+    }
+  );
+
+  // Super admin decides on a partner-requested rework (REWORK_PERMISSION_REQUESTED).
+  // APPROVE -> execute the rework (create the redo card assigned to the partner's chosen
+  // staff, freeze the original as REWORK_REQUESTED, re-open the work order).
+  // REJECT  -> revert the original back to its pre-request status.
+  app.post("/api/job-cards/:id/rework-permission",
+    authenticate,
+    requireRole(['SUPER_ADMIN']),
+    auditLog('job_card', 'rework_permission'),
+    async (req, res) => {
+      try {
+        const jobCardId = req.params.id;
+        const decision = String(req.body?.decision || '').toUpperCase();
+        const remarks = typeof req.body?.remarks === 'string' ? req.body.remarks : '';
+        if (decision !== 'APPROVE' && decision !== 'REJECT') {
+          return res.status(400).json({ error: "decision must be APPROVE or REJECT" });
+        }
+        const jobCard = await storage.getJobCard(jobCardId);
+        if (!jobCard) return res.status(404).json({ error: "Job card not found" });
+        if (jobCard.status !== 'REWORK_PERMISSION_REQUESTED') {
+          return res.status(400).json({ error: "This job card is not awaiting rework permission", currentStatus: jobCard.status });
+        }
+        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+        const details: any = jobCard.reworkDetailsJson || {};
+
+        if (decision === 'REJECT') {
+          const reverted = await storage.updateJobCard(jobCardId, {
+            status: details.priorStatus || 'PENDING_APPROVAL',
+            reworkReason: null,
+            reworkDetailsJson: null,
+            reworkRequestedAt: null,
+            reworkRequestedBy: null,
+          });
+          await storage.createApproval({ jobCardId, approverUserId: req.user!.id, status: 'REWORK_PERMISSION_REJECTED', remarks });
+          return res.json({ message: "Rework permission rejected", jobCard: reverted });
+        }
+
+        // APPROVE — execute the rework (mirrors the admin immediate path).
+        const newJobCard = await storage.createJobCard({
+          workOrderId: jobCard.workOrderId,
+          partnerId: jobCard.partnerId,
+          status: 'AWAITING_ACK',
+          reworkOfJobCardId: jobCard.id,
+          reworkReason: jobCard.reworkReason,
+          assignedInstallerId: details.requestedAssigneeId || null,
+          billingValue: '0',
+          billFrom: jobCard.billFrom || workOrder?.billFrom || null,
+          billTo: jobCard.billTo || workOrder?.billTo || null,
+          shipTo: jobCard.shipTo || workOrder?.shipTo || null,
+          partnerBilledDirectly: jobCard.partnerBilledDirectly || false,
+        });
+        const frozen = await storage.updateJobCard(jobCardId, { status: 'REWORK_REQUESTED' });
+        await storage.updateWorkOrder(jobCard.workOrderId, { status: 'ASSIGNED', assignedJobCardId: newJobCard.id });
+        await storage.createApproval({ jobCardId, approverUserId: req.user!.id, status: 'REWORK_PERMISSION_GRANTED', remarks });
+        console.log(`🟢 Rework permission GRANTED on ${jobCard.id} by ${req.user!.id} → new card ${newJobCard.id}`);
+        return res.json({ message: "Rework approved — a new job card was created", jobCard: newJobCard, previousJobCard: frozen });
+      } catch (error) {
+        console.error("Rework permission error:", error);
+        res.status(500).json({ error: "Failed to process rework permission" });
       }
     }
   );

@@ -58,6 +58,7 @@ export const jobCardStatusEnum = pgEnum('job_card_status', [
   'INVOICE_RAISED',
   'WARRANTY_REGISTRATION',
   'PAYMENT_PENDING',
+  'REWORK_PERMISSION_REQUESTED',
   'REWORK_REQUESTED',
   'CLOSED',
   'NO_SHOW',
@@ -600,6 +601,7 @@ export const jobCards = pgTable("job_cards", {
   partnerBilledDirectly: boolean("partner_billed_directly").default(false), // Flag if partner billed customer
   // Rework tracking fields
   reworkReason: text("rework_reason"), // Reason for requesting rework
+  reworkDetailsJson: jsonb("rework_details_json"), // { photos: string[], approxQuantitySq: number, parts: string[] }
   reworkRequestedAt: timestamp("rework_requested_at"), // When rework was requested
   reworkRequestedBy: uuid("rework_requested_by").references(() => users.id), // Who requested rework
   reworkCompletedAt: timestamp("rework_completed_at"), // When rework was completed

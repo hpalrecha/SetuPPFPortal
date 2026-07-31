@@ -175,6 +175,7 @@ const STATUS_COLORS = {
   'IN_PROGRESS': 'bg-blue-100 text-blue-800 border-blue-200',
   'COMPLETED': 'bg-green-100 text-green-800 border-green-200',
   'PENDING_APPROVAL': 'bg-orange-100 text-orange-800 border-orange-200',
+  'REWORK_PERMISSION_REQUESTED': 'bg-orange-100 text-orange-800 border-orange-200',
   'REWORK_REQUESTED': 'bg-yellow-100 text-yellow-800 border-yellow-200',
   'APPROVED': 'bg-green-100 text-green-800 border-green-200',
   'PENDING_SALES_INVOICE': 'bg-purple-100 text-purple-800 border-purple-200',
@@ -192,6 +193,7 @@ const STATUS_ICONS = {
   'IN_PROGRESS': Wrench,
   'COMPLETED': CheckCircle2,
   'PENDING_APPROVAL': AlertCircle,
+  'REWORK_PERMISSION_REQUESTED': RefreshCw,
   'REWORK_REQUESTED': RefreshCw,
   'APPROVED': Trophy,
   'PENDING_SALES_INVOICE': DollarSign,
@@ -209,6 +211,7 @@ const STATUS_LABELS = {
   'IN_PROGRESS': 'In Progress',
   'COMPLETED': 'Completed',
   'PENDING_APPROVAL': 'Pending Approval',
+  'REWORK_PERMISSION_REQUESTED': 'Rework — Awaiting Permission',
   'REWORK_REQUESTED': 'Rework Requested',
   'APPROVED': 'Approved',
   'PENDING_SALES_INVOICE': 'Pending Invoice',
@@ -249,8 +252,17 @@ export default function JobCardsNew() {
     customerEmail: '',
     customerAddress: '',
     regNo: '',
-    notes: ''
+    notes: '',
+    photos: [] as string[],
+    approxQuantitySq: '',
+    approxCost: '',
+    parts: [] as string[],
+    assignedInstallerId: '',
   });
+  const [reworkPhotoUploading, setReworkPhotoUploading] = useState(false);
+  const [reworkPartsOpen, setReworkPartsOpen] = useState(false);
+  // Placeholder parts list — swap for the real one when provided.
+  const REWORK_PARTS = ['A', 'B', 'C', 'D'];
   const [salesInvoiceNumber, setSalesInvoiceNumber] = useState('');
   const [warrantyReferenceNumber, setWarrantyReferenceNumber] = useState('');
   
@@ -1106,7 +1118,8 @@ export default function JobCardsNew() {
   // Rework: a job at approval stage or later can be reworked. This creates a NEW job card
   // against the same work order, freezes the current one as REWORK_REQUESTED, and links them.
   const REWORK_ALLOWED_FROM = ['COMPLETED', 'PENDING_APPROVAL', 'APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED'];
-  const canRequestRework = ['SUPER_ADMIN', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN'].includes(user?.role || '');
+  const canRequestRework = ['SUPER_ADMIN', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'PARTNER_ADMIN'].includes(user?.role || '');
+  const isPartnerAdminRework = user?.role === 'PARTNER_ADMIN';
 
   const openRework = () => {
     const wo = detailedJobCard?.workOrder || {};
@@ -1117,26 +1130,74 @@ export default function JobCardsNew() {
       customerEmail: displayContact(wo.customerEmail, ''),
       customerAddress: wo.customerAddress || '',
       regNo: wo.regNo || '',
-      notes: wo.notes || ''
+      notes: wo.notes || '',
+      photos: [],
+      approxQuantitySq: '',
+      approxCost: '',
+      parts: [],
+      assignedInstallerId: '',
     });
     setShowReworkModal(true);
   };
 
+  // Upload one or more defect photos for the rework request (server-proxied, like batch/post-install).
+  const handleReworkPhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+    try {
+      setReworkPhotoUploading(true);
+      const urls: string[] = [];
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await apiRequest('POST', '/api/objects/upload-file', formData);
+        const { url } = await response.json();
+        if (url) urls.push(url);
+      }
+      setReworkForm(prev => ({ ...prev, photos: [...prev.photos, ...urls] }));
+      toast({ title: 'Photos added', description: `${urls.length} photo(s) uploaded.` });
+    } catch (error: any) {
+      toast({ title: 'Upload Failed', description: error.message || 'Failed to upload photos', variant: 'destructive' });
+    } finally {
+      setReworkPhotoUploading(false);
+      event.target.value = '';
+    }
+  };
+
+  const toggleReworkPart = (part: string) => {
+    setReworkForm(prev => ({
+      ...prev,
+      parts: prev.parts.includes(part) ? prev.parts.filter(p => p !== part) : [...prev.parts, part],
+    }));
+  };
+
   const reworkMutation = useMutation({
     mutationFn: async ({ jobCardId, values }: { jobCardId: string; values: typeof reworkForm }) => {
-      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/request-rework`, values);
+      // Customer details are shown locked, so we only send the rework request data.
+      const payload = {
+        remarks: values.remarks,
+        photos: values.photos,
+        parts: values.parts,
+        ...(values.approxQuantitySq.trim() !== '' ? { approxQuantitySq: Number(values.approxQuantitySq) } : {}),
+        ...(values.approxCost.trim() !== '' ? { approxCost: Number(values.approxCost) } : {}),
+        ...(values.assignedInstallerId ? { assignedInstallerId: values.assignedInstallerId } : {}),
+      };
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/request-rework`, payload);
       return response.json();
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards', selectedJobCardId] });
       setShowReworkModal(false);
-      // Jump to the newly created rework card so its lifecycle can continue.
-      if (data?.jobCard?.id) {
+      // Immediate (admin) rework jumps to the new card; partner requests stay pending.
+      if (!data?.pending && data?.jobCard?.id) {
         setSelectedJobCardId(data.jobCard.id);
       }
       toast({
-        title: "Rework Requested",
-        description: "A new job card was created against the same work order.",
+        title: data?.pending ? "Rework Permission Requested" : "Rework Requested",
+        description: data?.pending
+          ? "Awaiting super admin approval before the rework starts."
+          : "A new job card was created against the same work order.",
       });
     },
     onError: (error: any) => {
@@ -1148,7 +1209,28 @@ export default function JobCardsNew() {
     }
   });
 
-  // Check if user is admin 
+  // Super admin decides on a partner's pending rework permission request.
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const reworkPermissionMutation = useMutation({
+    mutationFn: async ({ jobCardId, decision }: { jobCardId: string; decision: 'APPROVE' | 'REJECT' }) => {
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/rework-permission`, { decision });
+      return response.json();
+    },
+    onSuccess: (data: any, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards', selectedJobCardId] });
+      if (vars.decision === 'APPROVE' && data?.jobCard?.id) setSelectedJobCardId(data.jobCard.id);
+      toast({
+        title: vars.decision === 'APPROVE' ? "Rework Approved" : "Rework Rejected",
+        description: data?.message || '',
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Action Failed", description: error.message || "Failed to process rework permission", variant: "destructive" });
+    }
+  });
+
+  // Check if user is admin
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'OEM_ADMIN' || user?.role === 'SHOWROOM_MANAGER' || user?.role === 'DEALERSHIP_ADMIN';
   console.log('User role:', user?.role, 'isAdmin:', isAdmin);
 
@@ -2331,6 +2413,41 @@ export default function JobCardsNew() {
           
           {detailedJobCard && (
             <div className="flex-1 pr-2">
+              {/* Super-admin: decide on a partner's pending rework permission request */}
+              {isSuperAdmin && detailedJobCard.status === 'REWORK_PERMISSION_REQUESTED' && (
+                <div className="mb-4 mt-2 rounded-lg border-2 border-orange-300 bg-orange-50 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <RefreshCw className="h-5 w-5 text-orange-600" />
+                    <span className="font-semibold text-orange-900">Rework Permission Requested</span>
+                  </div>
+                  <p className="text-sm text-orange-900 mb-2">A partner admin requested rework and needs your approval before it starts.</p>
+                  {detailedJobCard.reworkReason && (
+                    <p className="text-sm mb-1"><span className="font-medium">Reason:</span> {detailedJobCard.reworkReason}</p>
+                  )}
+                  {detailedJobCard.reworkDetailsJson && (
+                    <div className="text-sm space-y-1 mb-1">
+                      {detailedJobCard.reworkDetailsJson.approxQuantitySq != null && <p><span className="font-medium">Approx qty:</span> {detailedJobCard.reworkDetailsJson.approxQuantitySq} sq ft</p>}
+                      {detailedJobCard.reworkDetailsJson.approxCost != null && <p><span className="font-medium">Approx cost:</span> ₹{detailedJobCard.reworkDetailsJson.approxCost}</p>}
+                      {detailedJobCard.reworkDetailsJson.parts?.length > 0 && <p><span className="font-medium">Parts:</span> {detailedJobCard.reworkDetailsJson.parts.map((p: string) => `Part ${p}`).join(', ')}</p>}
+                      {detailedJobCard.reworkDetailsJson.photos?.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {detailedJobCard.reworkDetailsJson.photos.map((url: string, i: number) => (
+                            <img key={i} src={url} alt={`rework ${i + 1}`} className="h-16 w-16 object-cover rounded border cursor-pointer" onClick={() => window.open(url, '_blank')} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex gap-2 mt-3">
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700" disabled={reworkPermissionMutation.isPending} onClick={() => reworkPermissionMutation.mutate({ jobCardId: detailedJobCard.id, decision: 'APPROVE' })} data-testid="button-approve-rework">
+                      Approve
+                    </Button>
+                    <Button size="sm" variant="destructive" disabled={reworkPermissionMutation.isPending} onClick={() => reworkPermissionMutation.mutate({ jobCardId: detailedJobCard.id, decision: 'REJECT' })} data-testid="button-reject-rework">
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 py-4">
                 
                 {/* Basic Information Card */}
@@ -3196,9 +3313,10 @@ export default function JobCardsNew() {
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
               This freezes the current job card as <span className="font-medium">Rework Requested</span> and creates a
-              new job card against the same work order. The new card starts fresh and follows the normal flow
-              (non-billable). You can adjust the customer details below before creating it.
+              new job card against the same work order (non-billable). Customer details are shown for reference and are locked.
             </p>
+
+            {/* Reason */}
             <div className="space-y-2">
               <Label htmlFor="rework-reason">Reason for rework <span className="text-red-500">*</span></Label>
               <Textarea
@@ -3210,37 +3328,137 @@ export default function JobCardsNew() {
                 data-testid="input-rework-reason"
               />
             </div>
+
+            {/* Defect photos */}
+            <div className="space-y-2">
+              <Label htmlFor="rework-photos">Photos</Label>
+              <Input
+                id="rework-photos"
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleReworkPhotoUpload}
+                disabled={reworkPhotoUploading}
+                data-testid="input-rework-photos"
+              />
+              {reworkPhotoUploading && <p className="text-xs text-muted-foreground">Uploading…</p>}
+              {reworkForm.photos.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {reworkForm.photos.map((url, i) => (
+                    <div key={i} className="relative">
+                      <img src={url} alt={`rework ${i + 1}`} className="h-16 w-16 object-cover rounded border" />
+                      <button
+                        type="button"
+                        onClick={() => setReworkForm(prev => ({ ...prev, photos: prev.photos.filter((_, j) => j !== i) }))}
+                        className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full h-4 w-4 flex items-center justify-center text-[10px] leading-none"
+                        aria-label="Remove photo"
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Approx quantity + affected parts */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="rework-qty">Approx. Quantity (sq ft)</Label>
+                <Input
+                  id="rework-qty"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  placeholder="e.g. 12"
+                  value={reworkForm.approxQuantitySq}
+                  onChange={(e) => setReworkForm(prev => ({ ...prev, approxQuantitySq: e.target.value }))}
+                  data-testid="input-rework-qty"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rework-cost">Approx. Cost (₹)</Label>
+                <Input
+                  id="rework-cost"
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="e.g. 1500"
+                  value={reworkForm.approxCost}
+                  onChange={(e) => setReworkForm(prev => ({ ...prev, approxCost: e.target.value }))}
+                  data-testid="input-rework-cost"
+                />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Affected Parts</Label>
+                <Popover open={reworkPartsOpen} onOpenChange={setReworkPartsOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" className="justify-between w-full font-normal" data-testid="select-rework-parts">
+                      {reworkForm.parts.length > 0 ? `${reworkForm.parts.length} selected` : 'Select parts'}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[220px] p-1">
+                    {REWORK_PARTS.map((part) => (
+                      <button
+                        type="button"
+                        key={part}
+                        onClick={() => toggleReworkPart(part)}
+                        className="flex items-center w-full px-2 py-1.5 text-sm rounded hover:bg-muted text-left"
+                      >
+                        <Check className={`mr-2 h-4 w-4 ${reworkForm.parts.includes(part) ? 'opacity-100' : 'opacity-0'}`} />
+                        Part {part}
+                      </button>
+                    ))}
+                  </PopoverContent>
+                </Popover>
+                {reworkForm.parts.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {reworkForm.parts.map(p => (
+                      <span key={p} className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded">Part {p}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Assign to — partner admin picks one of his own staff; needs super-admin approval */}
+            {isPartnerAdminRework && (
+              <div className="space-y-2">
+                <Label htmlFor="rework-assignee">Assign to <span className="text-red-500">*</span></Label>
+                <Select
+                  value={reworkForm.assignedInstallerId || undefined}
+                  onValueChange={(v) => setReworkForm(prev => ({ ...prev, assignedInstallerId: v }))}
+                >
+                  <SelectTrigger id="rework-assignee" data-testid="select-rework-assignee">
+                    <SelectValue placeholder="Select a detailing partner / staff member" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allInstallers.map((s: any) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name || 'Unnamed'}{s.role === 'DETAILING_PARTNER' ? ' (Detailing Partner)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">This rework needs super admin approval before it starts.</p>
+              </div>
+            )}
+
+            {/* Customer details — locked / read-only */}
             <div className="border-t pt-3">
-              <p className="text-xs font-medium text-muted-foreground mb-2">Customer details (optional edit)</p>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Customer details (locked)</p>
               <div className="space-y-3">
                 <div className="space-y-2">
                   <Label htmlFor="rework-customer-name">Customer Name</Label>
-                  <Input
-                    id="rework-customer-name"
-                    value={reworkForm.customerName}
-                    onChange={(e) => setReworkForm(prev => ({ ...prev, customerName: e.target.value }))}
-                    data-testid="input-rework-customer-name"
-                  />
+                  <Input id="rework-customer-name" value={reworkForm.customerName} disabled readOnly data-testid="text-rework-customer-name" />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="rework-customer-phone">Phone</Label>
-                    <Input
-                      id="rework-customer-phone"
-                      value={reworkForm.customerPhone}
-                      onChange={(e) => setReworkForm(prev => ({ ...prev, customerPhone: e.target.value }))}
-                      data-testid="input-rework-customer-phone"
-                    />
+                    <Input id="rework-customer-phone" value={reworkForm.customerPhone} disabled readOnly data-testid="text-rework-customer-phone" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="rework-reg-no">Registration No.</Label>
-                    <Input
-                      id="rework-reg-no"
-                      value={reworkForm.regNo}
-                      onChange={(e) => setReworkForm(prev => ({ ...prev, regNo: e.target.value }))}
-                      className="font-mono"
-                      data-testid="input-rework-reg-no"
-                    />
+                    <Input id="rework-reg-no" value={reworkForm.regNo} disabled readOnly className="font-mono" data-testid="text-rework-reg-no" />
                   </div>
                 </div>
               </div>
@@ -3255,23 +3473,23 @@ export default function JobCardsNew() {
               </Button>
               <Button
                 onClick={() => {
-                  if (detailedJobCard?.id && reworkForm.remarks.trim()) {
+                  if (detailedJobCard?.id && reworkForm.remarks.trim() && (!isPartnerAdminRework || reworkForm.assignedInstallerId)) {
                     reworkMutation.mutate({ jobCardId: detailedJobCard.id, values: reworkForm });
                   }
                 }}
-                disabled={!reworkForm.remarks.trim() || reworkMutation.isPending}
+                disabled={!reworkForm.remarks.trim() || (isPartnerAdminRework && !reworkForm.assignedInstallerId) || reworkMutation.isPending}
                 className="bg-amber-600 hover:bg-amber-700"
                 data-testid="button-confirm-rework"
               >
                 {reworkMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creating…
+                    {isPartnerAdminRework ? 'Requesting…' : 'Creating…'}
                   </>
                 ) : (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2" />
-                    Create Rework Job Card
+                    {isPartnerAdminRework ? 'Request Rework Permission' : 'Create Rework Job Card'}
                   </>
                 )}
               </Button>
