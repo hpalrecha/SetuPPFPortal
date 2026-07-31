@@ -1,4 +1,5 @@
 import { displayContact, isPlaceholderContact } from './placeholderContact';
+import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import fs from 'fs';
@@ -18,6 +19,20 @@ export interface EmailOptions {
   }>;
   // Optional enrichment for the notification log (eventType, recipientUserId, related entity…).
   context?: NotificationContext;
+}
+
+// AWS SES SMTP does NOT accept a raw IAM secret key as the SMTP password — it
+// requires a password DERIVED from the secret via this documented algorithm.
+// Using the raw secret yields "535 Authentication Credentials Invalid".
+function deriveSesSmtpPassword(secretKey: string, region: string): string {
+  const hmac = (key: crypto.BinaryLike, data: string) =>
+    crypto.createHmac('sha256', key).update(data, 'utf8').digest();
+  let sig = hmac('AWS4' + secretKey, '11111111');
+  sig = hmac(sig, region);
+  sig = hmac(sig, 'ses');
+  sig = hmac(sig, 'aws4_request');
+  sig = hmac(sig, 'SendRawEmail');
+  return Buffer.concat([Buffer.from([0x04]), sig]).toString('base64');
 }
 
 export class EmailService {
@@ -114,24 +129,29 @@ export class EmailService {
         this.smtpConfigured = false;
       }
     } else if (AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) {
-      // Fallback: use AWS credentials for SMTP if SMTP credentials not provided
+      // Fallback: use the AWS IAM keys for SES SMTP. The SMTP username is the
+      // access key id, but the SMTP password must be DERIVED from the secret key
+      // (raw secret → "535 Authentication Credentials Invalid").
       try {
         const cleanRegion = AWS_REGION.trim();
-        const sesHost = cleanRegion.includes('email-smtp') 
-          ? cleanRegion 
+        const sesHost = cleanRegion.includes('email-smtp')
+          ? cleanRegion
           : `email-smtp.${cleanRegion}.amazonaws.com`;
-          
+        const smtpRegion = cleanRegion.includes('email-smtp')
+          ? cleanRegion.split('.')[1] || 'ap-south-1'
+          : cleanRegion;
+
         this.smtpTransporter = nodemailer.createTransport({
           host: sesHost,
           port: 587,
           secure: false,
           auth: {
             user: AWS_ACCESS_KEY_ID,
-            pass: AWS_SECRET_ACCESS_KEY
+            pass: deriveSesSmtpPassword(AWS_SECRET_ACCESS_KEY, smtpRegion)
           }
         });
         this.smtpConfigured = true;
-        console.log('✅ SMTP configured with AWS credentials (Fallback)');
+        console.log('✅ SMTP configured with AWS credentials — derived SES SMTP password (Fallback)');
       } catch (error) {
         console.error('❌ Failed to configure SMTP with AWS credentials:', error);
         this.smtpConfigured = false;

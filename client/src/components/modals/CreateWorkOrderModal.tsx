@@ -251,6 +251,24 @@ export function CreateWorkOrderModal({
     enabled: isPartnerAdmin,
     staleTime: 300000,
   });
+  // Partner cascade OEM -> dealership -> showroom, all sourced from the allocated
+  // showrooms (each carries oemId/oemName + dealershipId/dealershipName). The OEM
+  // and dealership picks only narrow the showroom list; the submitted org is still
+  // derived from the chosen showroom.
+  const [partnerOemId, setPartnerOemId] = useState<string>("");
+  const [partnerDealershipId, setPartnerDealershipId] = useState<string>("");
+  const uniqBy = (rows: any[], key: string, label: string) =>
+    Array.from(new Map(rows.filter(r => r[key]).map(r => [r[key], { id: r[key], name: r[label] }])).values());
+  const partnerOems = isPartnerAdmin ? uniqBy(allocatedShowrooms, 'oemId', 'oemName') : [];
+  const partnerDealerships = isPartnerAdmin && partnerOemId
+    ? uniqBy(allocatedShowrooms.filter((s: any) => s.oemId === partnerOemId), 'dealershipId', 'dealershipName')
+    : [];
+  // Filter by BOTH oem and dealership — a dealership can span multiple OEMs
+  // (each with its own showroom), so dealership alone would over-list showrooms.
+  const partnerShowroomOptions = isPartnerAdmin && partnerDealershipId
+    ? allocatedShowrooms.filter((s: any) => s.dealershipId === partnerDealershipId && s.oemId === partnerOemId)
+    : [];
+
   const partnerSelectedShowroom = isPartnerAdmin
     ? allocatedShowrooms.find((s: any) => s.id === form.watch("showroomId"))
     : undefined;
@@ -533,44 +551,79 @@ export function CreateWorkOrderModal({
               </div>
             )}
 
-            {/* Showroom Selection (Partner Admin) — OEM + dealership derived from the pick */}
+            {/* Organization Selection (Partner Admin) — OEM → Dealership → Showroom, from allocations */}
             {isPartnerAdmin && (
               <div className="space-y-4 p-4 border border-purple-200 rounded-lg bg-purple-50">
                 <div className="flex items-center gap-2 mb-4">
                   <Store className="h-5 w-5 text-purple-600" />
-                  <h3 className="text-lg font-medium text-purple-800">Select Showroom</h3>
+                  <h3 className="text-lg font-medium text-purple-800">Organization Selection</h3>
                   <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700">Required</Badge>
                 </div>
-                <FormField
-                  control={form.control}
-                  name="showroomId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-purple-700">Showroom</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} data-testid="select-partner-showroom">
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a showroom you're allocated to" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {allocatedShowrooms.length === 0 ? (
-                            <div className="px-2 py-1.5 text-sm text-muted-foreground">No allocated showrooms</div>
-                          ) : allocatedShowrooms.map((s: any) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.name}{s.dealershipName ? ` — ${s.dealershipName}` : ''}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {partnerSelectedShowroom && (
-                  <p className="text-xs text-purple-700">
-                    {partnerSelectedShowroom.oemName}{partnerSelectedShowroom.dealershipName ? ` · ${partnerSelectedShowroom.dealershipName}` : ''}
-                  </p>
+                {allocatedShowrooms.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">You have no allocated showrooms. Ask an admin to allocate one.</p>
+                ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* OEM */}
+                  <FormItem>
+                    <FormLabel className="text-purple-700">OEM</FormLabel>
+                    <Select
+                      value={partnerOemId}
+                      onValueChange={(v) => { setPartnerOemId(v); setPartnerDealershipId(""); form.setValue("showroomId", ""); }}
+                      data-testid="select-partner-oem"
+                    >
+                      <FormControl>
+                        <SelectTrigger><SelectValue placeholder="Select OEM" /></SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {partnerOems.map((o: any) => (
+                          <SelectItem key={o.id} value={o.id}>{o.name || 'Unknown OEM'}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+
+                  {/* Dealership */}
+                  <FormItem>
+                    <FormLabel className="text-purple-700">Dealership</FormLabel>
+                    <Select
+                      value={partnerDealershipId}
+                      onValueChange={(v) => { setPartnerDealershipId(v); form.setValue("showroomId", ""); }}
+                      disabled={!partnerOemId}
+                      data-testid="select-partner-dealership"
+                    >
+                      <FormControl>
+                        <SelectTrigger><SelectValue placeholder="Select dealership" /></SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {partnerDealerships.map((d: any) => (
+                          <SelectItem key={d.id} value={d.id}>{d.name || 'Unknown dealership'}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+
+                  {/* Showroom */}
+                  <FormField
+                    control={form.control}
+                    name="showroomId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-purple-700">Showroom</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={!partnerDealershipId} data-testid="select-partner-showroom">
+                          <FormControl>
+                            <SelectTrigger><SelectValue placeholder="Select showroom" /></SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {partnerShowroomOptions.map((s: any) => (
+                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
                 )}
               </div>
             )}
