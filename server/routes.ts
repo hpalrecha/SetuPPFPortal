@@ -5634,7 +5634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // REJECT  -> revert the original back to its pre-request status.
   app.post("/api/job-cards/:id/rework-permission",
     authenticate,
-    requireRole(['SUPER_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
     auditLog('job_card', 'rework_permission'),
     async (req, res) => {
       try {

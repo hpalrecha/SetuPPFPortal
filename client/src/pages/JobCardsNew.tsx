@@ -1209,8 +1209,8 @@ export default function JobCardsNew() {
     }
   });
 
-  // Super admin decides on a partner's pending rework permission request.
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  // Super admin (or admin) decides on a partner's pending rework permission request.
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
   const reworkPermissionMutation = useMutation({
     mutationFn: async ({ jobCardId, decision }: { jobCardId: string; decision: 'APPROVE' | 'REJECT' }) => {
       const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/rework-permission`, { decision });
@@ -2429,6 +2429,9 @@ export default function JobCardsNew() {
                       {detailedJobCard.reworkDetailsJson.approxQuantitySq != null && <p><span className="font-medium">Approx qty:</span> {detailedJobCard.reworkDetailsJson.approxQuantitySq} sq ft</p>}
                       {detailedJobCard.reworkDetailsJson.approxCost != null && <p><span className="font-medium">Approx cost:</span> ₹{detailedJobCard.reworkDetailsJson.approxCost}</p>}
                       {detailedJobCard.reworkDetailsJson.parts?.length > 0 && <p><span className="font-medium">Parts:</span> {detailedJobCard.reworkDetailsJson.parts.map((p: string) => `Part ${p}`).join(', ')}</p>}
+                      {detailedJobCard.reworkDetailsJson.requestedAssigneeId && (
+                        <p><span className="font-medium">Assign to:</span> {allInstallers.find((i: any) => i.id === detailedJobCard.reworkDetailsJson.requestedAssigneeId)?.name || 'Selected staff'}</p>
+                      )}
                       {detailedJobCard.reworkDetailsJson.photos?.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-1">
                           {detailedJobCard.reworkDetailsJson.photos.map((url: string, i: number) => (
