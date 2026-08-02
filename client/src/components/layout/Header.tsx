@@ -64,7 +64,8 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   const queryClient = useQueryClient();
   const [notificationOpen, setNotificationOpen] = useState(false);
 
-  // Per-user in-app feed for the bell. Polls every 60s so new items surface without a reload.
+  // Per-user in-app feed for the bell. Refreshes when the user focuses the tab (data
+  // older than 60s), instead of polling on a timer — an idle tab issues no DB queries.
   const { data } = useQuery<{ items: BellNotification[]; unreadCount: number }>({
     queryKey: ["/api/notifications/mine"],
     queryFn: async () => {
@@ -73,7 +74,8 @@ export function Header({ onToggleSidebar }: HeaderProps) {
       return res.json();
     },
     enabled: !!user,
-    refetchInterval: 60000,
+    refetchOnWindowFocus: true,
+    staleTime: 60000,
   });
 
   const items = data?.items || [];

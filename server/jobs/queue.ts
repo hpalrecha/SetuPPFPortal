@@ -4,10 +4,13 @@ import { slaMonitor } from './sla-monitor';
 import { notificationService } from '../services/notification';
 import { webhookService } from '../services/webhook';
 
-// Redis connection
-const redisConnection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', {
-  maxRetriesPerRequest: 3,
-});
+// Background queues require Redis. When REDIS_URL is unset (the current deployment),
+// this module must NOT construct IORedis/BullMQ: IORedis would retry-spam a
+// nonexistent localhost:6379 and the BullMQ workers would churn — needless load and
+// noise. So everything below is gated behind REDIS_ENABLED and the module exports
+// inert stubs when Redis is absent. This module is currently unimported; the guard
+// exists so that wiring it up later without Redis fails safe instead of spamming.
+const REDIS_ENABLED = !!process.env.REDIS_URL;
 
 // Define job types
 export interface NotificationJob {
@@ -29,122 +32,145 @@ export interface SLACheckJob {
   timestamp: string;
 }
 
-// Create queues
-export const notificationQueue = new Queue<NotificationJob>('notifications', {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 2000,
+// Runtime handles — null when Redis is not configured.
+export let redisConnection: IORedis | null = null;
+export let notificationQueue: Queue<NotificationJob> | null = null;
+export let webhookQueue: Queue<WebhookJob> | null = null;
+export let slaQueue: Queue<SLACheckJob> | null = null;
+
+let notificationWorker: Worker<NotificationJob> | null = null;
+let webhookWorker: Worker<WebhookJob> | null = null;
+let slaWorker: Worker<SLACheckJob> | null = null;
+
+if (REDIS_ENABLED) {
+  // Redis connection
+  redisConnection = new IORedis(process.env.REDIS_URL as string, {
+    maxRetriesPerRequest: 3,
+  });
+
+  // Create queues
+  notificationQueue = new Queue<NotificationJob>('notifications', {
+    connection: redisConnection,
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 2000,
+      },
+      removeOnComplete: 100,
+      removeOnFail: 50,
     },
-    removeOnComplete: 100,
-    removeOnFail: 50,
-  },
-});
+  });
 
-export const webhookQueue = new Queue<WebhookJob>('webhooks', {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 2000,
+  webhookQueue = new Queue<WebhookJob>('webhooks', {
+    connection: redisConnection,
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 2000,
+      },
+      removeOnComplete: 100,
+      removeOnFail: 50,
     },
-    removeOnComplete: 100,
-    removeOnFail: 50,
-  },
-});
+  });
 
-export const slaQueue = new Queue<SLACheckJob>('sla-monitoring', {
-  connection: redisConnection,
-  defaultJobOptions: {
-    attempts: 1,
-    removeOnComplete: 10,
-    removeOnFail: 10,
-  },
-});
+  slaQueue = new Queue<SLACheckJob>('sla-monitoring', {
+    connection: redisConnection,
+    defaultJobOptions: {
+      attempts: 1,
+      removeOnComplete: 10,
+      removeOnFail: 10,
+    },
+  });
 
-// Workers
-const notificationWorker = new Worker<NotificationJob>(
-  'notifications',
-  async (job: Job<NotificationJob>) => {
-    const { type, recipient, subject, message, data } = job.data;
-    
-    console.log(`Processing notification job ${job.id} - ${type} to ${recipient}`);
-    
-    await notificationService.sendNotification({
-      type: type.toUpperCase() as any,
-      recipient,
-      subject,
-      message,
-      data
-    });
-    
-    console.log(`Notification job ${job.id} completed`);
-  },
-  { connection: redisConnection, concurrency: 10 }
-);
+  // Workers
+  notificationWorker = new Worker<NotificationJob>(
+    'notifications',
+    async (job: Job<NotificationJob>) => {
+      const { type, recipient, subject, message, data } = job.data;
 
-const webhookWorker = new Worker<WebhookJob>(
-  'webhooks',
-  async (job: Job<WebhookJob>) => {
-    const { event, data, timestamp, tenantId } = job.data;
-    
-    console.log(`Processing webhook job ${job.id} - ${event}`);
-    
-    await webhookService.emitEvent({
-      event,
-      data,
-      timestamp,
-      tenantId
-    });
-    
-    console.log(`Webhook job ${job.id} completed`);
-  },
-  { connection: redisConnection, concurrency: 5 }
-);
+      console.log(`Processing notification job ${job.id} - ${type} to ${recipient}`);
 
-const slaWorker = new Worker<SLACheckJob>(
-  'sla-monitoring',
-  async (job: Job<SLACheckJob>) => {
-    console.log(`Processing SLA check job ${job.id}`);
-    
-    await slaMonitor.checkSLABreaches();
-    
-    console.log(`SLA check job ${job.id} completed`);
-  },
-  { connection: redisConnection, concurrency: 1 }
-);
+      await notificationService.sendNotification({
+        type: type.toUpperCase() as any,
+        recipient,
+        subject,
+        message,
+        data
+      });
 
-// Error handling
-notificationWorker.on('failed', (job, err) => {
-  console.error(`Notification job ${job?.id} failed:`, err);
-});
+      console.log(`Notification job ${job.id} completed`);
+    },
+    { connection: redisConnection, concurrency: 10 }
+  );
 
-webhookWorker.on('failed', (job, err) => {
-  console.error(`Webhook job ${job?.id} failed:`, err);
-});
+  webhookWorker = new Worker<WebhookJob>(
+    'webhooks',
+    async (job: Job<WebhookJob>) => {
+      const { event, data, timestamp, tenantId } = job.data;
 
-slaWorker.on('failed', (job, err) => {
-  console.error(`SLA job ${job?.id} failed:`, err);
-});
+      console.log(`Processing webhook job ${job.id} - ${event}`);
 
-// Success logging
-notificationWorker.on('completed', (job) => {
-  console.log(`Notification job ${job.id} completed successfully`);
-});
+      await webhookService.emitEvent({
+        event,
+        data,
+        timestamp,
+        tenantId
+      });
 
-webhookWorker.on('completed', (job) => {
-  console.log(`Webhook job ${job.id} completed successfully`);
-});
+      console.log(`Webhook job ${job.id} completed`);
+    },
+    { connection: redisConnection, concurrency: 5 }
+  );
 
-slaWorker.on('completed', (job) => {
-  console.log(`SLA job ${job.id} completed successfully`);
-});
+  slaWorker = new Worker<SLACheckJob>(
+    'sla-monitoring',
+    async (job: Job<SLACheckJob>) => {
+      console.log(`Processing SLA check job ${job.id}`);
+
+      await slaMonitor.checkSLABreaches();
+
+      console.log(`SLA check job ${job.id} completed`);
+    },
+    { connection: redisConnection, concurrency: 1 }
+  );
+
+  // Error handling
+  notificationWorker.on('failed', (job, err) => {
+    console.error(`Notification job ${job?.id} failed:`, err);
+  });
+
+  webhookWorker.on('failed', (job, err) => {
+    console.error(`Webhook job ${job?.id} failed:`, err);
+  });
+
+  slaWorker.on('failed', (job, err) => {
+    console.error(`SLA job ${job?.id} failed:`, err);
+  });
+
+  // Success logging
+  notificationWorker.on('completed', (job) => {
+    console.log(`Notification job ${job.id} completed successfully`);
+  });
+
+  webhookWorker.on('completed', (job) => {
+    console.log(`Webhook job ${job.id} completed successfully`);
+  });
+
+  slaWorker.on('completed', (job) => {
+    console.log(`SLA job ${job.id} completed successfully`);
+  });
+} else {
+  console.log('⚠️ REDIS_URL not set — background job queues disabled (no-op).');
+}
 
 // Schedule recurring SLA checks (every hour)
 export async function scheduleRecurringSLAChecks() {
+  if (!slaQueue) {
+    console.log('Skipping recurring SLA checks — Redis not configured.');
+    return;
+  }
   await slaQueue.add(
     'sla-check',
     { timestamp: new Date().toISOString() },
@@ -159,24 +185,30 @@ export async function scheduleRecurringSLAChecks() {
 // Queue management functions
 export class QueueManager {
   static async addNotificationJob(data: NotificationJob, delay?: number) {
+    if (!notificationQueue) throw new Error('Notification queue disabled — REDIS_URL not set');
     return await notificationQueue.add('send-notification', data, {
       delay
     });
   }
 
   static async addWebhookJob(data: WebhookJob, delay?: number) {
+    if (!webhookQueue) throw new Error('Webhook queue disabled — REDIS_URL not set');
     return await webhookQueue.add('send-webhook', data, {
       delay
     });
   }
 
   static async addSLACheckJob() {
+    if (!slaQueue) throw new Error('SLA queue disabled — REDIS_URL not set');
     return await slaQueue.add('sla-check', {
       timestamp: new Date().toISOString()
     });
   }
 
   static async getQueueStats() {
+    if (!notificationQueue || !webhookQueue || !slaQueue) {
+      return { notifications: null, webhooks: null, sla: null };
+    }
     const [notificationStats, webhookStats, slaStats] = await Promise.all([
       notificationQueue.getJobs(['waiting', 'active', 'completed', 'failed']),
       webhookQueue.getJobs(['waiting', 'active', 'completed', 'failed']),
@@ -206,20 +238,21 @@ export class QueueManager {
   }
 
   static async gracefulShutdown() {
+    if (!notificationWorker || !webhookWorker || !slaWorker || !redisConnection) {
+      return;
+    }
     console.log('Shutting down workers gracefully...');
-    
+
     await Promise.all([
       notificationWorker.close(),
       webhookWorker.close(),
       slaWorker.close()
     ]);
-    
+
     await redisConnection.quit();
     console.log('All workers shut down successfully');
   }
 }
 
-// Initialize recurring jobs
+// Initialize recurring jobs (no-op when Redis is disabled)
 scheduleRecurringSLAChecks().catch(console.error);
-
-export { redisConnection };

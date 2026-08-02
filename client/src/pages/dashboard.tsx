@@ -75,7 +75,9 @@ export default function DashboardPage() {
 
   const { data: metrics, isLoading} = useQuery<DashboardMetrics>({
     queryKey: ["/api/dashboard/metrics"],
-    refetchInterval: 120000, // Refresh every 2 minutes
+    refetchOnWindowFocus: true, // Active users get fresh data on focus
+    refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
+    refetchIntervalInBackground: true,
     staleTime: 60000 // Consider data fresh for 1 minute
   });
 
@@ -86,7 +88,9 @@ export default function DashboardPage() {
     revenue: number;
   }[]>({
     queryKey: ["/api/dashboard/charts/orders-trend"],
-    refetchInterval: 120000, // Refresh every 2 minutes
+    refetchOnWindowFocus: true, // Active users get fresh data on focus
+    refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
+    refetchIntervalInBackground: true,
     staleTime: 60000, // Consider data fresh for 1 minute
     enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'])
   });
@@ -98,7 +102,9 @@ export default function DashboardPage() {
     growth: number;
   }[]>({
     queryKey: ["/api/dashboard/charts/dealership-performance"],
-    refetchInterval: 120000, // Refresh every 2 minutes
+    refetchOnWindowFocus: true, // Active users get fresh data on focus
+    refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
+    refetchIntervalInBackground: true,
     staleTime: 60000, // Consider data fresh for 1 minute
     enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN'])
   });
@@ -111,7 +117,9 @@ export default function DashboardPage() {
     growth: number;
   }[]>({
     queryKey: ["/api/dashboard/charts/top-partners"],
-    refetchInterval: 120000,
+    refetchOnWindowFocus: true, // Active users get fresh data on focus
+    refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
+    refetchIntervalInBackground: true,
     staleTime: 60000,
     enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN'])
   });
@@ -124,7 +132,9 @@ export default function DashboardPage() {
     growth: number;
   }[]>({
     queryKey: ["/api/dashboard/charts/top-showrooms"],
-    refetchInterval: 120000,
+    refetchOnWindowFocus: true, // Active users get fresh data on focus
+    refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
+    refetchIntervalInBackground: true,
     staleTime: 60000,
     enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN'])
   });
@@ -140,7 +150,9 @@ export default function DashboardPage() {
     growth: number;
   }[]>({
     queryKey: ["/api/dashboard/charts/partner-top-showrooms"],
-    refetchInterval: 120000,
+    refetchOnWindowFocus: true, // Active users get fresh data on focus
+    refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
+    refetchIntervalInBackground: true,
     staleTime: 60000,
     enabled: canViewSection(['PARTNER_ADMIN'])
   });
@@ -154,7 +166,9 @@ export default function DashboardPage() {
     revenue: number;
   }[]>({
     queryKey: ["/api/dashboard/charts/partner-top-detailing-partners"],
-    refetchInterval: 120000,
+    refetchOnWindowFocus: true, // Active users get fresh data on focus
+    refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
+    refetchIntervalInBackground: true,
     staleTime: 60000,
     enabled: canViewSection(['PARTNER_ADMIN'])
   });
@@ -165,7 +179,9 @@ export default function DashboardPage() {
     revenue: number;
   }[]>({
     queryKey: ["/api/dashboard/charts/territory-performance"],
-    refetchInterval: 120000, // Refresh every 2 minutes
+    refetchOnWindowFocus: true, // Active users get fresh data on focus
+    refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
+    refetchIntervalInBackground: true,
     staleTime: 60000, // Consider data fresh for 1 minute
     enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'])
   });
@@ -239,7 +255,9 @@ export default function DashboardPage() {
     color: string;
   }[]>({
     queryKey: ["/api/dashboard/charts/service-popularity"],
-    refetchInterval: 120000, // Refresh every 2 minutes
+    refetchOnWindowFocus: true, // Active users get fresh data on focus
+    refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
+    refetchIntervalInBackground: true,
     staleTime: 60000, // Consider data fresh for 1 minute
     enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'])
   });
@@ -250,7 +268,9 @@ export default function DashboardPage() {
     avgTAT: number;
   }[]>({
     queryKey: ["/api/dashboard/charts/monthly-trends"],
-    refetchInterval: 120000, // Refresh every 2 minutes
+    refetchOnWindowFocus: true, // Active users get fresh data on focus
+    refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
+    refetchIntervalInBackground: true,
     staleTime: 60000, // Consider data fresh for 1 minute
     enabled: canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER'])
   });

@@ -22,7 +22,7 @@ export default function CommissionsPage() {
     avgCommissionRate: number;
   }>({
     queryKey: ['/api/commissions/summary'],
-    refetchInterval: 120000, // Refresh every 2 minutes
+    refetchOnWindowFocus: true, // Refresh on tab focus instead of polling on a timer
     staleTime: 60000 // Consider data fresh for 1 minute
   });
 

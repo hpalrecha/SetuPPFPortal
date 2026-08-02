@@ -26,7 +26,8 @@ function SalesPersonMetrics({ salesPersonId }: { salesPersonId: string }) {
       
       return response.json();
     },
-    refetchInterval: 60000,
+    refetchOnWindowFocus: true, // Refresh on tab focus instead of polling on a timer
+    staleTime: 60000,
     enabled: !!salesPersonId
   });
 
@@ -115,7 +116,8 @@ export default function SalesPersonsPage() {
         
         return response.json();
       },
-      refetchInterval: 60000,
+      refetchOnWindowFocus: true, // Refresh on tab focus instead of polling on a timer
+      staleTime: 60000,
       enabled: canAccessSalesPersons && !!salesPersonId
     });
   };
