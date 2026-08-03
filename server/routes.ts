@@ -3521,28 +3521,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Job Card Assignment Route
-  app.put("/api/job-cards/:id/assign", 
-    authenticate, 
-    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER']),
+  app.put("/api/job-cards/:id/assign",
+    authenticate,
+    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER', 'SUPER_ADMIN', 'ADMIN']),
     auditLog('job_card', 'assign'),
     async (req, res) => {
       try {
         const { id } = req.params;
-        
+
         // Validate request body
         const bodySchema = z.object({
           assignedInstallerId: z.string().uuid()
         });
         const { assignedInstallerId } = bodySchema.parse(req.body);
-        
+
         // Fetch the job card first to verify ownership
         const jobCard = await storage.getJobCard(id);
         if (!jobCard) {
           return res.status(404).json({ error: "Job card not found" });
         }
-        
-        // Multi-tenant security: caller must have this job card's partner in their working set
-        if (!userPartnerIds(req.user!).includes(jobCard.partnerId)) {
+
+        // A job card must have a partner before an installer can be assigned.
+        if (!jobCard.partnerId) {
+          return res.status(400).json({ error: "Assign a partner to this job card before assigning an installer" });
+        }
+
+        // Multi-tenant security: partner users must have this job card's partner in
+        // their working set. Super admins / admins bypass this check.
+        const isAdminUser = req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN';
+        if (!isAdminUser && !userPartnerIds(req.user!).includes(jobCard.partnerId)) {
           return res.status(403).json({ error: "Access denied" });
         }
 
@@ -3569,6 +3576,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Invalid request data", details: error.errors });
         }
         res.status(500).json({ error: "Failed to assign job card" });
+      }
+    }
+  );
+
+  // Admin-only: set / change the Partner on an existing job card (including
+  // job cards that currently have no partner). Keeps brand isolation intact by
+  // requiring the partner to operate for the job card's OEM.
+  app.put("/api/job-cards/:id/assign-partner",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    auditLog('job_card', 'assign_partner'),
+    async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        const bodySchema = z.object({
+          partnerId: z.string().uuid()
+        });
+        const { partnerId } = bodySchema.parse(req.body);
+
+        const jobCard = await storage.getJobCard(id);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        const partner = await storage.getPartner(partnerId);
+        if (!partner || !partner.active) {
+          return res.status(400).json({ error: "Invalid or inactive partner" });
+        }
+
+        // Brand isolation: the partner must operate for this job card's OEM.
+        const workOrder = jobCard.workOrderId ? await storage.getWorkOrder(jobCard.workOrderId) : null;
+        if (workOrder?.oemId) {
+          const hasOemAccess = await storage.checkPartnerOemAccess(partnerId, workOrder.oemId);
+          if (!hasOemAccess) {
+            return res.status(400).json({ error: "Partner does not operate for this job card's OEM" });
+          }
+        }
+
+        // When the partner changes, drop any installer left over from the old
+        // partner (they no longer belong to the newly-assigned partner).
+        const updates: any = { partnerId };
+        if (jobCard.partnerId !== partnerId) {
+          updates.assignedInstallerId = null;
+        }
+
+        const updatedJobCard = await storage.updateJobCard(id, updates);
+        res.json(updatedJobCard);
+      } catch (error) {
+        console.error("Assign partner to job card error:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ error: "Invalid request data", details: error.errors });
+        }
+        res.status(500).json({ error: "Failed to assign partner" });
       }
     }
   );
@@ -5787,15 +5848,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Partner Routes
   app.get("/api/partners", authenticate, requireOEMAccess, async (req, res) => {
     try {
-      const { type } = req.query;
+      const { type, oemId: oemIdQuery } = req.query;
+      const role = req.user!.role;
+      const typeStr = type ? (type as string) : undefined;
+
+      // Role-scoped partner lists so filter dropdowns only show partners the
+      // user actually works with (mirrors how the job-card list is scoped).
+      // SHOWROOM_MANAGER / SALES_PERSON: only partners allocated to their showroom.
+      if ((role === 'SHOWROOM_MANAGER' || role === 'SALES_PERSON') && req.user!.showroomId) {
+        const scoped = await storage.getPartnersForShowroom(req.user!.showroomId, typeStr);
+        return res.json(scoped);
+      }
+      // DEALERSHIP_ADMIN: union of partners across every showroom in their dealership.
+      if (role === 'DEALERSHIP_ADMIN' && req.user!.dealershipId) {
+        const { showrooms } = await storage.getShowrooms({ dealershipId: req.user!.dealershipId, limit: 10000 });
+        const lists = await Promise.all(showrooms.map(s => storage.getPartnersForShowroom(s.id, typeStr)));
+        const deduped = new Map<string, any>();
+        lists.flat().forEach(p => deduped.set(p.id, p));
+        return res.json(Array.from(deduped.values()));
+      }
+      // OEM_ADMIN: partners with access to their OEM.
+      if (role === 'OEM_ADMIN' && req.user!.oemId) {
+        return res.json(await storage.getPartnersForOem(req.user!.oemId, typeStr));
+      }
+      // SUPER_ADMIN / ADMIN: default returns all partners (unchanged). When the
+      // caller passes an explicit oemId (e.g. the Job Cards filter honoring the
+      // selected OEM context), narrow to that OEM.
+      if ((role === 'SUPER_ADMIN' || role === 'ADMIN') && oemIdQuery) {
+        return res.json(await storage.getPartnersForOem(oemIdQuery as string, typeStr));
+      }
+
       const filters: any = { oemId: req.user!.oemId };
-      
+
       if (type) {
         filters.type = type as string;
       }
-      
+
       let partners = await storage.getPartners(filters);
-      
+
       // For MANAGER role, filter partners based on allocations to allowed dealerships
       if (req.user!.role === 'MANAGER') {
         const allowedStates = (req.user!.allowedStates as string[]) || [];

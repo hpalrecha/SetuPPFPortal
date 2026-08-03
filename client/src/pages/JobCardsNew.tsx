@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { 
   LayoutGrid, 
@@ -243,6 +243,10 @@ export default function JobCardsNew() {
     notes: '',
     showroomId: ''
   });
+  // Admin-only: assign / change the partner and installer on a job card
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignPartnerId, setAssignPartnerId] = useState('');
+  const [assignInstallerId, setAssignInstallerId] = useState('');
   // Rework: creates a new linked job card against the same work order
   const [showReworkModal, setShowReworkModal] = useState(false);
   const [reworkForm, setReworkForm] = useState({
@@ -334,33 +338,53 @@ export default function JobCardsNew() {
 
       // Fetch related data in parallel (batched to avoid N+1 requests / 403 spam)
       const [workOrdersData, partnersData] = await Promise.all([
-        // Work orders: one scoped list call, with per-id fallback for any not
-        // returned (e.g. partner-scoped users whose list omits some referenced WOs)
+        // Work orders: bulk fetch by the exact IDs referenced (chunks of 100),
+        // with a per-id fallback for anything the bulk call didn't return. The
+        // old approach used the /api/work-orders LIST (capped at 500 rows), so on
+        // large installs many job cards never got their work order enriched — which
+        // left customerName / regNo / vehicle blank and made those search filters
+        // (and the vehicle column) silently match nothing.
         (async () => {
           if (workOrderIds.length === 0) return [];
-          let list: WorkOrder[] = [];
-          try {
-            const res = await apiRequest('GET', '/api/work-orders');
-            list = await res.json();
-          } catch {
-            list = [];
+          const map = new Map<string, WorkOrder>();
+
+          // Primary: bulk-by-ids. Reliable + not row-capped for admin-scoped roles.
+          // (Returns empty for partner roles, which the per-id fallback then covers.)
+          const chunks: string[][] = [];
+          for (let i = 0; i < workOrderIds.length; i += 100) {
+            chunks.push(workOrderIds.slice(i, i + 100) as string[]);
           }
-          const map = new Map(list.map((wo: WorkOrder) => [wo.id, wo]));
-          const missing = workOrderIds.filter((id) => !map.has(id as string));
-          const fetched = await Promise.all(
-            missing.map(async (id) => {
+          const bulkResults = await Promise.all(
+            chunks.map(async (ids) => {
               try {
-                const res = await apiRequest('GET', `/api/work-orders/${id}`);
+                const res = await apiRequest('POST', '/api/work-orders/bulk', { ids });
                 return await res.json();
               } catch {
-                return null;
+                return [];
               }
             })
           );
-          return [
-            ...workOrderIds.map((id) => map.get(id as string)).filter(Boolean),
-            ...fetched.filter(Boolean),
-          ];
+          bulkResults.flat().forEach((wo: WorkOrder) => { if (wo?.id) map.set(wo.id, wo); });
+
+          // Fallback: per-id fetch for anything still missing (e.g. partner-scoped users).
+          const missing = workOrderIds.filter((id) => !map.has(id as string));
+          if (missing.length > 0) {
+            const fetched = await Promise.all(
+              missing.map(async (id) => {
+                try {
+                  const res = await apiRequest('GET', `/api/work-orders/${id}`);
+                  return await res.json();
+                } catch {
+                  return null;
+                }
+              })
+            );
+            fetched.filter(Boolean).forEach((wo: WorkOrder) => { if (wo?.id) map.set(wo.id, wo); });
+          }
+
+          return workOrderIds
+            .map((id) => map.get(id as string))
+            .filter((wo): wo is WorkOrder => Boolean(wo));
         })(),
 
         // Partners: single bulk call per 100 ids (avoids N requests and the
@@ -417,22 +441,36 @@ export default function JobCardsNew() {
     }
   });
 
-  // Fetch all partners for the combobox filter
+  // Roles that can meaningfully use the showroom filter (multi-showroom scope).
+  // Single-showroom / partner-scoped roles get no showroom picker (and would 403
+  // on /api/showrooms), so we simply don't fetch or render it for them.
+  const canFilterShowrooms = ['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'MANAGER'].includes(user?.role || '');
+
+  // Fetch partners for the combobox filter — role/OEM-scoped on the server.
+  // Include selectedOemId in the key + query so switching OEM context refetches.
   const { data: allPartners = [] } = useQuery({
-    queryKey: ['partners-filter'],
+    queryKey: ['partners-filter', selectedOemId],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/partners');
+      const qs = selectedOemId ? `?oemId=${encodeURIComponent(selectedOemId)}` : '';
+      const response = await apiRequest('GET', `/api/partners${qs}`);
       const data = await response.json();
       return Array.isArray(data) ? data : (data.partners || []);
     },
     staleTime: 5 * 60 * 1000
   });
 
-  // Fetch all showrooms for the combobox filter
+  // Fetch showrooms for the combobox filter — scoped to the selected OEM (super
+  // admin) or the user's dealership (dealership admin). Not fetched for roles
+  // that don't have a showroom picker.
   const { data: allShowrooms = [] } = useQuery({
-    queryKey: ['showrooms-filter'],
+    queryKey: ['showrooms-filter', selectedOemId, user?.dealershipId],
+    enabled: canFilterShowrooms,
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/showrooms');
+      const params = new URLSearchParams();
+      if (selectedOemId) params.set('oemId', selectedOemId);
+      if (user?.role === 'DEALERSHIP_ADMIN' && user?.dealershipId) params.set('dealershipId', user.dealershipId);
+      params.set('limit', '10000');
+      const response = await apiRequest('GET', `/api/showrooms?${params.toString()}`);
       const data = await response.json();
       return Array.isArray(data) ? data : (data.showrooms || []);
     },
@@ -474,14 +512,20 @@ export default function JobCardsNew() {
       if (!createdAt || createdAt > toDate) dateMatch = false;
     }
 
+    // Trim search terms so stray whitespace doesn't zero out otherwise-valid matches.
+    const qJobCard = searchFilters.jobCardNumber.trim().toLowerCase();
+    const qCustomer = searchFilters.customerName.trim().toLowerCase();
+    const qVehicle = searchFilters.vehicleModel.trim().toLowerCase();
+    const qRegNo = searchFilters.regNo.trim().toLowerCase();
+
     return (
-      (!searchFilters.jobCardNumber || jobCardNumber.includes(searchFilters.jobCardNumber.toLowerCase())) &&
-      (!searchFilters.customerName || customerName.includes(searchFilters.customerName.toLowerCase())) &&
+      (!qJobCard || jobCardNumber.includes(qJobCard)) &&
+      (!qCustomer || customerName.includes(qCustomer)) &&
       (!searchFilters.status || status === searchFilters.status) &&
       (!searchFilters.partnerId || partnerId === searchFilters.partnerId) &&
       (!searchFilters.showroomId || showroomId === searchFilters.showroomId) &&
-      (!searchFilters.vehicleModel || vehicleModel.includes(searchFilters.vehicleModel.toLowerCase())) &&
-      (!searchFilters.regNo || regNo.includes(searchFilters.regNo.toLowerCase())) &&
+      (!qVehicle || vehicleModel.includes(qVehicle)) &&
+      (!qRegNo || regNo.includes(qRegNo)) &&
       (!searchFilters.assignedInstallerId ||
         (searchFilters.assignedInstallerId === 'UNASSIGNED'
           ? !jobCard.assignedInstallerId
@@ -610,7 +654,8 @@ export default function JobCardsNew() {
         'Customer Phone': displayContact(jc.workOrder?.customerPhone),
         'Customer Email': displayContact(jc.workOrder?.customerEmail),
         'Customer Address': jc.workOrder?.customerAddress || 'N/A',
-        'Vehicle Model': jc.vehicleDisplay || 'N/A',
+        'Vehicle Model': jc.workOrder?.vehicleModelName || jc.vehicleDisplay || 'N/A',
+        'Brand': jc.workOrder?.oemName || 'N/A',
         'Vehicle Color': jc.workOrder?.color || 'N/A',
         'Reg No': jc.workOrder?.regNo || 'N/A',
         'Service': jc.serviceDisplay || 'N/A',
@@ -1115,6 +1160,47 @@ export default function JobCardsNew() {
     }
   });
 
+  // Admin-only: staff (installers) for the partner chosen in the Assign modal.
+  const { data: assignStaff = [] } = useQuery({
+    queryKey: ['/api/partners', assignPartnerId, 'staff'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/partners/${assignPartnerId}/staff`);
+      const data = await response.json();
+      return Array.isArray(data) ? data : (data.staff || []);
+    },
+    enabled: showAssignModal && !!assignPartnerId,
+    staleTime: 60000,
+  });
+
+  const openAssign = () => {
+    setAssignPartnerId(detailedJobCard?.partnerId || '');
+    setAssignInstallerId(detailedJobCard?.assignedInstallerId || '');
+    setShowAssignModal(true);
+  };
+
+  // Assign / change partner, then (optionally) the installer. Partner change is
+  // sent first so the server clears any stale installer before we set the new one.
+  const assignMutation = useMutation({
+    mutationFn: async ({ jobCardId, partnerId, installerId, currentPartnerId }: { jobCardId: string; partnerId: string; installerId: string; currentPartnerId: string | null }) => {
+      if (partnerId && partnerId !== (currentPartnerId || '')) {
+        await apiRequest('PUT', `/api/job-cards/${jobCardId}/assign-partner`, { partnerId });
+      }
+      if (installerId) {
+        await apiRequest('PUT', `/api/job-cards/${jobCardId}/assign`, { assignedInstallerId: installerId });
+      }
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobCards'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards', selectedJobCardId] });
+      setShowAssignModal(false);
+      toast({ title: "Assignment Updated", description: "Partner / installer assignment saved." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Assignment Failed", description: error.message || "Failed to update assignment.", variant: "destructive" });
+    }
+  });
+
   // Rework: a job at approval stage or later can be reworked. This creates a NEW job card
   // against the same work order, freezes the current one as REWORK_REQUESTED, and links them.
   const REWORK_ALLOWED_FROM = ['COMPLETED', 'PENDING_APPROVAL', 'APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED'];
@@ -1348,17 +1434,19 @@ export default function JobCardsNew() {
               <Shield className="h-3 w-3 mr-1" />
               Closed
             </Button>
-            <Button
-              variant={liveTracking ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setLiveTracking((v) => !v)}
-              className="text-xs sm:text-sm h-8"
-              data-testid="button-live-tracking"
-              title={liveTracking ? 'Live tracking on (refreshes every 10s)' : 'Enable live tracking (refreshes every 10s)'}
-            >
-              <Target className={`h-3 w-3 mr-1 ${liveTracking ? 'animate-pulse' : ''}`} />
-              Live Tracking
-            </Button>
+            {user?.role === 'SUPER_ADMIN' && (
+              <Button
+                variant={liveTracking ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setLiveTracking((v) => !v)}
+                className="text-xs sm:text-sm h-8"
+                data-testid="button-live-tracking"
+                title={liveTracking ? 'Live tracking on (refreshes every 10s)' : 'Enable live tracking (refreshes every 10s)'}
+              >
+                <Target className={`h-3 w-3 mr-1 ${liveTracking ? 'animate-pulse' : ''}`} />
+                Live Tracking
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -1499,7 +1587,8 @@ export default function JobCardsNew() {
               </PopoverContent>
             </Popover>
 
-            {/* Showroom Combobox */}
+            {/* Showroom Combobox — only for roles with a multi-showroom scope */}
+            {canFilterShowrooms && (
             <Popover open={showroomComboboxOpen} onOpenChange={setShowroomComboboxOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -1552,6 +1641,7 @@ export default function JobCardsNew() {
                 </Command>
               </PopoverContent>
             </Popover>
+            )}
 
             {/* Assigned Installer */}
             <Select
@@ -1739,10 +1829,11 @@ export default function JobCardsNew() {
           <div className="hidden lg:block rounded-lg border border-border overflow-hidden">
             {/* Table Header */}
             <div className="bg-muted/50 border-b border-border px-4 py-3">
-              <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '90px 140px 1fr 130px 1fr 150px 100px 100px 110px'}}>
+              <div className="grid gap-3 text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{gridTemplateColumns: '90px 140px 1fr 110px 130px 1fr 150px 100px 100px 110px'}}>
                 <div className="truncate">ID</div>
                 <div className="truncate">Status</div>
                 <div className="truncate">Vehicle</div>
+                <div className="truncate">Brand</div>
                 <div className="truncate">Reg No</div>
                 <div className="truncate">Service</div>
                 <div className="truncate">{isPartnerAdminView ? 'Allocated Team' : 'Allocated Partner'}</div>
@@ -1760,7 +1851,7 @@ export default function JobCardsNew() {
                   className="px-4 py-4 hover:bg-muted/30 transition-colors"
                   data-testid={`row-job-card-${jobCard.id}`}
                 >
-                  <div className="grid gap-3 items-center min-h-[70px]" style={{gridTemplateColumns: '90px 140px 1fr 130px 1fr 150px 100px 100px 110px'}}>
+                  <div className="grid gap-3 items-center min-h-[70px]" style={{gridTemplateColumns: '90px 140px 1fr 110px 130px 1fr 150px 100px 100px 110px'}}>
                     {/* ID Column */}
                     <div className="min-w-0 overflow-hidden">
                       <span className="font-mono text-sm font-semibold block truncate" data-testid={`text-id-${jobCard.id}`}>
@@ -1780,8 +1871,15 @@ export default function JobCardsNew() {
 
                     {/* Vehicle Column - just model name */}
                     <div className="min-w-0 overflow-hidden">
-                      <div className="text-sm font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`} title={jobCard.workOrder?.vehicleModel?.modelName || jobCard.vehicleDisplay}>
-                        {jobCard.workOrder?.vehicleModel?.modelName || jobCard.vehicleDisplay}
+                      <div className="text-sm font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`} title={jobCard.workOrder?.vehicleModelName || jobCard.vehicleDisplay}>
+                        {jobCard.workOrder?.vehicleModelName || jobCard.vehicleDisplay}
+                      </div>
+                    </div>
+
+                    {/* Brand (OEM) Column */}
+                    <div className="min-w-0 overflow-hidden">
+                      <div className="text-sm font-medium truncate" data-testid={`text-brand-${jobCard.id}`} title={jobCard.workOrder?.oemName || '—'}>
+                        {jobCard.workOrder?.oemName || '—'}
                       </div>
                     </div>
 
@@ -1890,7 +1988,10 @@ export default function JobCardsNew() {
                     {/* Vehicle Column */}
                     <div className="col-span-2">
                       <div className="text-xs font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`}>
-                        {jobCard.workOrder?.vehicleModel?.modelName || jobCard.vehicleDisplay}
+                        {jobCard.workOrder?.vehicleModelName || jobCard.vehicleDisplay}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate" data-testid={`text-brand-${jobCard.id}`}>
+                        {jobCard.workOrder?.oemName || '—'}
                       </div>
                       <div className="text-xs text-muted-foreground truncate" data-testid={`text-service-${jobCard.id}`}>
                         {jobCard.serviceDisplay}
@@ -1974,7 +2075,10 @@ export default function JobCardsNew() {
                       <div className="flex-1 min-w-0">
                         <div className="text-xs text-muted-foreground">Vehicle</div>
                         <div className="font-medium truncate" data-testid={`text-vehicle-${jobCard.id}`}>
-                          {jobCard.workOrder?.vehicleModel?.modelName || jobCard.vehicleDisplay}
+                          {jobCard.workOrder?.vehicleModelName || jobCard.vehicleDisplay}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate" data-testid={`text-brand-${jobCard.id}`}>
+                          {jobCard.workOrder?.oemName || '—'}
                         </div>
                       </div>
                     </div>
@@ -2394,6 +2498,17 @@ export default function JobCardsNew() {
                   >
                     <RefreshCw className="h-4 w-4 mr-2" />
                     Request Rework
+                  </Button>
+                )}
+                {canEditDetails && detailedJobCard && detailedJobCard.status !== 'CLOSED' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={openAssign}
+                    data-testid="button-assign-partner-team"
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    Assign Partner / Team
                   </Button>
                 )}
                 {canEditDetails && detailedJobCard && detailedJobCard.status !== 'CLOSED' && (
@@ -3498,6 +3613,81 @@ export default function JobCardsNew() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Modal — admin-only: set/change partner and installer on a job card */}
+      <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-blue-600" />
+              Assign Partner / Team
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Assign or change the detailing partner for this job card, and optionally the
+              installer / team member. Changing the partner clears any previously assigned installer.
+            </p>
+
+            {/* Partner */}
+            <div className="space-y-2">
+              <Label htmlFor="assign-partner">Partner</Label>
+              <Select
+                value={assignPartnerId || undefined}
+                onValueChange={(value) => { setAssignPartnerId(value); setAssignInstallerId(''); }}
+              >
+                <SelectTrigger id="assign-partner" data-testid="select-assign-partner">
+                  <SelectValue placeholder="Select partner" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allPartners.map((p: Partner) => (
+                    <SelectItem key={p.id} value={p.id}>{p.displayName || p.companyName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Installer / Team member */}
+            <div className="space-y-2">
+              <Label htmlFor="assign-installer">Installer / Team Member</Label>
+              <Select
+                value={assignInstallerId || 'UNASSIGNED'}
+                onValueChange={(value) => setAssignInstallerId(value === 'UNASSIGNED' ? '' : value)}
+                disabled={!assignPartnerId}
+              >
+                <SelectTrigger id="assign-installer" data-testid="select-assign-installer">
+                  <SelectValue placeholder={assignPartnerId ? 'Select installer' : 'Select a partner first'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="UNASSIGNED">Unassigned</SelectItem>
+                  {assignStaff.map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name || 'Unnamed'}{s.role === 'DETAILING_PARTNER' ? ' (Detailing Partner)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAssignModal(false)} data-testid="button-assign-cancel">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => selectedJobCardId && assignMutation.mutate({
+                jobCardId: selectedJobCardId,
+                partnerId: assignPartnerId,
+                installerId: assignInstallerId,
+                currentPartnerId: detailedJobCard?.partnerId || null,
+              })}
+              disabled={!assignPartnerId || assignMutation.isPending}
+              data-testid="button-assign-save"
+            >
+              {assignMutation.isPending ? 'Saving…' : 'Save Assignment'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

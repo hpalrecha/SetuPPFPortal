@@ -2360,12 +2360,32 @@ export class DatabaseStorage implements IStorage {
     
     const results = await query;
     let partnersList = results.map(r => r.partner);
-    
+
     // Filter by type if provided
     if (type) {
       partnersList = partnersList.filter(p => p.type === type);
     }
-    
+
+    return partnersList;
+  }
+
+  // Active partners that have access to a given OEM (via the partnerOems junction).
+  // Used to scope the Job Cards partner filter to the selected OEM context.
+  async getPartnersForOem(oemId: string, type?: string): Promise<Partner[]> {
+    const rows = await db
+      .select({ partner: partners })
+      .from(partnerOems)
+      .innerJoin(partners, eq(partnerOems.partnerId, partners.id))
+      .where(and(
+        eq(partnerOems.oemId, oemId),
+        eq(partnerOems.active, true),
+        eq(partners.active, true)
+      ));
+
+    let partnersList = rows.map(r => r.partner);
+    if (type) {
+      partnersList = partnersList.filter(p => p.type === type);
+    }
     return partnersList;
   }
 
