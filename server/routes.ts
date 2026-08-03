@@ -3606,15 +3606,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Invalid or inactive partner" });
         }
 
-        // Brand isolation: the partner must operate for this job card's OEM.
-        const workOrder = jobCard.workOrderId ? await storage.getWorkOrder(jobCard.workOrderId) : null;
-        if (workOrder?.oemId) {
-          const hasOemAccess = await storage.checkPartnerOemAccess(partnerId, workOrder.oemId);
-          if (!hasOemAccess) {
-            return res.status(400).json({ error: "Partner does not operate for this job card's OEM" });
-          }
-        }
-
         // When the partner changes, drop any installer left over from the old
         // partner (they no longer belong to the newly-assigned partner).
         const updates: any = { partnerId };
@@ -5848,36 +5839,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Partner Routes
   app.get("/api/partners", authenticate, requireOEMAccess, async (req, res) => {
     try {
-      const { type, oemId: oemIdQuery } = req.query;
-      const role = req.user!.role;
-      const typeStr = type ? (type as string) : undefined;
-
-      // Role-scoped partner lists so filter dropdowns only show partners the
-      // user actually works with (mirrors how the job-card list is scoped).
-      // SHOWROOM_MANAGER / SALES_PERSON: only partners allocated to their showroom.
-      if ((role === 'SHOWROOM_MANAGER' || role === 'SALES_PERSON') && req.user!.showroomId) {
-        const scoped = await storage.getPartnersForShowroom(req.user!.showroomId, typeStr);
-        return res.json(scoped);
-      }
-      // DEALERSHIP_ADMIN: union of partners across every showroom in their dealership.
-      if (role === 'DEALERSHIP_ADMIN' && req.user!.dealershipId) {
-        const { showrooms } = await storage.getShowrooms({ dealershipId: req.user!.dealershipId, limit: 10000 });
-        const lists = await Promise.all(showrooms.map(s => storage.getPartnersForShowroom(s.id, typeStr)));
-        const deduped = new Map<string, any>();
-        lists.flat().forEach(p => deduped.set(p.id, p));
-        return res.json(Array.from(deduped.values()));
-      }
-      // OEM_ADMIN: partners with access to their OEM.
-      if (role === 'OEM_ADMIN' && req.user!.oemId) {
-        return res.json(await storage.getPartnersForOem(req.user!.oemId, typeStr));
-      }
-      // SUPER_ADMIN / ADMIN: default returns all partners (unchanged). When the
-      // caller passes an explicit oemId (e.g. the Job Cards filter honoring the
-      // selected OEM context), narrow to that OEM.
-      if ((role === 'SUPER_ADMIN' || role === 'ADMIN') && oemIdQuery) {
-        return res.json(await storage.getPartnersForOem(oemIdQuery as string, typeStr));
-      }
-
+      const { type } = req.query;
       const filters: any = { oemId: req.user!.oemId };
 
       if (type) {
@@ -6269,13 +6231,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Partner Staff Management Routes
-  app.get("/api/partners/:partnerId/staff", 
-    authenticate, 
-    requireRole(['PARTNER_ADMIN']),
+  app.get("/api/partners/:partnerId/staff",
+    authenticate,
+    requireRole(['PARTNER_ADMIN', 'SUPER_ADMIN', 'ADMIN']),
     async (req, res) => {
       try {
         const { partnerId } = req.params;
-        
+
         // Ensure partner admin can only access their own partner's staff
         if (req.user!.role === 'PARTNER_ADMIN' && req.user!.partnerId !== partnerId) {
           return res.status(403).json({ error: "Access denied" });

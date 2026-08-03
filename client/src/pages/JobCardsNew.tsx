@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useOemContext } from '@/hooks/use-oem-context';
@@ -441,38 +441,43 @@ export default function JobCardsNew() {
     }
   });
 
-  // Roles that can meaningfully use the showroom filter (multi-showroom scope).
-  // Single-showroom / partner-scoped roles get no showroom picker (and would 403
-  // on /api/showrooms), so we simply don't fetch or render it for them.
-  const canFilterShowrooms = ['SUPER_ADMIN', 'ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'MANAGER'].includes(user?.role || '');
+  // Filter dropdown options are DERIVED from the loaded job cards. The job-card
+  // list is already role/OEM-scoped by the server, so these show exactly the
+  // partners / showrooms that appear in the user's visible job cards — never
+  // "all partners" and never empty from sparse mapping tables.
+  const allPartners = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const jc of allJobCards) {
+      if (jc.partnerId && !m.has(jc.partnerId)) {
+        m.set(jc.partnerId, {
+          id: jc.partnerId,
+          displayName: jc.partner?.displayName || (jc.partnerDisplay && jc.partnerDisplay !== 'Unassigned Partner' ? jc.partnerDisplay : 'Partner'),
+        });
+      }
+    }
+    return Array.from(m.values()).sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
+  }, [allJobCards]);
 
-  // Fetch partners for the combobox filter — role/OEM-scoped on the server.
-  // Include selectedOemId in the key + query so switching OEM context refetches.
-  const { data: allPartners = [] } = useQuery({
-    queryKey: ['partners-filter', selectedOemId],
+  const allShowrooms = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const jc of allJobCards) {
+      const sid = jc.workOrder?.showroomId;
+      if (sid && !m.has(sid)) {
+        m.set(sid, { id: sid, name: jc.workOrder?.showroomName || 'Showroom', city: (jc.workOrder as any)?.city });
+      }
+    }
+    return Array.from(m.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [allJobCards]);
+
+  // Full active-partner list for the admin Assign modal (so a partner can be set
+  // even if it isn't on any current job card). Only fetched when the modal opens.
+  const { data: allPartnersForAssign = [] } = useQuery({
+    queryKey: ['partners-all-for-assign'],
+    enabled: showAssignModal,
     queryFn: async () => {
-      const qs = selectedOemId ? `?oemId=${encodeURIComponent(selectedOemId)}` : '';
-      const response = await apiRequest('GET', `/api/partners${qs}`);
+      const response = await apiRequest('GET', '/api/partners');
       const data = await response.json();
       return Array.isArray(data) ? data : (data.partners || []);
-    },
-    staleTime: 5 * 60 * 1000
-  });
-
-  // Fetch showrooms for the combobox filter — scoped to the selected OEM (super
-  // admin) or the user's dealership (dealership admin). Not fetched for roles
-  // that don't have a showroom picker.
-  const { data: allShowrooms = [] } = useQuery({
-    queryKey: ['showrooms-filter', selectedOemId, user?.dealershipId],
-    enabled: canFilterShowrooms,
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (selectedOemId) params.set('oemId', selectedOemId);
-      if (user?.role === 'DEALERSHIP_ADMIN' && user?.dealershipId) params.set('dealershipId', user.dealershipId);
-      params.set('limit', '10000');
-      const response = await apiRequest('GET', `/api/showrooms?${params.toString()}`);
-      const data = await response.json();
-      return Array.isArray(data) ? data : (data.showrooms || []);
     },
     staleTime: 5 * 60 * 1000
   });
@@ -1587,8 +1592,7 @@ export default function JobCardsNew() {
               </PopoverContent>
             </Popover>
 
-            {/* Showroom Combobox — only for roles with a multi-showroom scope */}
-            {canFilterShowrooms && (
+            {/* Showroom Combobox — options derived from the loaded job cards */}
             <Popover open={showroomComboboxOpen} onOpenChange={setShowroomComboboxOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -1641,7 +1645,6 @@ export default function JobCardsNew() {
                 </Command>
               </PopoverContent>
             </Popover>
-            )}
 
             {/* Assigned Installer */}
             <Select
@@ -3642,7 +3645,7 @@ export default function JobCardsNew() {
                   <SelectValue placeholder="Select partner" />
                 </SelectTrigger>
                 <SelectContent>
-                  {allPartners.map((p: Partner) => (
+                  {allPartnersForAssign.map((p: Partner) => (
                     <SelectItem key={p.id} value={p.id}>{p.displayName || p.companyName}</SelectItem>
                   ))}
                 </SelectContent>
