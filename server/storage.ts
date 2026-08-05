@@ -1755,6 +1755,18 @@ export class DatabaseStorage implements IStorage {
     return workOrder || undefined;
   }
 
+  // Job cards currently in any of the given statuses. Used by the pending-reminder
+  // sweep to fetch every not-yet-completed card in one query.
+  async getJobCardsByStatuses(statuses: string[]): Promise<JobCard[]> {
+    if (statuses.length === 0) return [];
+    const rows = await db
+      .select()
+      .from(jobCards)
+      .where(inArray(jobCards.status, statuses as any))
+      .orderBy(desc(jobCards.createdAt));
+    return rows as unknown as JobCard[];
+  }
+
   async getJobCards(filters?: {
     partnerId?: string;
     partnerIds?: string[]; // multi-partner staff scoping (across all their working partners)
@@ -3911,6 +3923,22 @@ export class DatabaseStorage implements IStorage {
   async getNotificationLogById(id: string): Promise<any | undefined> {
     const [row] = await db.select().from(notificationLogs).where(eq(notificationLogs.id, id));
     return row || undefined;
+  }
+
+  // True if a pending-reminder notification was already logged for this job card
+  // since `since`. Enforces one reminder per job card per day (idempotent across
+  // restarts / repeated sweeps within the same day).
+  async hasJobCardReminderSince(jobCardId: string, since: Date): Promise<boolean> {
+    const [row] = await db
+      .select({ id: notificationLogs.id })
+      .from(notificationLogs)
+      .where(and(
+        eq(notificationLogs.eventType, 'job_card_reminder'),
+        eq(notificationLogs.relatedEntityId, jobCardId),
+        gte(notificationLogs.createdAt, since),
+      ))
+      .limit(1);
+    return !!row;
   }
 
   // Recent in-app notifications for a specific user (drives the Header bell).
