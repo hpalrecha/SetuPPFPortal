@@ -50,6 +50,8 @@ interface JobCard {
   eWarrantyApplied?: boolean;
   eWarrantyAppliedAt?: string;
   partnerBilledDirectly?: boolean;
+  ppfBrand?: string | null; // film brand (e.g. "P91", "STEK")
+  isP91Warranty?: boolean; // true => P91Elite registration flow (prompts for batch/VIN)
   workOrder: {
     id: string;
     customerName: string;
@@ -125,6 +127,11 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const [materialQuantityUsed, setMaterialQuantityUsed] = useState('');
   const [batchNumberImage, setBatchNumberImage] = useState<string | null>(null);
   const [batchNumberImageUploading, setBatchNumberImageUploading] = useState(false);
+  // P91 e-warranty dialog (collects batch/VIN/qty before registering with P91 Elite)
+  const [warrantyDialogOpen, setWarrantyDialogOpen] = useState(false);
+  const [warrantyVin, setWarrantyVin] = useState('');
+  const [warrantyBatch, setWarrantyBatch] = useState('');
+  const [warrantyQuantity, setWarrantyQuantity] = useState('');
 
   // No JSON validation needed for form fields
 
@@ -286,18 +293,22 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     }
   });
 
-  // E-Warranty Request Mutation
+  // E-Warranty Request Mutation. Payload is only sent for the P91 flow (batch/VIN);
+  // STEK stays one-click (no payload).
   const applyWarrantyMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/request-e-warranty`);
+    mutationFn: async (payload?: { vin?: string; lotNumbers?: Array<{ lotNumber: string; quantity: number }> }) => {
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/request-e-warranty`, payload);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
       queryClient.invalidateQueries({ queryKey: ['/api/job-cards', jobCardId] });
-      toast({ 
-        title: 'E-Warranty Applied', 
-        description: 'E-Warranty application has been submitted successfully. Notification emails have been sent.' 
+      setWarrantyDialogOpen(false);
+      toast({
+        title: 'E-Warranty Applied',
+        description: data?.warranty?.code
+          ? `Registered with P91 Elite. Warranty code: ${data.warranty.code}`
+          : 'E-Warranty application has been submitted successfully. Notification emails have been sent.',
       });
     },
     onError: (error: Error) => {
@@ -305,6 +316,31 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
       toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
     }
   });
+
+  // Open the P91 dialog with values pre-filled from the job card.
+  const openWarrantyDialog = () => {
+    const reg = (jobCard?.workOrder?.regNo || '').trim();
+    setWarrantyVin(reg === '-' ? '' : reg);
+    setWarrantyBatch(jobCard?.batchNumbers || '');
+    const consumption = (jobCard?.materialConsumptionJson as any) || {};
+    const qty = consumption.plannedQuantity ?? consumption.quantity ?? consumption.quantityUsed ?? '';
+    setWarrantyQuantity(qty === '' ? '' : String(qty));
+    setWarrantyDialogOpen(true);
+  };
+
+  // Submit the P91 dialog: split batch numbers, attach quantity, include VIN if given.
+  const submitP91Warranty = () => {
+    const lotNumbers = warrantyBatch
+      .split(/[,\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((lotNumber) => ({ lotNumber, quantity: Number(warrantyQuantity) || 0 }));
+    if (lotNumbers.length === 0) {
+      toast({ title: 'Batch number required', description: 'Enter at least one batch number.', variant: 'destructive' });
+      return;
+    }
+    applyWarrantyMutation.mutate({ vin: warrantyVin.trim() || undefined, lotNumbers });
+  };
 
   // Batch number image upload handler
   const handleBatchNumberImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -483,10 +519,10 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
               {/* Rework is now handled by creating a new linked job card, so the in-place
                   "Mark as Fixed" action has been retired. This card stays as a historical record. */}
               {canApplyWarranty && (
-                <Button 
-                  onClick={() => applyWarrantyMutation.mutate()} 
-                  disabled={applyWarrantyMutation.isPending} 
-                  className="bg-amber-600 hover:bg-amber-700" 
+                <Button
+                  onClick={() => (jobCard?.isP91Warranty ? openWarrantyDialog() : applyWarrantyMutation.mutate(undefined))}
+                  disabled={applyWarrantyMutation.isPending}
+                  className="bg-amber-600 hover:bg-amber-700"
                   data-testid="button-apply-warranty"
                 >
                   <Shield className="h-4 w-4 mr-2" />
@@ -1210,6 +1246,76 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
         completedAt={jobCard.preInstallationCompletedAt ? new Date(jobCard.preInstallationCompletedAt) : null}
         completedBy={jobCard.preInstallationCompletedBy}
       />
+    )}
+
+    {jobCard && (
+      <Dialog open={warrantyDialogOpen} onOpenChange={setWarrantyDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-amber-600" />
+              Register P91 E-Warranty
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              This is a P91 film job. Confirm the details below to register the warranty with P91 Elite.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="warranty-batch">Batch number(s)</Label>
+              <Textarea
+                id="warranty-batch"
+                value={warrantyBatch}
+                onChange={(e) => setWarrantyBatch(e.target.value)}
+                placeholder="Enter batch number(s), comma or newline separated"
+                rows={2}
+                data-testid="input-warranty-batch"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="warranty-qty">Quantity used (sq.ft)</Label>
+              <Input
+                id="warranty-qty"
+                type="number"
+                value={warrantyQuantity}
+                onChange={(e) => setWarrantyQuantity(e.target.value)}
+                placeholder="e.g. 45"
+                data-testid="input-warranty-quantity"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="warranty-vin">VIN / Registration number</Label>
+              <Input
+                id="warranty-vin"
+                value={warrantyVin}
+                onChange={(e) => setWarrantyVin(e.target.value)}
+                placeholder="Enter VIN or registration number"
+                data-testid="input-warranty-vin"
+              />
+              <p className="text-xs text-muted-foreground">
+                Saved back to the work order if it was missing.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setWarrantyDialogOpen(false)}
+              disabled={applyWarrantyMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={submitP91Warranty}
+              disabled={applyWarrantyMutation.isPending}
+              className="bg-amber-600 hover:bg-amber-700"
+              data-testid="button-submit-p91-warranty"
+            >
+              {applyWarrantyMutation.isPending ? 'Registering...' : 'Register Warranty'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     )}
     </>
   );

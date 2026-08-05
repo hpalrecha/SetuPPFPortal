@@ -25,6 +25,7 @@ import { emailService } from "./services/email-service";
 import { whatsappService } from "./services/whatsapp-service";
 import smsService from "./services/sms-service";
 import { notificationService } from "./services/notificationService";
+import { runPendingJobCardReminders } from "./services/jobCardReminderService";
 import { authenticate, requireRole, requireOEMAccess, auditLog, blockAdminDelete, hasStateAccess, userPartnerIds } from "./middleware";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { generateOTP, hashOTP, verifyOTP, getOTPExpiry } from "./utils/otp";
@@ -135,6 +136,31 @@ const imageUpload = multer({
     }
   }
 });
+
+/**
+ * Resolve the PPF brand used on a job card from the service's `productBrand`
+ * field (set in service management, e.g. "P91" / "Stek" / "3M"). This is the
+ * reliably-populated brand signal — the serviceRawMaterials → brand link is
+ * sparsely/inconsistently populated in practice and cannot identify P91.
+ * Returns `undetermined: true` only when the service or its brand is missing;
+ * we never silently guess, since brand gates the whole e-warranty routing.
+ */
+async function resolveJobCardBrand(
+  workOrder: any
+): Promise<{ brand: string | null; undetermined: boolean }> {
+  if (!workOrder?.serviceId) return { brand: null, undetermined: true };
+
+  const service = await storage.getService(workOrder.serviceId);
+  const brand = (service?.productBrand || '').trim();
+  if (!brand) return { brand: null, undetermined: true };
+
+  return { brand, undetermined: false };
+}
+
+/** A P91-branded film routes to the new P91Elite e-warranty registration flow. */
+function isP91Brand(brandName: string | null): boolean {
+  return !!brandName && /p91/i.test(brandName);
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication Routes
@@ -3521,6 +3547,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Job Card Assignment Route
+  // Manually trigger the pending job-card reminder sweep (for testing / ops).
+  // Registered before the parameterized "/:id" routes so the static path wins.
+  app.post("/api/job-cards/reminders/run",
+    authenticate,
+    requireRole(['SUPER_ADMIN']),
+    auditLog('job_card', 'run_reminders'),
+    async (_req, res) => {
+      try {
+        const result = await runPendingJobCardReminders();
+        res.json({ ok: true, ...result });
+      } catch (error) {
+        console.error("Run job card reminders error:", error);
+        res.status(500).json({ error: "Failed to run job card reminders" });
+      }
+    }
+  );
+
   app.put("/api/job-cards/:id/assign",
     authenticate,
     requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER', 'SUPER_ADMIN', 'ADMIN']),
@@ -4310,12 +4353,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        // Resolve the PPF film brand — drives P91-vs-STEK e-warranty routing in the UI
+        const { brand: ppfBrand } = await resolveJobCardBrand(workOrder);
+
         // Build the response with the expected structure
         let result: any = {
           ...jobCard,
           assignedInstaller, // Added!
           batchNumberImage: signedBatchNumberImage, // Override with signed URL
           workOrderCreatedByPartner, // Drives settlement-option visibility
+          ppfBrand, // film brand name (e.g. "P91", "STEK") or null if undetermined
+          isP91Warranty: isP91Brand(ppfBrand), // true => new P91Elite registration flow
           workOrder: {
             ...workOrder,
             vehicleModel: vehicleModel ? {
@@ -4331,9 +4379,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               address: showroom.address,
               city: showroom.city,
               state: showroom.state,
-              contactPerson: showroom.contactPersonName,
-              phone: showroom.contactPersonPhone,
-              email: showroom.contactPersonEmail
+              contactPerson: showroom.managerName,
+              phone: showroom.contactPhone,
+              email: showroom.contactEmail
             } : { name: 'Unknown' }
           },
           partner: {
@@ -5428,11 +5476,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         if (jobCard.eWarrantyApplied) {
-          return res.status(400).json({ 
-            error: "E-Warranty has already been applied for this job card" 
+          return res.status(400).json({
+            error: "E-Warranty has already been applied for this job card"
           });
         }
 
+        // Resolve the film brand used on this job — gates STEK vs P91 routing
+        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+        if (!workOrder) {
+          return res.status(404).json({ error: "Work order not found for this job card" });
+        }
+
+        const { brand, undetermined } = await resolveJobCardBrand(workOrder);
+        if (undetermined) {
+          return res.status(400).json({
+            error: "Could not determine the film brand for this job. Link a single raw-material brand to the service before applying for e-warranty.",
+            errorCode: "BRAND_UNDETERMINED",
+          });
+        }
+
+        // ---- P91 path: register the e-warranty in P91Elite (synchronous) ----
+        if (isP91Brand(brand)) {
+          const userId = (req.user as any)?.id;
+          if (!userId) {
+            return res.status(401).json({ error: "Unauthenticated" });
+          }
+
+          const { pulseApiService } = await import('./services/pulseApiService');
+
+          // VIN: prefer client-supplied (when regNo was blank); write it back into regNo
+          const suppliedVin = typeof req.body?.vin === 'string' ? req.body.vin.trim() : '';
+          const existingReg = (workOrder.regNo || '').trim();
+          const regEmpty = !existingReg || existingReg === '-';
+          let regOrVin = regEmpty ? suppliedVin : existingReg;
+          if (regEmpty && suppliedVin) {
+            const normalized = suppliedVin.toUpperCase().replace(/\s+/g, '');
+            await storage.updateWorkOrder(jobCard.workOrderId, { regNo: normalized });
+            regOrVin = normalized;
+          }
+
+          // Lot numbers + quantity: prefer client payload, else derive from the job card
+          let lotNumbers: Array<{ lotNumber: string; quantity: number }> = Array.isArray(req.body?.lotNumbers)
+            ? req.body.lotNumbers
+                .map((l: any) => ({ lotNumber: String(l?.lotNumber || "").trim(), quantity: Number(l?.quantity) || 0 }))
+                .filter((l: { lotNumber: string }) => l.lotNumber)
+            : [];
+          if (lotNumbers.length === 0 && jobCard.batchNumbers) {
+            const consumption = (jobCard.materialConsumptionJson as any) || {};
+            const qty = Number(consumption.plannedQuantity ?? consumption.quantity ?? consumption.quantityUsed) || 0;
+            lotNumbers = String(jobCard.batchNumbers)
+              .split(/[,\n]/)
+              .map((b) => b.trim())
+              .filter(Boolean)
+              .map((lotNumber) => ({ lotNumber, quantity: qty }));
+          }
+          if (lotNumbers.length === 0) {
+            return res.status(400).json({
+              error: "At least one batch number is required to register a P91 e-warranty.",
+              errorCode: "BATCH_REQUIRED",
+            });
+          }
+
+          // Installer = assigned installer, else the applying user
+          const installer = jobCard.assignedInstallerId
+            ? await storage.getUser(jobCard.assignedInstallerId)
+            : await storage.getUser(userId);
+          const showroom = workOrder.showroomId ? await storage.getShowroom(workOrder.showroomId) : undefined;
+          const oem = workOrder.oemId ? await storage.getOem(workOrder.oemId) : undefined;
+          const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
+
+          const nameParts = String(workOrder.customerName || "").trim().split(/\s+/).filter(Boolean);
+          const customerFirstName = nameParts.shift() || "";
+          const customerLastName = nameParts.join(" ");
+          const showroomLocation = showroom
+            ? [showroom.address, showroom.city, showroom.state].filter(Boolean).join(", ")
+            : undefined;
+          const installDate = jobCard.completedAt ? new Date(jobCard.completedAt) : new Date();
+
+          const result = await pulseApiService.requestWarrantyRegistration({
+            setuUserId: userId,
+            setuJobCardId: jobCard.id,
+            installerName: installer?.name || undefined,
+            installerMobile: installer?.phone || undefined,
+            storeName: showroom?.name || undefined,
+            storeEmail: showroom?.contactEmail || undefined,
+            storeLocation: showroomLocation,
+            customerFirstName,
+            customerLastName,
+            customerMobile: workOrder.customerPhone || undefined,
+            customerEmail: workOrder.customerEmail || undefined,
+            customerAddress: workOrder.customerAddress || undefined,
+            hniMobile: !workOrder.customerPhone,
+            hniEmail: !workOrder.customerEmail,
+            hniAddress: !workOrder.customerAddress,
+            carMake: oem?.name || undefined,
+            carModel: vehicleModel?.modelName || undefined,
+            carRegOrVIN: regOrVin || undefined,
+            carColor: undefined,
+            productInstalled: "Full Car PPF",
+            installationDate: installDate.toISOString().slice(0, 10),
+            fullCarPPF: true,
+            lotNumbers,
+            photos: jobCard.batchNumberImage ? [jobCard.batchNumberImage] : undefined,
+          });
+
+          if (!result.success) {
+            const status = result.errorCode === "USER_NOT_LINKED" ? 409
+              : result.errorCode === "BATCH_INVALID" ? 400
+              : 502;
+            return res.status(status).json({
+              error: result.error || "Failed to register e-warranty with P91Elite",
+              errorCode: result.errorCode,
+            });
+          }
+
+          // Only now mark the job card applied (left re-tryable on any failure above)
+          const p91UpdatedJobCard = await storage.updateJobCard(jobCardId, {
+            eWarrantyApplied: true,
+            eWarrantyAppliedAt: new Date(),
+            status: "WARRANTY_REGISTRATION",
+          });
+          await storage.updateWorkOrder(jobCard.workOrderId, { status: "WARRANTY_REGISTRATION" });
+
+          return res.json({ ...p91UpdatedJobCard, warranty: result.warranty });
+        }
+
+        // ---- STEK / other brands: existing behaviour (unchanged) ----
         // Update job card with e-warranty applied and change status
         const updatedJobCard = await storage.updateJobCard(jobCardId, {
           eWarrantyApplied: true,
