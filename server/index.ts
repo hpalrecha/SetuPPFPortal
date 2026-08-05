@@ -3,6 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { whatsappService } from "./services/whatsapp-service";
+import { startPendingReminderScheduler } from "./services/jobCardReminderService";
 
 const app = express();
 
@@ -92,5 +93,7 @@ app.use((req, res, next) => {
   }
   server.listen(listenOpts, () => {
     log(`serving on port ${port}`);
+    // Daily reminders for pending (not-yet-completed) job cards.
+    startPendingReminderScheduler();
   });
 })();

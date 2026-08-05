@@ -715,6 +715,39 @@ export class NotificationService {
     }
   }
 
+  // Pending job-card reminder — nudges one responsible recipient across all three
+  // channels (in-app bell, email, WhatsApp). The `data.type = 'job_card_reminder'`
+  // tag drives both the bell deep-link (relatedEntityId = job card) and the
+  // once-per-day dedup check in the reminder sweep.
+  async sendJobCardPendingReminder(jobCard: JobCard, recipientUserId: string): Promise<void> {
+    const workOrder = jobCard.workOrderId ? await storage.getWorkOrder(jobCard.workOrderId).catch(() => null) : null;
+    const vehicleModel = workOrder?.vehicleModelId
+      ? await storage.getVehicleModel(workOrder.vehicleModelId).catch(() => null)
+      : null;
+
+    const jobCardCode = `JC-${jobCard.id.slice(-6)}`;
+    const vehicleName = vehicleModel?.modelName || workOrder?.vehicleModelName || 'Vehicle';
+    const vehicleDetails = `${vehicleName}${workOrder?.regNo ? ' - ' + workOrder.regNo : ''}`;
+    const statusLabel = (jobCard.status || 'PENDING').replace(/_/g, ' ');
+    const jobCardLink = `${this.getBaseUrl()}/job-cards/${jobCard.id}`;
+
+    const payload: NotificationPayload = {
+      title: `Reminder: Job Card ${jobCardCode} pending action`,
+      message:
+        `Job Card ${jobCardCode} (${vehicleDetails}) is still at status "${statusLabel}" and has not been completed. ` +
+        `Please take the next action.\n\n${jobCardLink}`,
+      type: 'WARNING',
+      data: { jobCardId: jobCard.id, type: 'job_card_reminder' },
+    };
+
+    // Deliver across all three channels; a failure on one channel must not block the others.
+    await Promise.allSettled([
+      this.sendNotification(recipientUserId, 'PUSH', payload),
+      this.sendNotification(recipientUserId, 'EMAIL', payload),
+      this.sendNotification(recipientUserId, 'WHATSAPP', payload),
+    ]);
+  }
+
   // SLA Alerts
   async sendSLAAlert(
     type: 'ACK_OVERDUE' | 'SCHEDULE_OVERDUE' | 'COMPLETION_OVERDUE' | 'APPROVAL_OVERDUE', 
