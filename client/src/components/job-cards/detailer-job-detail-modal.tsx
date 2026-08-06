@@ -1250,51 +1250,90 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
 
     {jobCard && (
       <Dialog open={warrantyDialogOpen} onOpenChange={setWarrantyDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-amber-600" />
               Register P91 E-Warranty
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">
-              This is a P91 film job. Confirm the details below to register the warranty with P91 Elite.
+          <div className="space-y-3 py-1 text-sm">
+            <p className="text-muted-foreground">
+              Review the details below that will be exchanged with P91 Elite, then click Exchange Data.
             </p>
-            <div className="space-y-2">
-              <Label htmlFor="warranty-batch">Batch number(s)</Label>
-              <Textarea
-                id="warranty-batch"
-                value={warrantyBatch}
-                onChange={(e) => setWarrantyBatch(e.target.value)}
-                placeholder="Enter batch number(s), comma or newline separated"
-                rows={2}
-                data-testid="input-warranty-batch"
-              />
+
+            {/* Installer & Showroom */}
+            <div className="rounded-lg border p-3 space-y-1.5">
+              <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Installer &amp; Showroom</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <div><span className="text-muted-foreground">Installer:</span> {jobCard?.assignedInstaller?.name || jobCard?.assignedInstaller?.displayName || '—'}</div>
+                <div><span className="text-muted-foreground">Mobile:</span> {jobCard?.assignedInstaller?.phone || '—'}</div>
+                <div><span className="text-muted-foreground">Showroom:</span> {jobCard?.workOrder?.showroom?.name || '—'}</div>
+                <div><span className="text-muted-foreground">Email:</span> {jobCard?.workOrder?.showroom?.email || '—'}</div>
+                <div className="col-span-2"><span className="text-muted-foreground">Location:</span> {[jobCard?.workOrder?.showroom?.address, jobCard?.workOrder?.showroom?.city, jobCard?.workOrder?.showroom?.state].filter(Boolean).join(', ') || '—'}</div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="warranty-qty">Quantity used (sq.ft)</Label>
-              <Input
-                id="warranty-qty"
-                type="number"
-                value={warrantyQuantity}
-                onChange={(e) => setWarrantyQuantity(e.target.value)}
-                placeholder="e.g. 45"
-                data-testid="input-warranty-quantity"
-              />
+
+            {/* Customer */}
+            <div className="rounded-lg border p-3 space-y-1.5">
+              <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Customer</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <div><span className="text-muted-foreground">Name:</span> {jobCard?.workOrder?.customerName || '—'}</div>
+                <div><span className="text-muted-foreground">Mobile:</span> {jobCard?.workOrder?.customerPhone || 'HNI / not shared'}</div>
+                <div><span className="text-muted-foreground">Email:</span> {jobCard?.workOrder?.customerEmail || 'HNI / not shared'}</div>
+                <div><span className="text-muted-foreground">Address:</span> {jobCard?.workOrder?.customerAddress || 'HNI / not shared'}</div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="warranty-vin">VIN / Registration number</Label>
-              <Input
-                id="warranty-vin"
-                value={warrantyVin}
-                onChange={(e) => setWarrantyVin(e.target.value)}
-                placeholder="Enter VIN or registration number"
-                data-testid="input-warranty-vin"
-              />
-              <p className="text-xs text-muted-foreground">
-                Saved back to the work order if it was missing.
-              </p>
+
+            {/* Vehicle & Product */}
+            <div className="rounded-lg border p-3 space-y-1.5">
+              <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Vehicle &amp; Product</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <div><span className="text-muted-foreground">Make:</span> {jobCard?.workOrder?.vehicleModel?.brand?.name || '—'}</div>
+                <div><span className="text-muted-foreground">Model:</span> {jobCard?.workOrder?.vehicleModel?.modelName || '—'}</div>
+                <div><span className="text-muted-foreground">Product:</span> {jobCard?.workOrder?.service?.name || 'Full Car PPF'}</div>
+                <div><span className="text-muted-foreground">Install date:</span> {jobCard?.completedAt ? format(new Date(jobCard.completedAt), 'dd MMM yyyy') : '—'}</div>
+              </div>
+            </div>
+
+            {/* Batch & warranty — pre-filled, editable in case of correction */}
+            <div className="rounded-lg border p-3 space-y-3">
+              <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Batch &amp; Warranty</p>
+              <div className="space-y-1.5">
+                <Label htmlFor="warranty-batch">Batch number(s)</Label>
+                <Textarea
+                  id="warranty-batch"
+                  value={warrantyBatch}
+                  onChange={(e) => setWarrantyBatch(e.target.value)}
+                  placeholder="Batch number(s), comma or newline separated"
+                  rows={2}
+                  data-testid="input-warranty-batch"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="warranty-qty">Quantity (sq.ft)</Label>
+                  <Input
+                    id="warranty-qty"
+                    type="number"
+                    value={warrantyQuantity}
+                    onChange={(e) => setWarrantyQuantity(e.target.value)}
+                    placeholder="e.g. 150"
+                    data-testid="input-warranty-quantity"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="warranty-vin">VIN / Reg no.</Label>
+                  <Input
+                    id="warranty-vin"
+                    value={warrantyVin}
+                    onChange={(e) => setWarrantyVin(e.target.value)}
+                    placeholder="VIN / registration"
+                    data-testid="input-warranty-vin"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">VIN is saved back to the work order if it was missing.</p>
             </div>
           </div>
           <div className="flex justify-end gap-2">
@@ -1309,9 +1348,9 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
               onClick={submitP91Warranty}
               disabled={applyWarrantyMutation.isPending}
               className="bg-amber-600 hover:bg-amber-700"
-              data-testid="button-submit-p91-warranty"
+              data-testid="button-exchange-data"
             >
-              {applyWarrantyMutation.isPending ? 'Registering...' : 'Register Warranty'}
+              {applyWarrantyMutation.isPending ? 'Exchanging…' : 'Exchange Data'}
             </Button>
           </div>
         </DialogContent>

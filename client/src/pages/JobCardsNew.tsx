@@ -1090,11 +1090,13 @@ export default function JobCardsNew() {
       const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/request-e-warranty`);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
       toast({
         title: "E-Warranty Requested",
-        description: "E-warranty application has been submitted. Notification emails have been sent to STEK India.",
+        description: data?.warranty?.code
+          ? `Registered with P91 Elite. Warranty code: ${data.warranty.code}`
+          : "E-warranty application has been submitted. Notification emails have been sent to STEK India.",
       });
     },
     onError: (error: any) => {
@@ -3271,7 +3273,7 @@ export default function JobCardsNew() {
                                     Requested on {formatDateTime(detailedJobCard.eWarrantyAppliedAt)}
                                   </p>
                                   <p className="text-xs text-amber-700 mt-1">
-                                    Notification sent to STEK India
+                                    {(detailedJobCard as any).isP91Warranty ? 'Registered with P91 Elite' : 'Notification sent to STEK India'}
                                   </p>
                                 </>
                               ) : (
