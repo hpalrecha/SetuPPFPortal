@@ -308,9 +308,11 @@ export default function JobCardsNew() {
   // Live tracking toggle (auto-polls the list while on)
   const [liveTracking, setLiveTracking] = useState(false);
 
-  // "Closed" filter toggle — on by default, hides Warranty Registered cards
-  // from the list. User can turn it off explicitly to see them again.
+  // "Closed" filter toggle — on by default, hides finished job cards (CLOSED,
+  // plus the legacy WARRANTY_REGISTRATION limbo state) from the list. User can
+  // turn it off explicitly to see them again.
   const [hideWarrantyRegistered, setHideWarrantyRegistered] = useState(true);
+  const CLOSED_FILTER_STATUSES = ['WARRANTY_REGISTRATION', 'CLOSED'];
   
   // Get current user for admin check
   const { user } = useAuth();
@@ -541,7 +543,9 @@ export default function JobCardsNew() {
           ? !jobCard.assignedInstallerId
           : (jobCard.assignedInstallerId || '') === searchFilters.assignedInstallerId)) &&
       dateMatch &&
-      (!hideWarrantyRegistered || searchFilters.status === 'WARRANTY_REGISTRATION' || status !== 'WARRANTY_REGISTRATION')
+      (!hideWarrantyRegistered ||
+        CLOSED_FILTER_STATUSES.includes(searchFilters.status) ||
+        !CLOSED_FILTER_STATUSES.includes(status))
     );
   });
 
@@ -1471,7 +1475,7 @@ export default function JobCardsNew() {
               onClick={() => setHideWarrantyRegistered((v) => !v)}
               className="text-xs sm:text-sm h-8"
               data-testid="button-closed-filter"
-              title={hideWarrantyRegistered ? 'Hiding Warranty Registered cards — click to show them' : 'Showing Warranty Registered cards — click to hide them'}
+              title={hideWarrantyRegistered ? 'Hiding Closed / Warranty Registered cards — click to show them' : 'Showing Closed / Warranty Registered cards — click to hide them'}
             >
               <Shield className="h-3 w-3 mr-1" />
               Closed
