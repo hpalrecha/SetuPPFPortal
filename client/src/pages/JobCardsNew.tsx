@@ -3349,7 +3349,12 @@ export default function JobCardsNew() {
                               </Button>
                             )
                           ) : (
-                            detailedJobCard.status === 'INVOICE_RAISED' && (
+                            // P91: show for any valid post-completion status (not just INVOICE_RAISED)
+                            // so the option doesn't vanish once the card moves on. STEK keeps the
+                            // legacy INVOICE_RAISED-only gate (reference-number flow).
+                            ((detailedJobCard as any).isP91Warranty
+                              ? (!detailedJobCard.eWarrantyApplied && ['APPROVED','PENDING_SALES_INVOICE','INVOICE_RAISED','WARRANTY_REGISTRATION','PAYMENT_PENDING'].includes(detailedJobCard.status))
+                              : detailedJobCard.status === 'INVOICE_RAISED') && (
                               <Button
                                 size="sm"
                                 onClick={() => {
