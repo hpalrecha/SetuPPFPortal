@@ -3234,8 +3234,9 @@ export default function JobCardsNew() {
                 {(detailedJobCard.status === 'APPROVED' || detailedJobCard.status === 'PENDING_SALES_INVOICE' || detailedJobCard.status === 'INVOICE_RAISED' || detailedJobCard.status === 'WARRANTY_REGISTRATION' || detailedJobCard.status === 'PAYMENT_PENDING' || detailedJobCard.status === 'CLOSED') && (
                   // Settlement follows who CREATED the work order: partner-created
                   // (their own) → partner admin settles; P91-created (commission) → admin settles.
+                  // SUPER_ADMIN/ADMIN always get override access on top of that.
                   (detailedJobCard.workOrderCreatedByPartner
-                    ? (user?.role === 'PARTNER_ADMIN' && detailedJobCard.partnerId === user?.partnerId)
+                    ? ((user?.role === 'PARTNER_ADMIN' && detailedJobCard.partnerId === user?.partnerId) || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN')
                     : isAdmin)
                 ) && (
                   <Card className={`col-span-1 lg:col-span-2 xl:col-span-3 border-2 ${detailedJobCard.status === 'CLOSED' ? 'border-gray-200 bg-gray-50/50' : 'border-dashed border-green-200 bg-green-50/50'}`}>

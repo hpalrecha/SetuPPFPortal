@@ -4917,14 +4917,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const workOrderCreatedByPartner = workOrderCreator?.role === 'PARTNER_ADMIN';
         let hasAccess = false;
 
-        if (workOrderCreatedByPartner) {
+        // SUPER_ADMIN/ADMIN always have override access, regardless of who created the work order.
+        if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN') {
+          hasAccess = true;
+        } else if (workOrderCreatedByPartner) {
           // The owning partner admin settles their own work order
           if (req.user!.role === 'PARTNER_ADMIN') {
             hasAccess = jobCard.partnerId === req.user!.partnerId;
           }
         } else {
           // Admin roles settle P91-created (commission) work orders
-          if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
+          if (req.user!.role === 'MANAGER') {
             hasAccess = true;
           } else if (req.user!.role === 'OEM_ADMIN') {
             hasAccess = workOrder.oemId === req.user!.oemId;
@@ -4995,14 +4998,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const isPartnerDirectBilling = jobCard.partnerBilledDirectly === true;
         let hasAccess = false;
 
-        if (isPartnerDirectBilling) {
+        // SUPER_ADMIN/ADMIN always have override access, regardless of billing type.
+        if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN') {
+          hasAccess = true;
+        } else if (isPartnerDirectBilling) {
           // Partner can apply warranty for their own direct billing
           if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
             hasAccess = jobCard.partnerId === req.user!.partnerId;
           }
         } else {
           // Admin roles can apply warranty for Plus Nine One billing
-          if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
+          if (req.user!.role === 'MANAGER') {
             hasAccess = true;
           } else if (req.user!.role === 'OEM_ADMIN') {
             hasAccess = workOrder.oemId === req.user!.oemId;
