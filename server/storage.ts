@@ -571,6 +571,21 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
+  // The partner's "primary" account — prefer PARTNER_ADMIN, else DETAILING_PARTNER.
+  // Used to attribute e-warranties to one owner per partner so the whole partner's
+  // warranties surface under a single P91 Elite dashboard.
+  async getPartnerPrimaryUserId(partnerId: string): Promise<string | undefined> {
+    const rows = await db
+      .select({ id: users.id, role: users.role })
+      .from(users)
+      .where(eq(users.partnerId, partnerId));
+    return (
+      rows.find((r) => r.role === 'PARTNER_ADMIN')?.id ||
+      rows.find((r) => r.role === 'DETAILING_PARTNER')?.id ||
+      undefined
+    );
+  }
+
   async getUserByEmail(email: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.email, email));
     return user || undefined;

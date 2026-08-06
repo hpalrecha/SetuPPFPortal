@@ -5531,11 +5531,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
 
-          // The warranty is attributed to the job's installer/detailer (a
-          // P91-linked user), NOT whoever clicks apply — admins/super-admins
-          // are not linked to P91 Elite, so use the assigned installer's id.
-          const installerUserId = jobCard.assignedInstallerId || userId;
-          const installer = await storage.getUser(installerUserId);
+          // Owner (P91 Elite detailer_id) = the partner's primary account, so ALL
+          // of a partner's warranties surface under one P91 Elite dashboard.
+          // Falls back to the assigned installer, then the applying user. We never
+          // use the clicker directly (admins/super-admins aren't linked).
+          const ownerUserId = (jobCard.partnerId ? await storage.getPartnerPrimaryUserId(jobCard.partnerId) : undefined)
+            || jobCard.assignedInstallerId || userId;
+          // Installer shown on the warranty = the person who actually did the job.
+          const installer = jobCard.assignedInstallerId
+            ? await storage.getUser(jobCard.assignedInstallerId)
+            : await storage.getUser(ownerUserId);
           const showroom = workOrder.showroomId ? await storage.getShowroom(workOrder.showroomId) : undefined;
           const oem = workOrder.oemId ? await storage.getOem(workOrder.oemId) : undefined;
           const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
@@ -5549,7 +5554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const installDate = jobCard.completedAt ? new Date(jobCard.completedAt) : new Date();
 
           const result = await pulseApiService.requestWarrantyRegistration({
-            setuUserId: installerUserId,
+            setuUserId: ownerUserId,
             setuJobCardId: jobCard.id,
             installerName: installer?.name || undefined,
             installerMobile: installer?.phone || undefined,
