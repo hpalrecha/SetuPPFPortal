@@ -5531,10 +5531,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
 
-          // Installer = assigned installer, else the applying user
-          const installer = jobCard.assignedInstallerId
-            ? await storage.getUser(jobCard.assignedInstallerId)
-            : await storage.getUser(userId);
+          // The warranty is attributed to the job's installer/detailer (a
+          // P91-linked user), NOT whoever clicks apply — admins/super-admins
+          // are not linked to P91 Elite, so use the assigned installer's id.
+          const installerUserId = jobCard.assignedInstallerId || userId;
+          const installer = await storage.getUser(installerUserId);
           const showroom = workOrder.showroomId ? await storage.getShowroom(workOrder.showroomId) : undefined;
           const oem = workOrder.oemId ? await storage.getOem(workOrder.oemId) : undefined;
           const vehicleModel = await storage.getVehicleModel(workOrder.vehicleModelId);
@@ -5548,7 +5549,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const installDate = jobCard.completedAt ? new Date(jobCard.completedAt) : new Date();
 
           const result = await pulseApiService.requestWarrantyRegistration({
-            setuUserId: userId,
+            setuUserId: installerUserId,
             setuJobCardId: jobCard.id,
             installerName: installer?.name || undefined,
             installerMobile: installer?.phone || undefined,
