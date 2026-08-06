@@ -162,6 +162,24 @@ function isP91Brand(brandName: string | null): boolean {
   return !!brandName && /p91/i.test(brandName);
 }
 
+/**
+ * Best-effort work-order status sync. work_order_status has no
+ * WARRANTY_REGISTRATION value, so that particular sync is expected to fail —
+ * tolerate it instead of 500-ing an otherwise-successful job-card update.
+ */
+async function syncWorkOrderStatus(workOrderId: string, status: string) {
+  try {
+    await storage.updateWorkOrder(workOrderId, { status: status as any });
+  } catch (err) {
+    console.warn(`WO status sync to ${status} skipped:`, (err as any)?.message);
+  }
+}
+
+/** Has this job card's warranty step already been completed (either billing path)? */
+function isWarrantyDone(jobCard: any): boolean {
+  return !!(jobCard.eWarrantyApplied || jobCard.warrantyAppliedAt);
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication Routes
   app.post("/api/auth/login", async (req, res) => {
@@ -4899,7 +4917,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Job card not found" });
         }
 
-        if (jobCard.status !== 'PENDING_SALES_INVOICE') {
+        // Also accept WARRANTY_REGISTRATION: the P91 e-warranty flow can apply
+        // warranty before payment is settled, which already moved the job card
+        // past PENDING_SALES_INVOICE — without this, settling payment afterward
+        // would be permanently blocked and the job card could never close.
+        if (!['PENDING_SALES_INVOICE', 'WARRANTY_REGISTRATION'].includes(jobCard.status)) {
           return res.status(400).json({ error: "Job card must be in pending sales invoice status before entering invoice" });
         }
 
@@ -4942,19 +4964,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Access denied - insufficient permissions" });
         }
 
-        // Update job card with invoice info and set status to INVOICE_RAISED
+        // If warranty was already applied (P91 flow allows that before payment),
+        // this settlement is the last remaining step — close the job card now
+        // instead of leaving it in a limbo status forever.
+        const nextStatus = isWarrantyDone(jobCard) ? 'CLOSED' : 'INVOICE_RAISED';
         const updatedJobCard = await storage.updateJobCard(jobCardId, {
           paymentSettledAt: new Date(),
           salesInvoiceNumber: salesInvoiceNumber.trim(),
-          status: 'INVOICE_RAISED'
+          status: nextStatus
         });
 
         if (!updatedJobCard) {
           return res.status(500).json({ error: "Failed to settle payment" });
         }
 
-        // Note: Status is already set to INVOICE_RAISED above
-        // Warranty will be applied separately via the apply-warranty endpoint
+        if (nextStatus === 'CLOSED') {
+          await syncWorkOrderStatus(jobCard.workOrderId, 'CLOSED');
+        }
 
         const finalJobCard = await storage.getJobCard(jobCardId);
         res.json({ message: "Payment settled successfully", jobCard: finalJobCard });
@@ -5023,11 +5049,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Access denied - insufficient permissions" });
         }
 
-        // Update job card with warranty info and set status to WARRANTY_REGISTRATION
+        // This endpoint requires status === 'INVOICE_RAISED', which only ever
+        // follows settle-payment — so payment is always already settled here.
+        // Warranty is the last step, so close the job card directly.
         const updatedJobCard = await storage.updateJobCard(jobCardId, {
           warrantyAppliedAt: new Date(),
           warrantyReferenceNumber: warrantyReferenceNumber.trim(),
-          status: 'WARRANTY_REGISTRATION'
+          status: 'CLOSED'
         });
 
         if (!updatedJobCard) {
@@ -5596,20 +5624,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
 
-          // Only now mark the job card applied (left re-tryable on any failure above)
+          // Only now mark the job card applied (left re-tryable on any failure above).
+          // If payment was already settled, warranty is the last step — close it.
+          const p91NextStatus = jobCard.paymentSettledAt ? "CLOSED" : "WARRANTY_REGISTRATION";
           const p91UpdatedJobCard = await storage.updateJobCard(jobCardId, {
             eWarrantyApplied: true,
             eWarrantyAppliedAt: new Date(),
-            status: "WARRANTY_REGISTRATION",
+            status: p91NextStatus,
           });
-          // Best-effort WO status mirror. work_order_status has no
-          // WARRANTY_REGISTRATION value, so tolerate the failure instead of
-          // 500-ing an already-successful registration.
-          try {
-            await storage.updateWorkOrder(jobCard.workOrderId, { status: "WARRANTY_REGISTRATION" });
-          } catch (woErr) {
-            console.warn("WO status sync to WARRANTY_REGISTRATION skipped:", (woErr as any)?.message);
-          }
+          await syncWorkOrderStatus(jobCard.workOrderId, p91NextStatus);
 
           return res.json({ ...p91UpdatedJobCard, warranty: result.warranty });
         }
@@ -5622,27 +5645,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
 
-        // ---- STEK / other brands: existing behaviour (unchanged) ----
-        // Update job card with e-warranty applied and change status
+        // ---- STEK / other brands: existing behaviour ----
+        // If payment was already settled, warranty is the last step — close it.
+        const stekNextStatus = jobCard.paymentSettledAt ? 'CLOSED' : 'WARRANTY_REGISTRATION';
         const updatedJobCard = await storage.updateJobCard(jobCardId, {
           eWarrantyApplied: true,
           eWarrantyAppliedAt: new Date(),
-          status: 'WARRANTY_REGISTRATION'
+          status: stekNextStatus
         });
 
         if (!updatedJobCard) {
           return res.status(500).json({ error: "Failed to apply e-warranty" });
         }
 
-        // Best-effort WO status mirror (work_order_status enum lacks
-        // WARRANTY_REGISTRATION — tolerate failure so we don't 500).
-        try {
-          await storage.updateWorkOrder(jobCard.workOrderId, {
-            status: 'WARRANTY_REGISTRATION'
-          });
-        } catch (woErr) {
-          console.warn("WO status sync to WARRANTY_REGISTRATION skipped:", (woErr as any)?.message);
-        }
+        await syncWorkOrderStatus(jobCard.workOrderId, stekNextStatus);
 
         // Send e-warranty notification emails asynchronously
         setImmediate(async () => {
