@@ -5596,7 +5596,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             eWarrantyAppliedAt: new Date(),
             status: "WARRANTY_REGISTRATION",
           });
-          await storage.updateWorkOrder(jobCard.workOrderId, { status: "WARRANTY_REGISTRATION" });
+          // Best-effort WO status mirror. work_order_status has no
+          // WARRANTY_REGISTRATION value, so tolerate the failure instead of
+          // 500-ing an already-successful registration.
+          try {
+            await storage.updateWorkOrder(jobCard.workOrderId, { status: "WARRANTY_REGISTRATION" });
+          } catch (woErr) {
+            console.warn("WO status sync to WARRANTY_REGISTRATION skipped:", (woErr as any)?.message);
+          }
 
           return res.json({ ...p91UpdatedJobCard, warranty: result.warranty });
         }
@@ -5613,10 +5620,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(500).json({ error: "Failed to apply e-warranty" });
         }
 
-        // Sync work order status to match job card status
-        await storage.updateWorkOrder(jobCard.workOrderId, {
-          status: 'WARRANTY_REGISTRATION'
-        });
+        // Best-effort WO status mirror (work_order_status enum lacks
+        // WARRANTY_REGISTRATION — tolerate failure so we don't 500).
+        try {
+          await storage.updateWorkOrder(jobCard.workOrderId, {
+            status: 'WARRANTY_REGISTRATION'
+          });
+        } catch (woErr) {
+          console.warn("WO status sync to WARRANTY_REGISTRATION skipped:", (woErr as any)?.message);
+        }
 
         // Send e-warranty notification emails asynchronously
         setImmediate(async () => {
