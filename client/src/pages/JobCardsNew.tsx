@@ -230,6 +230,11 @@ export default function JobCardsNew() {
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [showSettlePaymentModal, setShowSettlePaymentModal] = useState(false);
+  // P91 e-warranty review dialog (batch/VIN/quantity confirmation before exchange)
+  const [warrantyDialogOpen, setWarrantyDialogOpen] = useState(false);
+  const [warrantyBatch, setWarrantyBatch] = useState('');
+  const [warrantyQuantity, setWarrantyQuantity] = useState('');
+  const [warrantyVin, setWarrantyVin] = useState('');
   const [showApplyWarrantyModal, setShowApplyWarrantyModal] = useState(false);
   const [showViewPreInstallationModal, setShowViewPreInstallationModal] = useState(false);
   // Admin-only safe edit of customer / work-order fields
@@ -1086,12 +1091,15 @@ export default function JobCardsNew() {
   });
 
   const requestEWarrantyMutation = useMutation({
-    mutationFn: async (jobCardId: string) => {
-      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/request-e-warranty`);
+    mutationFn: async (vars: { jobCardId: string; vin?: string; lotNumbers?: Array<{ lotNumber: string; quantity: number }> }) => {
+      const { jobCardId, ...payload } = vars;
+      const hasPayload = payload.vin != null || (payload.lotNumbers && payload.lotNumbers.length > 0);
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/request-e-warranty`, hasPayload ? payload : undefined);
       return response.json();
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      setWarrantyDialogOpen(false);
       toast({
         title: "E-Warranty Requested",
         description: data?.warranty?.code
@@ -1107,6 +1115,30 @@ export default function JobCardsNew() {
       });
     }
   });
+
+  // P91 flow: open the review dialog pre-filled from the job card. STEK stays one-click.
+  const openWarrantyDialog = () => {
+    const reg = (detailedJobCard?.workOrder?.regNo || '').trim();
+    setWarrantyVin(reg === '-' ? '' : reg);
+    setWarrantyBatch(detailedJobCard?.batchNumbers || '');
+    const consumption = (detailedJobCard?.materialConsumptionJson as any) || {};
+    const qty = consumption.plannedQuantity ?? consumption.quantity ?? consumption.quantityUsed ?? '';
+    setWarrantyQuantity(qty === '' ? '' : String(qty));
+    setWarrantyDialogOpen(true);
+  };
+  const submitP91Warranty = () => {
+    if (!detailedJobCard?.id) return;
+    const lotNumbers = warrantyBatch
+      .split(/[,\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((lotNumber) => ({ lotNumber, quantity: Number(warrantyQuantity) || 0 }));
+    if (lotNumbers.length === 0) {
+      toast({ title: 'Batch number required', description: 'Enter at least one batch number.', variant: 'destructive' });
+      return;
+    }
+    requestEWarrantyMutation.mutate({ jobCardId: detailedJobCard.id, vin: warrantyVin.trim() || undefined, lotNumbers });
+  };
 
   // Admin-only: edit the safe (non-cascading) customer / work-order fields shown on the detail.
   const canEditDetails = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
@@ -3303,8 +3335,10 @@ export default function JobCardsNew() {
                               <Button
                                 size="sm"
                                 onClick={() => {
-                                  if (detailedJobCard?.id) {
-                                    requestEWarrantyMutation.mutate(detailedJobCard.id);
+                                  if ((detailedJobCard as any).isP91Warranty) {
+                                    openWarrantyDialog();
+                                  } else if (detailedJobCard?.id) {
+                                    requestEWarrantyMutation.mutate({ jobCardId: detailedJobCard.id });
                                   }
                                 }}
                                 disabled={requestEWarrantyMutation.isPending}
@@ -3318,7 +3352,13 @@ export default function JobCardsNew() {
                             detailedJobCard.status === 'INVOICE_RAISED' && (
                               <Button
                                 size="sm"
-                                onClick={() => setShowApplyWarrantyModal(true)}
+                                onClick={() => {
+                                  if ((detailedJobCard as any).isP91Warranty) {
+                                    openWarrantyDialog();
+                                  } else {
+                                    setShowApplyWarrantyModal(true);
+                                  }
+                                }}
                                 className="bg-blue-600 hover:bg-blue-700"
                                 data-testid="button-apply-warranty"
                               >
@@ -3887,6 +3927,108 @@ export default function JobCardsNew() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* P91 E-Warranty review + exchange dialog (partner-billed / settlement path) */}
+      {detailedJobCard && (
+        <Dialog open={warrantyDialogOpen} onOpenChange={setWarrantyDialogOpen}>
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-amber-600" />
+                Register P91 E-Warranty
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-1 text-sm">
+              <p className="text-muted-foreground">
+                Review the details below that will be exchanged with P91 Elite, then click Exchange Data.
+              </p>
+
+              <div className="rounded-lg border p-3 space-y-1.5">
+                <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Installer &amp; Showroom</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <div><span className="text-muted-foreground">Installer:</span> {detailedJobCard?.assignedInstaller?.name || detailedJobCard?.assignedInstaller?.displayName || '—'}</div>
+                  <div><span className="text-muted-foreground">Mobile:</span> {detailedJobCard?.assignedInstaller?.phone || '—'}</div>
+                  <div><span className="text-muted-foreground">Showroom:</span> {detailedJobCard?.workOrder?.showroom?.name || '—'}</div>
+                  <div><span className="text-muted-foreground">Email:</span> {detailedJobCard?.workOrder?.showroom?.email || '—'}</div>
+                  <div className="col-span-2"><span className="text-muted-foreground">Location:</span> {[detailedJobCard?.workOrder?.showroom?.address, detailedJobCard?.workOrder?.showroom?.city, detailedJobCard?.workOrder?.showroom?.state].filter(Boolean).join(', ') || '—'}</div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-3 space-y-1.5">
+                <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Customer</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <div><span className="text-muted-foreground">Name:</span> {detailedJobCard?.workOrder?.customerName || '—'}</div>
+                  <div><span className="text-muted-foreground">Mobile:</span> {detailedJobCard?.workOrder?.customerPhone || 'HNI / not shared'}</div>
+                  <div><span className="text-muted-foreground">Email:</span> {detailedJobCard?.workOrder?.customerEmail || 'HNI / not shared'}</div>
+                  <div><span className="text-muted-foreground">Address:</span> {detailedJobCard?.workOrder?.customerAddress || 'HNI / not shared'}</div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-3 space-y-1.5">
+                <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Vehicle &amp; Product</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <div><span className="text-muted-foreground">Make:</span> {detailedJobCard?.workOrder?.vehicleModel?.brand?.name || '—'}</div>
+                  <div><span className="text-muted-foreground">Model:</span> {detailedJobCard?.workOrder?.vehicleModel?.modelName || '—'}</div>
+                  <div><span className="text-muted-foreground">Product:</span> {detailedJobCard?.workOrder?.service?.name || 'Full Car PPF'}</div>
+                  <div><span className="text-muted-foreground">Install date:</span> {detailedJobCard?.completedAt ? format(new Date(detailedJobCard.completedAt), 'dd MMM yyyy') : '—'}</div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-3 space-y-3">
+                <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Batch &amp; Warranty</p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="jc-warranty-batch">Batch number(s)</Label>
+                  <Textarea
+                    id="jc-warranty-batch"
+                    value={warrantyBatch}
+                    onChange={(e) => setWarrantyBatch(e.target.value)}
+                    placeholder="Batch number(s), comma or newline separated"
+                    rows={2}
+                    data-testid="input-warranty-batch"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="jc-warranty-qty">Quantity (sq.ft)</Label>
+                    <Input
+                      id="jc-warranty-qty"
+                      type="number"
+                      value={warrantyQuantity}
+                      onChange={(e) => setWarrantyQuantity(e.target.value)}
+                      placeholder="e.g. 150"
+                      data-testid="input-warranty-quantity"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="jc-warranty-vin">VIN / Reg no.</Label>
+                    <Input
+                      id="jc-warranty-vin"
+                      value={warrantyVin}
+                      onChange={(e) => setWarrantyVin(e.target.value)}
+                      placeholder="VIN / registration"
+                      data-testid="input-warranty-vin"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">VIN is saved back to the work order if it was missing.</p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setWarrantyDialogOpen(false)} disabled={requestEWarrantyMutation.isPending}>
+                Cancel
+              </Button>
+              <Button
+                onClick={submitP91Warranty}
+                disabled={requestEWarrantyMutation.isPending}
+                className="bg-amber-600 hover:bg-amber-700"
+                data-testid="button-exchange-data"
+              >
+                {requestEWarrantyMutation.isPending ? 'Exchanging…' : 'Exchange Data'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Apply Warranty Modal */}
       <Dialog open={showApplyWarrantyModal} onOpenChange={setShowApplyWarrantyModal}>

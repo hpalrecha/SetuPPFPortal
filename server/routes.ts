@@ -5469,12 +5469,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
 
-        if (!jobCard.partnerBilledDirectly) {
-          return res.status(400).json({ 
-            error: "E-Warranty application is only available when partner bills customer directly" 
-          });
-        }
-
         if (jobCard.eWarrantyApplied) {
           return res.status(400).json({
             error: "E-Warranty has already been applied for this job card"
@@ -5606,6 +5600,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           return res.json({ ...p91UpdatedJobCard, warranty: result.warranty });
+        }
+
+        // STEK e-warranty is only offered on partner-billed jobs (legacy behaviour).
+        // The P91 cross-app flow above works regardless of billing type.
+        if (!jobCard.partnerBilledDirectly) {
+          return res.status(400).json({
+            error: "E-Warranty application is only available when partner bills customer directly"
+          });
         }
 
         // ---- STEK / other brands: existing behaviour (unchanged) ----
