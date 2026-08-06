@@ -1355,8 +1355,11 @@ export default function JobCardsNew() {
     }
   });
 
-  // Check if user is admin
-  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'OEM_ADMIN' || user?.role === 'SHOWROOM_MANAGER' || user?.role === 'DEALERSHIP_ADMIN';
+  // Check if user is admin. Must include ADMIN/MANAGER — the server-side
+  // settle-payment endpoint has no role restriction, so gating this narrower
+  // on the client hid the Settlement Actions section from ADMIN-role users
+  // on any job card whose work order wasn't created by a PARTNER_ADMIN.
+  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'OEM_ADMIN' || user?.role === 'SHOWROOM_MANAGER' || user?.role === 'DEALERSHIP_ADMIN';
   console.log('User role:', user?.role, 'isAdmin:', isAdmin);
 
   const getStatusBadge = (status: string) => {
