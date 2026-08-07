@@ -239,6 +239,8 @@ export interface IStorage {
   // Job Card Media management
   insertJobCardMedia(media: { jobCardId: string; type: string; url: string; caption?: string }): Promise<any>;
   getJobCardMedia(filters: { jobCardId: string }): Promise<any[]>;
+  getJobCardMediaById(id: string): Promise<any | undefined>;
+  updateJobCardMedia(id: string, updates: { url: string }): Promise<any | undefined>;
 
   // Approval management  
   createApproval(approval: { jobCardId: string; approverUserId: string; status: string; remarks?: string }): Promise<any>;
@@ -2004,6 +2006,23 @@ export class DatabaseStorage implements IStorage {
       .where(eq(jobCardMedia.jobCardId, filters.jobCardId))
       .orderBy(jobCardMedia.createdAt);
     return media;
+  }
+
+  async getJobCardMediaById(id: string): Promise<any | undefined> {
+    const [media] = await db
+      .select()
+      .from(jobCardMedia)
+      .where(eq(jobCardMedia.id, id));
+    return media || undefined;
+  }
+
+  async updateJobCardMedia(id: string, updates: { url: string }): Promise<any | undefined> {
+    const [media] = await db
+      .update(jobCardMedia)
+      .set({ url: updates.url })
+      .where(eq(jobCardMedia.id, id))
+      .returning();
+    return media || undefined;
   }
 
   // ====================== Approval Management ======================

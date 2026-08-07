@@ -5178,6 +5178,192 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Replace a single pre-installation angle photo after the fact. These photos
+  // have no delete/undo — replacing the file in place is the only correction path.
+  const PRE_INSTALLATION_ANGLE_FIELDS: Record<string, string> = {
+    front: 'preInstallationPhotoFront',
+    back: 'preInstallationPhotoBack',
+    left: 'preInstallationPhotoLeft',
+    right: 'preInstallationPhotoRight',
+  };
+
+  app.patch("/api/job-cards/:id/pre-installation/:angle",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'PARTNER_ADMIN', 'DETAILING_PARTNER']),
+    auditLog('job_card_photo', 'replace_pre_installation'),
+    async (req, res) => {
+      try {
+        const angleField = PRE_INSTALLATION_ANGLE_FIELDS[req.params.angle];
+        if (!angleField) {
+          return res.status(400).json({ error: "Angle must be one of: front, back, left, right" });
+        }
+
+        const { url } = req.body;
+        if (!url || typeof url !== 'string') {
+          return res.status(400).json({ error: "url is required" });
+        }
+
+        const jobCard = await storage.getJobCard(req.params.id);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        if (['PARTNER_ADMIN', 'DETAILING_PARTNER'].includes(req.user!.role)) {
+          if (!userPartnerIds(req.user!).includes(jobCard.partnerId)) {
+            return res.status(403).json({ error: "Access denied - job card belongs to a different partner" });
+          }
+        }
+
+        const objectStorageService = new ObjectStorageService();
+        let normalizedUrl: string;
+        try {
+          normalizedUrl = await objectStorageService.trySetObjectEntityAclPolicy(
+            url,
+            { visibility: "public", owner: req.user!.id }
+          );
+        } catch (e) {
+          if (e instanceof ObjectNotFoundError) {
+            return res.status(400).json({ error: "Uploaded photo could not be found in storage" });
+          }
+          throw e;
+        }
+
+        const updates: any = { [angleField]: normalizedUrl };
+        const updatedJobCard = await storage.updateJobCard(req.params.id, updates);
+        if (!updatedJobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        res.json(updatedJobCard);
+      } catch (error) {
+        console.error("Replace pre-installation photo error:", error);
+        res.status(500).json({ error: "Failed to replace pre-installation photo" });
+      }
+    }
+  );
+
+  app.patch("/api/job-cards/:id/media/:mediaId",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'PARTNER_ADMIN', 'DETAILING_PARTNER']),
+    auditLog('job_card_media', 'replace'),
+    async (req, res) => {
+      try {
+        const { url } = req.body;
+        if (!url || typeof url !== 'string') {
+          return res.status(400).json({ error: "url is required" });
+        }
+
+        const jobCard = await storage.getJobCard(req.params.id);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        if (['PARTNER_ADMIN', 'DETAILING_PARTNER'].includes(req.user!.role)) {
+          if (!userPartnerIds(req.user!).includes(jobCard.partnerId)) {
+            return res.status(403).json({ error: "Access denied - job card belongs to a different partner" });
+          }
+        }
+
+        const media = await storage.getJobCardMediaById(req.params.mediaId);
+        if (!media || media.jobCardId !== req.params.id) {
+          return res.status(404).json({ error: "Media not found on this job card" });
+        }
+
+        if (media.type === 'VIDEO') {
+          return res.status(400).json({ error: "Video items cannot be replaced through this endpoint" });
+        }
+
+        const objectStorageService = new ObjectStorageService();
+        let normalizedUrl: string;
+        try {
+          normalizedUrl = await objectStorageService.trySetObjectEntityAclPolicy(
+            url,
+            { visibility: "public", owner: req.user!.id }
+          );
+        } catch (e) {
+          if (e instanceof ObjectNotFoundError) {
+            return res.status(400).json({ error: "Uploaded photo could not be found in storage" });
+          }
+          throw e;
+        }
+
+        const updatedMedia = await storage.updateJobCardMedia(req.params.mediaId, { url: normalizedUrl });
+        if (!updatedMedia) {
+          return res.status(404).json({ error: "Media not found" });
+        }
+
+        res.json(updatedMedia);
+      } catch (error) {
+        console.error("Replace job card media error:", error);
+        res.status(500).json({ error: "Failed to replace media" });
+      }
+    }
+  );
+
+  app.patch("/api/job-cards/:id/rework/:photoIndex",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'PARTNER_ADMIN', 'DETAILING_PARTNER']),
+    auditLog('job_card_rework_photo', 'replace'),
+    async (req, res) => {
+      try {
+        const photoIndex = Number(req.params.photoIndex);
+        if (!Number.isInteger(photoIndex) || photoIndex < 0) {
+          return res.status(400).json({ error: "photoIndex must be a non-negative integer" });
+        }
+
+        const { url } = req.body;
+        if (!url || typeof url !== 'string') {
+          return res.status(400).json({ error: "url is required" });
+        }
+
+        const jobCard = await storage.getJobCard(req.params.id);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        if (['PARTNER_ADMIN', 'DETAILING_PARTNER'].includes(req.user!.role)) {
+          if (!userPartnerIds(req.user!).includes(jobCard.partnerId)) {
+            return res.status(403).json({ error: "Access denied - job card belongs to a different partner" });
+          }
+        }
+
+        const reworkDetails: any = jobCard.reworkDetailsJson || {};
+        const photos: string[] = Array.isArray(reworkDetails.photos) ? reworkDetails.photos : [];
+        if (photoIndex >= photos.length) {
+          return res.status(404).json({ error: "Rework photo not found at that index" });
+        }
+
+        const objectStorageService = new ObjectStorageService();
+        let normalizedUrl: string;
+        try {
+          normalizedUrl = await objectStorageService.trySetObjectEntityAclPolicy(
+            url,
+            { visibility: "public", owner: req.user!.id }
+          );
+        } catch (e) {
+          if (e instanceof ObjectNotFoundError) {
+            return res.status(400).json({ error: "Uploaded photo could not be found in storage" });
+          }
+          throw e;
+        }
+
+        const updatedPhotos = [...photos];
+        updatedPhotos[photoIndex] = normalizedUrl;
+
+        const updates: any = { reworkDetailsJson: { ...reworkDetails, photos: updatedPhotos } };
+        const updatedJobCard = await storage.updateJobCard(req.params.id, updates);
+        if (!updatedJobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        res.json(updatedJobCard);
+      } catch (error) {
+        console.error("Replace rework photo error:", error);
+        res.status(500).json({ error: "Failed to replace rework photo" });
+      }
+    }
+  );
+
   // Job Card Actions
   app.post("/api/job-cards/:id/acknowledge", authenticate, async (req, res) => {
     try {

@@ -1389,6 +1389,79 @@ export default function JobCardsNew() {
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'OEM_ADMIN' || user?.role === 'SHOWROOM_MANAGER' || user?.role === 'DEALERSHIP_ADMIN';
   console.log('User role:', user?.role, 'isAdmin:', isAdmin);
 
+  // Photo replace: SUPER_ADMIN/ADMIN can replace on any job card; PARTNER_ADMIN/
+  // DETAILING_PARTNER only on their own partner's job card. The server re-checks
+  // this independently (userPartnerIds) — this flag only controls whether the
+  // pencil icon renders.
+  const canEditJobCardPhotos = !!detailedJobCard && !!user && (
+    user.role === 'SUPER_ADMIN' ||
+    user.role === 'ADMIN' ||
+    ((user.role === 'PARTNER_ADMIN' || user.role === 'DETAILING_PARTNER') && detailedJobCard.partnerId === user.partnerId)
+  );
+
+  const [replacingPhotoKey, setReplacingPhotoKey] = useState<string | null>(null);
+
+  const replacePhotoMutation = useMutation({
+    mutationFn: async ({ file, patchPath }: { file: File; patchPath: string }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const uploadResponse = await apiRequest('POST', '/api/objects/upload-file', formData);
+      const { url } = await uploadResponse.json();
+      if (!url) throw new Error('Upload did not return a URL');
+      const patchResponse = await apiRequest('PATCH', patchPath, { url });
+      return patchResponse.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards', selectedJobCardId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      toast({ title: "Photo Replaced", description: "The photo was updated successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Replace Failed", description: error.message || "Failed to replace photo. Please try again.", variant: "destructive" });
+    },
+    onSettled: () => {
+      setReplacingPhotoKey(null);
+    }
+  });
+
+  const handlePhotoReplaceSelect = (patchPath: string, key: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setReplacingPhotoKey(key);
+    replacePhotoMutation.mutate({ file, patchPath });
+  };
+
+  const PhotoReplaceButton = ({ patchPath, photoKey }: { patchPath: string; photoKey: string }) => (
+    <>
+      <input
+        type="file"
+        accept="image/*"
+        className="hidden"
+        id={`replace-input-${photoKey}`}
+        onChange={handlePhotoReplaceSelect(patchPath, photoKey)}
+        data-testid={`input-replace-${photoKey}`}
+      />
+      <button
+        type="button"
+        className="absolute top-1 right-1 bg-black/70 hover:bg-black/90 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          document.getElementById(`replace-input-${photoKey}`)?.click();
+        }}
+        disabled={replacePhotoMutation.isPending && replacingPhotoKey === photoKey}
+        data-testid={`button-replace-${photoKey}`}
+      >
+        {replacePhotoMutation.isPending && replacingPhotoKey === photoKey ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Pencil className="h-3.5 w-3.5" />
+        )}
+      </button>
+    </>
+  );
+
   const getStatusBadge = (status: string) => {
     const StatusIcon = STATUS_ICONS[status as keyof typeof STATUS_ICONS] || Clock;
     return (
@@ -2617,7 +2690,15 @@ export default function JobCardsNew() {
                       {detailedJobCard.reworkDetailsJson.photos?.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-1">
                           {detailedJobCard.reworkDetailsJson.photos.map((url: string, i: number) => (
-                            <img key={i} src={url} alt={`rework ${i + 1}`} className="h-16 w-16 object-cover rounded border cursor-pointer" onClick={() => window.open(url, '_blank')} />
+                            <div key={i} className="relative group">
+                              <img src={url} alt={`rework ${i + 1}`} className="h-16 w-16 object-cover rounded border cursor-pointer" onClick={() => window.open(url, '_blank')} />
+                              {canEditJobCardPhotos && (
+                                <PhotoReplaceButton
+                                  patchPath={`/api/job-cards/${detailedJobCard.id}/rework/${i}`}
+                                  photoKey={`rework-${i}`}
+                                />
+                              )}
+                            </div>
                           ))}
                         </div>
                       )}
@@ -3138,6 +3219,7 @@ export default function JobCardsNew() {
                         {detailedJobCard.preInstallationPhotos.map((mediaItem: any, index: number) => {
                           const imageUrl = mediaItem.url;
                           const imageName = mediaItem.caption || ['Front', 'Back', 'Left Side', 'Right Side'][index] || `Image ${index + 1}`;
+                          const angle = ['front', 'back', 'left', 'right'][index];
                           return (
                             <div key={index} className="relative group">
                               <img
@@ -3158,6 +3240,12 @@ export default function JobCardsNew() {
                               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                                 <Eye className="h-6 w-6 text-white drop-shadow-lg" />
                               </div>
+                              {canEditJobCardPhotos && angle && (
+                                <PhotoReplaceButton
+                                  patchPath={`/api/job-cards/${detailedJobCard.id}/pre-installation/${angle}`}
+                                  photoKey={`preinstall-${index}`}
+                                />
+                              )}
                             </div>
                           );
                         })}
@@ -3203,6 +3291,12 @@ export default function JobCardsNew() {
                               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                                 <Eye className="h-6 w-6 text-white drop-shadow-lg" />
                               </div>
+                              {canEditJobCardPhotos && mediaItem.type !== 'VIDEO' && (
+                                <PhotoReplaceButton
+                                  patchPath={`/api/job-cards/${detailedJobCard.id}/media/${mediaItem.id}`}
+                                  photoKey={`media-${mediaItem.id}`}
+                                />
+                              )}
                             </div>
                           );
                         })}
