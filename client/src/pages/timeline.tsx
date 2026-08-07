@@ -15,7 +15,8 @@ import { formatDistanceToNow } from "date-fns";
 const fmtDateTime = (d?: string | null) =>
   d ? new Date(d).toLocaleString(undefined, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
-const STATUS_OPTIONS = ['PENDING', 'DRAFT', 'SUBMITTED', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED_PENDING_APPROVAL', 'APPROVED', 'CLOSED', 'CANCELLED', 'REWORK_REQUESTED'];
+// Job card statuses (jobCardStatusEnum) — the list's Status column shows the active job card's status.
+const STATUS_OPTIONS = ['AWAITING_ACK', 'ACKNOWLEDGED', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'PENDING_APPROVAL', 'APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'REWORK_PERMISSION_REQUESTED', 'REWORK_REQUESTED', 'CLOSED', 'NO_SHOW', 'CANCELLED_BY_CUSTOMER', 'CANCELLED', 'PARTS_PENDING', 'RESCHEDULED'];
 
 const CHANNEL_LABEL: Record<string, string> = {
   EMAIL: 'Email',
@@ -128,7 +129,7 @@ export default function TimelinePage() {
 
   const filtered = useMemo(() => {
     return workOrders.filter((wo) => {
-      if (status !== 'all' && wo.status !== status) return false;
+      if (status !== 'all' && wo.jobCardStatus !== status) return false;
       if (showroom !== 'all' && wo.showroomName !== showroom) return false;
       if (search) {
         const term = search.toLowerCase();
@@ -203,7 +204,7 @@ export default function TimelinePage() {
                 <TableHead>Reg No</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Showroom</TableHead>
-                <TableHead>WO Status</TableHead>
+                <TableHead>Job Card</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
@@ -221,7 +222,7 @@ export default function TimelinePage() {
                     <div className="text-xs text-muted-foreground">{wo.customerPhone || '—'}</div>
                   </TableCell>
                   <TableCell className="text-sm">{wo.showroomName || <span className="text-muted-foreground">—</span>}</TableCell>
-                  <TableCell><Badge variant="outline">{wo.status}</Badge></TableCell>
+                  <TableCell>{wo.jobCardStatus ? <Badge variant="outline">{wo.jobCardStatus.replace(/_/g, ' ')}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{fmtDateTime(wo.createdAt)}</TableCell>
                   <TableCell>
                     <Button

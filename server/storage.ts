@@ -1539,6 +1539,25 @@ export class DatabaseStorage implements IStorage {
     const showroomMap = new Map(showroomRows.map(s => [s.id, s.name]));
     const dealershipMap = new Map(dealershipRows.map(d => [d.id, d.name]));
 
+    // Attach the latest job card's status per work order (the "active" card — for a
+    // rework chain this is the most recently created card). One batched IN query,
+    // not an N+1. Used by list views (e.g. Timeline) that show job-card status.
+    const woIds = workOrderResults.map(w => w.id);
+    const jcStatusRows = woIds.length
+      ? await db.select({ workOrderId: jobCards.workOrderId, status: jobCards.status, createdAt: jobCards.createdAt })
+          .from(jobCards)
+          .where(inArray(jobCards.workOrderId, woIds))
+      : [];
+    const latestJcStatusByWo = new Map<string, { status: string | null; createdAt: Date | null }>();
+    for (const jc of jcStatusRows) {
+      const cur = latestJcStatusByWo.get(jc.workOrderId);
+      const jcTime = jc.createdAt ? new Date(jc.createdAt).getTime() : 0;
+      const curTime = cur?.createdAt ? new Date(cur.createdAt).getTime() : -1;
+      if (!cur || jcTime > curTime) {
+        latestJcStatusByWo.set(jc.workOrderId, { status: jc.status, createdAt: jc.createdAt });
+      }
+    }
+
     const enrichedWorkOrders = workOrderResults.map(wo => {
       const enriched: any = { ...wo };
       enriched.oemName = wo.oemId ? (oemNameMap.get(wo.oemId) || null) : null;
@@ -1546,6 +1565,7 @@ export class DatabaseStorage implements IStorage {
       enriched.serviceName = wo.serviceId ? (svcMap.get(wo.serviceId) || null) : null;
       enriched.showroomName = wo.showroomId ? (showroomMap.get(wo.showroomId) || null) : null;
       enriched.dealershipName = wo.dealershipId ? (dealershipMap.get(wo.dealershipId) || null) : null;
+      enriched.jobCardStatus = latestJcStatusByWo.get(wo.id)?.status ?? null;
       const p = wo.assignedPartnerId ? partnerMap.get(wo.assignedPartnerId) : undefined;
       if (p) {
         enriched.assignedPartner = { id: p.id, displayName: p.displayName };
