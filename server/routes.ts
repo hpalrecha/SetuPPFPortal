@@ -5564,6 +5564,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               errorCode: "BATCH_REQUIRED",
             });
           }
+          const zeroQtyBatches = lotNumbers.filter((l) => l.quantity <= 0).map((l) => l.lotNumber);
+          if (zeroQtyBatches.length > 0) {
+            return res.status(400).json({
+              error: `Quantity must be greater than 0 for: ${zeroQtyBatches.join(", ")}`,
+              errorCode: "QUANTITY_REQUIRED",
+            });
+          }
 
           // Owner (P91 Elite detailer_id) = the partner's primary account, so ALL
           // of a partner's warranties surface under one P91 Elite dashboard.

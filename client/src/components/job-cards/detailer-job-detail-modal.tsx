@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { CalendarIcon, ClockIcon, CheckCircle2, PlayCircle, PauseCircle, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon, Users, Camera, Eye, Shield } from 'lucide-react';
+import { CalendarIcon, ClockIcon, CheckCircle2, PlayCircle, PauseCircle, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon, Users, Camera, Eye, Shield, Plus, Trash2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiRequest } from '@/lib/queryClient';
 import { processImage } from '@/lib/imageProcessing';
@@ -127,11 +127,13 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const [materialQuantityUsed, setMaterialQuantityUsed] = useState('');
   const [batchNumberImage, setBatchNumberImage] = useState<string | null>(null);
   const [batchNumberImageUploading, setBatchNumberImageUploading] = useState(false);
-  // P91 e-warranty dialog (collects batch/VIN/qty before registering with P91 Elite)
+  // P91 e-warranty dialog (collects batch/VIN/qty before registering with P91 Elite).
+  // Rolls are a repeatable {lotNumber, quantity} list — a job can use material from
+  // more than one batch/roll (e.g. topped up from another stock), each with its own
+  // quantity used, so this isn't a single shared quantity across all batch numbers.
   const [warrantyDialogOpen, setWarrantyDialogOpen] = useState(false);
   const [warrantyVin, setWarrantyVin] = useState('');
-  const [warrantyBatch, setWarrantyBatch] = useState('');
-  const [warrantyQuantity, setWarrantyQuantity] = useState('');
+  const [warrantyRolls, setWarrantyRolls] = useState<Array<{ lotNumber: string; quantity: string }>>([{ lotNumber: '', quantity: '' }]);
 
   // No JSON validation needed for form fields
 
@@ -317,28 +319,46 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     }
   });
 
-  // Open the P91 dialog with values pre-filled from the job card.
+  // Open the P91 dialog with values pre-filled from the job card (single roll).
+  // "Add Roll" below lets the user add extra batch/quantity pairs for material
+  // used from another roll/stock beyond what the job card itself captured.
   const openWarrantyDialog = () => {
     const reg = (jobCard?.workOrder?.regNo || '').trim();
     setWarrantyVin(reg === '-' ? '' : reg);
-    setWarrantyBatch(jobCard?.batchNumbers || '');
     const consumption = (jobCard?.materialConsumptionJson as any) || {};
     const qty = consumption.plannedQuantity ?? consumption.quantity ?? consumption.quantityUsed ?? '';
-    setWarrantyQuantity(qty === '' ? '' : String(qty));
+    setWarrantyRolls([{ lotNumber: jobCard?.batchNumbers || '', quantity: qty === '' ? '' : String(qty) }]);
     setWarrantyDialogOpen(true);
   };
 
-  // Submit the P91 dialog: split batch numbers, attach quantity, include VIN if given.
+  const addWarrantyRoll = () => setWarrantyRolls((rolls) => [...rolls, { lotNumber: '', quantity: '' }]);
+  const removeWarrantyRoll = (index: number) =>
+    setWarrantyRolls((rolls) => (rolls.length > 1 ? rolls.filter((_, i) => i !== index) : rolls));
+  const updateWarrantyRoll = (index: number, field: 'lotNumber' | 'quantity', value: string) =>
+    setWarrantyRolls((rolls) => rolls.map((r, i) => (i === index ? { ...r, [field]: value } : r)));
+
+  // Submit the P91 dialog: every roll needs a batch number AND a quantity > 0.
   const submitP91Warranty = () => {
-    const lotNumbers = warrantyBatch
-      .split(/[,\n]/)
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((lotNumber) => ({ lotNumber, quantity: Number(warrantyQuantity) || 0 }));
-    if (lotNumbers.length === 0) {
+    const rows = warrantyRolls.filter((r) => r.lotNumber.trim() || r.quantity.trim());
+    if (rows.length === 0) {
       toast({ title: 'Batch number required', description: 'Enter at least one batch number.', variant: 'destructive' });
       return;
     }
+    const missingBatch = rows.some((r) => !r.lotNumber.trim());
+    if (missingBatch) {
+      toast({ title: 'Batch number required', description: 'Every roll needs a batch number.', variant: 'destructive' });
+      return;
+    }
+    const zeroQty = rows.filter((r) => !(Number(r.quantity) > 0)).map((r) => r.lotNumber.trim());
+    if (zeroQty.length > 0) {
+      toast({
+        title: 'Quantity required',
+        description: `Quantity must be greater than 0 for: ${zeroQty.join(', ')}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    const lotNumbers = rows.map((r) => ({ lotNumber: r.lotNumber.trim(), quantity: Number(r.quantity) }));
     applyWarrantyMutation.mutate({ vin: warrantyVin.trim() || undefined, lotNumbers });
   };
 
@@ -1296,42 +1316,61 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
               </div>
             </div>
 
-            {/* Batch & warranty — pre-filled, editable in case of correction */}
+            {/* Batch & warranty — one row per roll. Add a roll if material was also
+                used from another batch/stock beyond what the job card captured. */}
             <div className="rounded-lg border p-3 space-y-3">
-              <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Batch &amp; Warranty</p>
-              <div className="space-y-1.5">
-                <Label htmlFor="warranty-batch">Batch number(s)</Label>
-                <Textarea
-                  id="warranty-batch"
-                  value={warrantyBatch}
-                  onChange={(e) => setWarrantyBatch(e.target.value)}
-                  placeholder="Batch number(s), comma or newline separated"
-                  rows={2}
-                  data-testid="input-warranty-batch"
-                />
+              <div className="flex items-center justify-between">
+                <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Batch &amp; Warranty</p>
+                <Button type="button" size="sm" variant="outline" onClick={addWarrantyRoll} data-testid="button-add-roll">
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Add Roll
+                </Button>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="warranty-qty">Quantity (sq.ft)</Label>
-                  <Input
-                    id="warranty-qty"
-                    type="number"
-                    value={warrantyQuantity}
-                    onChange={(e) => setWarrantyQuantity(e.target.value)}
-                    placeholder="e.g. 150"
-                    data-testid="input-warranty-quantity"
-                  />
+              {warrantyRolls.map((roll, index) => (
+                <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                  <div className="space-y-1.5">
+                    {index === 0 && <Label htmlFor={`warranty-batch-${index}`}>Batch number</Label>}
+                    <Input
+                      id={`warranty-batch-${index}`}
+                      value={roll.lotNumber}
+                      onChange={(e) => updateWarrantyRoll(index, 'lotNumber', e.target.value)}
+                      placeholder="Batch number"
+                      data-testid={`input-warranty-batch-${index}`}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    {index === 0 && <Label htmlFor={`warranty-qty-${index}`}>Quantity (sq.ft)</Label>}
+                    <Input
+                      id={`warranty-qty-${index}`}
+                      type="number"
+                      min="0"
+                      value={roll.quantity}
+                      onChange={(e) => updateWarrantyRoll(index, 'quantity', e.target.value)}
+                      placeholder="e.g. 150"
+                      data-testid={`input-warranty-quantity-${index}`}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => removeWarrantyRoll(index)}
+                    disabled={warrantyRolls.length === 1}
+                    data-testid={`button-remove-roll-${index}`}
+                  >
+                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                  </Button>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="warranty-vin">VIN / Reg no.</Label>
-                  <Input
-                    id="warranty-vin"
-                    value={warrantyVin}
-                    onChange={(e) => setWarrantyVin(e.target.value)}
-                    placeholder="VIN / registration"
-                    data-testid="input-warranty-vin"
-                  />
-                </div>
+              ))}
+              <div className="space-y-1.5">
+                <Label htmlFor="warranty-vin">VIN / Reg no.</Label>
+                <Input
+                  id="warranty-vin"
+                  value={warrantyVin}
+                  onChange={(e) => setWarrantyVin(e.target.value)}
+                  placeholder="VIN / registration"
+                  data-testid="input-warranty-vin"
+                />
               </div>
               <p className="text-xs text-muted-foreground">VIN is saved back to the work order if it was missing.</p>
             </div>
