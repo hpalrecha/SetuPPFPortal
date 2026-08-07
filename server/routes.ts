@@ -3448,6 +3448,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/work-orders/:id/timeline",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    async (req, res) => {
+      try {
+        const { timelineService } = await import('./services/timelineService');
+        const timeline = await timelineService.getWorkOrderTimeline(req.params.id);
+        if (!timeline) {
+          return res.status(404).json({ error: "Work order not found" });
+        }
+        res.json(timeline);
+      } catch (error) {
+        console.error("Get work order timeline error:", error);
+        res.status(500).json({ error: "Failed to build work order timeline" });
+      }
+    }
+  );
+
   app.post("/api/work-orders/:id/submit", 
     authenticate, 
     requireOEMAccess,

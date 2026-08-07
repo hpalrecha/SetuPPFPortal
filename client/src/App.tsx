@@ -20,6 +20,7 @@ import PricingPage from "./pages/pricing";
 import CommissionsPage from "./pages/commissions";
 import AuditPage from "./pages/audit";
 import NotificationsPage from "./pages/notifications";
+import TimelinePage from "./pages/timeline";
 import SettingsPage from "./pages/settings";
 import OEMsPage from "./pages/oems";
 import DealershipsPage from "./pages/dealerships";
@@ -230,6 +231,10 @@ function Router() {
       <Route
         path="/notifications"
         component={() => <ProtectedRoute component={NotificationsPage} />}
+      />
+      <Route
+        path="/timeline"
+        component={() => <ProtectedRoute component={TimelinePage} />}
       />
       <Route
         path="/settings"
