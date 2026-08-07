@@ -24,21 +24,23 @@
 - Investigated "notifications not showing" — confirmed the pipeline is correct end-to-end (ran `timelineService.getWorkOrderTimeline` against a real work order: 38 events returned incl. 26 notifications with recipient + channel). DB has 3,127 job_card + 90 work_order linked notifications. Root cause of the user not seeing them was environmental (stale dev server), not a code defect. No code change needed for this.
 - Verified column data completeness against the DB: customerName 381/381, customerPhone 380/381, regNo 373/381 — the reg-no/customer linkage is correct and well-populated.
 - **Added a Showroom column + showroom filter dropdown** to the list (`client/src/pages/timeline.tsx`); search now also matches showroom name. `showroomName` was already returned by the `getWorkOrders` enrichment.
-- **Changed the Status column to show the Job Card status** (per user decision), relabeled the column header to "Job Card", and switched `STATUS_OPTIONS` + the filter to the 19-value `jobCardStatusEnum`. This required a backend change: `server/storage.ts` `getWorkOrders()` now attaches `jobCardStatus` (the latest/active job card's status per work order, via one batched IN query — additive field, safe for all other callers of the list). Verified against real data (e.g. WO ASSIGNED → jobCardStatus AWAITING_ACK / SCHEDULED / APPROVED).
-- All changes re-typechecked: still at the 222-error baseline, zero new errors.
+- Briefly tried showing the **Job Card status** in the list column (with a backend `getWorkOrders` enrichment), then **reverted it** at the user's request — the list Status column shows the **work order status** again. The `server/storage.ts` enrichment was fully removed (back to original). The list column, `STATUS_OPTIONS`, and filter are all back to the 10-value `workOrderStatusEnum`.
+- **Colour-coded the timeline modal** so the trail is scannable: each event is one of three kinds — **Job card (blue)**, **Work order (purple)**, **Notification (green)** — shown via a coloured left border + coloured icon chip, with a legend at the top of the modal. Kind is derived by `eventKind()`: notifications → green; anything tagged "Work Order" → purple; all other (job-card lifecycle/actions) → blue.
+- All changes re-typechecked: still at the 222-error baseline, zero new errors. `server/storage.ts` is unchanged from original (its net diff is now empty).
 
 **Files changed, currently uncommitted:**
 - `server/services/timelineService.ts` (new)
 - `server/routes.ts` (modified — new endpoint added)
-- `server/storage.ts` (modified — `getWorkOrders` now attaches `jobCardStatus`)
-- `client/src/pages/timeline.tsx` (new + post-review refinements: showroom column/filter, job card status column)
+- `client/src/pages/timeline.tsx` (new — includes showroom column/filter and colour-coded timeline modal)
 - `client/src/components/layout/Sidebar.tsx` (modified — Timeline nav entry)
 - `client/src/App.tsx` (modified — `/timeline` route)
+
+(`server/storage.ts` is NOT in this list anymore — the temporary jobCardStatus enrichment was reverted.)
 
 **To commit, once you're satisfied:**
 ```bash
 cd D:/p91/p91/p91web/setuppfportal
-git add server/services/timelineService.ts server/routes.ts server/storage.ts client/src/pages/timeline.tsx client/src/components/layout/Sidebar.tsx client/src/App.tsx docs/superpowers/specs/2026-08-07-work-order-timeline-design.md docs/superpowers/plans/2026-08-07-work-order-timeline.md
+git add server/services/timelineService.ts server/routes.ts client/src/pages/timeline.tsx client/src/components/layout/Sidebar.tsx client/src/App.tsx docs/superpowers/specs/2026-08-07-work-order-timeline-design.md docs/superpowers/plans/2026-08-07-work-order-timeline.md
 git commit -m "Add work order/job card timeline feature (SUPER_ADMIN/ADMIN)"
 ```
 

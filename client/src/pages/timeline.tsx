@@ -9,14 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Route, Search, Eye, CheckSquare, History, Bell, Mail, MessageCircle, Smartphone } from "lucide-react";
+import { Route, Search, Eye, CheckSquare, ClipboardList, Bell, Mail, MessageCircle, Smartphone } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const fmtDateTime = (d?: string | null) =>
   d ? new Date(d).toLocaleString(undefined, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
-// Job card statuses (jobCardStatusEnum) — the list's Status column shows the active job card's status.
-const STATUS_OPTIONS = ['AWAITING_ACK', 'ACKNOWLEDGED', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'PENDING_APPROVAL', 'APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'REWORK_PERMISSION_REQUESTED', 'REWORK_REQUESTED', 'CLOSED', 'NO_SHOW', 'CANCELLED_BY_CUSTOMER', 'CANCELLED', 'PARTS_PENDING', 'RESCHEDULED'];
+// Work order statuses (workOrderStatusEnum) — the list's Status column shows the work order status.
+const STATUS_OPTIONS = ['PENDING', 'DRAFT', 'SUBMITTED', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED_PENDING_APPROVAL', 'APPROVED', 'CLOSED', 'CANCELLED', 'REWORK_REQUESTED'];
 
 const CHANNEL_LABEL: Record<string, string> = {
   EMAIL: 'Email',
@@ -32,11 +32,42 @@ const CHANNEL_ICON: Record<string, any> = {
   PUSH: Bell,
 };
 
-const CATEGORY_ICON: Record<string, any> = {
-  status: CheckSquare,
-  audit: History,
-  notification: Bell,
+// Each timeline event is colour-coded into one of three kinds so the trail is
+// scannable at a glance: job-card progress (blue), work-order-level actions
+// (purple), and notifications sent (green).
+type EventKind = 'job_card' | 'work_order' | 'notification';
+
+const EVENT_META: Record<EventKind, { icon: any; label: string; dot: string; chip: string; border: string }> = {
+  job_card: {
+    icon: CheckSquare,
+    label: 'Job card',
+    dot: 'bg-blue-500',
+    chip: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+    border: 'border-l-blue-400 dark:border-l-blue-500',
+  },
+  work_order: {
+    icon: ClipboardList,
+    label: 'Work order',
+    dot: 'bg-purple-500',
+    chip: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+    border: 'border-l-purple-400 dark:border-l-purple-500',
+  },
+  notification: {
+    icon: Bell,
+    label: 'Notification',
+    dot: 'bg-green-500',
+    chip: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+    border: 'border-l-green-400 dark:border-l-green-500',
+  },
 };
+
+// A notification is always green; anything tagged "Work Order" is a work-order
+// action (purple); everything else is job-card progress (blue).
+function eventKind(event: any): EventKind {
+  if (event.category === 'notification') return 'notification';
+  if (event.jobCardTag === 'Work Order') return 'work_order';
+  return 'job_card';
+}
 
 function TimelineModal({ workOrderId, open, onClose }: { workOrderId: string | null; open: boolean; onClose: () => void }) {
   const { data, isLoading } = useQuery<any>({
@@ -66,31 +97,47 @@ function TimelineModal({ workOrderId, open, onClose }: { workOrderId: string | n
         ) : events.length === 0 ? (
           <div className="py-10 text-center text-muted-foreground">No timeline events yet.</div>
         ) : (
-          <div className="space-y-3">
-            {events.map((event: any, index: number) => {
-              const Icon = CATEGORY_ICON[event.category] || History;
-              const ChannelIcon = event.channel ? (CHANNEL_ICON[event.channel] || Bell) : null;
-              return (
-                <div key={index} className="flex gap-3 border-b pb-3 last:border-b-0">
-                  <Icon className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium">{event.label}</span>
-                      <Badge variant="outline" className="text-xs">{event.jobCardTag}</Badge>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {fmtDateTime(event.timestamp)} · {formatDistanceToNow(new Date(event.timestamp), { addSuffix: true })}
-                    </div>
-                    {event.category === 'notification' && (
-                      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                        {ChannelIcon && <ChannelIcon className="h-3 w-3" />}
-                        Sent to {event.recipientName || 'unknown recipient'} via {CHANNEL_LABEL[event.channel] || event.channel}
+          <div>
+            {/* Colour legend so it's clear what each event kind is */}
+            <div className="flex flex-wrap items-center gap-4 pb-3 mb-3 border-b text-xs text-muted-foreground">
+              {(Object.keys(EVENT_META) as EventKind[]).map((k) => (
+                <span key={k} className="flex items-center gap-1.5">
+                  <span className={`h-2.5 w-2.5 rounded-full ${EVENT_META[k].dot}`} />
+                  {EVENT_META[k].label}
+                </span>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              {events.map((event: any, index: number) => {
+                const kind = eventKind(event);
+                const meta = EVENT_META[kind];
+                const Icon = meta.icon;
+                const ChannelIcon = event.channel ? (CHANNEL_ICON[event.channel] || Bell) : null;
+                return (
+                  <div key={index} className={`flex gap-3 border-l-4 ${meta.border} pl-3 py-1`}>
+                    <span className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${meta.chip}`}>
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium">{event.label}</span>
+                        <Badge variant="outline" className="text-xs">{event.jobCardTag}</Badge>
                       </div>
-                    )}
+                      <div className="text-xs text-muted-foreground">
+                        {fmtDateTime(event.timestamp)} · {formatDistanceToNow(new Date(event.timestamp), { addSuffix: true })}
+                      </div>
+                      {event.category === 'notification' && (
+                        <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                          {ChannelIcon && <ChannelIcon className="h-3 w-3" />}
+                          Sent to {event.recipientName || 'unknown recipient'} via {CHANNEL_LABEL[event.channel] || event.channel}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
       </DialogContent>
@@ -129,7 +176,7 @@ export default function TimelinePage() {
 
   const filtered = useMemo(() => {
     return workOrders.filter((wo) => {
-      if (status !== 'all' && wo.jobCardStatus !== status) return false;
+      if (status !== 'all' && wo.status !== status) return false;
       if (showroom !== 'all' && wo.showroomName !== showroom) return false;
       if (search) {
         const term = search.toLowerCase();
@@ -204,7 +251,7 @@ export default function TimelinePage() {
                 <TableHead>Reg No</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Showroom</TableHead>
-                <TableHead>Job Card</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
@@ -222,7 +269,7 @@ export default function TimelinePage() {
                     <div className="text-xs text-muted-foreground">{wo.customerPhone || '—'}</div>
                   </TableCell>
                   <TableCell className="text-sm">{wo.showroomName || <span className="text-muted-foreground">—</span>}</TableCell>
-                  <TableCell>{wo.jobCardStatus ? <Badge variant="outline">{wo.jobCardStatus.replace(/_/g, ' ')}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell><Badge variant="outline">{wo.status}</Badge></TableCell>
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{fmtDateTime(wo.createdAt)}</TableCell>
                   <TableCell>
                     <Button
