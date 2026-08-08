@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import {
   Route, Search, Eye, Wrench, ClipboardList, Bell, Mail, MessageCircle, Smartphone,
   Send, CheckCircle2, Clock, RotateCcw, MapPin, Camera, Play, AlertTriangle, ShieldCheck,
-  FileText, BellOff, ArrowUpRight, Sparkles,
+  FileText, BellOff, ArrowUpRight, Sparkles, Users, XCircle, Pencil, CircleDot, Layers,
 } from "lucide-react";
 
 const fmtDateTime = (d?: string | null) =>
@@ -188,14 +188,15 @@ function TimelineModal({ workOrderId, open, onClose }: { workOrderId: string | n
 }
 
 // ---------------------------------------------------------------------------
-// Flow Blueprint — a designed, in-app rendering of the full job-card lifecycle
-// notification/status flow (the "understanding"): every stage, who is notified,
-// on which channel, and which build cluster it belongs to. New capabilities
-// (Reschedule, Reached, time-based reminders, eye button) are marked NEW.
+// Flow Blueprint — the CORRECTED job-card lifecycle (my understanding, for you
+// to validate BEFORE I build it). Every stage shows who is notified on which
+// channel, and is marked NEW / CHANGED vs. what's currently built. Followed by
+// the core rules and a worked example that covers every case.
 // ---------------------------------------------------------------------------
 
 type Side = 'supply' | 'demand';
 type Channel = 'EMAIL' | 'WHATSAPP' | 'PUSH' | 'SMS';
+type Change = 'new' | 'changed';
 
 interface Recipient { role: string; side: Side; channels: Channel[] }
 interface Stage {
@@ -204,8 +205,7 @@ interface Stage {
   status?: string;
   icon: any;
   accent: string;      // dot + status tint
-  cluster: 1 | 2 | 3;
-  isNew?: boolean;
+  change?: Change;     // vs. what's currently built
   trigger: string;
   recipients: Recipient[];   // empty ⇒ no notification
   note?: string;
@@ -218,125 +218,121 @@ const SIDE_META: Record<Side, { label: string; color: string }> = {
   demand: { label: 'Demand', color: '#7c3aed' },
 };
 
-// Build phasing, colour-coded so the reader sees what ships first.
-const CLUSTER_META: Record<1 | 2 | 3, { label: string; color: string }> = {
-  1: { label: 'Cluster 1 · Notifications + fixes', color: '#059669' },
-  2: { label: 'Cluster 2 · Reschedule + Reached', color: '#d97706' },
-  3: { label: 'Cluster 3 · Reminders + eye button', color: '#0284c7' },
+const CHANGE_META: Record<Change, { label: string; color: string }> = {
+  new: { label: 'New', color: '#c026d3' },
+  changed: { label: 'Changed', color: '#d97706' },
 };
 
 const FLOW: Stage[] = [
   {
-    id: 'wo_created', title: 'Work Order created', status: 'DRAFT', icon: ClipboardList, accent: '#7c3aed', cluster: 1,
+    id: 'wo_created', title: 'Work Order created', status: 'DRAFT', icon: ClipboardList, accent: '#7c3aed',
     trigger: 'Salesperson / Showroom / Partner Admin / Super Admin creates the work order.',
     recipients: [],
-    note: 'Fix #1 — a Partner Admin’s own draft now appears in his Work Orders list (it was hidden because assignedPartnerId was null).',
   },
   {
-    id: 'wo_assigned', title: 'Submitted → Assigned to partner', status: 'ASSIGNED', icon: Send, accent: '#7c3aed', cluster: 1,
-    trigger: 'On submit: a partner-created WO self-assigns to that partner; a super-admin / showroom WO auto-assigns. The job card is created here.',
+    id: 'wo_assigned', title: 'Submitted → Assigned to partner', status: 'ASSIGNED', icon: Send, accent: '#7c3aed',
+    trigger: 'On submit the WO is assigned to a partner; the (single, primary) job card is created here.',
     recipients: [{ role: 'Partner Admin', side: 'supply', channels: ['EMAIL'] }],
-    note: '#2 — Partner Admin receives an email: “work order assigned”, with full details.',
   },
   {
-    id: 'awaiting_ack', title: 'Job Card created', status: 'AWAITING_ACK', icon: Wrench, accent: '#2563eb', cluster: 1,
-    trigger: 'Job card is auto-created the moment the WO is assigned.',
+    id: 'awaiting_ack', title: 'Job Card created', status: 'AWAITING_ACK', icon: Wrench, accent: '#2563eb',
+    trigger: 'The primary job card is auto-created the moment the WO is assigned.',
     recipients: [{ role: 'Partner Admin', side: 'supply', channels: ['EMAIL', 'WHATSAPP'] }],
-    note: '#3 — Partner Admin is notified every single time a job card lands.',
+    note: 'This one job card lives all the way to CLOSED — reschedules & warranty all stay on it.',
   },
   {
-    id: 'acknowledged', title: 'Acknowledged', status: 'ACKNOWLEDGED', icon: CheckCircle2, accent: '#2563eb', cluster: 1,
-    trigger: 'Partner acknowledges the job card.',
-    recipients: [{ role: 'Assigned team (installer / detailer)', side: 'supply', channels: ['WHATSAPP', 'EMAIL'] }],
-    note: '#3 — the “assigned” message goes to the team that will actually do the work.',
+    id: 'acknowledged', title: 'Acknowledged — team assignment REQUIRED', status: 'ACKNOWLEDGED', icon: Users, accent: '#2563eb', change: 'changed',
+    trigger: 'Partner Admin acknowledges AND must pick the team member (installer/detailer) at the same time — acknowledge cannot happen without assigning a team.',
+    recipients: [{ role: 'Assigned team member', side: 'supply', channels: ['WHATSAPP', 'EMAIL'] }],
+    note: '#1 (new) — assigning the team is now mandatory to acknowledge.',
   },
   {
-    id: 'scheduled', title: 'Scheduled', status: 'SCHEDULED', icon: Clock, accent: '#2563eb', cluster: 1,
+    id: 'scheduled', title: 'Scheduled', status: 'SCHEDULED', icon: Clock, accent: '#2563eb',
     trigger: 'A date & time is set for the job.',
     recipients: [
       { role: 'Showroom / Salesperson', side: 'demand', channels: ['EMAIL', 'WHATSAPP'] },
       { role: 'Partner Admin', side: 'supply', channels: ['EMAIL', 'WHATSAPP'] },
       { role: 'Assigned team', side: 'supply', channels: ['WHATSAPP'] },
     ],
-    note: '#4 — both external (showroom / sales) and internal (partner + team) are told.',
   },
   {
-    id: 'rescheduled', title: 'Reschedule', status: 'RESCHEDULED', icon: RotateCcw, accent: '#d97706', cluster: 2, isNew: true,
-    trigger: 'New “Reschedule” button → pick a new time + reason. Allowed 3× max (Super Admin unlimited).',
+    id: 'rescheduled', title: 'Reschedule — SAME job card, timeline trail', status: 'RESCHEDULED', icon: RotateCcw, accent: '#d97706', change: 'changed',
+    trigger: 'Reschedule → new time + reason (+ optionally a different team member). 3× max for partner level; Super Admin unlimited.',
     recipients: [
       { role: 'Partner Admin / Partner Staff', side: 'supply', channels: ['WHATSAPP', 'EMAIL'] },
       { role: 'Showroom / Salesperson', side: 'demand', channels: ['WHATSAPP', 'EMAIL'] },
     ],
-    note: 'Both sides are messaged; the timeline is updated with the reason.',
+    note: '#2 (corrected) — changing the team here does NOT create a new job card. It stays the same card; the change is recorded as a trail entry in this card’s timeline. Reschedule is available at Scheduled, Reached, and even after a failed pre-install check.',
   },
   {
-    id: 'remind_3h', title: 'Reminder — 3 hours before', icon: Clock, accent: '#0284c7', cluster: 3, isNew: true,
+    id: 'remind_3h', title: 'Reminder — 3 hours before', icon: Clock, accent: '#0284c7',
     trigger: '3 hours before the scheduled time, an automatic check-in fires.',
     recipients: [
       { role: 'Team + Partner Admin / Super Admin', side: 'supply', channels: ['WHATSAPP'] },
       { role: 'Showroom / Salesperson', side: 'demand', channels: ['WHATSAPP'] },
     ],
-    note: '#5 — “Are you going to site?” to supply, “Is the car ready to dispatch?” to demand. Replies show under the new eye button. If a reschedule happens meanwhile, its message supersedes. Escalation goes to the Partner Admin — or Super Admin when the team has no partner admin.',
+    note: '“Are you going to site?” to supply, “Is the car ready to dispatch?” to demand. Replies show under the eye button. A reschedule at this moment supersedes.',
   },
   {
-    id: 'remind_time', title: 'Reminder — at scheduled time', icon: Send, accent: '#0284c7', cluster: 3, isNew: true,
-    trigger: 'At the scheduled time, a confirm-arrival prompt fires; 60-minute wait.',
+    id: 'remind_time', title: 'Reminder — at scheduled time', icon: Send, accent: '#0284c7',
+    trigger: 'At the scheduled time, a confirm-arrival prompt fires; 60-minute wait, then the authority sets Reached.',
     recipients: [
       { role: 'Team + Showroom', side: 'supply', channels: ['WHATSAPP'] },
       { role: 'Partner Admin / Super Admin', side: 'supply', channels: ['WHATSAPP'] },
     ],
-    note: '#6 — after confirmation, the authority sets the Reached status.',
   },
   {
-    id: 'reached', title: 'Reached', status: 'REACHED', icon: MapPin, accent: '#d97706', cluster: 2, isNew: true,
-    trigger: 'New “Reached” button (with confirm) — set by Partner Admin / Super Admin once the team is on site.',
+    id: 'reached', title: 'Reached', status: 'REACHED', icon: MapPin, accent: '#0d9488',
+    trigger: 'Team on site → “Reached” pressed. Partner level can only do this within 4h of the scheduled time; Super Admin any time. Reschedule is still possible here.',
     recipients: [],
-    note: '#6 — no notification. Lives on the same row as Reschedule.',
   },
   {
-    id: 'preinstall', title: 'Pre-installation photos', icon: Camera, accent: '#2563eb', cluster: 2, isNew: true,
-    trigger: '4 inspection photos — now shown AFTER Reached and BEFORE Start.',
+    id: 'preinstall', title: 'Pre-installation CHECK — Pass / Fail', icon: Camera, accent: '#4f46e5', change: 'changed',
+    trigger: 'After Reached, the pre-installation check is done with an explicit outcome.',
     recipients: [],
-    note: '#7 — new order is Scheduled → Reached → Pre-install → Start. Still required before Start.',
+    note: '#3 (new) — FAIL → job goes back to Reschedule. PASS → the Start button appears. Rescheduling is still allowed up until Start.',
   },
   {
-    id: 'start', title: 'Start work → In Progress', status: 'IN_PROGRESS', icon: Play, accent: '#2563eb', cluster: 2,
-    trigger: '“Start Work” button (appears after Reached) — Partner Admin / Super Admin / Detailing Partner / Partner Staff.',
+    id: 'start', title: 'Start work → In Progress', status: 'IN_PROGRESS', icon: Play, accent: '#ea580c', change: 'changed',
+    trigger: '“Start Work” appears once pre-install passes.',
     recipients: [],
-    note: '#7 / #8 — no notification for Start or In-Progress.',
+    note: '#3 (new) — AFTER start, only Super Admin may reschedule + reassign a new team; that keeps the same card and the card simply shows the Start button directly again. Partner level can no longer reschedule once started.',
   },
   {
-    id: 'completed', title: 'Completed', status: 'COMPLETED', icon: CheckCircle2, accent: '#059669', cluster: 1,
+    id: 'completed', title: 'Completed — notify EVERYONE incl. customer', status: 'COMPLETED', icon: CheckCircle2, accent: '#059669', change: 'changed',
     trigger: 'Team marks the job complete.',
-    recipients: [{ role: 'Customer', side: 'demand', channels: ['EMAIL'] }],
-    note: '#8 — customer email (details pulled from the job card) noting that rework needs a 15-day buffer, subject to availability & urgency after consideration.',
+    recipients: [
+      { role: 'Customer', side: 'demand', channels: ['EMAIL', 'WHATSAPP'] },
+      { role: 'Showroom / Salesperson', side: 'demand', channels: ['EMAIL', 'WHATSAPP'] },
+      { role: 'Team + Partner Admin', side: 'supply', channels: ['EMAIL', 'WHATSAPP'] },
+    ],
+    note: '#4 (changed) — message to all (mail + WhatsApp): “the job is completed; for any rework a 15-day buffer applies during which the rework is reviewed and a team assigned; after 15 days a car checkup is scheduled and its availability is informed accordingly.”',
   },
   {
-    id: 'pending_approval', title: 'Pending approval', status: 'PENDING_APPROVAL', icon: Clock, accent: '#64748b', cluster: 1,
+    id: 'pending_approval', title: 'Pending approval', status: 'PENDING_APPROVAL', icon: Clock, accent: '#64748b',
     trigger: 'Awaiting showroom / admin approval.',
     recipients: [],
-    note: '#9 — no notification.',
   },
   {
-    id: 'rework', title: 'Rework', status: 'REWORK', icon: AlertTriangle, accent: '#d97706', cluster: 1,
+    id: 'rework', title: 'Rework', status: 'REWORK', icon: AlertTriangle, accent: '#d97706', change: 'changed',
     trigger: 'Rework requested from the job card.',
-    recipients: [{ role: 'Team + Partner Admin', side: 'supply', channels: ['EMAIL'] }],
-    note: '#10 — email includes Reason, Affected Parts, and Assign-to (straight from the rework form).',
+    recipients: [{ role: 'Team + Partner Admin', side: 'supply', channels: ['EMAIL', 'WHATSAPP'] }],
+    note: '#5 (changed) — NEW team → a new linked rework card is created, with a trail entry in the primary card. SAME team → no new card (handled on the same card). Photos are mapped & attached PER affected part (not one shared bundle). Each part has FOC (free of cost) or a cost, and the cost stays EDITABLE even after submit (it depends on manual assessment).',
   },
   {
-    id: 'approved', title: 'Approved', status: 'APPROVED', icon: ShieldCheck, accent: '#059669', cluster: 1,
+    id: 'approved', title: 'Approved', status: 'APPROVED', icon: ShieldCheck, accent: '#059669',
     trigger: 'Job approved by showroom / admin.',
     recipients: [
       { role: 'Allocated team + Partner Admin / Super Admin', side: 'supply', channels: ['EMAIL'] },
       { role: 'Showroom / Salesperson', side: 'demand', channels: ['EMAIL'] },
     ],
-    note: '#11 — email only. “Apply for e-Warranty” unlocks here; the warranty claim itself stays locked until Invoice Raised.',
+    note: '“Apply for e-Warranty” unlocks here; the warranty claim itself stays locked until Invoice Raised.',
   },
   {
-    id: 'invoice', title: 'Invoice raised → warranty / closed', status: 'INVOICE_RAISED', icon: FileText, accent: '#059669', cluster: 1,
-    trigger: 'Sales invoice entered.',
+    id: 'warranty', title: 'Warranty + Invoice → Closed', status: 'INVOICE_RAISED', icon: FileText, accent: '#059669', change: 'changed',
+    trigger: 'Sales invoice entered; warranty issued.',
     recipients: [],
-    note: '#11 — the warranty can now be claimed by any authorised person; then Payment → Closed.',
+    note: '#2/#4 (corrected) — the warranty is issued against the SAME primary job card (never a spawned one). The card stays open through Payment and finally CLOSED.',
   },
 ];
 
@@ -366,7 +362,7 @@ function RecipientChip({ r }: { r: Recipient }) {
 }
 
 function StageCard({ stage, isLast }: { stage: Stage; isLast: boolean }) {
-  const cluster = CLUSTER_META[stage.cluster];
+  const changeMeta = stage.change ? CHANGE_META[stage.change] : null;
   const Icon = stage.icon;
   return (
     <div className="relative flex gap-4 pb-5 last:pb-0">
@@ -390,19 +386,15 @@ function StageCard({ stage, isLast }: { stage: Stage; isLast: boolean }) {
                 {stage.status.replace(/_/g, ' ')}
               </span>
             )}
-            {stage.isNew && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950/50 dark:text-fuchsia-300">
-                <Sparkles className="h-2.5 w-2.5" /> New
-              </span>
-            )}
           </div>
-          <span
-            className="text-[10px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap"
-            style={{ color: cluster.color, backgroundColor: `${cluster.color}1a` }}
-            title={cluster.label}
-          >
-            Cluster {stage.cluster}
-          </span>
+          {changeMeta && (
+            <span
+              className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded whitespace-nowrap"
+              style={{ color: changeMeta.color, backgroundColor: `${changeMeta.color}1a` }}
+            >
+              <Sparkles className="h-2.5 w-2.5" /> {changeMeta.label}
+            </span>
+          )}
         </div>
 
         <p className="text-xs text-muted-foreground mt-1.5">{stage.trigger}</p>
@@ -424,6 +416,103 @@ function StageCard({ stage, isLast }: { stage: Stage; isLast: boolean }) {
         )}
       </div>
     </div>
+  );
+}
+
+// The load-bearing rules that the whole flow turns on.
+const CORE_RULES: { icon: any; title: string; body: string }[] = [
+  { icon: Layers, title: 'One primary job card, cradle to grave', body: 'A single job card lives from creation until CLOSED. Every reschedule (including a team change) and the warranty all stay ON this same card, recorded as trail entries in its timeline.' },
+  { icon: Users, title: 'Acknowledge = assign the team', body: 'A job card cannot be acknowledged without also assigning the team member who will do the work.' },
+  { icon: RotateCcw, title: 'Reschedule never spawns a card', body: 'Reschedule updates the time (and optionally the team) on the SAME card and logs a trail entry. Before Start: partner + Super Admin (3× cap, SA unlimited). After Start: Super Admin only (may reassign a new team; card keeps its Start button).' },
+  { icon: Camera, title: 'Pre-installation is a pass/fail gate', body: 'After Reached, the pre-install check has an explicit outcome: FAIL → back to Reschedule; PASS → Start becomes available.' },
+  { icon: AlertTriangle, title: 'Rework is the only thing that can branch', body: 'Rework with a NEW team → a new linked card (trail in the primary). Rework with the SAME team → stays on the primary card. Photos are attached per affected part, each with FOC or an editable cost.' },
+];
+
+function CoreRules() {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2"><CircleDot className="h-4 w-4" /> Core rules</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-3 sm:grid-cols-2">
+        {CORE_RULES.map((r) => (
+          <div key={r.title} className="flex gap-3">
+            <span className="shrink-0 h-7 w-7 rounded-full bg-muted flex items-center justify-center">
+              <r.icon className="h-4 w-4 text-foreground" />
+            </span>
+            <div>
+              <div className="text-sm font-medium">{r.title}</div>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{r.body}</p>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Coloured inline tag used in the worked example.
+function Tag({ label, color }: { label: string; color: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded whitespace-nowrap"
+      style={{ color, backgroundColor: `${color}1a` }}>{label}</span>
+  );
+}
+
+interface ExStep { icon: any; accent: string; title: string; detail: string; tags?: { label: string; color: string }[] }
+const SAME = { label: 'Same card', color: '#059669' };
+const NEWC = { label: 'New linked card', color: '#c026d3' };
+const TRAIL = { label: 'Trail entry', color: '#0284c7' };
+const FAIL = { label: 'Fail', color: '#dc2626' };
+const PASS = { label: 'Pass', color: '#059669' };
+const SAONLY = { label: 'Super Admin only', color: '#d97706' };
+
+// One job walked through every branch of the flow.
+const EXAMPLE: ExStep[] = [
+  { icon: ClipboardList, accent: '#7c3aed', title: 'WO-1234 created & assigned', detail: 'Salesperson books PPF Full Body for a Hyundai Creta; on submit it’s assigned to partner “GlossPro”, and primary job card JC-0001 is created (AWAITING_ACK). Partner Admin notified.' },
+  { icon: Users, accent: '#2563eb', title: 'Acknowledged + team assigned', detail: 'Partner Admin acknowledges JC-0001 and, in the same step, assigns installer Ravi. Ravi is notified on WhatsApp + email.', tags: [SAME] },
+  { icon: Clock, accent: '#2563eb', title: 'Scheduled for tomorrow 3:00 PM', detail: 'Showroom/salesperson + Partner Admin + Ravi all notified.' },
+  { icon: Clock, accent: '#0284c7', title: '3h & at-time reminders', detail: '“Heading to site?” to Ravi/partner, “Car ready to dispatch?” to the showroom; replies logged under the eye button.' },
+  { icon: MapPin, accent: '#0d9488', title: 'Reached', detail: 'Team on site; Partner Admin presses Reached (allowed — within 4h of schedule).' },
+  { icon: XCircle, accent: '#dc2626', title: 'Pre-install check FAILS', detail: 'Car has prior damage / isn’t ready. Job is rescheduled to tomorrow 11:00 AM with a reason — recorded on JC-0001’s timeline. Both parties notified.', tags: [FAIL, SAME, TRAIL] },
+  { icon: CheckCircle2, accent: '#059669', title: 'Reached again → pre-install PASSES', detail: 'Next day the check passes and the Start Work button appears.', tags: [PASS] },
+  { icon: RotateCcw, accent: '#d97706', title: 'Mid-job reassignment by Super Admin', detail: 'Ravi falls ill after Start. Super Admin reschedules and reassigns to installer Sonu — still JC-0001, a new trail entry, and the card keeps its Start button. (Partner level could not do this post-Start.)', tags: [SAONLY, SAME, TRAIL] },
+  { icon: Play, accent: '#ea580c', title: 'Started → Completed', detail: 'Sonu starts and completes the job on JC-0001.' },
+  { icon: CheckCircle2, accent: '#059669', title: 'Completion message to everyone', detail: 'Customer + showroom + team + partner get mail & WhatsApp: job complete; 15-day rework buffer (reviewed + team assigned); a car checkup after 15 days whose availability will be informed.' },
+  { icon: AlertTriangle, accent: '#d97706', title: 'Rework — NEW team (Amit)', detail: 'Showroom spots edge-lifting. Rework goes to a different team (Amit) → a new linked rework card JC-0002 is created, with a trail entry in JC-0001. The form maps photos per part — “Front bumper: 2 photos (FOC)”, “Left door: 1 photo (₹800, editable later)”.', tags: [NEWC, TRAIL] },
+  { icon: FileText, accent: '#6b7280', title: '(If instead the SAME team) ', detail: 'Had the rework stayed with Sonu, no new card would be created — it would be handled on JC-0001 directly.', tags: [SAME] },
+  { icon: ShieldCheck, accent: '#059669', title: 'Approved → warranty on JC-0001 → Closed', detail: 'After approval and invoice, the warranty is issued against the primary card JC-0001 (never a spawned one); the card runs through Payment and finally CLOSED.', tags: [SAME] },
+];
+
+function ExampleScenario() {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2"><Route className="h-4 w-4" /> Worked example — one job through every case</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {EXAMPLE.map((s, i) => {
+          const Icon = s.icon;
+          const isLast = i === EXAMPLE.length - 1;
+          return (
+            <div key={i} className="relative flex gap-4 pb-5 last:pb-0">
+              {!isLast && <span className="absolute left-[15px] top-9 bottom-0 w-px bg-border" />}
+              <span className="relative z-10 h-8 w-8 shrink-0 rounded-full flex items-center justify-center ring-4 ring-background" style={{ backgroundColor: s.accent }}>
+                <Icon className="h-4 w-4 text-white" />
+              </span>
+              <div className="flex-1 min-w-0 rounded-lg border bg-card p-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-semibold text-muted-foreground">{i + 1}.</span>
+                  <span className="font-semibold text-sm">{s.title}</span>
+                  {s.tags?.map((t) => <Tag key={t.label} label={t.label} color={t.color} />)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{s.detail}</p>
+              </div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -451,13 +540,14 @@ function FlowBlueprint() {
               {(['WHATSAPP', 'EMAIL', 'PUSH', 'SMS'] as Channel[]).map((c) => <ChannelChip key={c} channel={c} />)}
             </div>
             <div className="flex items-center gap-2">
-              <span className="font-semibold">Build:</span>
-              {([1, 2, 3] as const).map((n) => (
-                <span key={n} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px]"
-                  style={{ color: CLUSTER_META[n].color, backgroundColor: `${CLUSTER_META[n].color}1a` }}>
-                  {CLUSTER_META[n].label}
+              <span className="font-semibold">vs. current build:</span>
+              {(['new', 'changed'] as Change[]).map((c) => (
+                <span key={c} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px]"
+                  style={{ color: CHANGE_META[c].color, backgroundColor: `${CHANGE_META[c].color}1a` }}>
+                  <Sparkles className="h-2.5 w-2.5" /> {CHANGE_META[c].label}
                 </span>
               ))}
+              <span className="text-muted-foreground">(unmarked = already built)</span>
             </div>
             <div className="flex items-center gap-1 text-muted-foreground">
               <ArrowUpRight className="h-3.5 w-3.5" />
@@ -466,6 +556,8 @@ function FlowBlueprint() {
           </div>
         </CardContent>
       </Card>
+
+      <CoreRules />
 
       {/* The flow */}
       <Card>
@@ -480,6 +572,8 @@ function FlowBlueprint() {
           ))}
         </CardContent>
       </Card>
+
+      <ExampleScenario />
     </div>
   );
 }
@@ -566,10 +660,10 @@ export default function TimelinePage() {
       {view === 'flow' ? (
         <>
           <p className="text-sm text-muted-foreground">
-            The end-to-end job-card lifecycle — every status, what triggers it, and who gets notified on which
-            channel. <span className="text-fuchsia-600 dark:text-fuchsia-400 font-medium">New</span> steps
-            (Reschedule, Reached, time-based reminders, reply eye button) are marked, and each stage is tagged with
-            the build cluster it ships in.
+            My <span className="font-medium">corrected</span> understanding of the end-to-end job-card lifecycle — for you
+            to validate before I build it. Stages are marked <span className="text-fuchsia-600 dark:text-fuchsia-400 font-medium">New</span> or
+            <span className="text-amber-600 dark:text-amber-400 font-medium"> Changed</span> vs. what's currently built; unmarked = already built.
+            Below the flow are the <span className="font-medium">core rules</span> and a <span className="font-medium">worked example</span> covering every case.
           </p>
           <FlowBlueprint />
         </>
