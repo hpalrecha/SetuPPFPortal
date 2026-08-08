@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Bell, Mail, MessageCircle, Smartphone, Search, ChevronLeft, ChevronRight,
-  CheckCircle2, XCircle, ExternalLink,
+  CheckCircle2, XCircle, ExternalLink, Eye,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
