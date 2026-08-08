@@ -157,26 +157,48 @@ export async function notifyRescheduled(jobCardId: string): Promise<void> {
   );
 }
 
-// #8 — On complete, email the customer (with the 15-day rework buffer notice).
+// #4 — On complete, notify EVERYONE (customer + showroom/sales + team + partner) on mail + WhatsApp,
+// with the 15-day rework-buffer + car-checkup message.
 export async function notifyCompletedCustomer(jobCardId: string): Promise<void> {
   const ctx = await loadContext(jobCardId);
   if (!ctx) return;
   const { jobCard, workOrder, partner, service, vehicleDetails } = ctx;
-  if (!workOrder.customerEmail) return;
   const tpl = await getTemplate('job_card_completed_customer');
-  const subject = fillTemplate(tpl.emailSubject, { vehicle: vehicleDetails, customer: workOrder.customerName || undefined });
-  try {
-    await emailService.sendJobCardCustomerCompletion(workOrder.customerEmail, {
-      customerName: workOrder.customerName || undefined,
-      vehicleDetails,
-      workOrderNumber: `WO-${workOrder.id.slice(0, 8)}`,
-      partnerName: partner?.displayName,
-      serviceName: service?.name,
-      completedAt: jobCard.completedAt ? new Date(jobCard.completedAt) : new Date(),
-    }, subject || undefined);
-  } catch (e) {
-    console.error('notifyCompletedCustomer failed', e);
+  const vars = { vehicle: vehicleDetails, customer: workOrder.customerName || undefined, jobId: jobCard.id.slice(0, 8) };
+  const subject = fillTemplate(tpl.emailSubject, vars);
+  const body = fillTemplate(tpl.emailBody, vars);
+
+  // Customer — structured completion email (carries the buffer/checkup notice) + best-effort WhatsApp.
+  if (workOrder.customerEmail) {
+    try {
+      await emailService.sendJobCardCustomerCompletion(workOrder.customerEmail, {
+        customerName: workOrder.customerName || undefined,
+        vehicleDetails,
+        workOrderNumber: `WO-${workOrder.id.slice(0, 8)}`,
+        partnerName: partner?.displayName,
+        serviceName: service?.name,
+        completedAt: jobCard.completedAt ? new Date(jobCard.completedAt) : new Date(),
+      }, subject || undefined);
+    } catch (e) { console.error('notifyCompleted: customer email failed', e); }
   }
+  if (workOrder.customerPhone) {
+    try {
+      await whatsappService.sendMessage(
+        { to: whatsappService.formatPhoneNumber(workOrder.customerPhone), type: 'text', text: { body } },
+        { eventType: 'job_card_completed_customer', relatedEntityType: 'job_card', relatedEntityId: jobCard.id },
+      );
+    } catch (e) { console.error('notifyCompleted: customer whatsapp failed', e); }
+  }
+
+  // Internal + demand — showroom/sales + assigned team + partner admin (email + bell).
+  const partnerAdminId = await storage.getPartnerPrimaryUserId(jobCard.partnerId);
+  const demand = await demandContactIds(workOrder);
+  await notifyUsers([partnerAdminId, jobCard.assignedInstallerId, ...demand], {
+    title: subject || 'Job completed',
+    message: body,
+    type: 'SUCCESS',
+    data: { type: 'job_card_completed_customer', jobCardId: jobCard.id, workOrderId: workOrder.id },
+  }, ['EMAIL', 'PUSH']);
 }
 
 // #10 — On rework, email partner admin + assignee with reason + affected parts + assign-to.

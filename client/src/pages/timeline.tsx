@@ -13,6 +13,7 @@ import {
   Route, Search, Eye, Wrench, ClipboardList, Bell, Mail, MessageCircle, Smartphone,
   Send, CheckCircle2, Clock, RotateCcw, MapPin, Camera, Play, AlertTriangle, ShieldCheck,
   FileText, BellOff, ArrowUpRight, Sparkles, Users, XCircle, Pencil, CircleDot, Layers,
+  Receipt, Building2, Store, ArrowRight,
 } from "lucide-react";
 
 const fmtDateTime = (d?: string | null) =>
@@ -426,6 +427,7 @@ const CORE_RULES: { icon: any; title: string; body: string }[] = [
   { icon: RotateCcw, title: 'Reschedule never spawns a card', body: 'Reschedule updates the time (and optionally the team) on the SAME card and logs a trail entry. Before Start: partner + Super Admin (3× cap, SA unlimited). After Start: Super Admin only (may reassign a new team; card keeps its Start button).' },
   { icon: Camera, title: 'Pre-installation is a pass/fail gate', body: 'After Reached, the pre-install check has an explicit outcome: FAIL → back to Reschedule; PASS → Start becomes available.' },
   { icon: AlertTriangle, title: 'Rework is the only thing that can branch', body: 'Rework with a NEW team → a new linked card (trail in the primary). Rework with the SAME team → stays on the primary card. Photos are attached per affected part, each with FOC or an editable cost.' },
+  { icon: Receipt, title: 'Billing follows the work (post-approval)', body: 'After approval a 3-party trail is recorded — detailer/staff → company/Partner Admin → showroom. If the Partner Admin IS the company, the company invoices the showroom directly. If our detailer did the work under a DIFFERENT Partner Admin, we bill that Partner Admin (who bills the showroom). Team changes via reschedule/rework make the price variable and editable.' },
 ];
 
 function CoreRules() {
@@ -454,63 +456,166 @@ function CoreRules() {
 // Coloured inline tag used in the worked example.
 function Tag({ label, color }: { label: string; color: string }) {
   return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded whitespace-nowrap"
+    <span className="inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded whitespace-nowrap"
       style={{ color, backgroundColor: `${color}1a` }}>{label}</span>
   );
 }
 
-interface ExStep { icon: any; accent: string; title: string; detail: string; tags?: { label: string; color: string }[] }
 const SAME = { label: 'Same card', color: '#059669' };
 const NEWC = { label: 'New linked card', color: '#c026d3' };
 const TRAIL = { label: 'Trail entry', color: '#0284c7' };
 const FAIL = { label: 'Fail', color: '#dc2626' };
 const PASS = { label: 'Pass', color: '#059669' };
 const SAONLY = { label: 'Super Admin only', color: '#d97706' };
+const VARPRICE = { label: 'Variable pricing', color: '#d97706' };
 
-// One job walked through every branch of the flow.
-const EXAMPLE: ExStep[] = [
-  { icon: ClipboardList, accent: '#7c3aed', title: 'WO-1234 created & assigned', detail: 'Salesperson books PPF Full Body for a Hyundai Creta; on submit it’s assigned to partner “GlossPro”, and primary job card JC-0001 is created (AWAITING_ACK). Partner Admin notified.' },
-  { icon: Users, accent: '#2563eb', title: 'Acknowledged + team assigned', detail: 'Partner Admin acknowledges JC-0001 and, in the same step, assigns installer Ravi. Ravi is notified on WhatsApp + email.', tags: [SAME] },
-  { icon: Clock, accent: '#2563eb', title: 'Scheduled for tomorrow 3:00 PM', detail: 'Showroom/salesperson + Partner Admin + Ravi all notified.' },
-  { icon: Clock, accent: '#0284c7', title: '3h & at-time reminders', detail: '“Heading to site?” to Ravi/partner, “Car ready to dispatch?” to the showroom; replies logged under the eye button.' },
-  { icon: MapPin, accent: '#0d9488', title: 'Reached', detail: 'Team on site; Partner Admin presses Reached (allowed — within 4h of schedule).' },
-  { icon: XCircle, accent: '#dc2626', title: 'Pre-install check FAILS', detail: 'Car has prior damage / isn’t ready. Job is rescheduled to tomorrow 11:00 AM with a reason — recorded on JC-0001’s timeline. Both parties notified.', tags: [FAIL, SAME, TRAIL] },
-  { icon: CheckCircle2, accent: '#059669', title: 'Reached again → pre-install PASSES', detail: 'Next day the check passes and the Start Work button appears.', tags: [PASS] },
-  { icon: RotateCcw, accent: '#d97706', title: 'Mid-job reassignment by Super Admin', detail: 'Ravi falls ill after Start. Super Admin reschedules and reassigns to installer Sonu — still JC-0001, a new trail entry, and the card keeps its Start button. (Partner level could not do this post-Start.)', tags: [SAONLY, SAME, TRAIL] },
-  { icon: Play, accent: '#ea580c', title: 'Started → Completed', detail: 'Sonu starts and completes the job on JC-0001.' },
-  { icon: CheckCircle2, accent: '#059669', title: 'Completion message to everyone', detail: 'Customer + showroom + team + partner get mail & WhatsApp: job complete; 15-day rework buffer (reviewed + team assigned); a car checkup after 15 days whose availability will be informed.' },
-  { icon: AlertTriangle, accent: '#d97706', title: 'Rework — NEW team (Amit)', detail: 'Showroom spots edge-lifting. Rework goes to a different team (Amit) → a new linked rework card JC-0002 is created, with a trail entry in JC-0001. The form maps photos per part — “Front bumper: 2 photos (FOC)”, “Left door: 1 photo (₹800, editable later)”.', tags: [NEWC, TRAIL] },
-  { icon: FileText, accent: '#6b7280', title: '(If instead the SAME team) ', detail: 'Had the rework stayed with Sonu, no new card would be created — it would be handled on JC-0001 directly.', tags: [SAME] },
-  { icon: ShieldCheck, accent: '#059669', title: 'Approved → warranty on JC-0001 → Closed', detail: 'After approval and invoice, the warranty is issued against the primary card JC-0001 (never a spawned one); the card runs through Payment and finally CLOSED.', tags: [SAME] },
+// Which record the event touches — colour-coded so WO vs JC vs the rework card read apart.
+type Entity = 'WO' | 'JC' | 'JC2' | 'BILL';
+const ENTITY_META: Record<Entity, { label: string; color: string }> = {
+  WO: { label: 'WO-1234', color: '#7c3aed' },
+  JC: { label: 'JC-0001', color: '#2563eb' },
+  JC2: { label: 'JC-0002', color: '#c026d3' },
+  BILL: { label: 'Billing', color: '#059669' },
+};
+
+interface ExEvent {
+  time: string;
+  entity: Entity;
+  icon: any;
+  accent: string;
+  title: string;
+  detail?: string;
+  notify?: string[];
+  escalation?: string;
+  tags?: { label: string; color: string }[];
+}
+
+// One job walked left→right through every branch, with real dates/times.
+const EXAMPLE: ExEvent[] = [
+  { time: 'Day 1 · 10:00', entity: 'WO', icon: ClipboardList, accent: '#7c3aed', title: 'Work order created', detail: 'Salesperson books PPF Full Body — Hyundai Creta.', tags: [{ label: 'DRAFT', color: '#7c3aed' }] },
+  { time: 'Day 1 · 10:05', entity: 'JC', icon: Send, accent: '#2563eb', title: 'Assigned → primary card', detail: 'Assigned to partner GlossPro; JC-0001 created.', notify: ['Partner Admin (email + WA)'], tags: [{ label: 'AWAITING ACK', color: '#2563eb' }] },
+  { time: 'Day 1 · 10:30', entity: 'JC', icon: Users, accent: '#2563eb', title: 'Acknowledged + team assigned', detail: 'Installer Ravi assigned (required to acknowledge).', notify: ['Ravi (WA + email)'], tags: [{ label: 'ACKNOWLEDGED', color: '#2563eb' }] },
+  { time: 'Day 1 · 11:00', entity: 'JC', icon: Clock, accent: '#2563eb', title: 'Scheduled — Day 2, 3:00 PM', notify: ['Showroom/sales', 'Partner Admin', 'Ravi'], tags: [{ label: 'SCHEDULED', color: '#2563eb' }] },
+  { time: 'Day 2 · 12:00', entity: 'JC', icon: Clock, accent: '#0284c7', title: 'Reminder — 3h before', notify: ['Ravi/partner: “going to site?”', 'Showroom: “car ready?”'] },
+  { time: 'Day 2 · 15:00', entity: 'JC', icon: Send, accent: '#0284c7', title: 'Reminder — at time', detail: '60-min wait, no confirmation.', escalation: 'Escalated to Partner Admin (→ Super Admin if none)' },
+  { time: 'Day 2 · 15:10', entity: 'JC', icon: MapPin, accent: '#0d9488', title: 'Reached', detail: 'Partner Admin marks on-site (within 4h window).', tags: [{ label: 'REACHED', color: '#0d9488' }] },
+  { time: 'Day 2 · 15:20', entity: 'JC', icon: XCircle, accent: '#dc2626', title: 'Pre-install FAIL → Reschedule', detail: 'Car not ready → new time Day 3, 11:00 AM + reason.', notify: ['Both parties (WA + email)'], tags: [FAIL, SAME, TRAIL] },
+  { time: 'Day 3 · 11:05', entity: 'JC', icon: CheckCircle2, accent: '#059669', title: 'Reached → Pre-install PASS', detail: 'Start button now appears.', tags: [PASS] },
+  { time: 'Day 3 · 11:30', entity: 'JC', icon: Play, accent: '#ea580c', title: 'Start → In Progress', tags: [{ label: 'IN PROGRESS', color: '#ea580c' }] },
+  { time: 'Day 3 · 13:00', entity: 'JC', icon: RotateCcw, accent: '#d97706', title: 'Mid-job reassign (Super Admin)', detail: 'Ravi ill → reassigned to Sonu. Same card, keeps Start.', notify: ['Both parties'], tags: [SAONLY, SAME, TRAIL] },
+  { time: 'Day 3 · 16:00', entity: 'JC', icon: CheckCircle2, accent: '#059669', title: 'Completed', notify: ['Everyone incl. customer (mail + WA): 15-day buffer + checkup'], tags: [{ label: 'COMPLETED', color: '#059669' }] },
+  { time: 'Day 4 · 10:00', entity: 'JC', icon: ShieldCheck, accent: '#059669', title: 'Approved', notify: ['Team + Partner Admin + showroom (email)'], tags: [{ label: 'APPROVED', color: '#059669' }] },
+  { time: 'Day 4 · 10:05', entity: 'BILL', icon: Receipt, accent: '#059669', title: 'Billing trail recorded', detail: 'Detailer = ours, Partner Admin = GlossPro (≠ company) ⇒ we bill GlossPro; GlossPro bills showroom.', tags: [VARPRICE] },
+  { time: 'Day 6 · 09:30', entity: 'JC2', icon: AlertTriangle, accent: '#c026d3', title: 'Rework — NEW team (Amit)', detail: 'Edge-lifting. New linked card JC-0002; per-part photos — bumper ×2 (FOC), left door ×1 (₹800, editable).', notify: ['Team + Partner Admin (mail + WA)'], tags: [NEWC, TRAIL, VARPRICE] },
+  { time: 'Day 20', entity: 'JC', icon: FileText, accent: '#059669', title: 'Warranty → Closed', detail: 'Warranty issued on JC-0001; invoice → payment → CLOSED.', tags: [SAME] },
 ];
+
+// A single horizontal event card (one column of the timeline).
+function ExCard({ e }: { e: ExEvent }) {
+  const Icon = e.icon;
+  const ent = ENTITY_META[e.entity];
+  return (
+    <div className="flex-1 min-w-0 rounded-lg border bg-card p-2.5 flex flex-col gap-1.5">
+      <div className="flex items-center justify-between gap-1">
+        <span className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: e.accent }}>
+          <Icon className="h-3.5 w-3.5 text-white" />
+        </span>
+        <span className="text-[9px] font-semibold px-1 py-0.5 rounded" style={{ color: ent.color, backgroundColor: `${ent.color}1a` }}>{ent.label}</span>
+      </div>
+      <div className="text-xs font-semibold leading-tight">{e.title}</div>
+      {e.detail && <p className="text-[11px] text-muted-foreground leading-snug">{e.detail}</p>}
+      {e.notify?.map((n, i) => (
+        <div key={i} className="flex items-start gap-1 text-[10px] text-emerald-700 dark:text-emerald-400">
+          <Bell className="h-2.5 w-2.5 mt-0.5 shrink-0" /><span className="leading-snug">{n}</span>
+        </div>
+      ))}
+      {e.escalation && (
+        <div className="flex items-start gap-1 text-[10px] text-amber-700 dark:text-amber-400">
+          <ArrowUpRight className="h-2.5 w-2.5 mt-0.5 shrink-0" /><span className="leading-snug">{e.escalation}</span>
+        </div>
+      )}
+      {e.tags && <div className="flex flex-wrap gap-1 mt-auto pt-1">{e.tags.map((t) => <Tag key={t.label} label={t.label} color={t.color} />)}</div>}
+    </div>
+  );
+}
 
 function ExampleScenario() {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2"><Route className="h-4 w-4" /> Worked example — one job through every case</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2"><Route className="h-4 w-4" /> Worked example — one job, left → right through every case</CardTitle>
       </CardHeader>
       <CardContent>
-        {EXAMPLE.map((s, i) => {
-          const Icon = s.icon;
-          const isLast = i === EXAMPLE.length - 1;
-          return (
-            <div key={i} className="relative flex gap-4 pb-5 last:pb-0">
-              {!isLast && <span className="absolute left-[15px] top-9 bottom-0 w-px bg-border" />}
-              <span className="relative z-10 h-8 w-8 shrink-0 rounded-full flex items-center justify-center ring-4 ring-background" style={{ backgroundColor: s.accent }}>
-                <Icon className="h-4 w-4 text-white" />
-              </span>
-              <div className="flex-1 min-w-0 rounded-lg border bg-card p-3">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-semibold text-muted-foreground">{i + 1}.</span>
-                  <span className="font-semibold text-sm">{s.title}</span>
-                  {s.tags?.map((t) => <Tag key={t.label} label={t.label} color={t.color} />)}
+        {/* Horizontal timeline: scrolls sideways; each column is a dated event with its own
+            notifications / escalations. The continuous rail joins the dots between columns. */}
+        <div className="overflow-x-auto pb-1">
+          <div className="flex items-stretch min-w-max">
+            {EXAMPLE.map((e, i) => (
+              <div key={i} className="flex flex-col w-[210px] shrink-0 px-1.5">
+                <ExCard e={e} />
+                {/* rail */}
+                <div className="relative h-7">
+                  {i > 0 && <span className="absolute left-0 top-1/2 w-1/2 h-px bg-border" />}
+                  {i < EXAMPLE.length - 1 && <span className="absolute right-0 top-1/2 w-1/2 h-px bg-border" />}
+                  <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-3 w-3 rounded-full ring-4 ring-background" style={{ backgroundColor: e.accent }} />
                 </div>
-                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{s.detail}</p>
+                <div className="text-center text-[10px] font-medium text-muted-foreground">{e.time}</div>
               </div>
-            </div>
-          );
-        })}
+            ))}
+          </div>
+        </div>
+        <p className="text-[11px] text-muted-foreground mt-2">
+          Branch not shown: had the rework gone to the <span className="font-medium">same</span> team (Sonu), no new card would be created — it would be handled on JC-0001 directly.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// The post-approval 3-party billing trail and its rules.
+function BillingTrail() {
+  const node = (icon: any, n: string, title: string, sub: string, color: string) => {
+    const Icon = icon;
+    return (
+      <div className="flex items-center gap-2 rounded-lg border px-3 py-2" style={{ borderColor: `${color}55`, backgroundColor: `${color}0f` }}>
+        <span className="h-7 w-7 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: color }}>
+          <Icon className="h-4 w-4 text-white" />
+        </span>
+        <div>
+          <div className="text-[10px] font-semibold text-muted-foreground">{n}</div>
+          <div className="text-sm font-medium leading-tight">{title}</div>
+          <div className="text-[11px] text-muted-foreground">{sub}</div>
+        </div>
+      </div>
+    );
+  };
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2"><Receipt className="h-4 w-4" /> Post-approval billing trail</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {node(Users, '1 · Work done by', 'Detailing partner / staff', 'ours, or a partner’s team', '#2563eb')}
+          <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          {node(Building2, '2 · Intermediary', 'Company / Partner Admin', 'the billing middle party', '#d97706')}
+          <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          {node(Store, '3 · Billed to', 'Showroom', 'the end recipient', '#7c3aed')}
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 text-xs">
+          <div className="rounded-md border p-2.5">
+            <div className="font-semibold mb-0.5 flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> If ② is the company</div>
+            <p className="text-muted-foreground">The Partner Admin IS us → the company invoices the showroom directly (① → ③).</p>
+          </div>
+          <div className="rounded-md border p-2.5">
+            <div className="font-semibold mb-0.5 flex items-center gap-1"><Users className="h-3.5 w-3.5" /> If ① is ours under a different Partner Admin</div>
+            <p className="text-muted-foreground">Our detailer did the work but the Partner Admin is a separate company → we bill the Partner Admin, who bills the showroom.</p>
+          </div>
+        </div>
+        <div className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+          <Pencil className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          <span>Team changes (reschedule reassignment or rework to a new team) can change who performed the work, so the price is <span className="font-medium">variable and editable</span> per job / per rework part — including after the form is submitted.</span>
+        </div>
       </CardContent>
     </Card>
   );
@@ -574,6 +679,8 @@ function FlowBlueprint() {
       </Card>
 
       <ExampleScenario />
+
+      <BillingTrail />
     </div>
   );
 }

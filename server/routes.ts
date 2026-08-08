@@ -5455,13 +5455,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Job Card Actions
   app.post("/api/job-cards/:id/acknowledge", authenticate, async (req, res) => {
     try {
-      // Fix: this used to only set status, leaving acknowledgedAt null forever — which made
-      // every Timeline show "Acknowledged: N/A" even for cards that had been acknowledged.
+      const existing = await storage.getJobCard(req.params.id);
+      if (!existing) return res.status(404).json({ error: "Job card not found" });
+
+      // Assigning the team member is REQUIRED to acknowledge — either provided now or already set.
+      const assignedInstallerId = req.body?.assignedInstallerId || existing.assignedInstallerId;
+      if (!assignedInstallerId) {
+        return res.status(400).json({ error: "Assign a team member to acknowledge this job card." });
+      }
+      if (assignedInstallerId !== existing.assignedInstallerId
+        && !(await storage.staffHasPartner(assignedInstallerId, existing.partnerId))) {
+        return res.status(400).json({ error: "Selected team member is not part of this job's partner" });
+      }
+
+      // (Also sets acknowledgedAt — it used to be left null, which made the Timeline show N/A.)
       const jobCard = await storage.updateJobCard(req.params.id, {
         status: 'ACKNOWLEDGED',
         acknowledgedAt: new Date(),
+        assignedInstallerId,
       });
-      
+
       if (!jobCard) {
         return res.status(404).json({ error: "Job card not found" });
       }
@@ -5567,71 +5580,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Reschedule limit reached (3). Only a Super Admin can reschedule further." });
       }
 
-      const resolvedParty = isSuperAdmin && party ? party : 'TEAM';
-      const isReassignment = !!assignedInstallerId && assignedInstallerId !== existing.assignedInstallerId;
+      // Once the job has started, only a Super Admin may reschedule (and may reassign a new team).
+      const hasStarted = !!existing.startedAt || ['IN_PROGRESS', 'COMPLETED', 'PENDING_APPROVAL', 'APPROVED'].includes(existing.status || '');
+      if (hasStarted && !isSuperAdmin) {
+        return res.status(403).json({ error: "Only a Super Admin can reschedule a job once it has started." });
+      }
 
+      const resolvedParty = isSuperAdmin && party ? party : 'TEAM';
+
+      // Corrected flow: a team change here stays on the SAME job card — we just update the assigned
+      // installer and log a trail entry. No new job card is ever created by reschedule.
+      const isReassignment = !!assignedInstallerId && assignedInstallerId !== existing.assignedInstallerId;
+      let assignedName: string | undefined;
       if (isReassignment) {
         if (!(await storage.staffHasPartner(assignedInstallerId!, existing.partnerId))) {
           return res.status(400).json({ error: "Selected team member is not part of this job's partner" });
         }
-        const workOrder = await storage.getWorkOrder(existing.workOrderId);
-        if (!workOrder) return res.status(404).json({ error: "Associated work order not found" });
-
-        // New job card for the newly assigned team member — starts fresh so they acknowledge the
-        // handoff, with the proposed time already carried over.
-        const newJobCard = await storage.createJobCard({
-          workOrderId: existing.workOrderId,
-          partnerId: existing.partnerId,
-          status: 'AWAITING_ACK',
-          assignedInstallerId: assignedInstallerId,
-          scheduledAt,
-          rescheduleReason: reason,
-          rescheduleParty: resolvedParty,
-          billFrom: existing.billFrom || workOrder.billFrom || null,
-          billTo: existing.billTo || workOrder.billTo || null,
-          shipTo: existing.shipTo || workOrder.shipTo || null,
-          partnerBilledDirectly: existing.partnerBilledDirectly || false,
-        });
-
-        const updatedOld = await storage.updateJobCard(req.params.id, {
-          status: 'RESCHEDULED',
-          rescheduleReason: reason,
-          rescheduleParty: resolvedParty,
-          rescheduleCount: count + 1,
-          supersededByJobCardId: newJobCard.id,
-        });
-
-        await storage.updateWorkOrder(existing.workOrderId, {
-          status: 'ASSIGNED',
-          assignedJobCardId: newJobCard.id,
-        });
-
-        res.json({
-          message: "Rescheduled with a new team member — a new job card was created",
-          jobCard: newJobCard,
-          previousJobCard: updatedOld,
-        });
-
-        setImmediate(async () => {
-          try {
-            const { notifyRescheduled } = await import('./services/jobCardNotifications');
-            await notifyRescheduled(req.params.id);
-            // Reuse the existing rich "assigned to installer" notification (WhatsApp + email) for
-            // the new card's team member.
-            await notificationService.sendJobCardAssignedToInstaller(newJobCard as any, assignedInstallerId!);
-          } catch (e) { console.error('notify (reschedule reassignment) failed', e); }
-        });
-        return;
+        assignedName = (await storage.getUser(assignedInstallerId!))?.name;
       }
 
-      // Same team — in-place status/time change only.
-      const jobCard = await storage.updateJobCard(req.params.id, {
+      const updates: any = {
         status: 'RESCHEDULED',
         scheduledAt,
         rescheduleReason: reason,
         rescheduleParty: resolvedParty,
         rescheduleCount: count + 1,
-      });
+      };
+      if (isReassignment) updates.assignedInstallerId = assignedInstallerId;
+      // After a started-job reschedule the card returns to Start directly (skips reached/pre-install).
+      if (hasStarted) { updates.startedAt = null; updates.preInstallationCompletedAt = null; updates.preInstallResult = null; updates.reachedAt = null; }
+
+      const trailDetail = `${new Date(scheduledAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })} — ${reason}`
+        + (isReassignment ? ` · reassigned to ${assignedName || 'new team member'}` : '');
+      const jobCard = await storage.appendJobCardTrail(
+        req.params.id,
+        { type: 'RESCHEDULED', detail: trailDetail, by: req.user!.id, byRole: req.user!.role },
+        updates,
+      );
       if (!jobCard) return res.status(404).json({ error: "Job card not found" });
 
       res.json(jobCard);
@@ -5640,6 +5625,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const { notifyRescheduled } = await import('./services/jobCardNotifications');
           await notifyRescheduled(req.params.id);
+          if (isReassignment) {
+            await notificationService.sendJobCardAssignedToInstaller(jobCard as any, assignedInstallerId!);
+          }
         } catch (e) { console.error('notifyRescheduled failed', e); }
       });
     } catch (error) {
@@ -5654,17 +5642,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Cluster 2 — Reached: mark the team on-site (Partner Admin / Super Admin). No notification.
   app.post("/api/job-cards/:id/reached", authenticate, async (req, res) => {
     try {
-      const jobCard = await storage.updateJobCard(req.params.id, {
-        status: 'REACHED',
-        reachedAt: new Date(),
-        reachedBy: req.user!.id,
-      });
+      const jobCard = await storage.appendJobCardTrail(
+        req.params.id,
+        { type: 'REACHED', by: req.user!.id, byRole: req.user!.role },
+        { status: 'REACHED', reachedAt: new Date(), reachedBy: req.user!.id },
+      );
       if (!jobCard) return res.status(404).json({ error: "Job card not found" });
       console.log(`ℹ️ Job card ${jobCard.id} marked REACHED by ${req.user!.role}`);
       res.json(jobCard);
     } catch (error) {
       console.error("Mark reached error:", error);
       res.status(500).json({ error: "Failed to mark job as reached" });
+    }
+  });
+
+  // Pre-installation CHECK outcome — PASS unlocks Start; FAIL sends the job back to reschedule.
+  app.post("/api/job-cards/:id/pre-install-result", authenticate, async (req, res) => {
+    try {
+      const result = String(req.body?.result || '').toUpperCase();
+      if (result !== 'PASS' && result !== 'FAIL') {
+        return res.status(400).json({ error: "result must be PASS or FAIL" });
+      }
+      const existing = await storage.getJobCard(req.params.id);
+      if (!existing) return res.status(404).json({ error: "Job card not found" });
+
+      const updates: any = { preInstallResult: result };
+      // PASS marks the pre-install complete (which the Start guard checks); FAIL leaves it incomplete
+      // and the card stays at REACHED so it can be rescheduled.
+      if (result === 'PASS') updates.preInstallationCompletedAt = existing.preInstallationCompletedAt || new Date();
+      else updates.preInstallationCompletedAt = null;
+
+      const jobCard = await storage.appendJobCardTrail(
+        req.params.id,
+        { type: result === 'PASS' ? 'PRE_INSTALL_PASS' : 'PRE_INSTALL_FAIL', by: req.user!.id, byRole: req.user!.role },
+        updates,
+      );
+      res.json(jobCard);
+    } catch (error) {
+      console.error("Pre-install result error:", error);
+      res.status(500).json({ error: "Failed to record pre-installation result" });
     }
   });
 

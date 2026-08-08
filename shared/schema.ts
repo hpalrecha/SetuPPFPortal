@@ -616,9 +616,14 @@ export const jobCards = pgTable("job_cards", {
   rescheduleParty: text("reschedule_party"),                // who this reschedule is attributed to: SHOWROOM | TEAM (Super Admin only choice)
   reachedAt: timestamp("reached_at"),                      // when the team was marked on-site
   reachedBy: uuid("reached_by").references(() => users.id),
-  // When a reschedule reassigns to a different installer, a NEW job card is created (like rework)
-  // and this card is frozen as the historical record, pointing at its replacement.
+  // (legacy) column from an earlier design where a team-change reschedule spawned a new card;
+  // the corrected flow keeps the same card + a trail entry, so this is no longer written.
   supersededByJobCardId: uuid("superseded_by_job_card_id"),
+  // Append-only history of events that don't have their own single timestamp column — reschedules,
+  // team changes, pre-install pass/fail. Each entry: { at, type, detail, by, byRole }.
+  timelineTrail: jsonb("timeline_trail"),
+  // Pre-installation check outcome — 'PASS' unlocks Start; 'FAIL' sends the job back to reschedule.
+  preInstallResult: text("pre_install_result"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });

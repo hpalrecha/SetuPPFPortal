@@ -1997,6 +1997,25 @@ export class DatabaseStorage implements IStorage {
     return jobCard || undefined;
   }
 
+  // Append an entry to a job card's timeline_trail (reschedule, team change, pre-install pass/fail…).
+  // Optionally apply other field updates in the same write.
+  async appendJobCardTrail(
+    id: string,
+    entry: { type: string; detail?: string; by?: string; byRole?: string },
+    updates: Partial<InsertJobCard> = {},
+  ): Promise<JobCard | undefined> {
+    const existing = await this.getJobCard(id);
+    if (!existing) return undefined;
+    const trail = Array.isArray((existing as any).timelineTrail) ? (existing as any).timelineTrail : [];
+    trail.push({ at: new Date().toISOString(), ...entry });
+    const [jobCard] = await db
+      .update(jobCards)
+      .set({ ...updates, timelineTrail: trail as any, updatedAt: new Date() })
+      .where(eq(jobCards.id, id))
+      .returning();
+    return jobCard || undefined;
+  }
+
   async insertJobCardMedia(media: { jobCardId: string; type: string; url: string; caption?: string }): Promise<any> {
     const [result] = await db
       .insert(jobCardMedia)

@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { CalendarIcon, ClockIcon, CheckCircle2, PlayCircle, PauseCircle, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon, Users, Camera, Eye, Shield, Plus, Trash2 } from 'lucide-react';
+import { CalendarIcon, ClockIcon, CheckCircle2, XCircle, PlayCircle, PauseCircle, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon, Users, Camera, Eye, Shield, Plus, Trash2, RotateCcw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiRequest } from '@/lib/queryClient';
 import { processImage } from '@/lib/imageProcessing';
@@ -38,6 +38,8 @@ interface JobCard {
   reachedAt?: string;
   reachedBy?: string;
   supersededByJobCardId?: string;
+  preInstallResult?: 'PASS' | 'FAIL' | string;
+  timelineTrail?: Array<{ at: string; type: string; detail?: string; by?: string; byRole?: string }>;
   partnerRemarks?: string;
   materialConsumptionJson?: any;
   batchNumbers?: string;
@@ -197,16 +199,18 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
 
   const acknowledgeJobMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/acknowledge`, {});
+      // Assigning the team member is required to acknowledge.
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/acknowledge`, { assignedInstallerId: selectedTeamMemberId });
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
-      toast({ title: 'Job Acknowledged', description: 'Job card has been acknowledged successfully.' });
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards', jobCardId] });
+      toast({ title: 'Job Acknowledged', description: 'Job acknowledged and assigned to the team member.' });
       setCurrentView('details');
     },
-    onError: () => {
-      toast({ title: 'Error', description: 'Failed to acknowledge job card.', variant: 'destructive' });
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error?.message || 'Failed to acknowledge job card.', variant: 'destructive' });
     }
   });
 
@@ -239,14 +243,12 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
       const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/reschedule`, body);
       return response.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
-      const reassigned = !!data?.previousJobCard;
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards', jobCardId] });
       toast({
         title: 'Job Rescheduled',
-        description: reassigned
-          ? 'A new job card was created for the newly assigned team member; both parties were notified.'
-          : 'The new time has been saved and both parties notified.',
+        description: 'The new time (and team, if changed) is saved on this job card and both parties notified.',
       });
       setCurrentView('details');
     },
@@ -267,6 +269,24 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     },
     onError: () => {
       toast({ title: 'Error', description: 'Failed to mark job as reached.', variant: 'destructive' });
+    }
+  });
+
+  const preInstallResultMutation = useMutation({
+    mutationFn: async (result: 'PASS' | 'FAIL') => {
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/pre-install-result`, { result });
+      return response.json();
+    },
+    onSuccess: (_data, result) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards', jobCardId] });
+      toast({
+        title: result === 'PASS' ? 'Pre-installation passed' : 'Pre-installation failed',
+        description: result === 'PASS' ? 'You can now Start Work.' : 'Please reschedule the job.',
+      });
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to record the pre-installation result.', variant: 'destructive' });
     }
   });
 
@@ -485,29 +505,30 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   };
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
-  // A card that was reassigned to a new team member during reschedule is frozen — the live
-  // work is now on its replacement card, so no further actions apply here.
-  const isSuperseded = !!jobCard?.supersededByJobCardId;
-  const canAcknowledge = !isSuperseded && jobCard?.status === 'AWAITING_ACK';
-  const canSchedule = !isSuperseded && jobCard?.status === 'ACKNOWLEDGED';
-  // Cluster 2 flow: SCHEDULED → REACHED → pre-install → Start. Once pre-installation is done,
-  // Reschedule/Reached no longer apply — the team is already on site and past that point.
-  const preInstallDone = !!jobCard?.preInstallationCompletedAt;
-  const canReschedule = !isSuperseded && !preInstallDone && ['SCHEDULED', 'RESCHEDULED', 'REACHED'].includes(jobCard?.status || '');
-  const canReachedStatus = !isSuperseded && !preInstallDone && ['SCHEDULED', 'RESCHEDULED'].includes(jobCard?.status || '');
+  const canAcknowledge = jobCard?.status === 'AWAITING_ACK';
+  const canSchedule = jobCard?.status === 'ACKNOWLEDGED';
+  // Corrected flow: SCHEDULED → REACHED → pre-install (PASS/FAIL) → Start.
+  const preStartStatus = ['SCHEDULED', 'RESCHEDULED', 'REACHED'].includes(jobCard?.status || '');
+  // Reschedule is available all the way until Start (incl. after a failed pre-install). Once the
+  // job has STARTED, only a Super Admin may reschedule (and reassign a team).
+  const canReschedule = preStartStatus || (jobCard?.status === 'IN_PROGRESS' && isSuperAdmin);
+  const canReachedStatus = ['SCHEDULED', 'RESCHEDULED'].includes(jobCard?.status || '');
   // Partner-level users may only mark Reached within 4 hours of the scheduled time (not way
   // ahead of it); Super Admin has no such restriction.
   const withinReachWindow = isSuperAdmin || (jobCard?.scheduledAt
     ? (new Date(jobCard.scheduledAt).getTime() - Date.now()) <= 4 * 60 * 60 * 1000
     : false);
   const canReached = canReachedStatus;
-  const canStart = !isSuperseded && jobCard?.status === 'REACHED';
-  const canComplete = !isSuperseded && jobCard?.status === 'IN_PROGRESS';
+  const preInstallPassed = jobCard?.preInstallResult === 'PASS';
+  const preInstallFailed = jobCard?.preInstallResult === 'FAIL';
+  // After Reached, run the pre-install check (until it passes). Start only appears once it PASSES.
+  const needsPreInstallation = jobCard?.status === 'REACHED' && !preInstallPassed;
+  const canStart = jobCard?.status === 'REACHED' && preInstallPassed;
+  const canComplete = jobCard?.status === 'IN_PROGRESS';
   const needsRework = jobCard?.status === 'REWORK_REQUESTED';
   const rescheduleCount = jobCard?.rescheduleCount || 0;
   const rescheduleLimitReached = rescheduleCount >= 3 && !isSuperAdmin;
   const hasPreInstallationPhotos = !!(jobCard?.preInstallationPhotoFront && jobCard?.preInstallationPhotoBack && jobCard?.preInstallationPhotoLeft && jobCard?.preInstallationPhotoRight);
-  const needsPreInstallation = canStart && !hasPreInstallationPhotos;
   // E-Warranty button: show when partner bills directly, job is approved/completed, and not already applied
   const canApplyWarranty = jobCard?.partnerBilledDirectly && 
                           ['PENDING_SALES_INVOICE', 'APPROVED'].includes(jobCard?.status || '') && 
@@ -628,13 +649,25 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                   Mark Reached
                 </Button>
               )}
-              {needsPreInstallation && (
+              {needsPreInstallation && !hasPreInstallationPhotos && (
                 <Button onClick={() => setPreInstallationModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-700" data-testid="button-pre-installation">
                   <Camera className="h-4 w-4 mr-2" />
                   Pre-Installation Photos
                 </Button>
               )}
-              {canStart && hasPreInstallationPhotos && (
+              {needsPreInstallation && hasPreInstallationPhotos && (
+                <>
+                  <Button onClick={() => preInstallResultMutation.mutate('PASS')} disabled={preInstallResultMutation.isPending} className="bg-green-600 hover:bg-green-700" data-testid="button-preinstall-pass">
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Pre-install: Pass
+                  </Button>
+                  <Button onClick={() => preInstallResultMutation.mutate('FAIL')} disabled={preInstallResultMutation.isPending} variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" data-testid="button-preinstall-fail">
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Pre-install: Fail
+                  </Button>
+                </>
+              )}
+              {canStart && (
                 <Button onClick={() => setCurrentView('start')} className="bg-orange-600 hover:bg-orange-700" data-testid="button-start">
                   <PlayCircle className="h-4 w-4 mr-2" />
                   Start Work
@@ -667,19 +700,37 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
               )}
             </div>
 
+            {/* Pre-installation FAILED notice — the job must be rescheduled. */}
+            {preInstallFailed && jobCard?.status === 'REACHED' && (
+              <Card className="border-2 border-red-200 bg-red-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base text-red-800 flex items-center gap-2">
+                    <XCircle className="h-5 w-5" />
+                    Pre-installation check failed
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-red-700">
+                    The pre-installation check was marked <strong>Fail</strong>. Please <strong>Reschedule</strong> the job
+                    to a new time. You can re-run the check after uploading fresh photos.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Pre-Installation Required Notice */}
             {needsPreInstallation && (
               <Card className="border-2 border-indigo-200 bg-indigo-50">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base text-indigo-800 flex items-center gap-2">
                     <Camera className="h-5 w-5" />
-                    Pre-Installation Photos Required
+                    Pre-Installation Check
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-indigo-700">
-                    Before starting the installation work, you must upload 4 photos of the vehicle (Front, Back, Left Side, Right Side) to document its pre-installation condition.
-                    Click the "Pre-Installation Photos" button above to upload the required photos.
+                    Upload 4 photos (Front, Back, Left, Right) to document the pre-installation condition, then mark the
+                    check <strong>Pass</strong> or <strong>Fail</strong>. Pass unlocks Start Work; Fail sends the job back to Reschedule.
                   </p>
                 </CardContent>
               </Card>
@@ -1007,10 +1058,20 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                       <span className="text-sm">Approved on {format(new Date(jobCard.approvedAt), 'PPp')}</span>
                     </div>
                   )}
-                  {jobCard.supersededByJobCardId && (
-                    <div className="flex items-center gap-3 pt-1 border-t">
-                      <div className="w-2 h-2 bg-amber-600 rounded-full"></div>
-                      <span className="text-sm text-amber-700">Reassigned to a new team member — a new job card was created for the handoff.</span>
+                  {/* Full trail: reschedules (with reason + any team change), pre-install pass/fail. */}
+                  {Array.isArray(jobCard.timelineTrail) && jobCard.timelineTrail.length > 0 && (
+                    <div className="pt-2 border-t space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground">History</p>
+                      {jobCard.timelineTrail.map((t, i) => (
+                        <div key={i} className="flex items-start gap-3">
+                          <RotateCcw className="h-3.5 w-3.5 text-slate-400 mt-1" />
+                          <span className="text-sm">
+                            <span className="font-medium">{t.type.replace(/_/g, ' ')}</span>
+                            {t.detail ? ` — ${t.detail}` : ''}
+                            <span className="text-xs text-muted-foreground"> · {format(new Date(t.at), 'PPp')}</span>
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   )}
                   {!jobCard.createdAt && !jobCard.acknowledgedAt && !jobCard.scheduledAt && !jobCard.startedAt && !jobCard.completedAt && (
@@ -1143,16 +1204,33 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Acknowledge Job Assignment</h3>
             <p className="text-sm text-gray-600">
-              By acknowledging this job, you confirm that you have received the assignment and will proceed with the installation.
+              By acknowledging this job, you confirm you’ve received the assignment. You must also assign the team
+              member who will carry it out — acknowledging requires a team member.
             </p>
+            <div>
+              <Label htmlFor="ack-team-member">Assign team member <span className="text-red-500">*</span></Label>
+              <Select value={selectedTeamMemberId} onValueChange={setSelectedTeamMemberId}>
+                <SelectTrigger id="ack-team-member" data-testid="select-ack-team-member">
+                  <SelectValue placeholder="Select a team member" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teamMembers.map((member: any) => (
+                    <SelectItem key={member.id} value={member.id}>{member.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {teamMembers.length === 0 && (
+                <p className="text-xs text-amber-600 mt-1">No team members found for this partner — add staff first.</p>
+              )}
+            </div>
             <div className="flex gap-3">
-              <Button 
-                onClick={() => acknowledgeJobMutation.mutate()} 
-                disabled={acknowledgeJobMutation.isPending}
+              <Button
+                onClick={() => acknowledgeJobMutation.mutate()}
+                disabled={acknowledgeJobMutation.isPending || !selectedTeamMemberId}
                 className="bg-blue-600 hover:bg-blue-700"
                 data-testid="button-confirm-acknowledge"
               >
-                {acknowledgeJobMutation.isPending ? 'Acknowledging...' : 'Confirm Acknowledgment'}
+                {acknowledgeJobMutation.isPending ? 'Acknowledging...' : 'Confirm & Assign'}
               </Button>
               <Button variant="outline" onClick={() => setCurrentView('details')} data-testid="button-cancel-acknowledge">
                 Cancel

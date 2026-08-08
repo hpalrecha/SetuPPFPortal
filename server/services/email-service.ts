@@ -1181,8 +1181,8 @@ export class EmailService {
               ${data.completedAt ? `<p><strong>Completed on:</strong> ${data.completedAt.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>` : ''}
             </div>
             <div class="buffer">
-              <strong>⏳ Please note — rework requests:</strong>
-              <p style="margin:8px 0 0 0;">If any rework is required, kindly allow a buffer of <strong>15 days</strong>. Our team will be able to comply based on availability and the urgency of the matter, after due consideration.</p>
+              <strong>⏳ Please note — rework & checkup:</strong>
+              <p style="margin:8px 0 0 0;">For any rework, a <strong>15-day buffer</strong> applies — during which the rework is reviewed and a team is assigned. After 15 days a <strong>car checkup</strong> is scheduled, and its availability will be informed accordingly.</p>
             </div>
             <p>Thank you for choosing us.</p>
           </div>

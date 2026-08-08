@@ -34,9 +34,9 @@ export const DEFAULT_TEMPLATES: Record<string, NotifTemplate> = {
     emailActive: true, whatsappTemplateName: '', whatsappLanguage: 'en', whatsappActive: false,
   },
   job_card_completed_customer: {
-    eventType: 'job_card_completed_customer', label: 'Completed → customer email',
-    emailSubject: 'Service Completed - {vehicle}',
-    emailBody: 'Your service on {vehicle} is complete. Any rework requires a 15-day buffer, subject to availability and urgency after consideration.',
+    eventType: 'job_card_completed_customer', label: 'Completed → everyone incl. customer',
+    emailSubject: 'Job Completed - {vehicle}',
+    emailBody: 'The job for {vehicle} is completed. For any rework a 15-day buffer applies, during which the rework is reviewed and a team assigned; after 15 days a car checkup is scheduled and its availability will be informed accordingly.',
     emailActive: true, whatsappTemplateName: '', whatsappLanguage: 'en', whatsappActive: false,
   },
   job_card_rework: {
