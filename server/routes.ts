@@ -5455,8 +5455,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Job Card Actions
   app.post("/api/job-cards/:id/acknowledge", authenticate, async (req, res) => {
     try {
+      // Fix: this used to only set status, leaving acknowledgedAt null forever — which made
+      // every Timeline show "Acknowledged: N/A" even for cards that had been acknowledged.
       const jobCard = await storage.updateJobCard(req.params.id, {
-        status: 'ACKNOWLEDGED'
+        status: 'ACKNOWLEDGED',
+        acknowledgedAt: new Date(),
       });
       
       if (!jobCard) {
@@ -5516,14 +5519,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Options for the reschedule form: the partner's team members, so the requester can optionally
+  // hand the job to a different installer while rescheduling. Broader access than rework-options
+  // (which is admin-only) since partner-side users also need this to reschedule their own jobs.
+  app.get("/api/job-cards/:id/reschedule-options", authenticate, async (req, res) => {
+    try {
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+      const jobCard = await storage.getJobCard(req.params.id);
+      if (!jobCard) return res.status(404).json({ error: "Job card not found" });
+
+      if (['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER'].includes(req.user!.role)) {
+        if (!userPartnerIds(req.user!).includes(jobCard.partnerId)) {
+          return res.status(403).json({ error: "Access denied - job card belongs to a different partner" });
+        }
+      }
+
+      const staff = await storage.getPartnerStaff(jobCard.partnerId);
+      res.json({ installers: staff.map((u: any) => ({ id: u.id, name: u.name, role: u.role })) });
+    } catch (error) {
+      console.error("Get reschedule options error:", error);
+      res.status(500).json({ error: "Failed to fetch reschedule options" });
+    }
+  });
+
   // Cluster 2 — Reschedule: new time + reason, max 3× (Super Admin unlimited), notify all parties.
+  // If a DIFFERENT team member is chosen (a reassignment), a NEW job card is created for them —
+  // mirroring the rework flow — and the original is frozen as a superseded historical record.
+  // If the team is unchanged, this is an in-place status/time update only.
   app.post("/api/job-cards/:id/reschedule", authenticate, async (req, res) => {
     try {
       const schema = z.object({
         scheduledAt: z.string().transform((v) => new Date(v)),
         reason: z.string().min(1, 'A reason is required'),
+        assignedInstallerId: z.string().uuid().optional(),
+        // Which side this reschedule is attributed to. Only a Super Admin's choice is honored —
+        // everyone else's reschedule is implicitly attributed to their own (team) side.
+        party: z.enum(['SHOWROOM', 'TEAM']).optional(),
       });
-      const { scheduledAt, reason } = schema.parse(req.body);
+      const { scheduledAt, reason, assignedInstallerId, party } = schema.parse(req.body);
 
       const existing = await storage.getJobCard(req.params.id);
       if (!existing) return res.status(404).json({ error: "Job card not found" });
@@ -5534,10 +5567,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Reschedule limit reached (3). Only a Super Admin can reschedule further." });
       }
 
+      const resolvedParty = isSuperAdmin && party ? party : 'TEAM';
+      const isReassignment = !!assignedInstallerId && assignedInstallerId !== existing.assignedInstallerId;
+
+      if (isReassignment) {
+        if (!(await storage.staffHasPartner(assignedInstallerId!, existing.partnerId))) {
+          return res.status(400).json({ error: "Selected team member is not part of this job's partner" });
+        }
+        const workOrder = await storage.getWorkOrder(existing.workOrderId);
+        if (!workOrder) return res.status(404).json({ error: "Associated work order not found" });
+
+        // New job card for the newly assigned team member — starts fresh so they acknowledge the
+        // handoff, with the proposed time already carried over.
+        const newJobCard = await storage.createJobCard({
+          workOrderId: existing.workOrderId,
+          partnerId: existing.partnerId,
+          status: 'AWAITING_ACK',
+          assignedInstallerId: assignedInstallerId,
+          scheduledAt,
+          rescheduleReason: reason,
+          rescheduleParty: resolvedParty,
+          billFrom: existing.billFrom || workOrder.billFrom || null,
+          billTo: existing.billTo || workOrder.billTo || null,
+          shipTo: existing.shipTo || workOrder.shipTo || null,
+          partnerBilledDirectly: existing.partnerBilledDirectly || false,
+        });
+
+        const updatedOld = await storage.updateJobCard(req.params.id, {
+          status: 'RESCHEDULED',
+          rescheduleReason: reason,
+          rescheduleParty: resolvedParty,
+          rescheduleCount: count + 1,
+          supersededByJobCardId: newJobCard.id,
+        });
+
+        await storage.updateWorkOrder(existing.workOrderId, {
+          status: 'ASSIGNED',
+          assignedJobCardId: newJobCard.id,
+        });
+
+        res.json({
+          message: "Rescheduled with a new team member — a new job card was created",
+          jobCard: newJobCard,
+          previousJobCard: updatedOld,
+        });
+
+        setImmediate(async () => {
+          try {
+            const { notifyRescheduled } = await import('./services/jobCardNotifications');
+            await notifyRescheduled(req.params.id);
+            // Reuse the existing rich "assigned to installer" notification (WhatsApp + email) for
+            // the new card's team member.
+            await notificationService.sendJobCardAssignedToInstaller(newJobCard as any, assignedInstallerId!);
+          } catch (e) { console.error('notify (reschedule reassignment) failed', e); }
+        });
+        return;
+      }
+
+      // Same team — in-place status/time change only.
       const jobCard = await storage.updateJobCard(req.params.id, {
         status: 'RESCHEDULED',
         scheduledAt,
         rescheduleReason: reason,
+        rescheduleParty: resolvedParty,
         rescheduleCount: count + 1,
       });
       if (!jobCard) return res.status(404).json({ error: "Job card not found" });

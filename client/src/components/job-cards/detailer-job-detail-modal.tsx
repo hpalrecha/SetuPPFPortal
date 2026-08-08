@@ -25,10 +25,19 @@ interface JobCard {
   id: string;
   status: string;
   partnerId: string;
+  createdAt?: string;
   acknowledgedAt?: string;
   scheduledAt?: string;
   startedAt?: string;
   completedAt?: string;
+  approvedAt?: string;
+  approvalRequestedAt?: string;
+  rescheduleCount?: number;
+  rescheduleReason?: string;
+  rescheduleParty?: string;
+  reachedAt?: string;
+  reachedBy?: string;
+  supersededByJobCardId?: string;
   partnerRemarks?: string;
   materialConsumptionJson?: any;
   batchNumbers?: string;
@@ -112,6 +121,8 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   const [rescheduleReason, setRescheduleReason] = useState('');
+  const [rescheduleInstallerId, setRescheduleInstallerId] = useState('');
+  const [rescheduleParty, setRescheduleParty] = useState<'TEAM' | 'SHOWROOM'>('TEAM');
   const [completionRemarks, setCompletionRemarks] = useState('');
   const [selectedTeamMemberId, setSelectedTeamMemberId] = useState<string>('');
   const [uploadedPostPhotos, setUploadedPostPhotos] = useState<Array<{label: string; url: string; originalSize: number; compressedSize: number}>>([]);
@@ -173,6 +184,17 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     enabled: !!partnerId && isOpen
   });
 
+  // Installer options for the reschedule form's "reassign to" picker — broader access than the
+  // staff endpoint above so PARTNER_STAFF/DETAILING_PARTNER can also reassign while rescheduling.
+  const { data: rescheduleOptions } = useQuery<{ installers: Array<{ id: string; name: string; role: string }> }>({
+    queryKey: ['/api/job-cards', jobCardId, 'reschedule-options'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/job-cards/${jobCardId}/reschedule-options`);
+      return response.json();
+    },
+    enabled: !!jobCardId && isOpen && currentView === 'reschedule',
+  });
+
   const acknowledgeJobMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/acknowledge`, {});
@@ -207,12 +229,25 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const rescheduleJobMutation = useMutation({
     mutationFn: async () => {
       const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
-      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/reschedule`, { scheduledAt, reason: rescheduleReason.trim() });
+      const body: any = { scheduledAt, reason: rescheduleReason.trim() };
+      // Only send an installer id when it's actually a change — otherwise the server treats it
+      // as an in-place reschedule (same team, status/time only).
+      if (rescheduleInstallerId && rescheduleInstallerId !== (jobCard?.assignedInstallerId || '')) {
+        body.assignedInstallerId = rescheduleInstallerId;
+      }
+      if (isSuperAdmin) body.party = rescheduleParty;
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/reschedule`, body);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
-      toast({ title: 'Job Rescheduled', description: 'The new time has been saved and both parties notified.' });
+      const reassigned = !!data?.previousJobCard;
+      toast({
+        title: 'Job Rescheduled',
+        description: reassigned
+          ? 'A new job card was created for the newly assigned team member; both parties were notified.'
+          : 'The new time has been saved and both parties notified.',
+      });
       setCurrentView('details');
     },
     onError: (error: any) => {
@@ -449,16 +484,28 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800';
   };
 
-  const canAcknowledge = jobCard?.status === 'AWAITING_ACK';
-  const canSchedule = jobCard?.status === 'ACKNOWLEDGED';
-  // Cluster 2 flow: SCHEDULED → REACHED → pre-install → Start.
-  const canReschedule = ['SCHEDULED', 'RESCHEDULED', 'REACHED'].includes(jobCard?.status || '');
-  const canReached = ['SCHEDULED', 'RESCHEDULED'].includes(jobCard?.status || '');
-  const canStart = jobCard?.status === 'REACHED';
-  const canComplete = jobCard?.status === 'IN_PROGRESS';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  // A card that was reassigned to a new team member during reschedule is frozen — the live
+  // work is now on its replacement card, so no further actions apply here.
+  const isSuperseded = !!jobCard?.supersededByJobCardId;
+  const canAcknowledge = !isSuperseded && jobCard?.status === 'AWAITING_ACK';
+  const canSchedule = !isSuperseded && jobCard?.status === 'ACKNOWLEDGED';
+  // Cluster 2 flow: SCHEDULED → REACHED → pre-install → Start. Once pre-installation is done,
+  // Reschedule/Reached no longer apply — the team is already on site and past that point.
+  const preInstallDone = !!jobCard?.preInstallationCompletedAt;
+  const canReschedule = !isSuperseded && !preInstallDone && ['SCHEDULED', 'RESCHEDULED', 'REACHED'].includes(jobCard?.status || '');
+  const canReachedStatus = !isSuperseded && !preInstallDone && ['SCHEDULED', 'RESCHEDULED'].includes(jobCard?.status || '');
+  // Partner-level users may only mark Reached within 4 hours of the scheduled time (not way
+  // ahead of it); Super Admin has no such restriction.
+  const withinReachWindow = isSuperAdmin || (jobCard?.scheduledAt
+    ? (new Date(jobCard.scheduledAt).getTime() - Date.now()) <= 4 * 60 * 60 * 1000
+    : false);
+  const canReached = canReachedStatus;
+  const canStart = !isSuperseded && jobCard?.status === 'REACHED';
+  const canComplete = !isSuperseded && jobCard?.status === 'IN_PROGRESS';
   const needsRework = jobCard?.status === 'REWORK_REQUESTED';
   const rescheduleCount = jobCard?.rescheduleCount || 0;
-  const rescheduleLimitReached = rescheduleCount >= 3 && user?.role !== 'SUPER_ADMIN';
+  const rescheduleLimitReached = rescheduleCount >= 3 && !isSuperAdmin;
   const hasPreInstallationPhotos = !!(jobCard?.preInstallationPhotoFront && jobCard?.preInstallationPhotoBack && jobCard?.preInstallationPhotoLeft && jobCard?.preInstallationPhotoRight);
   const needsPreInstallation = canStart && !hasPreInstallationPhotos;
   // E-Warranty button: show when partner bills directly, job is approved/completed, and not already applied
@@ -471,6 +518,8 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     setScheduleDate('');
     setScheduleTime('');
     setRescheduleReason('');
+    setRescheduleInstallerId('');
+    setRescheduleParty('TEAM');
     setCompletionRemarks('');
     setUploadedPostPhotos([]);
     setSelectedTeamMemberId(jobCard?.assignedInstallerId || '');
@@ -556,7 +605,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
               )}
               {canReschedule && (
                 <Button
-                  onClick={() => { setScheduleDate(''); setScheduleTime(''); setRescheduleReason(''); setCurrentView('reschedule'); }}
+                  onClick={() => { setScheduleDate(''); setScheduleTime(''); setRescheduleReason(''); setRescheduleInstallerId(''); setRescheduleParty('TEAM'); setCurrentView('reschedule'); }}
                   disabled={rescheduleLimitReached}
                   title={rescheduleLimitReached ? 'Reschedule limit reached (3). Only a Super Admin can reschedule further.' : undefined}
                   variant="outline"
@@ -568,7 +617,13 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                 </Button>
               )}
               {canReached && (
-                <Button onClick={() => setCurrentView('reached')} className="bg-teal-600 hover:bg-teal-700" data-testid="button-reached">
+                <Button
+                  onClick={() => setCurrentView('reached')}
+                  disabled={!withinReachWindow}
+                  title={!withinReachWindow ? 'Available within 4 hours of the scheduled time' : undefined}
+                  className="bg-teal-600 hover:bg-teal-700"
+                  data-testid="button-reached"
+                >
                   <MapPinIcon className="h-4 w-4 mr-2" />
                   Mark Reached
                 </Button>
@@ -902,6 +957,12 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
+                  {jobCard.createdAt && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                      <span className="text-sm">Created on {format(new Date(jobCard.createdAt), 'PPp')}</span>
+                    </div>
+                  )}
                   {jobCard.acknowledgedAt && (
                     <div className="flex items-center gap-3">
                       <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
@@ -912,6 +973,20 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                     <div className="flex items-center gap-3">
                       <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
                       <span className="text-sm">Scheduled for {format(new Date(jobCard.scheduledAt), 'PPp')}</span>
+                    </div>
+                  )}
+                  {jobCard.rescheduleReason && (
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 bg-amber-600 rounded-full mt-1.5"></div>
+                      <span className="text-sm">
+                        Rescheduled{jobCard.rescheduleCount ? ` (${jobCard.rescheduleCount}/3)` : ''} — {jobCard.rescheduleReason}
+                      </span>
+                    </div>
+                  )}
+                  {jobCard.reachedAt && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 bg-teal-600 rounded-full"></div>
+                      <span className="text-sm">Reached on {format(new Date(jobCard.reachedAt), 'PPp')}</span>
                     </div>
                   )}
                   {jobCard.startedAt && (
@@ -925,6 +1000,21 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                       <div className="w-2 h-2 bg-green-600 rounded-full"></div>
                       <span className="text-sm">Completed on {format(new Date(jobCard.completedAt), 'PPp')}</span>
                     </div>
+                  )}
+                  {jobCard.approvedAt && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 bg-emerald-600 rounded-full"></div>
+                      <span className="text-sm">Approved on {format(new Date(jobCard.approvedAt), 'PPp')}</span>
+                    </div>
+                  )}
+                  {jobCard.supersededByJobCardId && (
+                    <div className="flex items-center gap-3 pt-1 border-t">
+                      <div className="w-2 h-2 bg-amber-600 rounded-full"></div>
+                      <span className="text-sm text-amber-700">Reassigned to a new team member — a new job card was created for the handoff.</span>
+                    </div>
+                  )}
+                  {!jobCard.createdAt && !jobCard.acknowledgedAt && !jobCard.scheduledAt && !jobCard.startedAt && !jobCard.completedAt && (
+                    <p className="text-sm text-muted-foreground">No timeline events yet.</p>
                   )}
                 </div>
               </CardContent>
@@ -1143,6 +1233,37 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                 onChange={(e) => setRescheduleReason(e.target.value)}
                 placeholder="Why is this being rescheduled?" data-testid="input-reschedule-reason" />
             </div>
+            <div>
+              <Label htmlFor="reschedule-installer">Team member</Label>
+              <Select value={rescheduleInstallerId || jobCard?.assignedInstallerId || ''} onValueChange={setRescheduleInstallerId}>
+                <SelectTrigger id="reschedule-installer" data-testid="select-reschedule-installer">
+                  <SelectValue placeholder="Keep current team member" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(rescheduleOptions?.installers || []).map((i) => (
+                    <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Only change this if the job is being handed to a different team member — that creates a
+                new job card for them. Leaving it as-is just updates the time on this job card.
+              </p>
+            </div>
+            {isSuperAdmin && (
+              <div>
+                <Label htmlFor="reschedule-party">Which party is this reschedule for?</Label>
+                <Select value={rescheduleParty} onValueChange={(v) => setRescheduleParty(v as 'TEAM' | 'SHOWROOM')}>
+                  <SelectTrigger id="reschedule-party" data-testid="select-reschedule-party">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TEAM">Team / Partner</SelectItem>
+                    <SelectItem value="SHOWROOM">Showroom</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex gap-3">
               <Button
                 onClick={() => rescheduleJobMutation.mutate()}

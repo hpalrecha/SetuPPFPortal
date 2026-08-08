@@ -613,8 +613,12 @@ export const jobCards = pgTable("job_cards", {
   // Cluster 2 — reschedule + reached tracking.
   rescheduleCount: integer("reschedule_count").default(0), // times rescheduled (limit 3, super admin unlimited)
   rescheduleReason: text("reschedule_reason"),             // reason for the latest reschedule
+  rescheduleParty: text("reschedule_party"),                // who this reschedule is attributed to: SHOWROOM | TEAM (Super Admin only choice)
   reachedAt: timestamp("reached_at"),                      // when the team was marked on-site
   reachedBy: uuid("reached_by").references(() => users.id),
+  // When a reschedule reassigns to a different installer, a NEW job card is created (like rework)
+  // and this card is frozen as the historical record, pointing at its replacement.
+  supersededByJobCardId: uuid("superseded_by_job_card_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });

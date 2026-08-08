@@ -60,7 +60,9 @@ import {
   RefreshCw,
   Pencil,
   Plus,
-  Trash2
+  Trash2,
+  RotateCcw,
+  Send
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
@@ -1494,14 +1496,19 @@ export default function JobCardsNew() {
   // Group job cards by status for Kanban view
   const groupedJobCards = {
     AWAITING_ACK: jobCards.filter(jc => jc.status === 'AWAITING_ACK'),
-    IN_PROGRESS: jobCards.filter(jc => jc.status && ['ACKNOWLEDGED', 'ASSIGNED', 'SCHEDULED', 'IN_PROGRESS'].includes(jc.status)),
+    IN_PROGRESS: jobCards.filter(jc => jc.status && ['ACKNOWLEDGED', 'ASSIGNED', 'SCHEDULED', 'RESCHEDULED', 'REACHED', 'IN_PROGRESS'].includes(jc.status)),
     PENDING_APPROVAL: jobCards.filter(jc => jc.status === 'PENDING_APPROVAL'),
     COMPLETED: jobCards.filter(jc => jc.status && ['COMPLETED', 'APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'CLOSED'].includes(jc.status))
   };
 
   const handleViewJobCard = (jobCard: EnrichedJobCard) => {
-    if (isPartnerUser && ['AWAITING_ACK', 'ACKNOWLEDGED', 'SCHEDULED', 'IN_PROGRESS'].includes(jobCard.status || '')) {
-      // Show detailer workflow modal for partner users
+    // RESCHEDULED/REACHED added — before this fix, once a job was rescheduled or marked reached
+    // it fell through to the "basic details" modal below, which has no Reschedule/Reached/Start
+    // actions and a Timeline that only knows 5 of the lifecycle's statuses. SUPER_ADMIN also
+    // routes here now — they have their own (unrestricted) Reschedule/Reached access in that modal.
+    const preStartStatuses = ['AWAITING_ACK', 'ACKNOWLEDGED', 'SCHEDULED', 'RESCHEDULED', 'REACHED', 'IN_PROGRESS'];
+    if ((isPartnerUser || user?.role === 'SUPER_ADMIN') && preStartStatuses.includes(jobCard.status || '')) {
+      // Show detailer workflow modal for partner users (and Super Admin, for reschedule/reached)
       setSelectedDetailerJobCard(jobCard.id);
     } else if (isShowroomUser && ['COMPLETED', 'PENDING_APPROVAL'].includes(jobCard.status || '')) {
       // Show approval modal for showroom users
@@ -2987,21 +2994,46 @@ export default function JobCardsNew() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="space-y-2">
+                      {/* Every lifecycle status the card has actually passed through, with its
+                          timestamp — not just a fixed subset. Rows without a timestamp are hidden
+                          (rather than shown as "N/A") since a card naturally hasn't reached every
+                          status yet; only genuinely-reached-but-unset dates would need attention. */}
                       {[
+                        { label: 'Created', date: detailedJobCard?.createdAt, icon: FileText },
                         { label: 'Acknowledged', date: detailedJobCard?.acknowledgedAt, icon: CheckCircle2 },
                         { label: 'Scheduled', date: detailedJobCard?.scheduledAt, icon: Calendar },
+                        ...(detailedJobCard?.rescheduleReason ? [{
+                          label: `Rescheduled${detailedJobCard.rescheduleCount ? ` (${detailedJobCard.rescheduleCount}/3)` : ''}`,
+                          date: detailedJobCard?.updatedAt,
+                          icon: RotateCcw,
+                          note: detailedJobCard.rescheduleReason,
+                        }] : []),
+                        { label: 'Reached', date: detailedJobCard?.reachedAt, icon: MapPin },
                         { label: 'Started', date: detailedJobCard.startedAt, icon: Play },
                         { label: 'Completed', date: detailedJobCard.completedAt, icon: Wrench },
-                        { label: 'Approved', date: detailedJobCard.approvedAt, icon: Trophy }
-                      ].map((item, index) => (
-                        <div key={index} className="flex items-center gap-3 text-sm">
-                          <item.icon className={`h-4 w-4 ${item.date ? 'text-green-600' : 'text-gray-300'}`} />
-                          <span className="text-muted-foreground min-w-[80px]">{item.label}:</span>
-                          <span className={`font-medium text-xs ${item.date ? 'text-foreground' : 'text-muted-foreground'}`}>
-                            {item.date ? formatDateTime(item.date) : 'N/A'}
-                          </span>
+                        { label: 'Approval requested', date: detailedJobCard?.approvalRequestedAt, icon: Send },
+                        { label: 'Approved', date: detailedJobCard.approvedAt, icon: Trophy },
+                        ...(detailedJobCard?.reworkRequestedAt ? [{ label: 'Rework requested', date: detailedJobCard.reworkRequestedAt, icon: AlertCircle, note: detailedJobCard.reworkReason }] : []),
+                      ].filter((item: any) => item.date).map((item: any, index) => (
+                        <div key={index} className="flex items-start gap-3 text-sm">
+                          <item.icon className="h-4 w-4 text-green-600 mt-0.5" />
+                          <div className="min-w-0">
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-muted-foreground">{item.label}:</span>
+                              <span className="font-medium text-xs text-foreground">{formatDateTime(item.date)}</span>
+                            </div>
+                            {item.note && <p className="text-xs text-muted-foreground mt-0.5">{item.note}</p>}
+                          </div>
                         </div>
                       ))}
+                      {detailedJobCard?.supersededByJobCardId && (
+                        <div className="flex items-center gap-3 text-sm pt-1 border-t">
+                          <RotateCcw className="h-4 w-4 text-amber-600" />
+                          <span className="text-xs text-amber-700">
+                            Reassigned to a new team member — a new job card was created for the handoff.
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
