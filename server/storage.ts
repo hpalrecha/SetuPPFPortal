@@ -1473,6 +1473,7 @@ export class DatabaseStorage implements IStorage {
     showroomId?: string;
     partnerId?: string;
     partnerIds?: string[]; // multi-partner staff scoping
+    createdByUserId?: string; // include this user's own-created orders (e.g. a partner admin's DRAFTs)
     status?: string;
     workOrderIds?: string[];  // Add bulk support
     limit?: number;
@@ -1486,7 +1487,17 @@ export class DatabaseStorage implements IStorage {
     if (filters?.dealershipId) conditions.push(eq(workOrders.dealershipId, filters.dealershipId));
     if (filters?.showroomId) conditions.push(eq(workOrders.showroomId, filters.showroomId));
     if (filters?.partnerId) conditions.push(eq(workOrders.assignedPartnerId, filters.partnerId));
-    if (filters?.partnerIds?.length) conditions.push(inArray(workOrders.assignedPartnerId, filters.partnerIds));
+    if (filters?.partnerIds?.length) {
+      // A partner sees orders assigned to their partner, OR orders they themselves created
+      // (a partner-admin's own DRAFT has assignedPartnerId = null until it is submitted, so
+      // without the createdBy branch it would never show in their list).
+      const partnerCond = inArray(workOrders.assignedPartnerId, filters.partnerIds);
+      conditions.push(
+        filters.createdByUserId
+          ? or(partnerCond, eq(workOrders.createdByUserId, filters.createdByUserId))
+          : partnerCond
+      );
+    }
     if (filters?.status) conditions.push(eq(workOrders.status, filters.status as any));
     
     // Add bulk support for multiple work order IDs
@@ -3938,6 +3949,8 @@ export class DatabaseStorage implements IStorage {
         errorMessage: notificationLogs.errorMessage,
         relatedEntityType: notificationLogs.relatedEntityType,
         relatedEntityId: notificationLogs.relatedEntityId,
+        reply: notificationLogs.reply,
+        replyAt: notificationLogs.replyAt,
         createdAt: notificationLogs.createdAt,
       })
       .from(notificationLogs)
@@ -3998,6 +4011,15 @@ export class DatabaseStorage implements IStorage {
     const conds: any[] = [eq(notificationLogs.recipientUserId, userId), isNull(notificationLogs.readAt)];
     if (ids && ids.length) conds.push(inArray(notificationLogs.id, ids));
     await db.update(notificationLogs).set({ readAt: new Date() }).where(and(...conds));
+  }
+
+  // Record a manual reply/outcome on a notification (the eye button). Empty string clears it.
+  async setNotificationReply(id: string, reply: string): Promise<boolean> {
+    const [row] = await db.update(notificationLogs)
+      .set({ reply: reply || null, replyAt: reply ? new Date() : null })
+      .where(eq(notificationLogs.id, id))
+      .returning({ id: notificationLogs.id });
+    return !!row;
   }
 
   // Vehicle Model methods

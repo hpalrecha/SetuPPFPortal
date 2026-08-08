@@ -3474,12 +3474,15 @@ export default function JobCardsNew() {
                               </Button>
                             )
                           ) : (
-                            // P91: show for any valid post-completion status (not just INVOICE_RAISED)
-                            // so the option doesn't vanish once the card moves on. STEK keeps the
-                            // legacy INVOICE_RAISED-only gate (reference-number flow).
+                            // #11 — the Apply e-Warranty OPTION is unlocked from APPROVED onward for
+                            // both brands so it's discoverable; for STEK the actual claim (reference-
+                            // number flow) still needs the sales invoice, so the button stays disabled
+                            // until INVOICE_RAISED. P91's request flow is enabled throughout.
                             ((detailedJobCard as any).isP91Warranty
                               ? (!detailedJobCard.eWarrantyApplied && ['APPROVED','PENDING_SALES_INVOICE','INVOICE_RAISED','WARRANTY_REGISTRATION','PAYMENT_PENDING'].includes(detailedJobCard.status))
-                              : detailedJobCard.status === 'INVOICE_RAISED') && (
+                              : ['APPROVED','PENDING_SALES_INVOICE','INVOICE_RAISED','WARRANTY_REGISTRATION','PAYMENT_PENDING'].includes(detailedJobCard.status)) && (() => {
+                              const stekAwaitingInvoice = !(detailedJobCard as any).isP91Warranty && detailedJobCard.status !== 'INVOICE_RAISED';
+                              return (
                               <Button
                                 size="sm"
                                 onClick={() => {
@@ -3489,12 +3492,15 @@ export default function JobCardsNew() {
                                     setShowApplyWarrantyModal(true);
                                   }
                                 }}
+                                disabled={stekAwaitingInvoice}
+                                title={stekAwaitingInvoice ? 'Available once the sales invoice is raised' : undefined}
                                 className="bg-blue-600 hover:bg-blue-700"
                                 data-testid="button-apply-warranty"
                               >
                                 Apply eWarranty
                               </Button>
-                            )
+                              );
+                            })()
                           )}
                         </div>
                       </div>

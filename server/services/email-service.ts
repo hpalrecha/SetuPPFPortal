@@ -1138,6 +1138,127 @@ export class EmailService {
       html
     });
   }
+
+  // Customer-facing "your job is complete" email, including the 15-day rework buffer notice (#8).
+  async sendJobCardCustomerCompletion(
+    recipientEmail: string,
+    data: {
+      customerName?: string;
+      vehicleDetails: string;
+      workOrderNumber: string;
+      partnerName?: string;
+      serviceName?: string;
+      completedAt?: Date;
+    },
+    overrideSubject?: string,
+  ): Promise<boolean> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; }
+          .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 28px 20px; border-radius: 8px 8px 0 0; text-align: center; }
+          .content { padding: 30px; }
+          .details { background: #f8fafc; padding: 20px; border-radius: 6px; margin: 20px 0; }
+          .buffer { background: #fef3c7; border: 1px solid #f59e0b; padding: 15px; border-radius: 6px; margin: 20px 0; color: #92400e; }
+          .footer { background: #f1f5f9; padding: 20px; border-radius: 0 0 8px 8px; text-align: center; color: #64748b; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          ${this.getLogoHtml()}
+          <div class="header"><h1 style="margin:0;">✅ Your Service is Complete</h1></div>
+          <div class="content">
+            <p>Dear ${data.customerName || 'Customer'},</p>
+            <p>We're pleased to let you know that the work on your vehicle has been completed by our team.</p>
+            <div class="details">
+              <p><strong>Vehicle:</strong> ${data.vehicleDetails}</p>
+              ${data.serviceName ? `<p><strong>Service:</strong> ${data.serviceName}</p>` : ''}
+              <p><strong>Work Order:</strong> ${data.workOrderNumber}</p>
+              ${data.partnerName ? `<p><strong>Completed by:</strong> ${data.partnerName}</p>` : ''}
+              ${data.completedAt ? `<p><strong>Completed on:</strong> ${data.completedAt.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>` : ''}
+            </div>
+            <div class="buffer">
+              <strong>⏳ Please note — rework requests:</strong>
+              <p style="margin:8px 0 0 0;">If any rework is required, kindly allow a buffer of <strong>15 days</strong>. Our team will be able to comply based on availability and the urgency of the matter, after due consideration.</p>
+            </div>
+            <p>Thank you for choosing us.</p>
+          </div>
+          <div class="footer"><p>Pulse VAS - Professional Paint Protection Film Services</p></div>
+        </div>
+      </body>
+      </html>
+    `;
+    return this.sendEmail({
+      to: recipientEmail,
+      subject: overrideSubject || `✅ Service Completed - ${data.workOrderNumber}`,
+      html,
+      context: { eventType: 'job_card_completed_customer' },
+    });
+  }
+
+  // Rework requested email including reason, affected parts and assignee (#10).
+  async sendJobCardReworkNotification(
+    recipientEmails: string[],
+    data: {
+      jobCardId: string;
+      workOrderNumber: string;
+      vehicleDetails: string;
+      reason: string;
+      parts?: string[];
+      assignedTo?: string;
+      jobCardLink?: string;
+    },
+    overrideSubject?: string,
+  ): Promise<boolean> {
+    const partsHtml = (data.parts && data.parts.length)
+      ? data.parts.map(p => `<li>${p}</li>`).join('')
+      : '<li>Not specified</li>';
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; }
+          .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 24px 20px; border-radius: 8px 8px 0 0; }
+          .content { padding: 30px; }
+          .details { background: #f8fafc; padding: 20px; border-radius: 6px; margin: 20px 0; }
+          .button { display:inline-block; background:#4db848; color:#fff !important; padding:12px 28px; text-decoration:none; border-radius:6px; font-weight:bold; margin-top:10px; }
+          .footer { background: #f1f5f9; padding: 20px; border-radius: 0 0 8px 8px; text-align: center; color: #64748b; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          ${this.getLogoHtml()}
+          <div class="header"><h1 style="margin:0;">🔧 Rework Requested</h1></div>
+          <div class="content">
+            <p>A rework has been requested for the following job.</p>
+            <div class="details">
+              <p><strong>Job Card:</strong> ${data.jobCardId}</p>
+              <p><strong>Work Order:</strong> ${data.workOrderNumber}</p>
+              <p><strong>Vehicle:</strong> ${data.vehicleDetails}</p>
+              <p><strong>Reason for rework:</strong> ${data.reason || 'Not specified'}</p>
+              <p><strong>Affected parts:</strong></p>
+              <ul style="margin:4px 0 0 0;">${partsHtml}</ul>
+              ${data.assignedTo ? `<p style="margin-top:12px;"><strong>Assigned to:</strong> ${data.assignedTo}</p>` : ''}
+            </div>
+            ${data.jobCardLink ? `<div style="text-align:center;"><a href="${data.jobCardLink}" class="button">View Job Card</a></div>` : ''}
+          </div>
+          <div class="footer"><p>Pulse VAS - Professional Paint Protection Film Services</p></div>
+        </div>
+      </body>
+      </html>
+    `;
+    return this.sendEmail({
+      to: recipientEmails,
+      subject: overrideSubject || `🔧 Rework Requested - ${data.workOrderNumber}`,
+      html,
+      context: { eventType: 'job_card_rework' },
+    });
+  }
 }
 
 // Export singleton instance

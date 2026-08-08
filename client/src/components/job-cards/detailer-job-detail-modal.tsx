@@ -14,6 +14,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { processImage } from '@/lib/imageProcessing';
 import { displayContact } from '@shared/placeholderContact';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 import { ImageModal } from '@/components/ui/image-modal';
 import { format } from 'date-fns';
 import { PreInstallationModal } from '@/components/modals/PreInstallationModal';
@@ -103,12 +104,14 @@ interface DetailerJobDetailModalProps {
 
 export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: DetailerJobDetailModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   
   // State for different forms
-  const [currentView, setCurrentView] = useState<'details' | 'acknowledge' | 'schedule' | 'start' | 'complete' | 'mark-fixed'>('details');
+  const [currentView, setCurrentView] = useState<'details' | 'acknowledge' | 'schedule' | 'reschedule' | 'reached' | 'start' | 'complete' | 'mark-fixed'>('details');
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
+  const [rescheduleReason, setRescheduleReason] = useState('');
   const [completionRemarks, setCompletionRemarks] = useState('');
   const [selectedTeamMemberId, setSelectedTeamMemberId] = useState<string>('');
   const [uploadedPostPhotos, setUploadedPostPhotos] = useState<Array<{label: string; url: string; originalSize: number; compressedSize: number}>>([]);
@@ -198,6 +201,37 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     },
     onError: () => {
       toast({ title: 'Error', description: 'Failed to schedule job card.', variant: 'destructive' });
+    }
+  });
+
+  const rescheduleJobMutation = useMutation({
+    mutationFn: async () => {
+      const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/reschedule`, { scheduledAt, reason: rescheduleReason.trim() });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      toast({ title: 'Job Rescheduled', description: 'The new time has been saved and both parties notified.' });
+      setCurrentView('details');
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error?.message || 'Failed to reschedule job card.', variant: 'destructive' });
+    }
+  });
+
+  const reachedJobMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/reached`, {});
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      toast({ title: 'Marked Reached', description: 'The team has been marked on-site.' });
+      setCurrentView('details');
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to mark job as reached.', variant: 'destructive' });
     }
   });
 
@@ -404,6 +438,8 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
       'AWAITING_ACK': 'bg-yellow-100 text-yellow-800',
       'ACKNOWLEDGED': 'bg-blue-100 text-blue-800',
       'SCHEDULED': 'bg-purple-100 text-purple-800',
+      'RESCHEDULED': 'bg-amber-100 text-amber-800',
+      'REACHED': 'bg-teal-100 text-teal-800',
       'IN_PROGRESS': 'bg-orange-100 text-orange-800',
       'COMPLETED': 'bg-green-100 text-green-800',
       'PENDING_APPROVAL': 'bg-indigo-100 text-indigo-800',
@@ -415,9 +451,14 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
 
   const canAcknowledge = jobCard?.status === 'AWAITING_ACK';
   const canSchedule = jobCard?.status === 'ACKNOWLEDGED';
-  const canStart = jobCard?.status === 'SCHEDULED';
+  // Cluster 2 flow: SCHEDULED → REACHED → pre-install → Start.
+  const canReschedule = ['SCHEDULED', 'RESCHEDULED', 'REACHED'].includes(jobCard?.status || '');
+  const canReached = ['SCHEDULED', 'RESCHEDULED'].includes(jobCard?.status || '');
+  const canStart = jobCard?.status === 'REACHED';
   const canComplete = jobCard?.status === 'IN_PROGRESS';
   const needsRework = jobCard?.status === 'REWORK_REQUESTED';
+  const rescheduleCount = jobCard?.rescheduleCount || 0;
+  const rescheduleLimitReached = rescheduleCount >= 3 && user?.role !== 'SUPER_ADMIN';
   const hasPreInstallationPhotos = !!(jobCard?.preInstallationPhotoFront && jobCard?.preInstallationPhotoBack && jobCard?.preInstallationPhotoLeft && jobCard?.preInstallationPhotoRight);
   const needsPreInstallation = canStart && !hasPreInstallationPhotos;
   // E-Warranty button: show when partner bills directly, job is approved/completed, and not already applied
@@ -429,6 +470,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     setCurrentView('details');
     setScheduleDate('');
     setScheduleTime('');
+    setRescheduleReason('');
     setCompletionRemarks('');
     setUploadedPostPhotos([]);
     setSelectedTeamMemberId(jobCard?.assignedInstallerId || '');
@@ -510,6 +552,25 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                 <Button onClick={() => setCurrentView('schedule')} className="bg-purple-600 hover:bg-purple-700" data-testid="button-schedule">
                   <CalendarIcon className="h-4 w-4 mr-2" />
                   Schedule Visit
+                </Button>
+              )}
+              {canReschedule && (
+                <Button
+                  onClick={() => { setScheduleDate(''); setScheduleTime(''); setRescheduleReason(''); setCurrentView('reschedule'); }}
+                  disabled={rescheduleLimitReached}
+                  title={rescheduleLimitReached ? 'Reschedule limit reached (3). Only a Super Admin can reschedule further.' : undefined}
+                  variant="outline"
+                  className="border-amber-300 text-amber-800 hover:bg-amber-50"
+                  data-testid="button-reschedule"
+                >
+                  <CalendarDaysIcon className="h-4 w-4 mr-2" />
+                  Reschedule{rescheduleCount > 0 ? ` (${rescheduleCount}/3)` : ''}
+                </Button>
+              )}
+              {canReached && (
+                <Button onClick={() => setCurrentView('reached')} className="bg-teal-600 hover:bg-teal-700" data-testid="button-reached">
+                  <MapPinIcon className="h-4 w-4 mr-2" />
+                  Mark Reached
                 </Button>
               )}
               {needsPreInstallation && (
@@ -1038,8 +1099,8 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
               </div>
             </div>
             <div className="flex gap-3">
-              <Button 
-                onClick={() => scheduleJobMutation.mutate()} 
+              <Button
+                onClick={() => scheduleJobMutation.mutate()}
                 disabled={scheduleJobMutation.isPending || !scheduleDate || !scheduleTime}
                 className="bg-purple-600 hover:bg-purple-700"
                 data-testid="button-confirm-schedule"
@@ -1047,6 +1108,75 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                 {scheduleJobMutation.isPending ? 'Scheduling...' : 'Confirm Schedule'}
               </Button>
               <Button variant="outline" onClick={() => setCurrentView('details')} data-testid="button-cancel-schedule">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Reschedule Form */}
+        {currentView === 'reschedule' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Reschedule Visit</h3>
+            <p className="text-sm text-muted-foreground">
+              Pick a new date &amp; time and give a reason. Both the partner team and the showroom/salesperson
+              will be notified. {user?.role === 'SUPER_ADMIN'
+                ? 'As a Super Admin you can reschedule without limit.'
+                : `Rescheduled ${rescheduleCount}/3 times — the limit is 3.`}
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="reschedule-date">New Date</Label>
+                <Input id="reschedule-date" type="date" value={scheduleDate}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]} data-testid="input-reschedule-date" />
+              </div>
+              <div>
+                <Label htmlFor="reschedule-time">New Time</Label>
+                <Input id="reschedule-time" type="time" value={scheduleTime}
+                  onChange={(e) => setScheduleTime(e.target.value)} data-testid="input-reschedule-time" />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="reschedule-reason">Reason <span className="text-red-500">*</span></Label>
+              <Textarea id="reschedule-reason" rows={3} value={rescheduleReason}
+                onChange={(e) => setRescheduleReason(e.target.value)}
+                placeholder="Why is this being rescheduled?" data-testid="input-reschedule-reason" />
+            </div>
+            <div className="flex gap-3">
+              <Button
+                onClick={() => rescheduleJobMutation.mutate()}
+                disabled={rescheduleJobMutation.isPending || !scheduleDate || !scheduleTime || !rescheduleReason.trim()}
+                className="bg-amber-600 hover:bg-amber-700"
+                data-testid="button-confirm-reschedule"
+              >
+                {rescheduleJobMutation.isPending ? 'Rescheduling...' : 'Confirm Reschedule'}
+              </Button>
+              <Button variant="outline" onClick={() => setCurrentView('details')} data-testid="button-cancel-reschedule">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Reached Confirmation */}
+        {currentView === 'reached' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Mark Team as Reached</h3>
+            <p className="text-sm text-muted-foreground">
+              Confirm that the team has reached the site for this job. This moves the job to
+              <span className="font-medium"> Reached</span>, after which the pre-installation photos and Start Work become available.
+            </p>
+            <div className="flex gap-3">
+              <Button
+                onClick={() => reachedJobMutation.mutate()}
+                disabled={reachedJobMutation.isPending}
+                className="bg-teal-600 hover:bg-teal-700"
+                data-testid="button-confirm-reached"
+              >
+                {reachedJobMutation.isPending ? 'Saving...' : 'Confirm Reached'}
+              </Button>
+              <Button variant="outline" onClick={() => setCurrentView('details')} data-testid="button-cancel-reached">
                 Cancel
               </Button>
             </div>

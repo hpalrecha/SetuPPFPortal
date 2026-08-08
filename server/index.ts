@@ -61,6 +61,14 @@ app.use((req, res, next) => {
   
   const server = await registerRoutes(app);
 
+  // Cluster 3 — start the appointment-reminder scheduler (single setInterval, no Redis).
+  try {
+    const { start: startReminders } = await import('./services/reminderScheduler');
+    startReminders();
+  } catch (e) {
+    console.error('Failed to start reminder scheduler:', e);
+  }
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

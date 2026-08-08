@@ -145,6 +145,8 @@ export type JobCardStatus =
   | 'AWAITING_ACK'
   | 'ACKNOWLEDGED'
   | 'SCHEDULED'
+  | 'RESCHEDULED'
+  | 'REACHED'
   | 'IN_PROGRESS'
   | 'COMPLETED'
   | 'PENDING_APPROVAL'
@@ -153,7 +155,6 @@ export type JobCardStatus =
   | 'NO_SHOW'
   | 'CANCELLED_BY_CUSTOMER'
   | 'PARTS_PENDING'
-  | 'RESCHEDULED'
   | 'REWORK_REQUESTED';
 
 export interface JobCard {
@@ -177,6 +178,10 @@ export interface JobCard {
   rejectionReason?: string;
   reworkRequestedAt?: string;
   reworkReason?: string;
+  rescheduleCount?: number;
+  rescheduleReason?: string;
+  reachedAt?: string;
+  reachedBy?: string;
   createdAt: string;
   updatedAt: string;
 }

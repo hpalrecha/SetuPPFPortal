@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import {
   CheckCircle2, XCircle, ExternalLink,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 
 const authHeaders = () => ({
@@ -56,6 +57,8 @@ function StatusBadge({ status }: { status: string }) {
 // ---- detail dialog (fetches full payload/body on open) --------------------
 function NotificationDetailDialog({ id, open, onClose }: { id: string | null; open: boolean; onClose: () => void }) {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery<any>({
     queryKey: ["/api/notification-logs", id],
     queryFn: async () => {
@@ -65,6 +68,34 @@ function NotificationDetailDialog({ id, open, onClose }: { id: string | null; op
     },
     enabled: open && !!id,
   });
+
+  // Manual reply/outcome logging (the eye button) — replies aren't auto-captured.
+  const [reply, setReply] = useState('');
+  const [savingReply, setSavingReply] = useState(false);
+  const [lastId, setLastId] = useState<string | null>(null);
+  if (data && data.id !== lastId) {
+    setLastId(data.id);
+    setReply(data.reply || '');
+  }
+  const saveReply = async () => {
+    if (!id) return;
+    setSavingReply(true);
+    try {
+      const res = await fetch(`/api/notification-logs/${id}/reply`, {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reply: reply.trim() }),
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      toast({ title: 'Reply saved' });
+      queryClient.invalidateQueries({ queryKey: ["/api/notification-logs"] });
+    } catch (e: any) {
+      toast({ title: 'Failed to save reply', description: e.message, variant: 'destructive' });
+    } finally {
+      setSavingReply(false);
+    }
+  };
 
   const payload = data?.payloadJson;
   const html = payload?.html as string | undefined;
@@ -126,6 +157,30 @@ function NotificationDetailDialog({ id, open, onClose }: { id: string | null; op
               )}
             </div>
 
+            {/* Manual reply / outcome (eye button) */}
+            <div className="border rounded-lg p-3 bg-muted/30">
+              <div className="text-xs font-semibold text-muted-foreground uppercase mb-1 flex items-center gap-1.5">
+                <Eye className="h-3.5 w-3.5" /> Reply / outcome
+              </div>
+              <p className="text-[11px] text-muted-foreground mb-2">
+                Replies aren't captured automatically — log what the recipient said (e.g. "confirmed, on the way", "car not ready — reschedule").
+              </p>
+              <textarea
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                rows={2}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder="Log the reply / outcome…"
+                data-testid="input-notification-reply"
+              />
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-[11px] text-muted-foreground">{data.replyAt ? `Last updated ${fmtDateTime(data.replyAt)}` : 'No reply logged yet'}</span>
+                <Button size="sm" onClick={saveReply} disabled={savingReply} data-testid="button-save-reply">
+                  {savingReply ? 'Saving…' : 'Save reply'}
+                </Button>
+              </div>
+            </div>
+
             {payload && (
               <details className="text-xs">
                 <summary className="cursor-pointer text-muted-foreground">Raw payload</summary>
@@ -139,6 +194,107 @@ function NotificationDetailDialog({ id, open, onClose }: { id: string | null; op
   );
 }
 
+// ---- templates editor -----------------------------------------------------
+// One editable card per lifecycle event. Email subject/body are freely editable (with
+// {placeholders}); WhatsApp is a Meta-approved template NAME + language mapping.
+function TemplateRow({ tpl, onSaved }: { tpl: any; onSaved: () => void }) {
+  const { toast } = useToast();
+  const [form, setForm] = useState<any>({ ...tpl });
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/notification-templates/${tpl.eventType}`, {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          emailSubject: form.emailSubject, emailBody: form.emailBody, emailActive: !!form.emailActive,
+          whatsappTemplateName: form.whatsappTemplateName, whatsappLanguage: form.whatsappLanguage, whatsappActive: !!form.whatsappActive,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || 'Save failed');
+      toast({ title: 'Template saved', description: tpl.label });
+      onSaved();
+    } catch (e: any) {
+      toast({ title: 'Save failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2">
+          {tpl.label}
+          <code className="text-[11px] font-normal text-muted-foreground">{tpl.eventType}</code>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <div className="text-xs font-semibold flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" /> Email</div>
+            <Input value={form.emailSubject || ''} onChange={(e) => setForm({ ...form, emailSubject: e.target.value })} placeholder="Subject" />
+            <textarea
+              value={form.emailBody || ''}
+              onChange={(e) => setForm({ ...form, emailBody: e.target.value })}
+              rows={3}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              placeholder="Body (use {vehicle}, {jobId}, {when}…)"
+            />
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <input type="checkbox" checked={!!form.emailActive} onChange={(e) => setForm({ ...form, emailActive: e.target.checked })} /> Email active
+            </label>
+          </div>
+          <div className="space-y-2">
+            <div className="text-xs font-semibold flex items-center gap-1.5"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp (Meta template)</div>
+            <Input value={form.whatsappTemplateName || ''} onChange={(e) => setForm({ ...form, whatsappTemplateName: e.target.value })} placeholder="Meta-approved template name" />
+            <Input value={form.whatsappLanguage || ''} onChange={(e) => setForm({ ...form, whatsappLanguage: e.target.value })} placeholder="Language (en, en_IN)" className="w-40" />
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <input type="checkbox" checked={!!form.whatsappActive} onChange={(e) => setForm({ ...form, whatsappActive: e.target.checked })} /> WhatsApp active
+            </label>
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <Button size="sm" onClick={save} disabled={saving} data-testid={`save-template-${tpl.eventType}`}>
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TemplatesEditor() {
+  const { data, isLoading, refetch } = useQuery<{ templates: any[]; placeholders: string[] }>({
+    queryKey: ["/api/notification-templates"],
+    queryFn: async () => {
+      const res = await fetch('/api/notification-templates', { headers: authHeaders(), credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to load templates');
+      return res.json();
+    },
+  });
+  const templates = data?.templates || [];
+  const placeholders = data?.placeholders || [];
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Edit the message sent at each job status. Email subject &amp; body are fully editable and support placeholders
+        {placeholders.length > 0 && <> — {placeholders.map((p) => <code key={p} className="mx-0.5 px-1 rounded bg-muted text-[11px]">{p}</code>)}</>}.
+        WhatsApp uses a Meta-approved template: you can change the template name/language and toggle it, but the wording is approved on Meta's side.
+      </p>
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground py-8 text-center">Loading templates…</div>
+      ) : (
+        templates.map((t) => <TemplateRow key={t.eventType} tpl={t} onSaved={refetch} />)
+      )}
+    </div>
+  );
+}
+
 // ---- page -----------------------------------------------------------------
 export default function NotificationsPage() {
   const { user } = useAuth();
@@ -149,6 +305,7 @@ export default function NotificationsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [view, setView] = useState<'log' | 'templates'>('log');
 
   const { data, isLoading } = useQuery<{ rows: any[]; total: number }>({
     queryKey: ["/api/notification-logs", channel, status, search, page],
@@ -184,6 +341,30 @@ export default function NotificationsPage() {
         <Bell className="h-6 w-6" />
         <h1 className="text-2xl font-bold">Notifications</h1>
       </div>
+
+      <div className="inline-flex rounded-lg border bg-muted/40 p-0.5 text-sm">
+        <button
+          type="button"
+          onClick={() => setView('log')}
+          className={`px-3 py-1.5 rounded-md font-medium transition-colors ${view === 'log' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+          data-testid="toggle-log"
+        >
+          Sent log
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('templates')}
+          className={`px-3 py-1.5 rounded-md font-medium transition-colors ${view === 'templates' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+          data-testid="toggle-templates"
+        >
+          Templates
+        </button>
+      </div>
+
+      {view === 'templates' ? (
+        <TemplatesEditor />
+      ) : (
+      <>
       <p className="text-sm text-muted-foreground">
         Every outbound message the system has sent — <span className="font-medium">what</span> was sent,
         <span className="font-medium"> to whom</span>, and through <span className="font-medium">which channel</span>
@@ -236,13 +417,14 @@ export default function NotificationsPage() {
                 <TableHead>Event</TableHead>
                 <TableHead>Subject</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="text-center">Reply</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">Loading…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-10 text-muted-foreground">Loading…</TableCell></TableRow>
               ) : rows.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">No notifications found.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-10 text-muted-foreground">No notifications found.</TableCell></TableRow>
               ) : rows.map((n) => (
                 <TableRow
                   key={n.id}
@@ -262,6 +444,18 @@ export default function NotificationsPage() {
                     {n.bodyPreview && <div className="text-xs text-muted-foreground truncate">{n.bodyPreview}</div>}
                   </TableCell>
                   <TableCell><StatusBadge status={n.status} /></TableCell>
+                  <TableCell className="text-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={n.reply ? 'text-emerald-600' : 'text-muted-foreground'}
+                      onClick={(e) => { e.stopPropagation(); setDetailId(n.id); }}
+                      title={n.reply ? `Reply logged: ${n.reply}` : 'No reply logged — click to add'}
+                      data-testid={`reply-eye-${n.id}`}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -282,6 +476,8 @@ export default function NotificationsPage() {
       )}
 
       <NotificationDetailDialog id={detailId} open={!!detailId} onClose={() => setDetailId(null)} />
+      </>
+      )}
     </div>
   );
 }

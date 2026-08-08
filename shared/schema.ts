@@ -50,7 +50,8 @@ export const jobCardStatusEnum = pgEnum('job_card_status', [
   'AWAITING_ACK',
   'ACKNOWLEDGED',
   'SCHEDULED',
-  'IN_PROGRESS', 
+  'REACHED',
+  'IN_PROGRESS',
   'COMPLETED',
   'PENDING_APPROVAL',
   'APPROVED',
@@ -609,6 +610,11 @@ export const jobCards = pgTable("job_cards", {
   // Rework chaining: when a card is reworked, a NEW card is created against the same work order
   // and this points back to the original card it reworks (soft link, like work_orders.assigned_job_card_id).
   reworkOfJobCardId: uuid("rework_of_job_card_id"),
+  // Cluster 2 — reschedule + reached tracking.
+  rescheduleCount: integer("reschedule_count").default(0), // times rescheduled (limit 3, super admin unlimited)
+  rescheduleReason: text("reschedule_reason"),             // reason for the latest reschedule
+  reachedAt: timestamp("reached_at"),                      // when the team was marked on-site
+  reachedBy: uuid("reached_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });
@@ -728,6 +734,8 @@ export const notificationLogs = pgTable("notification_logs", {
   relatedEntityId: text("related_entity_id"),
   oemId: uuid("oem_id").references(() => oems.id),
   readAt: timestamp("read_at"),                       // per-user in-app read state (null = unread)
+  reply: text("reply"),                               // manually-logged reply/outcome (the "eye" button)
+  replyAt: timestamp("reply_at"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   recipientUserIdx: index("notif_recipient_user_idx").on(table.recipientUserId),
@@ -737,6 +745,37 @@ export const notificationLogs = pgTable("notification_logs", {
 export const insertNotificationLogSchema = createInsertSchema(notificationLogs).omit({ id: true, createdAt: true });
 export type InsertNotificationLog = z.infer<typeof insertNotificationLogSchema>;
 export type NotificationLog = typeof notificationLogs.$inferSelect;
+
+// Admin-editable notification templates (one row per lifecycle event). Overrides the code
+// defaults in server/services/notificationTemplates.ts. Email subject/body are freely editable
+// (support {placeholders}); WhatsApp is a Meta-approved template NAME + language mapping (the
+// body wording is approved on Meta's side, not here). Managed from the Notifications tab.
+export const notificationTemplates = pgTable("notification_templates", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventType: text("event_type").notNull().unique(),   // job_card_acknowledged, job_card_scheduled, ...
+  emailSubject: text("email_subject"),
+  emailBody: text("email_body"),
+  emailActive: boolean("email_active").default(true),
+  whatsappTemplateName: text("whatsapp_template_name"),
+  whatsappLanguage: text("whatsapp_language").default('en'),
+  whatsappActive: boolean("whatsapp_active").default(true),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertNotificationTemplateSchema = createInsertSchema(notificationTemplates).omit({ id: true, updatedAt: true });
+export type InsertNotificationTemplate = z.infer<typeof insertNotificationTemplateSchema>;
+export type NotificationTemplate = typeof notificationTemplates.$inferSelect;
+
+// Cluster 3 — dedup ledger for time-based appointment reminders (fire each once per job card).
+// reminderKey: pre_3h | at_time. See server/services/reminderScheduler.ts.
+export const jobReminders = pgTable("job_reminders", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobCardId: uuid("job_card_id").notNull().references(() => jobCards.id),
+  reminderKey: text("reminder_key").notNull(),
+  sentAt: timestamp("sent_at").defaultNow(),
+}, (table) => ({
+  cardReminderUq: unique("job_reminder_card_key_uq").on(table.jobCardId, table.reminderKey),
+}));
 
 export const webhookSubscriptions = pgTable("webhook_subscriptions", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),

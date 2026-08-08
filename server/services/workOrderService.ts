@@ -332,7 +332,14 @@ export class WorkOrderService {
     // Auto-assign to partner if no manual assignment
     if (!workOrder.assignedPartnerId) {
       try {
-        await this.autoAssignPartner(workOrderId);
+        // #2 — a Partner Admin's own work order self-assigns to that partner (rather than
+        // auto-picking a suitable one), so the job lands back with the partner who created it.
+        const creator = workOrder.createdByUserId ? await storage.getUser(workOrder.createdByUserId) : undefined;
+        if (creator?.role === 'PARTNER_ADMIN' && creator.partnerId) {
+          await this.assignWorkOrder(workOrderId, creator.partnerId, userId);
+        } else {
+          await this.autoAssignPartner(workOrderId);
+        }
       } catch (error) {
         console.warn(`⚠️ Auto-assignment failed for work order ${workOrderId}, setting to PENDING status:`, error);
         // If auto-assignment fails, set work order to PENDING status for manual allocation

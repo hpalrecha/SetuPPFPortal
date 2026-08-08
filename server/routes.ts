@@ -3215,6 +3215,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.json([]); // staff with no assigned partners see nothing
         }
         filters.partnerIds = pids;
+        // Also surface the partner's own-created orders (e.g. a partner admin's DRAFT that
+        // isn't assigned to any partner yet). See getWorkOrders createdByUserId branch.
+        filters.createdByUserId = req.user!.id;
       } else if (partnerId) {
         filters.partnerId = partnerId as string;
       }
@@ -3809,6 +3812,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Mark notifications read error:", error);
         res.status(500).json({ error: "Failed to update notifications" });
+      }
+    });
+
+  // ---- Notification templates (admin-editable per-event email/WhatsApp mapping) ----
+  app.get("/api/notification-templates",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    async (_req, res) => {
+      try {
+        const { getAllTemplates, TEMPLATE_PLACEHOLDERS } = await import('./services/notificationTemplates');
+        res.json({ templates: await getAllTemplates(), placeholders: TEMPLATE_PLACEHOLDERS });
+      } catch (e) {
+        console.error('Get notification templates error:', e);
+        res.status(500).json({ error: 'Failed to fetch templates' });
+      }
+    });
+
+  app.put("/api/notification-templates/:eventType",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    async (req, res) => {
+      try {
+        const { upsertTemplate, getTemplate } = await import('./services/notificationTemplates');
+        const { emailSubject, emailBody, emailActive, whatsappTemplateName, whatsappLanguage, whatsappActive } = req.body || {};
+        await upsertTemplate(req.params.eventType, {
+          emailSubject, emailBody, emailActive, whatsappTemplateName, whatsappLanguage, whatsappActive,
+        });
+        res.json({ success: true, template: await getTemplate(req.params.eventType) });
+      } catch (e: any) {
+        console.error('Update notification template error:', e);
+        res.status(String(e?.message).startsWith('Unknown') ? 400 : 500).json({ error: e?.message || 'Failed to update template' });
+      }
+    });
+
+  // Log a manual reply / outcome against a notification (the eye button).
+  app.put("/api/notification-logs/:id/reply",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    async (req, res) => {
+      try {
+        const reply = typeof req.body?.reply === 'string' ? req.body.reply : '';
+        const updated = await storage.setNotificationReply(req.params.id, reply);
+        if (!updated) return res.status(404).json({ error: 'Notification not found' });
+        res.json({ success: true });
+      } catch (e) {
+        console.error('Set notification reply error:', e);
+        res.status(500).json({ error: 'Failed to save reply' });
+      }
+    });
+
+  // Cluster 3 — run the appointment-reminder tick on demand (testing; dryRun reports only).
+  app.post("/api/admin/reminders/run-once",
+    authenticate,
+    requireRole(['SUPER_ADMIN']),
+    async (req, res) => {
+      try {
+        const { runOnce } = await import('./services/reminderScheduler');
+        const summary = await runOnce({ dryRun: req.body?.dryRun === true });
+        res.json(summary);
+      } catch (e) {
+        console.error('reminders run-once error:', e);
+        res.status(500).json({ error: 'Failed to run reminders' });
       }
     });
 
@@ -4649,6 +4714,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // 🔥 FIRE ALL SLOW OPERATIONS IN BACKGROUND (non-blocking)
         setImmediate(async () => {
+          // #11 — email allocated team + partner admin/super admin + showroom/salesperson.
+          try {
+            const { notifyApproved } = await import('./services/jobCardNotifications');
+            await notifyApproved(jobCardId);
+          } catch (e) { console.error('notifyApproved failed', e); }
           try {
             // 💰 Calculate OEM Royalty automatically on job card approval
             let finalPrice = 0;
@@ -5394,6 +5464,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json(jobCard);
+
+      // #3 — notify the assigned team (WhatsApp + email) that the job is theirs.
+      setImmediate(async () => {
+        try {
+          const { notifyAcknowledged } = await import('./services/jobCardNotifications');
+          await notifyAcknowledged(req.params.id);
+        } catch (e) { console.error('notifyAcknowledged failed', e); }
+      });
     } catch (error) {
       console.error("Acknowledge job card error:", error);
       res.status(500).json({ error: "Failed to acknowledge job card" });
@@ -5418,16 +5496,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Job card not found" });
       }
 
-      // WhatsApp notification for scheduled not needed (no Meta-approved template)
       console.log(`ℹ️ Job card ${jobCard.id} scheduled for ${scheduledAt.toLocaleDateString('en-IN')}`);
 
       res.json(jobCard);
+
+      // #4 — notify showroom/salesperson + partner admin + assigned team (internal + external).
+      setImmediate(async () => {
+        try {
+          const { notifyScheduled } = await import('./services/jobCardNotifications');
+          await notifyScheduled(req.params.id);
+        } catch (e) { console.error('notifyScheduled failed', e); }
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid schedule data", details: error.errors });
       }
       console.error("Schedule job card error:", error);
       res.status(500).json({ error: "Failed to schedule job card" });
+    }
+  });
+
+  // Cluster 2 — Reschedule: new time + reason, max 3× (Super Admin unlimited), notify all parties.
+  app.post("/api/job-cards/:id/reschedule", authenticate, async (req, res) => {
+    try {
+      const schema = z.object({
+        scheduledAt: z.string().transform((v) => new Date(v)),
+        reason: z.string().min(1, 'A reason is required'),
+      });
+      const { scheduledAt, reason } = schema.parse(req.body);
+
+      const existing = await storage.getJobCard(req.params.id);
+      if (!existing) return res.status(404).json({ error: "Job card not found" });
+
+      const isSuperAdmin = req.user!.role === 'SUPER_ADMIN';
+      const count = existing.rescheduleCount || 0;
+      if (!isSuperAdmin && count >= 3) {
+        return res.status(400).json({ error: "Reschedule limit reached (3). Only a Super Admin can reschedule further." });
+      }
+
+      const jobCard = await storage.updateJobCard(req.params.id, {
+        status: 'RESCHEDULED',
+        scheduledAt,
+        rescheduleReason: reason,
+        rescheduleCount: count + 1,
+      });
+      if (!jobCard) return res.status(404).json({ error: "Job card not found" });
+
+      res.json(jobCard);
+
+      setImmediate(async () => {
+        try {
+          const { notifyRescheduled } = await import('./services/jobCardNotifications');
+          await notifyRescheduled(req.params.id);
+        } catch (e) { console.error('notifyRescheduled failed', e); }
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid reschedule data", details: error.errors });
+      }
+      console.error("Reschedule job card error:", error);
+      res.status(500).json({ error: "Failed to reschedule job card" });
+    }
+  });
+
+  // Cluster 2 — Reached: mark the team on-site (Partner Admin / Super Admin). No notification.
+  app.post("/api/job-cards/:id/reached", authenticate, async (req, res) => {
+    try {
+      const jobCard = await storage.updateJobCard(req.params.id, {
+        status: 'REACHED',
+        reachedAt: new Date(),
+        reachedBy: req.user!.id,
+      });
+      if (!jobCard) return res.status(404).json({ error: "Job card not found" });
+      console.log(`ℹ️ Job card ${jobCard.id} marked REACHED by ${req.user!.role}`);
+      res.json(jobCard);
+    } catch (error) {
+      console.error("Mark reached error:", error);
+      res.status(500).json({ error: "Failed to mark job as reached" });
     }
   });
 
@@ -5658,6 +5803,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json(jobCard);
+
+      // #8 — email the customer that the job is complete, incl. the 15-day rework-buffer notice.
+      setImmediate(async () => {
+        try {
+          const { notifyCompletedCustomer } = await import('./services/jobCardNotifications');
+          await notifyCompletedCustomer(req.params.id);
+        } catch (e) { console.error('notifyCompletedCustomer failed', e); }
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid completion data", details: error.errors });
@@ -6091,6 +6244,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           jobCard: newJobCard,
           previousJobCard: updatedJobCard,
           reason: remarks
+        });
+
+        // #10 — email partner admin + assignee with reason, affected parts and assign-to.
+        setImmediate(async () => {
+          try {
+            const { notifyRework } = await import('./services/jobCardNotifications');
+            await notifyRework(jobCardId);
+          } catch (e) { console.error('notifyRework failed', e); }
         });
       } catch (error) {
         if (error instanceof z.ZodError) {
