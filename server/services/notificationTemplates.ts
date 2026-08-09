@@ -75,6 +75,12 @@ export const DEFAULT_TEMPLATES: Record<string, NotifTemplate> = {
     emailBody: 'It is time for job {jobId} ({vehicle}). Please confirm arrival; the authority can then mark the job Reached.',
     emailActive: true, whatsappTemplateName: '', whatsappLanguage: 'en', whatsappActive: false,
   },
+  job_checkup_due: {
+    eventType: 'job_checkup_due', label: 'Reminder — 15-day checkup due',
+    emailSubject: 'Checkup due — {vehicle}',
+    emailBody: 'The post-installation checkup for {vehicle} (job {jobId}) is due within the 15-day window. Please schedule the team to do the checkup.',
+    emailActive: true, whatsappTemplateName: '', whatsappLanguage: 'en', whatsappActive: false,
+  },
 };
 
 let cache: Record<string, NotifTemplate> | null = null;

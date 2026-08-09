@@ -4631,6 +4631,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: 'APPROVED'
         });
 
+        // Record the post-approval billing trail (3 parties) + flag the 15-day checkup as due.
+        // middle = COMPANY when the partner has no external Partner Admin (in-house), else that admin.
+        try {
+          const partnerAdminId = await storage.getPartnerPrimaryUserId(jobCard.partnerId);
+          const partnerAdmin = partnerAdminId ? await storage.getUser(partnerAdminId) : undefined;
+          const externalAdmin = partnerAdmin?.role === 'PARTNER_ADMIN';
+          const billingTrailJson = {
+            team: jobCard.assignedInstallerId || null,
+            middle: externalAdmin ? partnerAdminId : 'COMPANY',
+            showroom: workOrder.showroomId,
+            rule: externalAdmin ? 'BILL_PARTNER_ADMIN' : 'COMPANY_INVOICES_SHOWROOM',
+            recordedAt: new Date().toISOString(),
+          };
+          await storage.updateJobCard(jobCardId, {
+            billingTrailJson: billingTrailJson as any,
+            billingPrice: (updatedJobCard?.billingValue ?? jobCard.billingValue) as any,
+            checkupDueAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+          });
+        } catch (e) {
+          console.error('billing trail / checkup-due record failed', e);
+        }
+
 
         if (!updatedJobCard) {
           return res.status(500).json({ error: "Failed to approve job card" });
@@ -5098,8 +5120,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Job card not found" });
         }
 
-        if (jobCard.status !== 'INVOICE_RAISED') {
-          return res.status(400).json({ error: "Invoice must be raised before applying warranty" });
+        // e-Warranty can be applied from COMPLETED onward (both brands) — no longer gated on the invoice.
+        if (!['COMPLETED', 'PENDING_APPROVAL', 'APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING'].includes(jobCard.status || '')) {
+          return res.status(400).json({ error: "The job must be completed before applying warranty" });
         }
 
         // Get work order for permission checks
@@ -5656,6 +5679,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 15-day checkup — create the linked checkup job card (manually scheduled by admin/partner).
+  app.post("/api/job-cards/:id/create-checkup",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'PARTNER_ADMIN']),
+    async (req, res) => {
+      try {
+        const primary = await storage.getJobCard(req.params.id);
+        if (!primary) return res.status(404).json({ error: "Job card not found" });
+        if (req.user!.role === 'PARTNER_ADMIN' && !userPartnerIds(req.user!).includes(primary.partnerId)) {
+          return res.status(403).json({ error: "Access denied - job card belongs to a different partner" });
+        }
+        const assignedInstallerId = req.body?.assignedInstallerId || primary.assignedInstallerId || null;
+        const scheduledAt = req.body?.scheduledAt ? new Date(req.body.scheduledAt) : undefined;
+
+        const checkup = await storage.createJobCard({
+          workOrderId: primary.workOrderId,
+          partnerId: primary.partnerId,
+          status: scheduledAt ? 'SCHEDULED' : 'ACKNOWLEDGED',
+          checkupOfJobCardId: primary.id,
+          assignedInstallerId,
+          scheduledAt,
+          acknowledgedAt: new Date(),
+          billingValue: '0',
+        } as any);
+        console.log(`🩺 Checkup card ${checkup.id} created for ${primary.id}`);
+        res.json({ message: "Checkup scheduled", jobCard: checkup });
+      } catch (error) {
+        console.error("Create checkup error:", error);
+        res.status(500).json({ error: "Failed to create checkup" });
+      }
+    }
+  );
+
+  // Mark a checkup done — notes + photos optional. Closes the checkup card and stamps the primary.
+  app.post("/api/job-cards/:id/checkup-done",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER']),
+    async (req, res) => {
+      try {
+        const checkup = await storage.getJobCard(req.params.id);
+        if (!checkup) return res.status(404).json({ error: "Job card not found" });
+        if (!checkup.checkupOfJobCardId) return res.status(400).json({ error: "This is not a checkup job card" });
+
+        const notes = typeof req.body?.notes === 'string' ? req.body.notes : null;
+        const done = await storage.updateJobCard(req.params.id, {
+          status: 'CLOSED',
+          checkupDoneAt: new Date(),
+          checkupNotes: notes,
+        });
+        // Reflect completion on the primary card too.
+        await storage.updateJobCard(checkup.checkupOfJobCardId, { checkupDoneAt: new Date() });
+        res.json({ message: "Checkup completed", jobCard: done });
+      } catch (error) {
+        console.error("Checkup done error:", error);
+        res.status(500).json({ error: "Failed to complete checkup" });
+      }
+    }
+  );
+
   // Pre-installation CHECK outcome — PASS unlocks Start; FAIL sends the job back to reschedule.
   app.post("/api/job-cards/:id/pre-install-result", authenticate, async (req, res) => {
     try {
@@ -5960,10 +6042,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Job card not found" });
         }
 
-        // Validate job card is approved/completed and partner billed directly
-        if (!['PENDING_SALES_INVOICE', 'APPROVED', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING'].includes(jobCard.status)) {
-          return res.status(400).json({ 
-            error: "E-Warranty can only be applied for approved job cards",
+        // e-Warranty can be applied from COMPLETED onward (both brands).
+        if (!['COMPLETED', 'PENDING_APPROVAL', 'PENDING_SALES_INVOICE', 'APPROVED', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING'].includes(jobCard.status)) {
+          return res.status(400).json({
+            error: "E-Warranty can only be applied once the job is completed",
             currentStatus: jobCard.status 
           });
         }
@@ -6200,12 +6282,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           photos: z.array(z.string()).optional(),
           approxQuantitySq: z.number().nonnegative().optional(),
           approxCost: z.number().nonnegative().optional(),
-          parts: z.array(z.string()).optional(),
+          // Affected parts: each part carries its own photos + either FOC (free of cost) or a cost.
+          // A plain string is still accepted for backward compatibility.
+          parts: z.array(z.union([
+            z.string(),
+            z.object({
+              name: z.string(),
+              photos: z.array(z.string()).optional(),
+              foc: z.boolean().optional(),
+              cost: z.number().nonnegative().nullable().optional(),
+            }),
+          ])).optional(),
         });
 
         const { remarks, assignedInstallerId, plannedMaterialId, plannedMaterialName, plannedQuantity, photos, approxQuantitySq, approxCost, parts } = reworkSchema.parse(req.body);
-        const reworkDetailsJson = (photos?.length || approxQuantitySq != null || approxCost != null || parts?.length)
-          ? { photos: photos || [], approxQuantitySq: approxQuantitySq ?? null, approxCost: approxCost ?? null, parts: parts || [] }
+        // Normalize parts to the object shape; FOC parts carry no cost.
+        const normalizedParts = (parts || []).map((p) =>
+          typeof p === 'string'
+            ? { name: p, photos: [], foc: false, cost: null }
+            : { name: p.name, photos: p.photos || [], foc: !!p.foc, cost: p.foc ? null : (p.cost ?? null) },
+        );
+        const reworkDetailsJson = (photos?.length || approxQuantitySq != null || approxCost != null || normalizedParts.length)
+          ? { photos: photos || [], approxQuantitySq: approxQuantitySq ?? null, approxCost: approxCost ?? null, parts: normalizedParts }
           : null;
         const jobCardId = req.params.id;
         
@@ -6303,56 +6401,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? { plannedMaterial: plannedMaterialName || null, plannedRawMaterialId: plannedMaterialId || null, plannedQuantity: plannedQuantity ?? null, plannedByRole: req.user!.role }
           : undefined;
 
-        // 1) Create a NEW job card against the SAME work order. It is a normal card that follows
-        //    the natural lifecycle from AWAITING_ACK. Non-billable (₹0, no payout). Linked to the original.
-        const newJobCard = await storage.createJobCard({
-          workOrderId: jobCard.workOrderId,
-          partnerId: jobCard.partnerId,
-          status: 'AWAITING_ACK',
-          reworkOfJobCardId: jobCard.id,
-          reworkReason: remarks,
-          assignedInstallerId: assignedInstallerId || null,
-          materialConsumptionJson: plannedMaterialJson,
-          billingValue: '0',
-          billFrom: jobCard.billFrom || workOrder.billFrom || null,
-          billTo: jobCard.billTo || workOrder.billTo || null,
-          shipTo: jobCard.shipTo || workOrder.shipTo || null,
-          partnerBilledDirectly: jobCard.partnerBilledDirectly || false
-        });
+        // SAME team (no team change) → keep the SAME job card (which also carries the warranty
+        // through to close); reopen it and log a trail entry. Only a DIFFERENT team spawns a card.
+        const sameTeam = !assignedInstallerId || assignedInstallerId === jobCard.assignedInstallerId;
 
-        // 2) Freeze the original card as the historical record of the first attempt,
-        //    storing the rework request details (photos, approx qty, affected parts).
-        const updatedJobCard = await storage.updateJobCard(jobCardId, {
-          status: 'REWORK_REQUESTED',
-          reworkReason: remarks,
-          reworkDetailsJson,
-          reworkRequestedAt: new Date(),
-          reworkRequestedBy: req.user!.id
-        });
-
-        // 3) Repoint the work order at the new active card, re-open it, and apply any safe-field edits.
-        await storage.updateWorkOrder(jobCard.workOrderId, {
-          ...woUpdates,
-          status: 'ASSIGNED',
-          assignedJobCardId: newJobCard.id
-        });
-
-        // 4) Audit trail against the original card.
-        await storage.createApproval({
-          jobCardId,
-          approverUserId: req.user!.id,
-          status: 'REWORK_REQUESTED',
-          remarks
-        });
-
-        console.log(`🟡 Rework on ${jobCard.id} → new card ${newJobCard.id} by ${req.user!.role}: '${remarks}'`);
-
-        res.json({
-          message: "Rework requested — a new job card was created against the same work order",
-          jobCard: newJobCard,
-          previousJobCard: updatedJobCard,
-          reason: remarks
-        });
+        if (sameTeam) {
+          const reopened = await storage.appendJobCardTrail(
+            jobCardId,
+            { type: 'REWORK_SAME_TEAM', detail: remarks, by: req.user!.id, byRole: req.user!.role },
+            {
+              status: 'IN_PROGRESS',
+              reworkReason: remarks,
+              reworkDetailsJson,
+              reworkRequestedAt: new Date(),
+              reworkRequestedBy: req.user!.id,
+              completedAt: null,
+              approvalRequestedAt: null,
+              approvedAt: null,
+              approvedByUserId: null,
+            },
+          );
+          await storage.updateWorkOrder(jobCard.workOrderId, { ...woUpdates, status: 'IN_PROGRESS', assignedJobCardId: jobCardId });
+          await storage.createApproval({ jobCardId, approverUserId: req.user!.id, status: 'REWORK_REQUESTED', remarks });
+          console.log(`🟡 Rework (same team) on ${jobCard.id} — reopened same card by ${req.user!.role}: '${remarks}'`);
+          res.json({ message: "Rework requested — same team, job card reopened", jobCard: reopened, reason: remarks });
+        } else {
+          // DIFFERENT team → new linked card following the lifecycle from AWAITING_ACK; original frozen.
+          const newJobCard = await storage.createJobCard({
+            workOrderId: jobCard.workOrderId,
+            partnerId: jobCard.partnerId,
+            status: 'AWAITING_ACK',
+            reworkOfJobCardId: jobCard.id,
+            reworkReason: remarks,
+            assignedInstallerId: assignedInstallerId || null,
+            materialConsumptionJson: plannedMaterialJson,
+            billingValue: '0',
+            billFrom: jobCard.billFrom || workOrder.billFrom || null,
+            billTo: jobCard.billTo || workOrder.billTo || null,
+            shipTo: jobCard.shipTo || workOrder.shipTo || null,
+            partnerBilledDirectly: jobCard.partnerBilledDirectly || false
+          });
+          const updatedJobCard = await storage.appendJobCardTrail(
+            jobCardId,
+            { type: 'REWORK_NEW_TEAM', detail: `${remarks} · new card ${newJobCard.id.slice(0, 8)}`, by: req.user!.id, byRole: req.user!.role },
+            { status: 'REWORK_REQUESTED', reworkReason: remarks, reworkDetailsJson, reworkRequestedAt: new Date(), reworkRequestedBy: req.user!.id },
+          );
+          await storage.updateWorkOrder(jobCard.workOrderId, { ...woUpdates, status: 'ASSIGNED', assignedJobCardId: newJobCard.id });
+          await storage.createApproval({ jobCardId, approverUserId: req.user!.id, status: 'REWORK_REQUESTED', remarks });
+          console.log(`🟡 Rework on ${jobCard.id} → new card ${newJobCard.id} by ${req.user!.role}: '${remarks}'`);
+          res.json({
+            message: "Rework requested — a new job card was created against the same work order",
+            jobCard: newJobCard,
+            previousJobCard: updatedJobCard,
+            reason: remarks
+          });
+        }
 
         // #10 — email partner admin + assignee with reason, affected parts and assign-to.
         setImmediate(async () => {
@@ -6367,6 +6470,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         console.error("Request rework error:", error);
         res.status(500).json({ error: "Failed to request rework" });
+      }
+    }
+  );
+
+  // Edit a rework part's FOC / cost after submission (manual assessment) — until the card is closed.
+  app.patch("/api/job-cards/:id/rework-cost",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'PARTNER_ADMIN']),
+    async (req, res) => {
+      try {
+        const jobCard = await storage.getJobCard(req.params.id);
+        if (!jobCard) return res.status(404).json({ error: "Job card not found" });
+        if (jobCard.status === 'CLOSED') return res.status(400).json({ error: "Job card is closed — cost can no longer be edited" });
+        if (req.user!.role === 'PARTNER_ADMIN' && !userPartnerIds(req.user!).includes(jobCard.partnerId)) {
+          return res.status(403).json({ error: "Access denied - job card belongs to a different partner" });
+        }
+
+        const bodyParts = Array.isArray(req.body?.parts) ? req.body.parts : null;
+        if (!bodyParts) return res.status(400).json({ error: "parts array is required" });
+
+        const details: any = jobCard.reworkDetailsJson || {};
+        const existingParts: any[] = Array.isArray(details.parts) ? details.parts : [];
+        // Merge FOC/cost by part name; keep each part's existing photos.
+        const byName = new Map(bodyParts.map((p: any) => [p.name, p]));
+        const mergedParts = existingParts.map((p: any) => {
+          const upd: any = byName.get(p.name);
+          if (!upd) return p;
+          const foc = !!upd.foc;
+          return { ...p, foc, cost: foc ? null : (upd.cost ?? p.cost ?? null) };
+        });
+
+        const updated = await storage.updateJobCard(req.params.id, {
+          reworkDetailsJson: { ...details, parts: mergedParts } as any,
+        });
+        res.json(updated);
+      } catch (error) {
+        console.error("Edit rework cost error:", error);
+        res.status(500).json({ error: "Failed to update rework cost" });
+      }
+    }
+  );
+
+  // Edit the post-approval billing price (variable — depends on team/manual assessment) until invoiced.
+  app.patch("/api/job-cards/:id/billing-price",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'PARTNER_ADMIN']),
+    async (req, res) => {
+      try {
+        const jobCard = await storage.getJobCard(req.params.id);
+        if (!jobCard) return res.status(404).json({ error: "Job card not found" });
+        if (['INVOICE_RAISED', 'PAYMENT_PENDING', 'CLOSED'].includes(jobCard.status || '')) {
+          return res.status(400).json({ error: "Price can no longer be edited after the invoice is raised" });
+        }
+        if (req.user!.role === 'PARTNER_ADMIN' && !userPartnerIds(req.user!).includes(jobCard.partnerId)) {
+          return res.status(403).json({ error: "Access denied - job card belongs to a different partner" });
+        }
+        const price = req.body?.billingPrice;
+        if (price == null || isNaN(Number(price))) return res.status(400).json({ error: "A valid billingPrice is required" });
+        const updated = await storage.updateJobCard(req.params.id, { billingPrice: String(price) as any });
+        res.json(updated);
+      } catch (error) {
+        console.error("Edit billing price error:", error);
+        res.status(500).json({ error: "Failed to update billing price" });
       }
     }
   );
@@ -6407,21 +6573,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.json({ message: "Rework permission rejected", jobCard: reverted });
         }
 
-        // APPROVE — execute the rework (mirrors the admin immediate path).
+        // APPROVE — execute the rework. Same-team (the requested assignee is the current one) stays
+        // on the same card; a different requested assignee spawns a new linked card.
+        const requestedAssigneeId = details.requestedAssigneeId || null;
+        const sameTeam = !requestedAssigneeId || requestedAssigneeId === jobCard.assignedInstallerId;
+
+        if (sameTeam) {
+          const reopened = await storage.appendJobCardTrail(
+            jobCardId,
+            { type: 'REWORK_SAME_TEAM', detail: jobCard.reworkReason || remarks, by: req.user!.id, byRole: req.user!.role },
+            { status: 'IN_PROGRESS', completedAt: null, approvalRequestedAt: null, approvedAt: null, approvedByUserId: null },
+          );
+          await storage.updateWorkOrder(jobCard.workOrderId, { status: 'IN_PROGRESS', assignedJobCardId: jobCardId });
+          await storage.createApproval({ jobCardId, approverUserId: req.user!.id, status: 'REWORK_PERMISSION_GRANTED', remarks });
+          console.log(`🟢 Rework permission GRANTED on ${jobCard.id} (same team) — reopened same card`);
+          return res.json({ message: "Rework approved — same team, job card reopened", jobCard: reopened });
+        }
+
         const newJobCard = await storage.createJobCard({
           workOrderId: jobCard.workOrderId,
           partnerId: jobCard.partnerId,
           status: 'AWAITING_ACK',
           reworkOfJobCardId: jobCard.id,
           reworkReason: jobCard.reworkReason,
-          assignedInstallerId: details.requestedAssigneeId || null,
+          assignedInstallerId: requestedAssigneeId,
           billingValue: '0',
           billFrom: jobCard.billFrom || workOrder?.billFrom || null,
           billTo: jobCard.billTo || workOrder?.billTo || null,
           shipTo: jobCard.shipTo || workOrder?.shipTo || null,
           partnerBilledDirectly: jobCard.partnerBilledDirectly || false,
         });
-        const frozen = await storage.updateJobCard(jobCardId, { status: 'REWORK_REQUESTED' });
+        const frozen = await storage.appendJobCardTrail(
+          jobCardId,
+          { type: 'REWORK_NEW_TEAM', detail: `new card ${newJobCard.id.slice(0, 8)}`, by: req.user!.id, byRole: req.user!.role },
+          { status: 'REWORK_REQUESTED' },
+        );
         await storage.updateWorkOrder(jobCard.workOrderId, { status: 'ASSIGNED', assignedJobCardId: newJobCard.id });
         await storage.createApproval({ jobCardId, approverUserId: req.user!.id, status: 'REWORK_PERMISSION_GRANTED', remarks });
         console.log(`🟢 Rework permission GRANTED on ${jobCard.id} by ${req.user!.id} → new card ${newJobCard.id}`);

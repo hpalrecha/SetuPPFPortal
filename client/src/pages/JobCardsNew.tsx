@@ -225,6 +225,83 @@ const STATUS_LABELS = {
   'CLOSED': 'Closed'
 };
 
+// Post-approval controls: the 3-party billing trail + editable price, and the 15-day checkup
+// (schedule it / mark it done). Self-contained so it can drop into the job-card detail modal.
+function PostApprovalCard({ jobCard, onChanged }: { jobCard: any; onChanged: () => void }) {
+  const { toast } = useToast();
+  const [price, setPrice] = useState<string>(String(jobCard?.billingPrice ?? jobCard?.billingValue ?? ''));
+  const [busy, setBusy] = useState(false);
+  const bt = jobCard?.billingTrailJson;
+  const isCheckupCard = !!jobCard?.checkupOfJobCardId;
+  const checkupDue = !!jobCard?.checkupDueAt && !jobCard?.checkupDoneAt && !isCheckupCard;
+  const approvedish = ['PENDING_SALES_INVOICE', 'APPROVED', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED'].includes(jobCard?.status || '');
+
+  const call = async (method: any, url: string, body: any, okMsg: string) => {
+    setBusy(true);
+    try { await apiRequest(method, url, body); toast({ title: okMsg }); onChanged(); }
+    catch (e: any) { toast({ title: 'Failed', description: e?.message || 'Error', variant: 'destructive' }); }
+    finally { setBusy(false); }
+  };
+
+  if (!approvedish && !isCheckupCard) return null;
+
+  return (
+    <Card className="col-span-1 lg:col-span-2">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <Receipt className="h-5 w-5 text-emerald-600" />
+          <CardTitle className="text-base">{isCheckupCard ? 'Checkup' : 'Post-approval — billing & checkup'}</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isCheckupCard ? (
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <span className="text-sm text-muted-foreground">
+              {jobCard?.checkupDoneAt ? 'Checkup completed.' : 'This is a checkup visit. Mark it done once complete (notes optional).'}
+            </span>
+            {!jobCard?.checkupDoneAt && (
+              <Button size="sm" disabled={busy} onClick={() => call('POST', `/api/job-cards/${jobCard.id}/checkup-done`, {}, 'Checkup marked done')} data-testid="button-checkup-done">
+                Mark checkup done
+              </Button>
+            )}
+          </div>
+        ) : (
+          <>
+            {bt && (
+              <div className="text-sm">
+                <div className="text-xs font-semibold text-muted-foreground uppercase mb-1">Billing trail</div>
+                <p className="text-muted-foreground">
+                  {bt.rule === 'COMPANY_INVOICES_SHOWROOM'
+                    ? 'The company invoices the showroom directly.'
+                    : 'We bill the Partner Admin, who bills the showroom.'}
+                </p>
+              </div>
+            )}
+            <div className="flex items-end gap-2 flex-wrap">
+              <div>
+                <span className="text-xs text-muted-foreground">Billing price (editable until invoiced)</span>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span className="text-sm text-muted-foreground">₹</span>
+                  <Input type="number" min="0" step="any" value={price} onChange={(e) => setPrice(e.target.value)} className="h-8 w-36" data-testid="input-billing-price" />
+                  <Button size="sm" variant="outline" disabled={busy || price.trim() === ''} onClick={() => call('PATCH', `/api/job-cards/${jobCard.id}/billing-price`, { billingPrice: Number(price) }, 'Price updated')} data-testid="button-save-billing-price">
+                    Save
+                  </Button>
+                </div>
+              </div>
+              {checkupDue && (
+                <Button size="sm" className="bg-teal-600 hover:bg-teal-700" disabled={busy} onClick={() => call('POST', `/api/job-cards/${jobCard.id}/create-checkup`, {}, 'Checkup scheduled')} data-testid="button-schedule-checkup">
+                  Schedule 15-day checkup
+                </Button>
+              )}
+              {jobCard?.checkupDoneAt && <span className="text-xs text-emerald-700">Checkup done ✓</span>}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function JobCardsNew() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedJobCard, setSelectedJobCard] = useState<EnrichedJobCard | null>(null);
@@ -270,9 +347,11 @@ export default function JobCardsNew() {
     photos: [] as string[],
     approxQuantitySq: '',
     approxCost: '',
-    parts: [] as string[],
+    // Each affected part carries its own photos + FOC/cost.
+    parts: [] as Array<{ name: string; photos: string[]; foc: boolean; cost: string }>,
     assignedInstallerId: '',
   });
+  const [partPhotoUploading, setPartPhotoUploading] = useState<string | null>(null);
   const [reworkPhotoUploading, setReworkPhotoUploading] = useState(false);
   const [reworkPartsOpen, setReworkPartsOpen] = useState(false);
   // Placeholder parts list — swap for the real one when provided.
@@ -1321,8 +1400,42 @@ export default function JobCardsNew() {
   const toggleReworkPart = (part: string) => {
     setReworkForm(prev => ({
       ...prev,
-      parts: prev.parts.includes(part) ? prev.parts.filter(p => p !== part) : [...prev.parts, part],
+      parts: prev.parts.some(p => p.name === part)
+        ? prev.parts.filter(p => p.name !== part)
+        : [...prev.parts, { name: part, photos: [], foc: false, cost: '' }],
     }));
+  };
+
+  const setPartField = (name: string, patch: Partial<{ foc: boolean; cost: string }>) => {
+    setReworkForm(prev => ({
+      ...prev,
+      parts: prev.parts.map(p => (p.name === name ? { ...p, ...patch } : p)),
+    }));
+  };
+
+  const uploadPartPhoto = async (name: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+    try {
+      setPartPhotoUploading(name);
+      const urls: string[] = [];
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await apiRequest('POST', '/api/objects/upload-file', formData);
+        const { url } = await response.json();
+        if (url) urls.push(url);
+      }
+      setReworkForm(prev => ({
+        ...prev,
+        parts: prev.parts.map(p => (p.name === name ? { ...p, photos: [...p.photos, ...urls] } : p)),
+      }));
+    } catch (error: any) {
+      toast({ title: 'Upload Failed', description: error.message || 'Failed to upload photos', variant: 'destructive' });
+    } finally {
+      setPartPhotoUploading(null);
+      event.target.value = '';
+    }
   };
 
   const reworkMutation = useMutation({
@@ -1331,7 +1444,12 @@ export default function JobCardsNew() {
       const payload = {
         remarks: values.remarks,
         photos: values.photos,
-        parts: values.parts,
+        parts: values.parts.map(p => ({
+          name: p.name,
+          photos: p.photos,
+          foc: p.foc,
+          cost: p.foc ? null : (p.cost.trim() !== '' ? Number(p.cost) : null),
+        })),
         ...(values.approxQuantitySq.trim() !== '' ? { approxQuantitySq: Number(values.approxQuantitySq) } : {}),
         ...(values.approxCost.trim() !== '' ? { approxCost: Number(values.approxCost) } : {}),
         ...(values.assignedInstallerId ? { assignedInstallerId: values.assignedInstallerId } : {}),
@@ -3117,6 +3235,9 @@ export default function JobCardsNew() {
                   </CardContent>
                 </Card>
 
+                {/* Post-approval: billing trail + editable price + 15-day checkup */}
+                <PostApprovalCard jobCard={detailedJobCard} onChanged={() => queryClient.invalidateQueries()} />
+
                 {/* Billing Information Card */}
                 {(detailedJobCard.billFrom || detailedJobCard.billTo || detailedJobCard.shipTo) && (
                   <Card className="col-span-1 lg:col-span-2">
@@ -3506,15 +3627,11 @@ export default function JobCardsNew() {
                               </Button>
                             )
                           ) : (
-                            // #11 — the Apply e-Warranty OPTION is unlocked from APPROVED onward for
-                            // both brands so it's discoverable; for STEK the actual claim (reference-
-                            // number flow) still needs the sales invoice, so the button stays disabled
-                            // until INVOICE_RAISED. P91's request flow is enabled throughout.
+                            // e-Warranty is available from COMPLETED onward for BOTH brands (invoice no
+                            // longer required).
                             ((detailedJobCard as any).isP91Warranty
-                              ? (!detailedJobCard.eWarrantyApplied && ['APPROVED','PENDING_SALES_INVOICE','INVOICE_RAISED','WARRANTY_REGISTRATION','PAYMENT_PENDING'].includes(detailedJobCard.status))
-                              : ['APPROVED','PENDING_SALES_INVOICE','INVOICE_RAISED','WARRANTY_REGISTRATION','PAYMENT_PENDING'].includes(detailedJobCard.status)) && (() => {
-                              const stekAwaitingInvoice = !(detailedJobCard as any).isP91Warranty && detailedJobCard.status !== 'INVOICE_RAISED';
-                              return (
+                              ? (!detailedJobCard.eWarrantyApplied && ['COMPLETED','PENDING_APPROVAL','APPROVED','PENDING_SALES_INVOICE','INVOICE_RAISED','WARRANTY_REGISTRATION','PAYMENT_PENDING'].includes(detailedJobCard.status))
+                              : ['COMPLETED','PENDING_APPROVAL','APPROVED','PENDING_SALES_INVOICE','INVOICE_RAISED','WARRANTY_REGISTRATION','PAYMENT_PENDING'].includes(detailedJobCard.status)) && (
                               <Button
                                 size="sm"
                                 onClick={() => {
@@ -3524,15 +3641,12 @@ export default function JobCardsNew() {
                                     setShowApplyWarrantyModal(true);
                                   }
                                 }}
-                                disabled={stekAwaitingInvoice}
-                                title={stekAwaitingInvoice ? 'Available once the sales invoice is raised' : undefined}
                                 className="bg-blue-600 hover:bg-blue-700"
                                 data-testid="button-apply-warranty"
                               >
                                 Apply eWarranty
                               </Button>
-                              );
-                            })()
+                            )
                           )}
                         </div>
                       </div>
@@ -3723,7 +3837,7 @@ export default function JobCardsNew() {
                 <Popover open={reworkPartsOpen} onOpenChange={setReworkPartsOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" role="combobox" className="justify-between w-full font-normal" data-testid="select-rework-parts">
-                      {reworkForm.parts.length > 0 ? `${reworkForm.parts.length} selected` : 'Select parts'}
+                      {reworkForm.parts.length > 0 ? `${reworkForm.parts.length} selected` : 'Select affected parts'}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
@@ -3735,16 +3849,52 @@ export default function JobCardsNew() {
                         onClick={() => toggleReworkPart(part)}
                         className="flex items-center w-full px-2 py-1.5 text-sm rounded hover:bg-muted text-left"
                       >
-                        <Check className={`mr-2 h-4 w-4 ${reworkForm.parts.includes(part) ? 'opacity-100' : 'opacity-0'}`} />
+                        <Check className={`mr-2 h-4 w-4 ${reworkForm.parts.some(p => p.name === part) ? 'opacity-100' : 'opacity-0'}`} />
                         Part {part}
                       </button>
                     ))}
                   </PopoverContent>
                 </Popover>
+                {/* Per-part: photos mapped to that part + FOC / editable cost. */}
                 {reworkForm.parts.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {reworkForm.parts.map(p => (
-                      <span key={p} className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded">Part {p}</span>
+                  <div className="space-y-2 mt-2">
+                    {reworkForm.parts.map((p) => (
+                      <div key={p.name} className="border rounded-md p-2.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Part {p.name}</span>
+                          <label className="flex items-center gap-1.5 text-xs">
+                            <input type="checkbox" checked={p.foc} onChange={(e) => setPartField(p.name, { foc: e.target.checked })} data-testid={`rework-foc-${p.name}`} />
+                            FOC (Free of Cost)
+                          </label>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {!p.foc && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-muted-foreground">₹</span>
+                              <Input
+                                type="number" min="0" step="any"
+                                value={p.cost}
+                                onChange={(e) => setPartField(p.name, { cost: e.target.value })}
+                                placeholder="Cost"
+                                className="h-8 w-28"
+                                data-testid={`rework-cost-${p.name}`}
+                              />
+                            </div>
+                          )}
+                          <label className="text-xs cursor-pointer text-blue-600 hover:underline">
+                            {partPhotoUploading === p.name ? 'Uploading…' : '+ Add photos'}
+                            <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => uploadPartPhoto(p.name, e)} disabled={partPhotoUploading === p.name} />
+                          </label>
+                          {p.photos.length > 0 && <span className="text-xs text-muted-foreground">{p.photos.length} photo(s)</span>}
+                        </div>
+                        {p.photos.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {p.photos.map((url, i) => (
+                              <img key={i} src={url} alt="" className="h-12 w-12 object-cover rounded border" />
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}

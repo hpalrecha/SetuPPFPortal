@@ -291,6 +291,23 @@ export async function notifyPre3h(jobCardId: string): Promise<void> {
   });
 }
 
+// 15-day checkup due: remind the partner admin + demand contacts to schedule the checkup.
+export async function notifyCheckupDue(jobCardId: string): Promise<void> {
+  const ctx = await loadContext(jobCardId);
+  if (!ctx) return;
+  const { jobCard, workOrder, vehicleDetails } = ctx;
+  const partnerAdminId = await storage.getPartnerPrimaryUserId(jobCard.partnerId);
+  const demand = await demandContactIds(workOrder);
+  const tpl = await getTemplate('job_checkup_due');
+  const vars = { jobId: jobCard.id.slice(0, 8), vehicle: vehicleDetails };
+  await notifyUsers([partnerAdminId, ...demand], {
+    title: fillTemplate(tpl.emailSubject, vars) || 'Checkup due',
+    message: fillTemplate(tpl.emailBody, vars),
+    type: 'WARNING',
+    data: { type: 'job_checkup_due', jobCardId: jobCard.id, workOrderId: workOrder.id },
+  });
+}
+
 // #6 — at the scheduled time: confirm arrival (team + showroom + partner admin/super admin).
 export async function notifyAtTime(jobCardId: string): Promise<void> {
   const ctx = await loadContext(jobCardId);

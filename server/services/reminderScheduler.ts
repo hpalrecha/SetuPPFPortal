@@ -4,7 +4,7 @@
 import { db } from '../db';
 import { jobCards, jobReminders } from '@shared/schema';
 import { and, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
-import { notifyPre3h, notifyAtTime } from './jobCardNotifications';
+import { notifyPre3h, notifyAtTime, notifyCheckupDue } from './jobCardNotifications';
 
 const TICK_MINUTES = Number(process.env.REMINDER_TICK_MINUTES || 5);
 const PRE_HOURS = Number(process.env.REMINDER_PRE_HOURS || 3);
@@ -34,13 +34,14 @@ export interface RunSummary {
   checked: number;
   pre3h: string[];
   atTime: string[];
+  checkupDue: string[];
   skippedQuiet: boolean;
 }
 
 export async function runOnce(opts: { dryRun?: boolean } = {}): Promise<RunSummary> {
   const now = new Date();
   const quiet = inQuietHours(now);
-  const summary: RunSummary = { checked: 0, pre3h: [], atTime: [], skippedQuiet: quiet };
+  const summary: RunSummary = { checked: 0, pre3h: [], atTime: [], checkupDue: [], skippedQuiet: quiet };
 
   // Candidates: scheduled/rescheduled, have a time, not yet started.
   const rows = await db.select().from(jobCards).where(and(
@@ -73,6 +74,21 @@ export async function runOnce(opts: { dryRun?: boolean } = {}): Promise<RunSumma
     }
   }
 
+  // Checkup reminders: approved jobs with a checkup due (approval + 15d) not yet done — fire once,
+  // ~3 days before the due date, to prompt scheduling the checkup within the window.
+  const checkupRows = await db.select().from(jobCards).where(and(
+    isNotNull(jobCards.checkupDueAt),
+    isNull(jobCards.checkupDoneAt),
+  ));
+  const checkupLeadMs = 3 * 24 * 60 * 60 * 1000;
+  for (const jc of checkupRows) {
+    const due = jc.checkupDueAt ? new Date(jc.checkupDueAt).getTime() : 0;
+    if (now.getTime() >= due - checkupLeadMs && !(await alreadySent(jc.id, 'checkup_due'))) {
+      summary.checkupDue.push(jc.id);
+      if (!opts.dryRun) { await notifyCheckupDue(jc.id); await markSent(jc.id, 'checkup_due'); }
+    }
+  }
+
   return summary;
 }
 
@@ -87,7 +103,7 @@ export function start(): void {
     running = true;
     try {
       const s = await runOnce();
-      if (s.pre3h.length || s.atTime.length) console.log('⏰ reminders sent', s);
+      if (s.pre3h.length || s.atTime.length || s.checkupDue.length) console.log('⏰ reminders sent', s);
     } catch (e) {
       console.error('reminder tick failed', e);
     } finally {

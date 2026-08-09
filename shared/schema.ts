@@ -624,6 +624,15 @@ export const jobCards = pgTable("job_cards", {
   timelineTrail: jsonb("timeline_trail"),
   // Pre-installation check outcome — 'PASS' unlocks Start; 'FAIL' sends the job back to reschedule.
   preInstallResult: text("pre_install_result"),
+  // 15-day post-approval checkup. On the PRIMARY card: checkupDueAt is set at approval. A CHECKUP
+  // card is a separate job card with checkupOfJobCardId pointing back to its primary.
+  checkupOfJobCardId: uuid("checkup_of_job_card_id"),
+  checkupDueAt: timestamp("checkup_due_at"),
+  checkupDoneAt: timestamp("checkup_done_at"),
+  checkupNotes: text("checkup_notes"),
+  // Billing (recorded at approval): the 3-party trail + an editable price until invoiced.
+  billingTrailJson: jsonb("billing_trail_json"), // { team, middle: 'COMPANY'|partnerAdminId, showroom, rule }
+  billingPrice: decimal("billing_price", { precision: 12, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });

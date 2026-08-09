@@ -529,9 +529,9 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const rescheduleCount = jobCard?.rescheduleCount || 0;
   const rescheduleLimitReached = rescheduleCount >= 3 && !isSuperAdmin;
   const hasPreInstallationPhotos = !!(jobCard?.preInstallationPhotoFront && jobCard?.preInstallationPhotoBack && jobCard?.preInstallationPhotoLeft && jobCard?.preInstallationPhotoRight);
-  // E-Warranty button: show when partner bills directly, job is approved/completed, and not already applied
-  const canApplyWarranty = jobCard?.partnerBilledDirectly && 
-                          ['PENDING_SALES_INVOICE', 'APPROVED'].includes(jobCard?.status || '') && 
+  // E-Warranty: available from COMPLETED onward (both brands), when not already applied.
+  const canApplyWarranty = jobCard?.partnerBilledDirectly &&
+                          ['COMPLETED', 'PENDING_APPROVAL', 'PENDING_SALES_INVOICE', 'APPROVED'].includes(jobCard?.status || '') &&
                           !jobCard?.eWarrantyApplied;
 
   const resetForm = () => {
