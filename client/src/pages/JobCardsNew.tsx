@@ -1433,9 +1433,11 @@ export default function JobCardsNew() {
     }
     return list;
   })();
-  // Once the job has started (or later), the standalone "Assign Partner / Team" is hidden — a team
-  // change from here would silently overwrite the Assigned Installer. Team changes belong in the
-  // Reschedule form (same card) or the Rework form (new card) instead.
+  // Once the job has started (or later), the standalone assign control changes meaning: for the
+  // normal flow team changes belong in the Reschedule form (same card) or Rework form (new card),
+  // since a blind reassign would overwrite the Assigned Installer mid-job. Super Admin / Admin,
+  // however, keep an explicit "Change Installer / Team" override here (e.g. to fix a card left
+  // "Not assigned"); the label switches to signal that.
   const jobStartedOrLater = !!detailedJobCard?.startedAt || ['IN_PROGRESS', 'COMPLETED', 'PENDING_APPROVAL', 'APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED', 'REWORK_REQUESTED', 'REWORK_PERMISSION_REQUESTED'].includes(detailedJobCard?.status || '');
 
   const openRework = () => {
@@ -2879,15 +2881,17 @@ export default function JobCardsNew() {
                     Request Rework
                   </Button>
                 )}
-                {canEditDetails && detailedJobCard && !jobStartedOrLater && (
+                {canEditDetails && detailedJobCard && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={openAssign}
                     data-testid="button-assign-partner-team"
+                    title={jobStartedOrLater ? 'Admin override: change the assigned installer / team on a started or later job card' : undefined}
+                    className={jobStartedOrLater ? 'border-amber-300 text-amber-700 hover:bg-amber-50' : undefined}
                   >
                     <Users className="h-4 w-4 mr-2" />
-                    Assign Partner / Team
+                    {jobStartedOrLater ? 'Change Installer / Team' : 'Assign Partner / Team'}
                   </Button>
                 )}
                 {canEditDetails && detailedJobCard && (
