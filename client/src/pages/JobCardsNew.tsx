@@ -431,6 +431,11 @@ export default function JobCardsNew() {
   // turn it off explicitly to see them again.
   const [hideWarrantyRegistered, setHideWarrantyRegistered] = useState(true);
   const CLOSED_FILTER_STATUSES = ['WARRANTY_REGISTRATION', 'CLOSED'];
+
+  // "Rework" filter toggle — on by default, hides rework job cards (any card whose
+  // reworkOfJobCardId is set, i.e. a rework spun off an original job on the same VIN).
+  // Turn it off to see the rework cards alongside their originals.
+  const [hideRework, setHideRework] = useState(true);
   
   // Get current user for admin check
   const { user } = useAuth();
@@ -661,6 +666,10 @@ export default function JobCardsNew() {
           ? !jobCard.assignedInstallerId
           : (jobCard.assignedInstallerId || '') === searchFilters.assignedInstallerId)) &&
       dateMatch &&
+      // Hide cancelled job cards unless the user explicitly filters for them.
+      (status !== 'CANCELLED' || searchFilters.status === 'CANCELLED') &&
+      // Hide rework job cards (same VIN as their original) when the Rework toggle is on.
+      (!hideRework || !jobCard.reworkOfJobCardId) &&
       (!hideWarrantyRegistered ||
         CLOSED_FILTER_STATUSES.includes(searchFilters.status) ||
         !CLOSED_FILTER_STATUSES.includes(status))
@@ -1771,6 +1780,17 @@ export default function JobCardsNew() {
             >
               <Shield className="h-3 w-3 mr-1" />
               Closed
+            </Button>
+            <Button
+              variant={hideRework ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setHideRework((v) => !v)}
+              className="text-xs sm:text-sm h-8"
+              data-testid="button-rework-filter"
+              title={hideRework ? 'Hiding rework job cards — click to show them' : 'Showing rework job cards — click to hide them'}
+            >
+              <RotateCcw className="h-3 w-3 mr-1" />
+              Rework
             </Button>
             {user?.role === 'SUPER_ADMIN' && (
               <Button
@@ -3583,8 +3603,10 @@ export default function JobCardsNew() {
                   </Card>
                 )}
 
-                {/* Settlement Section - Post Approval */}
-                {(detailedJobCard.status === 'APPROVED' || detailedJobCard.status === 'PENDING_SALES_INVOICE' || detailedJobCard.status === 'INVOICE_RAISED' || detailedJobCard.status === 'WARRANTY_REGISTRATION' || detailedJobCard.status === 'PAYMENT_PENDING' || detailedJobCard.status === 'CLOSED') && (
+                {/* Settlement + e-Warranty. e-Warranty can be applied from COMPLETED onward (both brands),
+                    so this section opens at Completed; the settlement/invoice actions inside stay gated to
+                    their own later statuses (e.g. "Enter Invoice" only at PENDING_SALES_INVOICE). */}
+                {(detailedJobCard.status === 'COMPLETED' || detailedJobCard.status === 'APPROVED' || detailedJobCard.status === 'PENDING_SALES_INVOICE' || detailedJobCard.status === 'INVOICE_RAISED' || detailedJobCard.status === 'WARRANTY_REGISTRATION' || detailedJobCard.status === 'PAYMENT_PENDING' || detailedJobCard.status === 'CLOSED') && (
                   // Settlement follows who CREATED the work order: partner-created
                   // (their own) → partner admin settles; P91-created (commission) → admin settles.
                   // SUPER_ADMIN/ADMIN always get override access on top of that.

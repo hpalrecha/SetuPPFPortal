@@ -307,7 +307,7 @@ const FLOW: Stage[] = [
       { role: 'Showroom / Salesperson', side: 'demand', channels: ['EMAIL', 'WHATSAPP'] },
       { role: 'Team + Partner Admin', side: 'supply', channels: ['EMAIL', 'WHATSAPP'] },
     ],
-    note: '#4 (changed) — message to all (mail + WhatsApp): “the job is completed; for any rework a 15-day buffer applies during which the rework is reviewed and a team assigned; after 15 days a car checkup is scheduled and its availability is informed accordingly.”',
+    note: '#4 (changed) — message to all (mail + WhatsApp): “the job is completed; for any rework a 15-day buffer applies during which the rework is reviewed and a team assigned; after 15 days a car checkup is scheduled and its availability is informed accordingly.” Once Completed, “Apply for e-Warranty” is also available (both brands — the invoice is no longer required).',
   },
   {
     id: 'pending_approval', title: 'Pending approval', status: 'PENDING_APPROVAL', icon: Clock, accent: '#64748b',
@@ -327,13 +327,13 @@ const FLOW: Stage[] = [
       { role: 'Allocated team + Partner Admin / Super Admin', side: 'supply', channels: ['EMAIL'] },
       { role: 'Showroom / Salesperson', side: 'demand', channels: ['EMAIL'] },
     ],
-    note: '“Apply for e-Warranty” unlocks here; the warranty claim itself stays locked until Invoice Raised.',
+    note: '“Apply for e-Warranty” is available from the Completed stage onward (both brands) — it is no longer gated on the invoice, and the claim is registered against this same primary card.',
   },
   {
-    id: 'warranty', title: 'Warranty + Invoice → Closed', status: 'INVOICE_RAISED', icon: FileText, accent: '#059669', change: 'changed',
-    trigger: 'Sales invoice entered; warranty issued.',
+    id: 'warranty', title: 'Invoice → Closed', status: 'INVOICE_RAISED', icon: FileText, accent: '#059669', change: 'changed',
+    trigger: 'Sales invoice entered; card moves toward Closed.',
     recipients: [],
-    note: '#2/#4 (corrected) — the warranty is issued against the SAME primary job card (never a spawned one). The card stays open through Payment and finally CLOSED.',
+    note: '#2/#4 (corrected) — e-Warranty may already have been issued from Completed onward; either way it is registered against the SAME primary job card (never a spawned one). The card stays open through Payment and finally CLOSED.',
   },
 ];
 
@@ -503,11 +503,11 @@ const EXAMPLE: ExEvent[] = [
   { time: 'Day 3 · 11:05', entity: 'JC', icon: CheckCircle2, accent: '#059669', title: 'Reached → Pre-install PASS', detail: 'Start button now appears.', tags: [PASS] },
   { time: 'Day 3 · 11:30', entity: 'JC', icon: Play, accent: '#ea580c', title: 'Start → In Progress', tags: [{ label: 'IN PROGRESS', color: '#ea580c' }] },
   { time: 'Day 3 · 13:00', entity: 'JC', icon: RotateCcw, accent: '#d97706', title: 'Mid-job reassign (Super Admin)', detail: 'Ravi ill → reassigned to Sonu. Same card, keeps Start.', notify: ['Both parties'], tags: [SAONLY, SAME, TRAIL] },
-  { time: 'Day 3 · 16:00', entity: 'JC', icon: CheckCircle2, accent: '#059669', title: 'Completed', notify: ['Everyone incl. customer (mail + WA): 15-day buffer + checkup'], tags: [{ label: 'COMPLETED', color: '#059669' }] },
+  { time: 'Day 3 · 16:00', entity: 'JC', icon: CheckCircle2, accent: '#059669', title: 'Completed', detail: 'e-Warranty can be applied from here (both brands — no invoice required).', notify: ['Everyone incl. customer (mail + WA): 15-day buffer + checkup'], tags: [{ label: 'COMPLETED', color: '#059669' }] },
   { time: 'Day 4 · 10:00', entity: 'JC', icon: ShieldCheck, accent: '#059669', title: 'Approved', notify: ['Team + Partner Admin + showroom (email)'], tags: [{ label: 'APPROVED', color: '#059669' }] },
   { time: 'Day 4 · 10:05', entity: 'BILL', icon: Receipt, accent: '#059669', title: 'Billing trail recorded', detail: 'Detailer = ours, Partner Admin = GlossPro (≠ company) ⇒ we bill GlossPro; GlossPro bills showroom.', tags: [VARPRICE] },
   { time: 'Day 6 · 09:30', entity: 'JC2', icon: AlertTriangle, accent: '#c026d3', title: 'Rework — NEW team (Amit)', detail: 'Edge-lifting. New linked card JC-0002; per-part photos — bumper ×2 (FOC), left door ×1 (₹800, editable).', notify: ['Team + Partner Admin (mail + WA)'], tags: [NEWC, TRAIL, VARPRICE] },
-  { time: 'Day 20', entity: 'JC', icon: FileText, accent: '#059669', title: 'Warranty → Closed', detail: 'Warranty issued on JC-0001; invoice → payment → CLOSED.', tags: [SAME] },
+  { time: 'Day 20', entity: 'JC', icon: FileText, accent: '#059669', title: 'Invoice → Closed', detail: 'e-Warranty already issued at completion on JC-0001; invoice → payment → CLOSED.', tags: [SAME] },
 ];
 
 // A single horizontal event card (one column of the timeline).
