@@ -77,6 +77,36 @@ async function demandContactIds(workOrder: any): Promise<string[]> {
   return ids;
 }
 
+// Org-level showroom "desk" contact (contact_email / contact_phone on the showroom record).
+// Ensures the demand/showroom side is reliably reached even when NO showroom-manager user
+// exists — sends email + optional WhatsApp straight to the showroom, and logs both.
+async function notifyShowroomContact(
+  showroom: any,
+  jobCardId: string,
+  eventType: string,
+  subject: string,
+  body: string,
+  opts: { email?: boolean; whatsapp?: boolean } = {},
+): Promise<void> {
+  if (!showroom) return;
+  const wantEmail = opts.email !== false;
+  const wantWhatsapp = opts.whatsapp !== false;
+  const logCtx = { eventType, relatedEntityType: 'job_card', relatedEntityId: jobCardId, recipientName: showroom.name };
+  if (wantEmail && showroom.contactEmail) {
+    try {
+      await emailService.sendEmail({ to: showroom.contactEmail, subject: subject || 'P91 job update', text: body, context: logCtx });
+    } catch (e) { console.error(`notifyShowroomContact: email failed (${eventType})`, e); }
+  }
+  if (wantWhatsapp && showroom.contactPhone) {
+    try {
+      await whatsappService.sendMessage(
+        { to: whatsappService.formatPhoneNumber(showroom.contactPhone), type: 'text', text: { body: `*${subject}*\n\n${body}` } },
+        logCtx,
+      );
+    } catch (e) { console.error(`notifyShowroomContact: whatsapp failed (${eventType})`, e); }
+  }
+}
+
 // #3 — On acknowledge, send the "assigned to your team" message to the assigned installer/detailer.
 export async function notifyAcknowledged(jobCardId: string): Promise<void> {
   const ctx = await loadContext(jobCardId);
@@ -115,7 +145,7 @@ export async function notifyAcknowledged(jobCardId: string): Promise<void> {
 export async function notifyScheduled(jobCardId: string): Promise<void> {
   const ctx = await loadContext(jobCardId);
   if (!ctx) return;
-  const { jobCard, workOrder, vehicleDetails } = ctx;
+  const { jobCard, workOrder, vehicleDetails, showroom } = ctx;
   const partnerAdminId = await storage.getPartnerPrimaryUserId(jobCard.partnerId);
   const demand = await demandContactIds(workOrder);
   const when = jobCard.scheduledAt
@@ -124,19 +154,23 @@ export async function notifyScheduled(jobCardId: string): Promise<void> {
 
   const tpl = await getTemplate('job_card_scheduled');
   const vars = { jobId: jobCard.id.slice(0, 8), vehicle: vehicleDetails, when };
+  const subject = fillTemplate(tpl.emailSubject, vars) || 'Job scheduled';
+  const body = fillTemplate(tpl.emailBody, vars);
   await notifyUsers([partnerAdminId, jobCard.assignedInstallerId, ...demand], {
-    title: fillTemplate(tpl.emailSubject, vars) || 'Job scheduled',
-    message: fillTemplate(tpl.emailBody, vars),
+    title: subject,
+    message: body,
     type: 'INFO',
     data: { type: 'job_card_scheduled', jobCardId: jobCard.id, workOrderId: workOrder.id },
-  });
+  }, ['PUSH', 'EMAIL', 'WHATSAPP']);
+  // Showroom desk (org contact) — email + WhatsApp, so the showroom is reliably informed.
+  await notifyShowroomContact(showroom, jobCard.id, 'job_card_scheduled', subject, body);
 }
 
 // Cluster 2 — On reschedule, notify both parties (partner admin + staff + showroom/salesperson).
 export async function notifyRescheduled(jobCardId: string): Promise<void> {
   const ctx = await loadContext(jobCardId);
   if (!ctx) return;
-  const { jobCard, workOrder, vehicleDetails } = ctx;
+  const { jobCard, workOrder, vehicleDetails, showroom } = ctx;
   const partnerAdminId = await storage.getPartnerPrimaryUserId(jobCard.partnerId);
   const staff = await storage.getPartnerStaff(jobCard.partnerId);
   const demand = await demandContactIds(workOrder);
@@ -145,16 +179,22 @@ export async function notifyRescheduled(jobCardId: string): Promise<void> {
     : 'a new time';
 
   const tpl = await getTemplate('job_card_rescheduled');
-  const vars = { jobId: jobCard.id.slice(0, 8), vehicle: vehicleDetails, when, reason: jobCard.rescheduleReason || 'not specified' };
+  const party = (jobCard.rescheduleParty === 'SHOWROOM') ? 'Showroom' : 'Team';
+  const vars = { jobId: jobCard.id.slice(0, 8), vehicle: vehicleDetails, when, party, reason: jobCard.rescheduleReason || 'not specified' };
+  const subject = fillTemplate(tpl.emailSubject, vars) || 'Job rescheduled';
+  const body = fillTemplate(tpl.emailBody, vars);
   await notifyUsers(
     [partnerAdminId, jobCard.assignedInstallerId, ...staff.map((s: any) => s.id), ...demand],
     {
-      title: fillTemplate(tpl.emailSubject, vars) || 'Job rescheduled',
-      message: fillTemplate(tpl.emailBody, vars),
+      title: subject,
+      message: body,
       type: 'WARNING',
       data: { type: 'job_card_rescheduled', jobCardId: jobCard.id, workOrderId: workOrder.id },
     },
+    ['PUSH', 'EMAIL', 'WHATSAPP'],
   );
+  // Showroom desk (org contact) — both parties are informed of the reschedule.
+  await notifyShowroomContact(showroom, jobCard.id, 'job_card_rescheduled', subject, body);
 }
 
 // #4 — On complete, notify EVERYONE (customer + showroom/sales + team + partner) on mail + WhatsApp,
@@ -266,7 +306,7 @@ export async function notifyApproved(jobCardId: string): Promise<void> {
 export async function notifyPre3h(jobCardId: string): Promise<void> {
   const ctx = await loadContext(jobCardId);
   if (!ctx) return;
-  const { jobCard, workOrder, vehicleDetails } = ctx;
+  const { jobCard, workOrder, vehicleDetails, showroom } = ctx;
   const partnerAdminId = await storage.getPartnerPrimaryUserId(jobCard.partnerId);
   const demand = await demandContactIds(workOrder);
   const when = jobCard.scheduledAt
@@ -274,21 +314,26 @@ export async function notifyPre3h(jobCardId: string): Promise<void> {
     : 'soon';
   const vars = { jobId: jobCard.id.slice(0, 8), vehicle: vehicleDetails, when };
 
+  // Supply side — team + partner admin: "heading to site?" (bell + email + WhatsApp).
   const supplyTpl = await getTemplate('job_arrival_check');
   await notifyUsers([partnerAdminId, jobCard.assignedInstallerId], {
     title: fillTemplate(supplyTpl.emailSubject, vars) || 'Heading to site?',
     message: fillTemplate(supplyTpl.emailBody, vars),
     type: 'WARNING',
     data: { type: 'job_arrival_check', jobCardId: jobCard.id, workOrderId: workOrder.id },
-  });
+  }, ['PUSH', 'EMAIL', 'WHATSAPP']);
 
+  // Demand side — the SHOWROOM: "is the car ready?" (bell + email + WhatsApp to users AND desk).
   const demandTpl = await getTemplate('job_car_ready_check');
+  const readySubject = fillTemplate(demandTpl.emailSubject, vars) || 'Is the car ready?';
+  const readyBody = fillTemplate(demandTpl.emailBody, vars);
   await notifyUsers(demand, {
-    title: fillTemplate(demandTpl.emailSubject, vars) || 'Is the car ready?',
-    message: fillTemplate(demandTpl.emailBody, vars),
+    title: readySubject,
+    message: readyBody,
     type: 'WARNING',
     data: { type: 'job_car_ready_check', jobCardId: jobCard.id, workOrderId: workOrder.id },
-  });
+  }, ['PUSH', 'EMAIL', 'WHATSAPP']);
+  await notifyShowroomContact(showroom, jobCard.id, 'job_car_ready_check', readySubject, readyBody);
 }
 
 // 15-day checkup due: remind the partner admin + demand contacts to schedule the checkup.

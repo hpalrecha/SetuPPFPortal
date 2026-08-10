@@ -5591,22 +5591,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Which side this reschedule is attributed to. Only a Super Admin's choice is honored —
         // everyone else's reschedule is implicitly attributed to their own (team) side.
         party: z.enum(['SHOWROOM', 'TEAM']).optional(),
+        // Reschedule is unlimited; past the 6th we softly ask if it's an escalation + why.
+        escalation: z.boolean().optional(),
+        escalationReason: z.string().optional(),
+        // Sq ft of PPF roll used so far — REQUIRED when rescheduling a job that has already started.
+        rollUsedSqft: z.coerce.number().nonnegative().optional(),
       });
-      const { scheduledAt, reason, assignedInstallerId, party } = schema.parse(req.body);
+      const { scheduledAt, reason, assignedInstallerId, party, escalation, escalationReason, rollUsedSqft } = schema.parse(req.body);
 
       const existing = await storage.getJobCard(req.params.id);
       if (!existing) return res.status(404).json({ error: "Job card not found" });
 
       const isSuperAdmin = req.user!.role === 'SUPER_ADMIN';
       const count = existing.rescheduleCount || 0;
-      if (!isSuperAdmin && count >= 3) {
-        return res.status(400).json({ error: "Reschedule limit reached (3). Only a Super Admin can reschedule further." });
-      }
+      // No hard cap — reschedule is unlimited (the client softly asks for an escalation reason past 6×).
 
       // Once the job has started, only a Super Admin may reschedule (and may reassign a new team).
       const hasStarted = !!existing.startedAt || ['IN_PROGRESS', 'COMPLETED', 'PENDING_APPROVAL', 'APPROVED'].includes(existing.status || '');
       if (hasStarted && !isSuperAdmin) {
         return res.status(403).json({ error: "Only a Super Admin can reschedule a job once it has started." });
+      }
+      // Rescheduling a STARTED job must record the sq ft of roll already used before the pause.
+      if (hasStarted && (rollUsedSqft === undefined || Number.isNaN(rollUsedSqft))) {
+        return res.status(400).json({ error: "Sq ft of roll used is required when rescheduling a started job." });
       }
 
       const resolvedParty = isSuperAdmin && party ? party : 'TEAM';
@@ -5632,9 +5639,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isReassignment) updates.assignedInstallerId = assignedInstallerId;
       // After a started-job reschedule the card returns to Start directly (skips reached/pre-install).
       if (hasStarted) { updates.startedAt = null; updates.preInstallationCompletedAt = null; updates.preInstallResult = null; updates.reachedAt = null; }
+      // Record roll consumed so far (only meaningful for a started-job reschedule).
+      if (hasStarted && rollUsedSqft !== undefined) updates.rollUsedSqft = String(rollUsedSqft);
 
-      const trailDetail = `${new Date(scheduledAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })} — ${reason}`
-        + (isReassignment ? ` · reassigned to ${assignedName || 'new team member'}` : '');
+      // Clear, unambiguous label: it's the NEW appointment time + who asked + why (+ any escalation).
+      const partyLabel = resolvedParty === 'SHOWROOM' ? 'Showroom' : 'Team';
+      const whenStr = new Date(scheduledAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' });
+      const trailDetail = `to ${whenStr} · requested by ${partyLabel} · ${reason}`
+        + (isReassignment ? ` · reassigned to ${assignedName || 'new team member'}` : '')
+        + (hasStarted && rollUsedSqft !== undefined ? ` · roll used: ${rollUsedSqft} sq ft` : '')
+        + (escalation && escalationReason ? ` · ESCALATION: ${escalationReason}` : '');
       const jobCard = await storage.appendJobCardTrail(
         req.params.id,
         { type: 'RESCHEDULED', detail: trailDetail, by: req.user!.id, byRole: req.user!.role },
@@ -5763,6 +5777,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Pre-install result error:", error);
       res.status(500).json({ error: "Failed to record pre-installation result" });
+    }
+  });
+
+  // Edit the underlying work order's informational fields from the job-card view (fills in the
+  // "N/A" fields). Works on non-DRAFT work orders (unlike PUT /api/work-orders/:id) but only for a
+  // safe whitelist. SUPER_ADMIN/ADMIN, or the owning partner's users.
+  app.patch("/api/job-cards/:id/work-order-details", authenticate, async (req, res) => {
+    try {
+      const role = req.user!.role;
+      const allowed = ['SUPER_ADMIN', 'ADMIN', 'PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER'];
+      if (!allowed.includes(role)) return res.status(403).json({ error: "You are not allowed to edit these details" });
+
+      const jobCard = await storage.getJobCard(req.params.id);
+      if (!jobCard) return res.status(404).json({ error: "Job card not found" });
+
+      // Partner users may only edit their own partner's job cards.
+      if (['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER'].includes(role)) {
+        if (!req.user!.partnerId || jobCard.partnerId !== req.user!.partnerId) {
+          return res.status(403).json({ error: "Access denied - job card belongs to a different partner" });
+        }
+      }
+
+      const schema = z.object({
+        regNo: z.string().trim().optional(),
+        customerName: z.string().trim().optional(),
+        customerPhone: z.string().trim().optional(),
+        customerEmail: z.string().trim().optional(),
+        customerAddress: z.string().trim().optional(),
+        notes: z.string().trim().optional(),
+        quantity: z.coerce.number().int().positive().optional(),
+      });
+      const patch = schema.parse(req.body);
+      const updates: any = {};
+      for (const [k, v] of Object.entries(patch)) {
+        if (v !== undefined && v !== '') updates[k] = v;
+      }
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No editable fields provided" });
+      }
+
+      const workOrder = await storage.updateWorkOrder(jobCard.workOrderId, updates);
+      if (!workOrder) return res.status(404).json({ error: "Work order not found" });
+      // Audit on the job-card trail.
+      await storage.appendJobCardTrail(
+        req.params.id,
+        { type: 'DETAILS_EDITED', detail: `updated ${Object.keys(updates).join(', ')}`, by: req.user!.id, byRole: role },
+      );
+      res.json(workOrder);
+    } catch (error: any) {
+      if (error?.name === 'ZodError') return res.status(400).json({ error: "Invalid field values", details: error.errors });
+      console.error("Edit work-order details error:", error);
+      res.status(500).json({ error: "Failed to update details" });
     }
   });
 
@@ -9488,15 +9554,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return res.status(403).json({ error: "Access denied - job card belongs to different partner" });
           }
         } else {
-          // For non-partner users, use existing OEM access validation
-          const oemId = req.headers['x-oem-id'] as string;
-          if (!oemId) {
-            return res.status(400).json({ error: 'OEM ID required' });
+          // Non-partner (SUPER_ADMIN / ADMIN / OEM_ADMIN): derive the OEM from the job card's own
+          // work order instead of requiring a client-supplied x-oem-id header — its absence (e.g. a
+          // Super Admin with no OEM filter selected) used to 400 the post-installation photo upload.
+          // OEM admins may still only touch job cards belonging to their own OEM.
+          if (req.user?.role === 'OEM_ADMIN' && req.user?.oemId) {
+            const wo = await storage.getWorkOrder(jobCard.workOrderId);
+            if (wo?.oemId && wo.oemId !== req.user.oemId) {
+              return res.status(403).json({ error: "Access denied - job card belongs to a different OEM" });
+            }
           }
-          
-          // Verify the job card belongs to the specified OEM
-          // TODO: Need to fetch work order to verify OEM ID
-          // For now, skip this check
         }
 
         // Upload file to Object Storage instead of local disk

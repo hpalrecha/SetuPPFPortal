@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { CalendarIcon, ClockIcon, CheckCircle2, XCircle, PlayCircle, PauseCircle, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon, Users, Camera, Eye, Shield, Plus, Trash2, RotateCcw } from 'lucide-react';
+import { CalendarIcon, ClockIcon, CheckCircle2, XCircle, PlayCircle, PauseCircle, UserIcon, PhoneIcon, MailIcon, MapPinIcon, CarIcon, WrenchIcon, CalendarDaysIcon, Users, Camera, Eye, Shield, Plus, Trash2, RotateCcw, Pencil } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { apiRequest } from '@/lib/queryClient';
 import { processImage } from '@/lib/imageProcessing';
@@ -125,6 +125,15 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const [rescheduleReason, setRescheduleReason] = useState('');
   const [rescheduleInstallerId, setRescheduleInstallerId] = useState('');
   const [rescheduleParty, setRescheduleParty] = useState<'TEAM' | 'SHOWROOM'>('TEAM');
+  const [rescheduleEscalation, setRescheduleEscalation] = useState(false);
+  const [rescheduleEscalationReason, setRescheduleEscalationReason] = useState('');
+  // Sq ft of roll used so far — mandatory only when rescheduling a job that has already started.
+  const [rescheduleRollUsed, setRescheduleRollUsed] = useState('');
+  // Inline "edit details" (fills in the N/A work-order fields from the job-card view).
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [detailsForm, setDetailsForm] = useState({
+    customerName: '', customerPhone: '', customerEmail: '', customerAddress: '', regNo: '', quantity: '', notes: '',
+  });
   const [completionRemarks, setCompletionRemarks] = useState('');
   const [selectedTeamMemberId, setSelectedTeamMemberId] = useState<string>('');
   const [uploadedPostPhotos, setUploadedPostPhotos] = useState<Array<{label: string; url: string; originalSize: number; compressedSize: number}>>([]);
@@ -240,6 +249,11 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
         body.assignedInstallerId = rescheduleInstallerId;
       }
       if (isSuperAdmin) body.party = rescheduleParty;
+      if (needsEscalationPrompt && rescheduleEscalation) {
+        body.escalation = true;
+        body.escalationReason = rescheduleEscalationReason.trim();
+      }
+      if (rescheduleStarted) body.rollUsedSqft = Number(rescheduleRollUsed);
       const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/reschedule`, body);
       return response.json();
     },
@@ -270,6 +284,27 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     onError: () => {
       toast({ title: 'Error', description: 'Failed to mark job as reached.', variant: 'destructive' });
     }
+  });
+
+  const updateDetailsMutation = useMutation({
+    mutationFn: async () => {
+      const body: any = {};
+      for (const [k, v] of Object.entries(detailsForm)) {
+        const val = String(v ?? '').trim();
+        if (val !== '') body[k] = k === 'quantity' ? Number(val) : val;
+      }
+      const response = await apiRequest('PATCH', `/api/job-cards/${jobCardId}/work-order-details`, body);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards', jobCardId] });
+      toast({ title: 'Details updated', description: 'The work-order details were saved.' });
+      setEditingDetails(false);
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error?.message || 'Failed to update details.', variant: 'destructive' });
+    },
   });
 
   const preInstallResultMutation = useMutation({
@@ -505,6 +540,16 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   };
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const canEditDetails = ['SUPER_ADMIN', 'ADMIN', 'PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER'].includes(user?.role || '');
+  const openEditDetails = () => {
+    const wo: any = jobCard?.workOrder || {};
+    setDetailsForm({
+      customerName: wo.customerName || '', customerPhone: wo.customerPhone || '', customerEmail: wo.customerEmail || '',
+      customerAddress: wo.customerAddress || '', regNo: wo.regNo || '', quantity: wo.quantity ? String(wo.quantity) : '',
+      notes: wo.notes || '',
+    });
+    setEditingDetails(true);
+  };
   const canAcknowledge = jobCard?.status === 'AWAITING_ACK';
   const canSchedule = jobCard?.status === 'ACKNOWLEDGED';
   // Corrected flow: SCHEDULED → REACHED → pre-install (PASS/FAIL) → Start.
@@ -513,11 +558,13 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   // job has STARTED, only a Super Admin may reschedule (and reassign a team).
   const canReschedule = preStartStatus || (jobCard?.status === 'IN_PROGRESS' && isSuperAdmin);
   const canReachedStatus = ['SCHEDULED', 'RESCHEDULED'].includes(jobCard?.status || '');
-  // Partner-level users may only mark Reached within 4 hours of the scheduled time (not way
-  // ahead of it); Super Admin has no such restriction.
-  const withinReachWindow = isSuperAdmin || (jobCard?.scheduledAt
-    ? (new Date(jobCard.scheduledAt).getTime() - Date.now()) <= 4 * 60 * 60 * 1000
-    : false);
+  // Partner-level: Mark Reached is available from 3h BEFORE the scheduled time to 3 days AFTER it
+  // (not way ahead). Super Admin has no such restriction.
+  const withinReachWindow = isSuperAdmin || (jobCard?.scheduledAt ? (() => {
+    const sched = new Date(jobCard.scheduledAt).getTime();
+    const now = Date.now();
+    return now >= sched - 3 * 60 * 60 * 1000 && now <= sched + 3 * 24 * 60 * 60 * 1000;
+  })() : false);
   const canReached = canReachedStatus;
   const preInstallPassed = jobCard?.preInstallResult === 'PASS';
   const preInstallFailed = jobCard?.preInstallResult === 'FAIL';
@@ -527,7 +574,10 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
   const canComplete = jobCard?.status === 'IN_PROGRESS';
   const needsRework = jobCard?.status === 'REWORK_REQUESTED';
   const rescheduleCount = jobCard?.rescheduleCount || 0;
-  const rescheduleLimitReached = rescheduleCount >= 3 && !isSuperAdmin;
+  // Reschedule is unlimited (no visible cap). Past the 6th, we softly ask about escalation.
+  const needsEscalationPrompt = rescheduleCount >= 6;
+  // Rescheduling an already-started job must capture the sq ft of roll already used.
+  const rescheduleStarted = !!jobCard?.startedAt || jobCard?.status === 'IN_PROGRESS';
   const hasPreInstallationPhotos = !!(jobCard?.preInstallationPhotoFront && jobCard?.preInstallationPhotoBack && jobCard?.preInstallationPhotoLeft && jobCard?.preInstallationPhotoRight);
   // E-Warranty: available from COMPLETED onward (both brands), when not already applied.
   const canApplyWarranty = jobCard?.partnerBilledDirectly &&
@@ -541,6 +591,9 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     setRescheduleReason('');
     setRescheduleInstallerId('');
     setRescheduleParty('TEAM');
+    setRescheduleEscalation(false);
+    setRescheduleEscalationReason('');
+    setRescheduleRollUsed('');
     setCompletionRemarks('');
     setUploadedPostPhotos([]);
     setSelectedTeamMemberId(jobCard?.assignedInstallerId || '');
@@ -626,15 +679,13 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
               )}
               {canReschedule && (
                 <Button
-                  onClick={() => { setScheduleDate(''); setScheduleTime(''); setRescheduleReason(''); setRescheduleInstallerId(''); setRescheduleParty('TEAM'); setCurrentView('reschedule'); }}
-                  disabled={rescheduleLimitReached}
-                  title={rescheduleLimitReached ? 'Reschedule limit reached (3). Only a Super Admin can reschedule further.' : undefined}
+                  onClick={() => { setScheduleDate(''); setScheduleTime(''); setRescheduleReason(''); setRescheduleInstallerId(''); setRescheduleParty('TEAM'); setRescheduleEscalation(false); setRescheduleEscalationReason(''); setRescheduleRollUsed(''); setCurrentView('reschedule'); }}
                   variant="outline"
                   className="border-amber-300 text-amber-800 hover:bg-amber-50"
                   data-testid="button-reschedule"
                 >
                   <CalendarDaysIcon className="h-4 w-4 mr-2" />
-                  Reschedule{rescheduleCount > 0 ? ` (${rescheduleCount}/3)` : ''}
+                  Reschedule
                 </Button>
               )}
               {canReached && (
@@ -649,23 +700,25 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                   Mark Reached
                 </Button>
               )}
-              {needsPreInstallation && !hasPreInstallationPhotos && (
+              {/* Step 1 — Pre-installation CHECK (Pass/Fail) comes first; photos are NOT required yet. */}
+              {needsPreInstallation && (
+                <>
+                  <Button onClick={() => preInstallResultMutation.mutate('PASS')} disabled={preInstallResultMutation.isPending} className="bg-green-600 hover:bg-green-700" data-testid="button-preinstall-pass">
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Pre-install Check: Pass
+                  </Button>
+                  <Button onClick={() => preInstallResultMutation.mutate('FAIL')} disabled={preInstallResultMutation.isPending} variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" data-testid="button-preinstall-fail">
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Pre-install Check: Fail
+                  </Button>
+                </>
+              )}
+              {/* Step 2 — after PASS: pre-installation PHOTOS + Start Work together (photos can be added after). */}
+              {canStart && !hasPreInstallationPhotos && (
                 <Button onClick={() => setPreInstallationModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-700" data-testid="button-pre-installation">
                   <Camera className="h-4 w-4 mr-2" />
                   Pre-Installation Photos
                 </Button>
-              )}
-              {needsPreInstallation && hasPreInstallationPhotos && (
-                <>
-                  <Button onClick={() => preInstallResultMutation.mutate('PASS')} disabled={preInstallResultMutation.isPending} className="bg-green-600 hover:bg-green-700" data-testid="button-preinstall-pass">
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Pre-install: Pass
-                  </Button>
-                  <Button onClick={() => preInstallResultMutation.mutate('FAIL')} disabled={preInstallResultMutation.isPending} variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" data-testid="button-preinstall-fail">
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Pre-install: Fail
-                  </Button>
-                </>
               )}
               {canStart && (
                 <Button onClick={() => setCurrentView('start')} className="bg-orange-600 hover:bg-orange-700" data-testid="button-start">
@@ -712,14 +765,14 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                 <CardContent>
                   <p className="text-sm text-red-700">
                     The pre-installation check was marked <strong>Fail</strong>. Please <strong>Reschedule</strong> the job
-                    to a new time. You can re-run the check after uploading fresh photos.
+                    to a new time. Once the team has reached again, you can re-run the check.
                   </p>
                 </CardContent>
               </Card>
             )}
 
             {/* Pre-Installation Required Notice */}
-            {needsPreInstallation && (
+            {needsPreInstallation && !preInstallFailed && (
               <Card className="border-2 border-indigo-200 bg-indigo-50">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base text-indigo-800 flex items-center gap-2">
@@ -729,8 +782,27 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-indigo-700">
-                    Upload 4 photos (Front, Back, Left, Right) to document the pre-installation condition, then mark the
-                    check <strong>Pass</strong> or <strong>Fail</strong>. Pass unlocks Start Work; Fail sends the job back to Reschedule.
+                    Inspect the vehicle and mark the pre-installation check <strong>Pass</strong> or <strong>Fail</strong>.
+                    Pass unlocks <strong>Start Work</strong> and the pre-installation photos (upload them then, or right after
+                    starting). Fail sends the job back to Reschedule.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Pre-installation PASSED — photos + Start Work available together */}
+            {canStart && !hasPreInstallationPhotos && (
+              <Card className="border-2 border-green-200 bg-green-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base text-green-800 flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5" />
+                    Pre-installation check passed
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-green-700">
+                    Upload the 4 pre-installation photos and start the work — you can add the photos now or right after
+                    starting the job.
                   </p>
                 </CardContent>
               </Card>
@@ -863,6 +935,81 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                       Currently assigned to: {jobCard?.assignedInstaller?.name || teamMembers.find((m: any) => m.id === jobCard?.assignedInstallerId)?.name || 'Unknown'}
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Edit missing details — lets you fill in the "N/A" work-order fields from here. */}
+            {canEditDetails && !editingDetails && (
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={openEditDetails} data-testid="button-edit-details">
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit details
+                </Button>
+              </div>
+            )}
+            {canEditDetails && editingDetails && (
+              <Card className="border-2 border-blue-200 bg-blue-50/40">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Pencil className="h-4 w-4 text-blue-600" />
+                    Edit details
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="edit-customer-name">Customer name</Label>
+                      <Input id="edit-customer-name" value={detailsForm.customerName}
+                        onChange={(e) => setDetailsForm((f) => ({ ...f, customerName: e.target.value }))}
+                        placeholder="Customer name" data-testid="input-edit-customer-name" />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-customer-phone">Phone</Label>
+                      <Input id="edit-customer-phone" value={detailsForm.customerPhone}
+                        onChange={(e) => setDetailsForm((f) => ({ ...f, customerPhone: e.target.value }))}
+                        placeholder="Phone" data-testid="input-edit-customer-phone" />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-customer-email">Email</Label>
+                      <Input id="edit-customer-email" value={detailsForm.customerEmail}
+                        onChange={(e) => setDetailsForm((f) => ({ ...f, customerEmail: e.target.value }))}
+                        placeholder="Email" data-testid="input-edit-customer-email" />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-reg-no">Registration No</Label>
+                      <Input id="edit-reg-no" value={detailsForm.regNo}
+                        onChange={(e) => setDetailsForm((f) => ({ ...f, regNo: e.target.value }))}
+                        placeholder="Registration / VIN number" data-testid="input-edit-reg-no" />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-quantity">Quantity</Label>
+                      <Input id="edit-quantity" type="number" min="1" value={detailsForm.quantity}
+                        onChange={(e) => setDetailsForm((f) => ({ ...f, quantity: e.target.value }))}
+                        placeholder="Quantity" data-testid="input-edit-quantity" />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-customer-address">Address</Label>
+                      <Input id="edit-customer-address" value={detailsForm.customerAddress}
+                        onChange={(e) => setDetailsForm((f) => ({ ...f, customerAddress: e.target.value }))}
+                        placeholder="Address" data-testid="input-edit-customer-address" />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-notes">Notes</Label>
+                    <Textarea id="edit-notes" rows={2} value={detailsForm.notes}
+                      onChange={(e) => setDetailsForm((f) => ({ ...f, notes: e.target.value }))}
+                      placeholder="Work order notes" data-testid="input-edit-notes" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={() => updateDetailsMutation.mutate()} disabled={updateDetailsMutation.isPending}
+                      className="bg-blue-600 hover:bg-blue-700" data-testid="button-save-details">
+                      {updateDetailsMutation.isPending ? 'Saving...' : 'Save'}
+                    </Button>
+                    <Button variant="outline" onClick={() => setEditingDetails(false)} data-testid="button-cancel-details">
+                      Cancel
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -1288,9 +1435,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
             <h3 className="text-lg font-semibold">Reschedule Visit</h3>
             <p className="text-sm text-muted-foreground">
               Pick a new date &amp; time and give a reason. Both the partner team and the showroom/salesperson
-              will be notified. {user?.role === 'SUPER_ADMIN'
-                ? 'As a Super Admin you can reschedule without limit.'
-                : `Rescheduled ${rescheduleCount}/3 times — the limit is 3.`}
+              will be notified.
             </p>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -1311,6 +1456,17 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                 onChange={(e) => setRescheduleReason(e.target.value)}
                 placeholder="Why is this being rescheduled?" data-testid="input-reschedule-reason" />
             </div>
+            {rescheduleStarted && (
+              <div>
+                <Label htmlFor="reschedule-roll-used">Sq ft of roll used so far <span className="text-red-500">*</span></Label>
+                <Input id="reschedule-roll-used" type="number" min="0" step="0.01" value={rescheduleRollUsed}
+                  onChange={(e) => setRescheduleRollUsed(e.target.value)}
+                  placeholder="e.g. 12.5" data-testid="input-reschedule-roll-used" />
+                <p className="text-xs text-muted-foreground mt-1">
+                  This job has already started — record the PPF roll consumed so far (in sq ft) before pausing.
+                </p>
+              </div>
+            )}
             <div>
               <Label htmlFor="reschedule-installer">Team member</Label>
               <Select value={rescheduleInstallerId || jobCard?.assignedInstallerId || ''} onValueChange={setRescheduleInstallerId}>
@@ -1330,7 +1486,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
             </div>
             {isSuperAdmin && (
               <div>
-                <Label htmlFor="reschedule-party">Which party is this reschedule for?</Label>
+                <Label htmlFor="reschedule-party">Which party wants to reschedule ?</Label>
                 <Select value={rescheduleParty} onValueChange={(v) => setRescheduleParty(v as 'TEAM' | 'SHOWROOM')}>
                   <SelectTrigger id="reschedule-party" data-testid="select-reschedule-party">
                     <SelectValue />
@@ -1342,10 +1498,31 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                 </Select>
               </div>
             )}
+            {/* Soft escalation prompt — only after the 6th reschedule (no hard limit is shown). */}
+            {needsEscalationPrompt && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 space-y-2">
+                <p className="text-sm text-amber-800">
+                  This job has been rescheduled several times. Should this be flagged as an escalation?
+                </p>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={rescheduleEscalation} onChange={(e) => setRescheduleEscalation(e.target.checked)} data-testid="checkbox-reschedule-escalation" />
+                  Yes, flag as an escalation
+                </label>
+                {rescheduleEscalation && (
+                  <Textarea
+                    rows={2}
+                    value={rescheduleEscalationReason}
+                    onChange={(e) => setRescheduleEscalationReason(e.target.value)}
+                    placeholder="Escalation reason…"
+                    data-testid="input-reschedule-escalation-reason"
+                  />
+                )}
+              </div>
+            )}
             <div className="flex gap-3">
               <Button
                 onClick={() => rescheduleJobMutation.mutate()}
-                disabled={rescheduleJobMutation.isPending || !scheduleDate || !scheduleTime || !rescheduleReason.trim()}
+                disabled={rescheduleJobMutation.isPending || !scheduleDate || !scheduleTime || !rescheduleReason.trim() || (needsEscalationPrompt && rescheduleEscalation && !rescheduleEscalationReason.trim()) || (rescheduleStarted && (rescheduleRollUsed.trim() === '' || Number.isNaN(Number(rescheduleRollUsed)) || Number(rescheduleRollUsed) < 0))}
                 className="bg-amber-600 hover:bg-amber-700"
                 data-testid="button-confirm-reschedule"
               >
@@ -1364,7 +1541,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
             <h3 className="text-lg font-semibold">Mark Team as Reached</h3>
             <p className="text-sm text-muted-foreground">
               Confirm that the team has reached the site for this job. This moves the job to
-              <span className="font-medium"> Reached</span>, after which the pre-installation photos and Start Work become available.
+              <span className="font-medium"> Reached</span>, after which the pre-installation check becomes available.
             </p>
             <div className="flex gap-3">
               <Button

@@ -56,7 +56,7 @@ const workOrderSchema = z.object({
   vehicleBrandId: z.string().min(1, "Vehicle brand is required"),
   vehicleModelId: z.string().min(1, "Vehicle model is required"),
   variant: z.string().optional(),
-  regNo: z.string().optional(),
+  regNo: z.string().trim().min(1, "Registration / VIN number is required"),
   
   // Service Information
   serviceId: z.string().min(1, "Service is required"),
@@ -303,8 +303,16 @@ export function CreateWorkOrderModal({
 
   const selectedBrandId = form.watch("vehicleBrandId");
   // Extract vehicle models based on selected brand
-  const vehicleModels = selectedBrandId ? 
+  const vehicleModels = selectedBrandId ?
     (vehicleData?.find((brand: any) => brand.id === selectedBrandId)?.models || []) : [];
+
+  // The vehicle brand is the OEM — don't ask for it. Auto-select it from the OEM's vehicle data
+  // (typically a single brand) so the user only picks the model.
+  useEffect(() => {
+    if (vehicleBrands.length && !vehicleBrands.some((b: any) => b.id === selectedBrandId)) {
+      form.setValue("vehicleBrandId", vehicleBrands[0].id);
+    }
+  }, [vehicleData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const finalDealershipId = canSelectOrgHierarchy
     ? selectedDealershipId
@@ -798,38 +806,7 @@ export function CreateWorkOrderModal({
               <h3 className="text-lg font-medium">Vehicle Information</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="vehicleBrandId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Vehicle Brand</FormLabel>
-                      <Select
-                        onValueChange={(value) => {
-                          field.onChange(value);
-                          form.setValue("vehicleModelId", ""); // Reset model when brand changes
-                        }}
-                        value={field.value}
-                        data-testid="select-vehicle-brand"
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select brand" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {vehicleBrands?.map((brand: any) => (
-                            <SelectItem key={brand.id} value={brand.id}>
-                              {brand.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
+                {/* Vehicle brand = the selected OEM — auto-derived, not asked. */}
                 <FormField
                   control={form.control}
                   name="vehicleModelId"
@@ -885,7 +862,7 @@ export function CreateWorkOrderModal({
                   name="regNo"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Registration Number / VIN Number (Optional)</FormLabel>
+                      <FormLabel>Registration Number / VIN Number *</FormLabel>
                       <FormControl>
                         <Input
                           placeholder="Enter registration or VIN number"

@@ -633,6 +633,9 @@ export const jobCards = pgTable("job_cards", {
   // Billing (recorded at approval): the 3-party trail + an editable price until invoiced.
   billingTrailJson: jsonb("billing_trail_json"), // { team, middle: 'COMPANY'|partnerAdminId, showroom, rule }
   billingPrice: decimal("billing_price", { precision: 12, scale: 2 }),
+  // Sq ft of PPF roll consumed so far — captured (mandatory) when a STARTED job is rescheduled, so the
+  // material used before the pause is recorded. Latest value here; each capture is also logged to the trail.
+  rollUsedSqft: decimal("roll_used_sqft", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });
