@@ -146,7 +146,7 @@ export default function PricingPage() {
         case 'OEM_PRICING':
           return ['OEM', 'Vehicle Model', 'Service', 'Base Price', 'Effective From', 'Status', 'Actions'];
         case 'STAFF_PRICING':
-          return ['Staff', 'Billing Entity', 'Showroom', 'Service', 'Payout', 'Effective From', 'Status', 'Actions'];
+          return ['Staff', 'Billing Entity', 'Showroom', 'Service', 'Vehicle', 'Payout', 'Effective From', 'Status', 'Actions'];
         default:
           return [];
       }
@@ -187,6 +187,7 @@ export default function PricingPage() {
             rule.billingEntityType === 'COMPANY' ? 'Company (P91)' : (rule.billingEntityName || 'Unknown Partner'),
             rule.showroomName || 'Unknown Showroom',
             rule.serviceName || 'Unknown Service',
+            rule.vehicleModelName || '🚗 All',
             formatCurrency(rule.priceAmount),
             new Date(rule.effectiveFrom).toLocaleDateString(),
             rule.status

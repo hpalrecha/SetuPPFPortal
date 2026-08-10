@@ -4556,6 +4556,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           jobCardData.billingValue = workOrder.estimatedPrice;
         }
 
+        // Auto-assign the team allocated to this showroom (Staff Management → showroom
+        // allocation), unless the caller already picked one. Stays editable afterward.
+        if (!jobCardData.assignedInstallerId && workOrder?.showroomId) {
+          const allocatedStaffId = await storage.getStaffAllocatedToShowroom(workOrder.showroomId);
+          if (allocatedStaffId) jobCardData.assignedInstallerId = allocatedStaffId;
+        }
+
         const jobCard = await storage.createJobCard(jobCardData);
 
         // ⚡ Respond immediately
@@ -4648,6 +4655,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!hasAccess) {
           console.log(`❌ Job card approval denied: role=${req.user!.role}, userDealershipId=${req.user!.dealershipId}, workOrderDealershipId=${workOrder.dealershipId}, workOrderShowroomId=${workOrder.showroomId}`);
           return res.status(403).json({ error: "Access denied - insufficient permissions" });
+        }
+
+        // Pre-installation photos are mandatory before approval. If none are present,
+        // block and let the reviewer add them (the client offers an upload on this code).
+        const hasPreInstallPhoto = !!(
+          jobCard.preInstallationPhotoFront || jobCard.preInstallationPhotoBack ||
+          jobCard.preInstallationPhotoLeft || jobCard.preInstallationPhotoRight
+        );
+        if (!hasPreInstallPhoto) {
+          return res.status(400).json({
+            error: "Pre-installation photos are required before this job can be approved. Add them and try again.",
+            errorCode: "PRE_INSTALL_PHOTOS_REQUIRED",
+          });
         }
 
         // Update job card status to PENDING_SALES_INVOICE (after approval)
@@ -5658,7 +5678,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updates: any = {
-        status: 'RESCHEDULED',
+        // A checkup card stays a checkup through a reschedule; normal cards go to RESCHEDULED.
+        status: existing.checkupOfJobCardId ? 'CHECKUP_SCHEDULED' : 'RESCHEDULED',
         scheduledAt,
         rescheduleReason: reason,
         rescheduleParty: resolvedParty,
@@ -5767,7 +5788,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const checkup = await storage.createJobCard({
           workOrderId: primary.workOrderId,
           partnerId: primary.partnerId,
-          status: scheduledAt ? 'SCHEDULED' : 'ACKNOWLEDGED',
+          status: 'CHECKUP_SCHEDULED',
           checkupOfJobCardId: primary.id,
           assignedInstallerId,
           scheduledAt,
@@ -5795,7 +5816,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const notes = typeof req.body?.notes === 'string' ? req.body.notes : null;
         const done = await storage.updateJobCard(req.params.id, {
-          status: 'CLOSED',
+          status: 'CHECKUP_DONE',
           checkupDoneAt: new Date(),
           checkupNotes: notes,
         });
@@ -6032,8 +6053,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Multi-team payout: create the FINAL team's line (the team that completed), then
       // decide single vs multi. Exactly one TEAM line ⇒ freeze its amount from the Staff
       // Pricing matrix (billing party derived from the WO creator). More than one ⇒ leave
-      // amounts null for a manual, roll-based split at settlement. Rework cards are excluded.
-      if (!isReworkCard && jobCard.assignedInstallerId) {
+      // amounts null for a manual, roll-based split at settlement. Rework and checkup cards excluded.
+      if (!isReworkCard && !jobCard.checkupOfJobCardId && jobCard.assignedInstallerId) {
         try {
           const finalTeamId = jobCard.assignedInstallerId;
           const finalUser = await storage.getUser(finalTeamId);
@@ -6078,6 +6099,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
         } catch (e) { console.error('Failed to create/finalize team payout lines', e); }
+      }
+
+      // #5 — Auto-fill the bill-to-partner amount from pricing at completion when it wasn't
+      // set at work-order creation (e.g. the price rule was added afterwards). Editable via
+      // the billing-price control. Skipped for rework/checkup cards.
+      if (!isReworkCard && !jobCard.checkupOfJobCardId && (!jobCard.billingValue || Number(jobCard.billingValue) === 0)) {
+        try {
+          const wo = await storage.getWorkOrder(jobCard.workOrderId);
+          if (wo) {
+            const { pricingService } = await import('./services/pricingService');
+            const pr = await pricingService.calculateWorkOrderPrice(
+              wo.dealershipId, wo.vehicleModelId, wo.serviceId, wo.quantity || 1, wo.oemId
+            );
+            if (pr.ruleFound && pr.price > 0) {
+              await storage.updateJobCard(req.params.id, {
+                billingValue: String(pr.price),
+                billingPrice: String(pr.price),
+              } as any);
+              console.log(`💰 Billing auto-filled at completion: ₹${pr.price} (${pr.source})`);
+            }
+          }
+        } catch (e) { console.error('Billing auto-fill at completion failed', e); }
       }
 
       // Rework done → the primary job card returns to PENDING_APPROVAL and the work order points back to it.

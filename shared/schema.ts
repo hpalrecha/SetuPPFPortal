@@ -72,7 +72,11 @@ export const jobCardStatusEnum = pgEnum('job_card_status', [
   'CANCELLED_BY_CUSTOMER',
   'CANCELLED',
   'PARTS_PENDING',
-  'RESCHEDULED'
+  'RESCHEDULED',
+  // Checkup cards (15-day follow-up) carry their own status so they never look like a
+  // normal scheduled job, and a reschedule keeps them a checkup instead of RESCHEDULED.
+  'CHECKUP_SCHEDULED',
+  'CHECKUP_DONE'
 ]);
 
 export const allocationLevelEnum = pgEnum('allocation_level', ['DEALERSHIP', 'SHOWROOM']);

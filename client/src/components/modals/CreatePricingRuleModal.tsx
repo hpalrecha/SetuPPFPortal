@@ -68,13 +68,11 @@ const pricingRuleSchema = z.object({
     if (data.pricingType === "OEM_PRICING") {
       return data.oemId && data.oemId.length > 0 && data.serviceId && data.serviceId.length > 0 && data.vehicleModelId && data.vehicleModelId.length > 0;
     }
-    // For STAFF_PRICING, require staff, billing entity type, and the individual service.
-    // Showroom(s) are validated separately: edit mode uses form.showroomId, add mode
-    // uses the multi-select bulk builder state. billingEntityId required only for PARTNER.
+    // For STAFF_PRICING, only staff + billing-entity-type are validated here. Services,
+    // partners, and showrooms are validated in onSubmit — edit mode uses the single form
+    // fields, add mode uses the multi-select state (addServiceIds / addPartnerIds / …).
     if (data.pricingType === "STAFF_PRICING") {
-      if (!data.staffUserId || !data.billingEntityType || !data.serviceId) return false;
-      if (data.billingEntityType === "PARTNER" && !data.billingEntityId) return false;
-      return true;
+      return !!(data.staffUserId && data.billingEntityType);
     }
     return true;
   },
@@ -115,6 +113,10 @@ export function CreatePricingRuleModal({
   const [addOemId, setAddOemId] = useState<string>("");
   const [addDealershipIds, setAddDealershipIds] = useState<string[]>([]);
   const [addShowroomIds, setAddShowroomIds] = useState<string[]>([]);
+  // Add-mode multi-select: several services and (when billing to partners) several partners,
+  // all priced the same. Fan-out creates one rule per partner × service × showroom.
+  const [addServiceIds, setAddServiceIds] = useState<string[]>([]);
+  const [addPartnerIds, setAddPartnerIds] = useState<string[]>([]);
   const isEditing = !!editingRule;
 
   const form = useForm<PricingRuleFormData>({
@@ -345,6 +347,8 @@ export function CreatePricingRuleModal({
       setAddOemId("");
       setAddDealershipIds([]);
       setAddShowroomIds([]);
+      setAddServiceIds([]);
+      setAddPartnerIds([]);
     } else if (!editingRule && open) {
       form.reset({
         pricingType: pricingType,
@@ -394,8 +398,19 @@ export function CreatePricingRuleModal({
   });
 
   const onSubmit = async (data: PricingRuleFormData) => {
-    // STAFF_PRICING add mode: fan out to one rule per selected showroom.
+    // STAFF_PRICING add mode: fan out to one rule per (billing entity × service × showroom),
+    // all sharing the same price. Vehicle model (optional) is stored for display only.
     if (pricingType === 'STAFF_PRICING' && !isEditing) {
+      // Billing dimension: Company is a single entity; Partner can be several partners.
+      const entityIds: (string | undefined)[] = data.billingEntityType === 'PARTNER' ? addPartnerIds : [undefined];
+      if (data.billingEntityType === 'PARTNER' && addPartnerIds.length === 0) {
+        toast({ title: "Pick at least one partner", description: "Select the partner admin(s) this rate applies to.", variant: "destructive" });
+        return;
+      }
+      if (addServiceIds.length === 0) {
+        toast({ title: "Pick at least one service", description: "Select the service(s) this rate applies to.", variant: "destructive" });
+        return;
+      }
       if (addShowroomIds.length === 0) {
         toast({ title: "Pick at least one showroom", description: "Select the showroom(s) this rate applies to.", variant: "destructive" });
         return;
@@ -404,7 +419,9 @@ export function CreatePricingRuleModal({
       let created = 0, skipped = 0, failed = 0;
       let lastError = "";
       try {
-        for (const showroomId of addShowroomIds) {
+        for (const billingEntityId of entityIds) {
+          for (const serviceId of addServiceIds) {
+            for (const showroomId of addShowroomIds) {
           const res = await fetch("/api/pricing-rules", {
             method: "POST",
             headers: {
@@ -416,9 +433,10 @@ export function CreatePricingRuleModal({
               pricingType: 'STAFF_PRICING',
               staffUserId: data.staffUserId,
               billingEntityType: data.billingEntityType,
-              billingEntityId: data.billingEntityType === 'PARTNER' ? data.billingEntityId : undefined,
+              billingEntityId: data.billingEntityType === 'PARTNER' ? billingEntityId : undefined,
               showroomId,
-              serviceId: data.serviceId,
+              serviceId,
+              vehicleModelId: data.vehicleModelId || undefined,
               priceAmount: String(data.priceAmount),
               effectiveFrom: data.effectiveFrom,
             }),
@@ -428,6 +446,8 @@ export function CreatePricingRuleModal({
           else {
             failed++;
             try { const b = await res.json(); lastError = b?.error || JSON.stringify(b); } catch { /* ignore */ }
+          }
+            }
           }
         }
         toast({
@@ -446,6 +466,14 @@ export function CreatePricingRuleModal({
         setIsLoading(false);
       }
       return;
+    }
+
+    // STAFF_PRICING edit: the single form fields must be complete (refine was relaxed).
+    if (pricingType === 'STAFF_PRICING' && isEditing) {
+      if (!data.serviceId || !data.showroomId || (data.billingEntityType === 'PARTNER' && !data.billingEntityId)) {
+        toast({ title: "Missing fields", description: "Staff, billing entity, showroom, and service are all required.", variant: "destructive" });
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -474,12 +502,12 @@ export function CreatePricingRuleModal({
             dealershipId: undefined,
             oemId: undefined
           } : pricingType === 'STAFF_PRICING' ? {
-            // STAFF_PRICING carries staff/billing-entity/showroom + service (individual) only
+            // STAFF_PRICING carries staff/billing-entity/showroom + service (individual);
+            // vehicleModelId is optional and display-only (kept from the spread above).
             dealershipId: undefined,
             detailerId: undefined,
             oemId: undefined,
             serviceCategoryId: undefined,
-            vehicleModelId: undefined,
             // billing entity id only applies when billing to a partner
             billingEntityId: data.billingEntityType === 'PARTNER' ? data.billingEntityId : undefined,
           } : {
@@ -590,8 +618,8 @@ export function CreatePricingRuleModal({
                   />
                 </div>
 
-                {/* Partner picker — only when billing to a Partner */}
-                {form.watch('billingEntityType') === 'PARTNER' && (
+                {/* Partner picker — only when billing to a Partner. Edit = single; Add = multi. */}
+                {form.watch('billingEntityType') === 'PARTNER' && (isEditing ? (
                   <FormField
                     control={form.control}
                     name="billingEntityId"
@@ -620,7 +648,39 @@ export function CreatePricingRuleModal({
                       </FormItem>
                     )}
                   />
-                )}
+                ) : (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label>Partner Admins</Label>
+                      <button
+                        type="button"
+                        className="text-xs text-primary hover:underline"
+                        data-testid="button-select-all-partners"
+                        onClick={() => {
+                          const allIds = (detailers || []).map((p: any) => p.id);
+                          const allSelected = allIds.length > 0 && allIds.every((id: string) => addPartnerIds.includes(id));
+                          setAddPartnerIds(allSelected ? [] : allIds);
+                        }}
+                      >
+                        {(detailers || []).length > 0 && (detailers || []).every((p: any) => addPartnerIds.includes(p.id)) ? 'Clear all' : 'Select all'}
+                      </button>
+                    </div>
+                    <ScrollArea className="h-[110px] rounded border border-border p-2">
+                      {(detailers || []).length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No partners found.</p>
+                      ) : (detailers || []).map((p: any) => (
+                        <label key={p.id} className="flex items-center gap-2 py-1 cursor-pointer text-sm">
+                          <input
+                            type="checkbox"
+                            checked={addPartnerIds.includes(p.id)}
+                            onChange={(e) => setAddPartnerIds(e.target.checked ? [...addPartnerIds, p.id] : addPartnerIds.filter((id) => id !== p.id))}
+                          />
+                          {p.displayName}
+                        </label>
+                      ))}
+                    </ScrollArea>
+                  </div>
+                ))}
 
                 {/* EDIT mode: a single rule is one showroom — keep the single cascade. */}
                 {isEditing && (
@@ -814,8 +874,8 @@ export function CreatePricingRuleModal({
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Service — individual service (all services listed) */}
+                {/* Service — edit = single; add = multi-select (same price for each) */}
+                {isEditing ? (
                   <FormField
                     control={form.control}
                     name="serviceId"
@@ -836,6 +896,74 @@ export function CreatePricingRuleModal({
                                 className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                               >
                                 {service.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label>Services</Label>
+                      <button
+                        type="button"
+                        className="text-xs text-primary hover:underline"
+                        data-testid="button-select-all-services"
+                        onClick={() => {
+                          const allIds = (services || []).map((s: any) => s.id);
+                          const allSelected = allIds.length > 0 && allIds.every((id: string) => addServiceIds.includes(id));
+                          setAddServiceIds(allSelected ? [] : allIds);
+                        }}
+                      >
+                        {(services || []).length > 0 && (services || []).every((s: any) => addServiceIds.includes(s.id)) ? 'Clear all' : 'Select all'}
+                      </button>
+                    </div>
+                    <ScrollArea className="h-[110px] rounded border border-border p-2">
+                      {(services || []).length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No services found.</p>
+                      ) : (services || []).map((s: any) => (
+                        <label key={s.id} className="flex items-center gap-2 py-1 cursor-pointer text-sm">
+                          <input
+                            type="checkbox"
+                            checked={addServiceIds.includes(s.id)}
+                            onChange={(e) => setAddServiceIds(e.target.checked ? [...addServiceIds, s.id] : addServiceIds.filter((id) => id !== s.id))}
+                          />
+                          {s.name}
+                        </label>
+                      ))}
+                    </ScrollArea>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Vehicle Model (Optional) — stored for display only, not used in matching */}
+                  <FormField
+                    control={form.control}
+                    name="vehicleModelId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Vehicle Model <span className="text-muted-foreground text-sm">(Optional)</span></FormLabel>
+                        <Select
+                          onValueChange={(v) => field.onChange(v === '__ALL__' ? '' : v)}
+                          value={field.value || '__ALL__'}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-staff-vehicle-model">
+                              <SelectValue placeholder="All vehicles" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="bg-white dark:bg-gray-800">
+                            <SelectItem value="__ALL__" className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 border-b">🚗 All vehicles</SelectItem>
+                            {vehicleModels?.map((m: any) => (
+                              <SelectItem
+                                key={m.id}
+                                value={m.id}
+                                className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                              >
+                                {m.modelName}
                               </SelectItem>
                             ))}
                           </SelectContent>

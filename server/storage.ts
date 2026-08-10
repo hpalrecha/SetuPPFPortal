@@ -2658,6 +2658,21 @@ export class DatabaseStorage implements IStorage {
     return !!row;
   }
 
+  // The staff member (detailing partner / installer) currently allocated to a showroom.
+  // Showroom allocation is globally exclusive — at most one active staff per showroom —
+  // so this returns that staff's user id, or null. Used to auto-assign a new job card.
+  async getStaffAllocatedToShowroom(showroomId: string): Promise<string | null> {
+    const [row] = await db
+      .select({ staffId: detailingPartnerShowrooms.detailingPartnerId })
+      .from(detailingPartnerShowrooms)
+      .where(and(
+        eq(detailingPartnerShowrooms.showroomId, showroomId),
+        eq(detailingPartnerShowrooms.status, 'active')
+      ))
+      .limit(1);
+    return row?.staffId ?? null;
+  }
+
   // Detailing Partner Management
   // Detailing Partner ↔ Showroom allocation
   async getDetailingPartnerShowroomIds(detailingPartnerId: string): Promise<string[]> {

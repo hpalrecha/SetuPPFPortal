@@ -187,7 +187,9 @@ const STATUS_COLORS = {
   'INVOICE_RAISED': 'bg-indigo-100 text-indigo-800 border-indigo-200',
   'WARRANTY_REGISTRATION': 'bg-teal-100 text-teal-800 border-teal-200',
   'CANCELLED': 'bg-red-100 text-red-800 border-red-200',
-  'CLOSED': 'bg-gray-100 text-gray-800 border-gray-200'
+  'CLOSED': 'bg-gray-100 text-gray-800 border-gray-200',
+  'CHECKUP_SCHEDULED': 'bg-cyan-100 text-cyan-800 border-cyan-200',
+  'CHECKUP_DONE': 'bg-green-100 text-green-800 border-green-200'
 };
 
 const STATUS_ICONS = {
@@ -205,7 +207,9 @@ const STATUS_ICONS = {
   'INVOICE_RAISED': FileText,
   'WARRANTY_REGISTRATION': Shield,
   'CANCELLED': AlertCircle,
-  'CLOSED': Trophy
+  'CLOSED': Trophy,
+  'CHECKUP_SCHEDULED': Clock,
+  'CHECKUP_DONE': CheckCircle2
 };
 
 const STATUS_LABELS = {
@@ -223,7 +227,9 @@ const STATUS_LABELS = {
   'INVOICE_RAISED': 'Invoice Raised',
   'WARRANTY_REGISTRATION': 'Warranty Registered',
   'CANCELLED': 'Cancelled',
-  'CLOSED': 'Closed'
+  'CLOSED': 'Closed',
+  'CHECKUP_SCHEDULED': 'Checkup Scheduled',
+  'CHECKUP_DONE': 'Checkup Done'
 };
 
 // Post-approval controls: the 3-party billing trail + editable price, and the 15-day checkup
@@ -1162,6 +1168,22 @@ export default function JobCardsNew() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
       setSelectedJobCard(null);
+    },
+    onError: (error: any) => {
+      // Pre-installation photos are required before approval — surface the gate clearly.
+      if (String(error?.message || '').includes('PRE_INSTALL_PHOTOS_REQUIRED')) {
+        toast({
+          title: "Pre-installation photos required",
+          description: "This job can't be approved without pre-installation photos. Add them on the job card (pre-installation step), then approve.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Could not approve",
+        description: String(error?.message || 'Failed to approve job card').replace(/^\d+:\s*/, ''),
+        variant: "destructive",
+      });
     }
   });
 
