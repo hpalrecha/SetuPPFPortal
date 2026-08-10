@@ -653,10 +653,16 @@ export default function JobCardsNew() {
     const qVehicle = searchFilters.vehicleModel.trim().toLowerCase();
     const qRegNo = searchFilters.regNo.trim().toLowerCase();
 
+    // "Rework Cards (all)" is a pseudo-status: it matches any card that is itself a
+    // rework (reworkOfJobCardId set), regardless of its actual status, and overrides
+    // the hide-rework / hide-closed / hide-cancelled filters so the full set shows.
+    const reworkOnly = searchFilters.status === 'REWORK';
+    const isRework = !!jobCard.reworkOfJobCardId;
+
     return (
       (!qJobCard || jobCardNumber.includes(qJobCard)) &&
       (!qCustomer || customerName.includes(qCustomer)) &&
-      (!searchFilters.status || status === searchFilters.status) &&
+      (!searchFilters.status || (reworkOnly ? isRework : status === searchFilters.status)) &&
       (!searchFilters.partnerId || partnerId === searchFilters.partnerId) &&
       (!searchFilters.showroomId || showroomId === searchFilters.showroomId) &&
       (!qVehicle || vehicleModel.includes(qVehicle)) &&
@@ -666,11 +672,13 @@ export default function JobCardsNew() {
           ? !jobCard.assignedInstallerId
           : (jobCard.assignedInstallerId || '') === searchFilters.assignedInstallerId)) &&
       dateMatch &&
-      // Hide cancelled job cards unless the user explicitly filters for them.
-      (status !== 'CANCELLED' || searchFilters.status === 'CANCELLED') &&
-      // Hide rework job cards (same VIN as their original) when the Rework toggle is on.
-      (!hideRework || !jobCard.reworkOfJobCardId) &&
+      // Hide cancelled job cards unless the user explicitly filters for them (or lists all reworks).
+      (status !== 'CANCELLED' || searchFilters.status === 'CANCELLED' || reworkOnly) &&
+      // Hide rework job cards (same VIN as their original) when the Rework toggle is on —
+      // but never when the user is explicitly listing rework cards.
+      (!hideRework || reworkOnly || !isRework) &&
       (!hideWarrantyRegistered ||
+        reworkOnly ||
         CLOSED_FILTER_STATUSES.includes(searchFilters.status) ||
         !CLOSED_FILTER_STATUSES.includes(status))
     );
@@ -1877,6 +1885,7 @@ export default function JobCardsNew() {
                 <SelectItem value="WARRANTY_REGISTRATION">Warranty Registered</SelectItem>
                 <SelectItem value="CANCELLED">Cancelled</SelectItem>
                 <SelectItem value="CLOSED">Closed</SelectItem>
+                <SelectItem value="REWORK">↩ Rework Cards (all)</SelectItem>
               </SelectContent>
             </Select>
 
