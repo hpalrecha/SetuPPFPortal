@@ -6,10 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DollarSign, Users, Calendar, CheckCircle, FileText, CreditCard, Wrench, UserCheck, Building2, RefreshCw } from "lucide-react";
+import { DollarSign, Users, Calendar, CheckCircle, FileText, CreditCard, Wrench, UserCheck, Building2, RefreshCw, ClipboardList } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+import { JobCardPayoutCard } from "@/components/payouts/JobCardPayoutCard";
 
 export default function PayoutSettlementPage() {
   const { user } = useAuth();
@@ -21,7 +22,7 @@ export default function PayoutSettlementPage() {
   const canSeeDetailerPayouts = isSuperAdmin || isAdmin;
   const canSeeOemRoyalties = isSuperAdmin || isAdmin || isOemAdmin;
   const defaultPayoutType = isOemAdmin ? "oem_royalties" : (isDealershipAdmin || isShowroomManager ? "sales_persons" : "detailers");
-  const [payoutType, setPayoutType] = useState<"detailers" | "sales_persons" | "oem_royalties">(
+  const [payoutType, setPayoutType] = useState<"detailers" | "sales_persons" | "oem_royalties" | "team_payouts">(
     defaultPayoutType
   );
   const [settlementData, setSettlementData] = useState<{
@@ -54,6 +55,13 @@ export default function PayoutSettlementPage() {
     queryKey: ["/api/oem-royalty-calculations"],
     enabled: payoutType === "oem_royalties" && canSeeOemRoyalties
   });
+
+  // Per-job-card team payouts (frozen team lines + rework), one card each.
+  const { data: teamPayouts = [], isLoading: isLoadingTeamPayouts } = useQuery<any[]>({
+    queryKey: ["/api/job-card-payouts"],
+    enabled: payoutType === "team_payouts" && canSeeDetailerPayouts,
+  });
+  const refetchTeamPayouts = () => queryClient.invalidateQueries({ queryKey: ["/api/job-card-payouts"] });
 
   // Settlement mutations
   const settleMutation = useMutation({
@@ -209,6 +217,17 @@ export default function PayoutSettlementPage() {
           <div className="flex items-center space-x-2 mt-4 sm:mt-0">
             {canSeeDetailerPayouts && (
               <Button
+                variant={payoutType === "team_payouts" ? "default" : "outline"}
+                onClick={() => setPayoutType("team_payouts")}
+                className="flex items-center space-x-2"
+                data-testid="button-team-payouts"
+              >
+                <ClipboardList className="h-4 w-4" />
+                <span>Team Payouts</span>
+              </Button>
+            )}
+            {canSeeDetailerPayouts && (
+              <Button
                 variant={payoutType === "detailers" ? "default" : "outline"}
                 onClick={() => setPayoutType("detailers")}
                 className="flex items-center space-x-2"
@@ -242,7 +261,26 @@ export default function PayoutSettlementPage() {
         )}
       </div>
 
+      {/* Team Payouts — one card per completed job card */}
+      {payoutType === "team_payouts" && (
+        <div className="space-y-4">
+          {isLoadingTeamPayouts ? (
+            <div className="h-64 bg-muted rounded-lg animate-pulse" />
+          ) : teamPayouts.length === 0 ? (
+            <Card><CardContent className="p-12 text-center">
+              <ClipboardList className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">No completed job cards with payout lines yet. They appear here once a job is completed.</p>
+            </CardContent></Card>
+          ) : (
+            teamPayouts.map((card: any) => (
+              <JobCardPayoutCard key={card.jobCardId} card={card} onChanged={refetchTeamPayouts} />
+            ))
+          )}
+        </div>
+      )}
+
       {/* Summary Cards */}
+      {payoutType !== "team_payouts" && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardContent className="p-6">
@@ -294,8 +332,10 @@ export default function PayoutSettlementPage() {
           </CardContent>
         </Card>
       </div>
+      )}
 
       {/* Payout List */}
+      {payoutType !== "team_payouts" && (
       <Card>
         <CardHeader>
           <CardTitle>
@@ -447,6 +487,7 @@ export default function PayoutSettlementPage() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Settlement Modal */}
       <Dialog open={!!settlementData} onOpenChange={(open) => !open && setSettlementData(null)}>

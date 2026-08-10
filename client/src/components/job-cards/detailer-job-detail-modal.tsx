@@ -135,6 +135,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     customerName: '', customerPhone: '', customerEmail: '', customerAddress: '', regNo: '', quantity: '', notes: '',
   });
   const [completionRemarks, setCompletionRemarks] = useState('');
+  const [completionRollUsed, setCompletionRollUsed] = useState('');
   const [selectedTeamMemberId, setSelectedTeamMemberId] = useState<string>('');
   const [uploadedPostPhotos, setUploadedPostPhotos] = useState<Array<{label: string; url: string; originalSize: number; compressedSize: number}>>([]);
   
@@ -385,7 +386,8 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
         checklistJson: checklist,
         materialConsumptionJson: materialConsumptionData,
         batchNumbers: materialBatchNumber.trim() || null,
-        batchNumberImage: batchNumberImage || null
+        batchNumberImage: batchNumberImage || null,
+        rollUsedSqft: completionRollUsed.trim() ? Number(completionRollUsed) : undefined,
       });
       return response.json();
     },
@@ -595,6 +597,7 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
     setRescheduleEscalationReason('');
     setRescheduleRollUsed('');
     setCompletionRemarks('');
+    setCompletionRollUsed('');
     setUploadedPostPhotos([]);
     setSelectedTeamMemberId(jobCard?.assignedInstallerId || '');
     setMaterialProductName('');
@@ -1704,6 +1707,22 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                 onChange={(e) => setCompletionRemarks(e.target.value)}
                 data-testid="textarea-completion-remarks"
               />
+            </div>
+
+            {/* Roll used by the completing team — feeds the per-team payout line */}
+            <div>
+              <Label htmlFor="completion-roll-used">Sq ft of roll used by you</Label>
+              <Input
+                id="completion-roll-used"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="e.g. 45"
+                value={completionRollUsed}
+                onChange={(e) => setCompletionRollUsed(e.target.value)}
+                data-testid="input-completion-roll-used"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Roll you used on this job — recorded on your payout line.</p>
             </div>
 
             {/* Photo Upload - Post-Installation Photos with compression and one-by-one upload */}

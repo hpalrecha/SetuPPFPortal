@@ -16,6 +16,14 @@ import type { User as StaffUser, Partner } from "@shared/schema";
 
 const authHeaders = () => ({ 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` });
 
+// Team type drives payout billing direction (see Payout Settlement).
+const teamTypeLabel = (t?: string) =>
+  t === 'COMPANY' ? 'Company' : t === 'PARTNER' ? 'Partner' : t === 'FREELANCE' ? 'Freelance' : '—';
+const teamTypeBadgeClass = (t?: string) =>
+  t === 'COMPANY' ? 'bg-sky-50 text-sky-700' :
+  t === 'PARTNER' ? 'bg-amber-50 text-amber-700' :
+  t === 'FREELANCE' ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-700';
+
 // Multi-select partner picker: Popover + checkbox list, selected shown as chips.
 function PartnerMultiSelect({
   partners, selected, onChange,
@@ -221,7 +229,7 @@ export default function PulsePendingUsersPage() {
     }
   };
 
-  const handleSaveEdit = async (partnerIds: string[]) => {
+  const handleSaveEdit = async (partnerIds: string[], teamType?: string) => {
     if (!editingStaff) return;
     setBusyId(editingStaff.id);
     try {
@@ -232,7 +240,19 @@ export default function PulsePendingUsersPage() {
         body: JSON.stringify({ partnerIds }),
       });
       if (!r.ok) throw new Error((await r.json()).error || 'Failed to update');
-      toast({ title: "Partners updated" });
+
+      // Persist team type only when it changed, via the user PATCH endpoint.
+      if ((teamType || '') !== (editingStaff.teamType || '')) {
+        const tr = await fetch(`/api/users/${editingStaff.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          credentials: 'include',
+          body: JSON.stringify({ teamType: teamType || null }),
+        });
+        if (!tr.ok) throw new Error((await tr.json()).error || 'Failed to update team type');
+      }
+
+      toast({ title: "Staff updated" });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/staff-users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/pulse-pending-users"] });
       setEditingStaff(null);
@@ -405,6 +425,7 @@ export default function PulsePendingUsersPage() {
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
+                    <TableHead>Team Type</TableHead>
                     <TableHead>Working Partners</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
@@ -429,6 +450,11 @@ export default function PulsePendingUsersPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
+                        {user.teamType ? (
+                          <Badge variant="outline" className={teamTypeBadgeClass(user.teamType)}>{teamTypeLabel(user.teamType)}</Badge>
+                        ) : <span className="text-xs text-amber-600">Not set</span>}
+                      </TableCell>
+                      <TableCell>
                         {user.partners?.length ? (
                           <div className="flex flex-wrap gap-1">
                             {user.partners.map((p: any) => (
@@ -440,7 +466,7 @@ export default function PulsePendingUsersPage() {
                       <TableCell>
                         <Button
                           size="sm" variant="outline"
-                          onClick={() => setEditingStaff({ ...user, _selected: (user.partners || []).map((p: any) => p.partnerId) })}
+                          onClick={() => setEditingStaff({ ...user, _selected: (user.partners || []).map((p: any) => p.partnerId), _teamType: user.teamType || '' })}
                         >
                           <Edit className="h-3 w-3 mr-1" />Edit
                         </Button>
@@ -522,15 +548,35 @@ export default function PulsePendingUsersPage() {
           <Card className="w-96" onClick={(e) => e.stopPropagation()}>
             <CardContent className="p-4 space-y-4">
               <h3 className="font-semibold">Edit Staff — {editingStaff.name}</h3>
-              <PartnerMultiSelect
-                partners={activePartners}
-                selected={editingStaff._selected}
-                onChange={(ids) => setEditingStaff((prev: any) => ({ ...prev, _selected: ids }))}
-              />
-              <p className="text-xs text-muted-foreground">Removing all partners returns this staff member to Pending.</p>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Team Type</label>
+                <select
+                  value={editingStaff._teamType || ''}
+                  onChange={(e) => setEditingStaff((prev: any) => ({ ...prev, _teamType: e.target.value }))}
+                  className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-sm text-foreground"
+                >
+                  <option value="">Not set</option>
+                  <option value="COMPANY">Company — our team (we bill the partner)</option>
+                  <option value="PARTNER">Partner Admin — their team (partner bills us)</option>
+                  <option value="FREELANCE">Freelance — we pay directly</option>
+                </select>
+                <p className="text-xs text-muted-foreground">Decides who bills / is paid for this person's job cards.</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Working Partners</label>
+                <PartnerMultiSelect
+                  partners={activePartners}
+                  selected={editingStaff._selected}
+                  onChange={(ids) => setEditingStaff((prev: any) => ({ ...prev, _selected: ids }))}
+                />
+                <p className="text-xs text-muted-foreground">Removing all partners returns this staff member to Pending.</p>
+              </div>
+
               <div className="flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => setEditingStaff(null)}>Cancel</Button>
-                <Button size="sm" onClick={() => handleSaveEdit(editingStaff._selected)} disabled={busyId === editingStaff.id}>
+                <Button size="sm" onClick={() => handleSaveEdit(editingStaff._selected, editingStaff._teamType)} disabled={busyId === editingStaff.id}>
                   {busyId === editingStaff.id ? 'Saving...' : 'Save'}
                 </Button>
               </div>

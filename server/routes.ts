@@ -743,7 +743,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const { id } = req.params;
         const currentUser = req.user!;
-        const { name, email, phone, password, isActive, showServicePrices, allowedStates } = req.body;
+        const { name, email, phone, password, isActive, showServicePrices, allowedStates, teamType } = req.body;
 
         // Get user to verify they exist
         const existingUser = await storage.getUser(id);
@@ -767,7 +767,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (isActive !== undefined) updates.isActive = isActive;
         if (showServicePrices !== undefined) updates.showServicePrices = showServicePrices;
         if (allowedStates !== undefined) updates.allowedStates = allowedStates;
-        
+        // Team classification (COMPANY / PARTNER / FREELANCE) — "" / null clears it.
+        if (teamType !== undefined) {
+          if (teamType && !['COMPANY', 'PARTNER', 'FREELANCE'].includes(teamType)) {
+            return res.status(400).json({ error: "Invalid teamType — expected COMPANY, PARTNER, or FREELANCE" });
+          }
+          updates.teamType = teamType || null;
+        }
+
         // Handle password update
         if (password && password.length > 0) {
           const hashedPassword = await bcrypt.hash(password, 10);
@@ -5677,6 +5684,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       if (!jobCard) return res.status(404).json({ error: "Job card not found" });
 
+      // Multi-team payout: at a started-job handoff, snapshot the OUTGOING team's line
+      // (the team that just did part of the work) with the roll they used. Amount is left
+      // null — a card with more than one team is split manually at settlement.
+      if (isReassignment && hasStarted && existing.assignedInstallerId) {
+        try {
+          const outgoing = await storage.getUser(existing.assignedInstallerId);
+          await storage.createJobCardPayoutLine({
+            jobCardId: req.params.id,
+            staffUserId: existing.assignedInstallerId,
+            teamType: outgoing?.teamType ?? null,
+            lineType: 'TEAM',
+            rollUsedSqft: rollUsedSqft !== undefined ? String(rollUsedSqft) : null,
+            amount: null,
+            amountSource: 'MANUAL',
+          });
+        } catch (e) { console.error('Failed to record outgoing team payout line', e); }
+      }
+
       res.json(jobCard);
 
       setImmediate(async () => {
@@ -5961,11 +5986,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate completion data
       const completionSchema = z.object({
         remarks: z.string().optional(),
-        partnerRemarks: z.string().optional(), 
+        partnerRemarks: z.string().optional(),
         batchNumbers: z.string().optional(),
         batchNumberImage: z.string().nullable().optional(), // Photo of batch number sticker/label
         materialConsumptionJson: z.any().optional(), // JSONB field
-        checklistJson: z.any().optional() // JSONB field
+        checklistJson: z.any().optional(), // JSONB field
+        rollUsedSqft: z.coerce.number().nonnegative().optional() // roll used by the completing team
       });
       
       const validatedData = completionSchema.parse(req.body);
@@ -5988,17 +6014,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const isReworkCard = !!existingJc.reworkOfJobCardId;
 
+      const { rollUsedSqft: completingRoll, ...cardFields } = validatedData;
       const completionUpdate: any = {
         status: isReworkCard ? 'CLOSED' : 'PENDING_APPROVAL',
         completedAt: new Date(),
-        ...validatedData,
+        ...cardFields,
       };
       if (!isReworkCard) completionUpdate.approvalRequestedAt = new Date();
+      if (completingRoll !== undefined) completionUpdate.rollUsedSqft = String(completingRoll);
 
       const jobCard = await storage.updateJobCard(req.params.id, completionUpdate);
 
       if (!jobCard) {
         return res.status(404).json({ error: "Job card not found" });
+      }
+
+      // Multi-team payout: create the FINAL team's line (the team that completed), then
+      // decide single vs multi. Exactly one TEAM line ⇒ freeze its amount from the Staff
+      // Pricing matrix (billing party derived from the WO creator). More than one ⇒ leave
+      // amounts null for a manual, roll-based split at settlement. Rework cards are excluded.
+      if (!isReworkCard && jobCard.assignedInstallerId) {
+        try {
+          const finalTeamId = jobCard.assignedInstallerId;
+          const finalUser = await storage.getUser(finalTeamId);
+          await storage.createJobCardPayoutLine({
+            jobCardId: req.params.id,
+            staffUserId: finalTeamId,
+            teamType: finalUser?.teamType ?? null,
+            lineType: 'TEAM',
+            rollUsedSqft: completingRoll !== undefined ? String(completingRoll) : null,
+            amount: null,
+            amountSource: 'MANUAL',
+          });
+
+          const teamLineCount = await storage.countJobCardTeamLines(req.params.id);
+          if (teamLineCount === 1) {
+            const wo = await storage.getWorkOrder(jobCard.workOrderId);
+            if (wo && finalUser) {
+              const creator = wo.createdByUserId ? await storage.getUser(wo.createdByUserId) : null;
+              // Company user placed the WO → Company billing; a Partner Admin → that partner.
+              const billing = creator && creator.role === 'PARTNER_ADMIN' && creator.partnerId
+                ? { type: 'PARTNER' as const, id: creator.partnerId }
+                : { type: 'COMPANY' as const, id: null };
+              const rule = await storage.resolveStaffPricing({
+                staffUserId: finalTeamId,
+                billingEntityType: billing.type,
+                billingEntityId: billing.id,
+                showroomId: wo.showroomId,
+                serviceId: wo.serviceId,
+              });
+              if (rule) {
+                const lines = await storage.getJobCardPayoutLines(req.params.id);
+                const teamLine = lines.find(l => l.lineType === 'TEAM');
+                if (teamLine) {
+                  await storage.updateJobCardPayoutLine(teamLine.id, {
+                    amount: rule.priceAmount,
+                    amountSource: 'MATRIX',
+                    pricingRuleId: rule.id,
+                  });
+                }
+              }
+              // No matching rule → amount stays null (surfaces as "needs pricing" at settlement).
+            }
+          }
+        } catch (e) { console.error('Failed to create/finalize team payout lines', e); }
       }
 
       // Rework done → the primary job card returns to PENDING_APPROVAL and the work order points back to it.
@@ -7950,6 +8029,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   );
+
+  // ── Job-card payout settlement (per-team lines) ────────────────────────────
+  // One card per completed job card, assembled from job_card_payout_lines.
+  app.get("/api/job-card-payouts", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
+    try {
+      const rows = await storage.getJobCardPayoutSettlementRows();
+      const byCard = new Map<string, any>();
+      for (const r of rows) {
+        let card = byCard.get(r.jobCardId);
+        if (!card) {
+          // Billing party comes from who placed the work order.
+          const billingParty = r.creatorRole === 'PARTNER_ADMIN' && r.creatorPartnerId
+            ? { type: 'PARTNER', name: r.creatorPartnerName || 'Partner Admin' }
+            : { type: 'COMPANY', name: 'Company (P91)' };
+          card = {
+            jobCardId: r.jobCardId,
+            status: r.jobCardStatus,
+            completedAt: r.completedAt,
+            regNo: r.regNo,
+            customerName: r.customerName,
+            showroomName: r.showroomName,
+            serviceName: r.serviceName,
+            vehicleModelName: r.vehicleModelName,
+            billingParty,
+            lines: [],
+          };
+          byCard.set(r.jobCardId, card);
+        }
+        card.lines.push({
+          id: r.lineId,
+          staffUserId: r.staffUserId,
+          staffName: r.staffName,
+          teamType: r.teamType,
+          lineType: r.lineType,
+          paidByParty: r.paidByParty,
+          rollUsedSqft: r.rollUsedSqft,
+          amount: r.amount,
+          amountSource: r.amountSource,
+          note: r.note,
+        });
+      }
+      res.json(Array.from(byCard.values()));
+    } catch (error) {
+      console.error("Get job card payouts error:", error);
+      res.status(500).json({ error: "Failed to fetch job card payouts" });
+    }
+  });
+
+  // Edit one line's amount / paid-by / roll / note.
+  app.patch("/api/job-card-payout-lines/:id", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN']), auditLog('job_card_payout_line', 'update'), async (req, res) => {
+    try {
+      const schema = z.object({
+        amount: z.union([z.string(), z.number()]).nullable().optional(),
+        paidByParty: z.enum(['COMPANY', 'PARTNER']).nullable().optional(),
+        rollUsedSqft: z.union([z.string(), z.number()]).nullable().optional(),
+        note: z.string().nullable().optional(),
+      });
+      const data = schema.parse(req.body);
+      const updates: any = {};
+      if (data.amount !== undefined) { updates.amount = (data.amount === null || data.amount === '') ? null : String(data.amount); updates.amountSource = 'MANUAL'; }
+      if (data.paidByParty !== undefined) updates.paidByParty = data.paidByParty;
+      if (data.rollUsedSqft !== undefined) updates.rollUsedSqft = (data.rollUsedSqft === null || data.rollUsedSqft === '') ? null : String(data.rollUsedSqft);
+      if (data.note !== undefined) updates.note = data.note;
+      const updated = await storage.updateJobCardPayoutLine(req.params.id, updates);
+      if (!updated) return res.status(404).json({ error: "Payout line not found" });
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ error: "Invalid data", details: error.errors });
+      console.error("Update payout line error:", error);
+      res.status(500).json({ error: "Failed to update payout line" });
+    }
+  });
+
+  // Add a manual REWORK line to a job card.
+  app.post("/api/job-cards/:id/payout-lines", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN']), auditLog('job_card_payout_line', 'create'), async (req, res) => {
+    try {
+      const schema = z.object({
+        staffUserId: z.string().uuid(),
+        amount: z.union([z.string(), z.number()]).optional(),
+        paidByParty: z.enum(['COMPANY', 'PARTNER']).optional(),
+        rollUsedSqft: z.union([z.string(), z.number()]).optional(),
+        note: z.string().optional(),
+      });
+      const data = schema.parse(req.body);
+      const staff = await storage.getUser(data.staffUserId);
+      const line = await storage.createJobCardPayoutLine({
+        jobCardId: req.params.id,
+        staffUserId: data.staffUserId,
+        teamType: staff?.teamType ?? null,
+        lineType: 'REWORK',
+        paidByParty: data.paidByParty ?? null,
+        rollUsedSqft: data.rollUsedSqft !== undefined ? String(data.rollUsedSqft) : null,
+        amount: (data.amount !== undefined && data.amount !== '') ? String(data.amount) : null,
+        amountSource: 'MANUAL',
+        note: data.note ?? null,
+      });
+      res.status(201).json(line);
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ error: "Invalid data", details: error.errors });
+      console.error("Add payout line error:", error);
+      res.status(500).json({ error: "Failed to add payout line" });
+    }
+  });
+
+  // Delete a payout line. Only manual REWORK lines are removable — TEAM lines are the
+  // record of which team worked the card and must not be deleted here.
+  app.delete("/api/job-card-payout-lines/:id", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN']), auditLog('job_card_payout_line', 'delete'), async (req, res) => {
+    try {
+      const line = await storage.getJobCardPayoutLine(req.params.id);
+      if (!line) return res.status(404).json({ error: "Payout line not found" });
+      if (line.lineType !== 'REWORK') {
+        return res.status(400).json({ error: "Only rework lines can be deleted; team lines are part of the job's record." });
+      }
+      const ok = await storage.deleteJobCardPayoutLine(req.params.id);
+      if (!ok) return res.status(404).json({ error: "Payout line not found" });
+      res.json({ message: "Payout line deleted" });
+    } catch (error) {
+      console.error("Delete payout line error:", error);
+      res.status(500).json({ error: "Failed to delete payout line" });
+    }
+  });
 
   // Dealership Pricing Resolution
   app.get("/api/pricing/dealership/:dealershipId/service/:serviceId", 

@@ -33,6 +33,12 @@ export const userRoleEnum = pgEnum('user_role', [
 
 export const partnerTypeEnum = pgEnum('partner_type', ['STUDIO', 'INSTALLER']);
 
+// Classifies a staff member's team for payout billing direction:
+//   COMPANY   — our own team (we bill the partner when they work a partner's job)
+//   PARTNER   — a partner admin's / distributor's team (the partner bills us)
+//   FREELANCE — an independent team (we pay them directly)
+export const teamTypeEnum = pgEnum('team_type', ['COMPANY', 'PARTNER', 'FREELANCE']);
+
 export const workOrderStatusEnum = pgEnum('work_order_status', [
   'PENDING',
   'DRAFT',
@@ -198,6 +204,8 @@ export const users = pgTable("users", {
   phone: text("phone"),
   passwordHash: text("password_hash").notNull(),
   role: userRoleEnum("role").notNull(),
+  // Team classification for payout billing direction (set by admins for staff users).
+  teamType: teamTypeEnum("team_type"),
   oemId: uuid("oem_id").references(() => oems.id),
   dealershipId: uuid("dealership_id").references(() => dealerships.id),
   showroomId: uuid("showroom_id").references(() => showrooms.id),
@@ -662,6 +670,30 @@ export const jobCardMedia = pgTable("job_card_media", {
   createdAt: timestamp("created_at").defaultNow()
 });
 
+// Per-team payout lines that feed the Payout Settlement card. One TEAM line per team
+// that worked the card (created at each reschedule-handoff for the outgoing team, and at
+// completion for the final team), plus manual REWORK lines. A single-team card (no
+// handoff) freezes its one line's amount from the Staff Pricing rule; multi-team cards
+// leave amounts null for a manual, roll-based split at settlement. See Payout Settlement.
+export const jobCardPayoutLines = pgTable("job_card_payout_lines", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobCardId: uuid("job_card_id").references(() => jobCards.id, { onDelete: 'cascade' }).notNull(),
+  staffUserId: uuid("staff_user_id").references(() => users.id).notNull(),
+  teamType: teamTypeEnum("team_type"),        // snapshot of the staff's team type (billing direction)
+  lineType: text("line_type").notNull(),      // 'TEAM' | 'REWORK'
+  paidByParty: text("paid_by_party"),         // 'COMPANY' | 'PARTNER' — set by hand on REWORK lines
+  rollUsedSqft: decimal("roll_used_sqft", { precision: 10, scale: 2 }),
+  amount: decimal("amount", { precision: 10, scale: 2 }), // null = to be entered manually at settlement
+  amountSource: text("amount_source"),        // 'MATRIX' (frozen) | 'MANUAL'
+  pricingRuleId: uuid("pricing_rule_id").references(() => pricingRules.id), // rule used when frozen
+  note: text("note"),                         // free text, e.g. rework detail
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+}, (table) => ({
+  jcplJobCardIdx: index("job_card_payout_lines_job_card_idx").on(table.jobCardId),
+  jcplStaffIdx: index("job_card_payout_lines_staff_idx").on(table.staffUserId)
+}));
+
 export const approvals = pgTable("approvals", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   jobCardId: uuid("job_card_id").references(() => jobCards.id).notNull(),
@@ -1071,6 +1103,11 @@ export const insertPayoutSchema = createInsertSchema(payouts).omit({ id: true, c
 export const selectPayoutSchema = createSelectSchema(payouts);
 export type InsertPayout = z.infer<typeof insertPayoutSchema>;
 export type Payout = z.infer<typeof selectPayoutSchema>;
+
+export const insertJobCardPayoutLineSchema = createInsertSchema(jobCardPayoutLines).omit({ id: true, createdAt: true, updatedAt: true });
+export const selectJobCardPayoutLineSchema = createSelectSchema(jobCardPayoutLines);
+export type InsertJobCardPayoutLine = z.infer<typeof insertJobCardPayoutLineSchema>;
+export type JobCardPayoutLine = z.infer<typeof selectJobCardPayoutLineSchema>;
 
 // OEM Royalty schemas
 export const insertOemRoyaltyRuleSchema = createInsertSchema(oemRoyaltyRules).omit({ 

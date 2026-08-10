@@ -27,6 +27,7 @@ import {
   workOrders,
   jobCards,
   jobCardMedia,
+  jobCardPayoutLines,
   approvals,
   payouts,
   commissions,
@@ -57,6 +58,8 @@ import {
   type InsertPartner,
   type PricingRule,
   type InsertPricingRule,
+  type InsertJobCardPayoutLine,
+  type JobCardPayoutLine,
   type CommissionRule,
   type InsertCommissionRule,
   type VehicleModel,
@@ -3873,6 +3876,86 @@ export class DatabaseStorage implements IStorage {
       console.error('Error resolving staff pricing:', error);
       return null;
     }
+  }
+
+  // ── Job-card payout lines (Payout Settlement backbone) ─────────────────────
+  async createJobCardPayoutLine(line: InsertJobCardPayoutLine): Promise<JobCardPayoutLine> {
+    const [row] = await db.insert(jobCardPayoutLines).values(line).returning();
+    return row;
+  }
+
+  async getJobCardPayoutLines(jobCardId: string): Promise<JobCardPayoutLine[]> {
+    return await db.select().from(jobCardPayoutLines)
+      .where(eq(jobCardPayoutLines.jobCardId, jobCardId))
+      .orderBy(asc(jobCardPayoutLines.createdAt));
+  }
+
+  async updateJobCardPayoutLine(id: string, updates: Partial<InsertJobCardPayoutLine>): Promise<JobCardPayoutLine | undefined> {
+    const [row] = await db.update(jobCardPayoutLines)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(jobCardPayoutLines.id, id))
+      .returning();
+    return row || undefined;
+  }
+
+  async deleteJobCardPayoutLine(id: string): Promise<boolean> {
+    const result = await db.delete(jobCardPayoutLines).where(eq(jobCardPayoutLines.id, id));
+    return (result.rowCount || 0) > 0;
+  }
+
+  // Count existing TEAM lines for a card — used to decide single (freeze) vs multi (manual).
+  async countJobCardTeamLines(jobCardId: string): Promise<number> {
+    const rows = await db.select({ id: jobCardPayoutLines.id }).from(jobCardPayoutLines)
+      .where(and(eq(jobCardPayoutLines.jobCardId, jobCardId), eq(jobCardPayoutLines.lineType, 'TEAM')));
+    return rows.length;
+  }
+
+  // All payout lines with the context the Payout Settlement card needs (staff name, job
+  // card + work order details, and the WO creator so billing party can be derived).
+  // One row per line; the route groups them into one card per job card.
+  async getJobCardPayoutSettlementRows(): Promise<any[]> {
+    const staffUser = alias(users, 'jcpl_staff');
+    const creatorUser = alias(users, 'jcpl_creator');
+    const creatorPartner = alias(partners, 'jcpl_creator_partner');
+    return await db.select({
+      lineId: jobCardPayoutLines.id,
+      jobCardId: jobCardPayoutLines.jobCardId,
+      staffUserId: jobCardPayoutLines.staffUserId,
+      staffName: staffUser.name,
+      teamType: jobCardPayoutLines.teamType,
+      lineType: jobCardPayoutLines.lineType,
+      paidByParty: jobCardPayoutLines.paidByParty,
+      rollUsedSqft: jobCardPayoutLines.rollUsedSqft,
+      amount: jobCardPayoutLines.amount,
+      amountSource: jobCardPayoutLines.amountSource,
+      note: jobCardPayoutLines.note,
+      lineCreatedAt: jobCardPayoutLines.createdAt,
+      jobCardStatus: jobCards.status,
+      completedAt: jobCards.completedAt,
+      regNo: workOrders.regNo,
+      customerName: workOrders.customerName,
+      showroomName: showrooms.name,
+      serviceName: services.name,
+      vehicleModelName: vehicleModels.modelName,
+      creatorRole: creatorUser.role,
+      creatorPartnerId: creatorUser.partnerId,
+      creatorPartnerName: creatorPartner.displayName,
+    })
+    .from(jobCardPayoutLines)
+    .innerJoin(jobCards, eq(jobCardPayoutLines.jobCardId, jobCards.id))
+    .leftJoin(staffUser, eq(jobCardPayoutLines.staffUserId, staffUser.id))
+    .leftJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
+    .leftJoin(showrooms, eq(workOrders.showroomId, showrooms.id))
+    .leftJoin(services, eq(workOrders.serviceId, services.id))
+    .leftJoin(vehicleModels, eq(workOrders.vehicleModelId, vehicleModels.id))
+    .leftJoin(creatorUser, eq(workOrders.createdByUserId, creatorUser.id))
+    .leftJoin(creatorPartner, eq(creatorUser.partnerId, creatorPartner.id))
+    .orderBy(desc(jobCards.completedAt), asc(jobCardPayoutLines.createdAt));
+  }
+
+  async getJobCardPayoutLine(id: string): Promise<JobCardPayoutLine | undefined> {
+    const [row] = await db.select().from(jobCardPayoutLines).where(eq(jobCardPayoutLines.id, id));
+    return row || undefined;
   }
 
   async recalculatePayoutWithPricing(jobCardId: string): Promise<{ success: boolean; message: string; amount?: string }> {
