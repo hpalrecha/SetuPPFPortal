@@ -2890,7 +2890,7 @@ export default function JobCardsNew() {
                     Assign Partner / Team
                   </Button>
                 )}
-                {canEditDetails && detailedJobCard && detailedJobCard.status !== 'CLOSED' && (
+                {canEditDetails && detailedJobCard && (
                   <Button
                     variant="outline"
                     size="sm"

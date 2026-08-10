@@ -5252,11 +5252,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Job card not found" });
         }
 
-        // Frozen once settled/closed
-        if (jobCard.status === 'CLOSED') {
-          return res.status(409).json({ error: "Cannot edit a CLOSED job card" });
-        }
-
+        // Admins may correct these safe (non-cascading) customer/work-order fields even on a
+        // CLOSED job card — e.g. fixing a wrong reg/VIN or customer detail after settlement.
         if (!jobCard.workOrderId) {
           return res.status(409).json({ error: "Job card has no linked work order" });
         }
