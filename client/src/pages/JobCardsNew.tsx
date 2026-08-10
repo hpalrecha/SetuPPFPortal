@@ -102,6 +102,7 @@ interface JobCard {
   pricingSnapshotJson?: string;
   commissionSnapshotJson?: string;
   reworkOfJobCardId?: string;
+  reworkJobCardId?: string;
   createdAt?: string;
   updatedAt?: string;
   [key: string]: any;
@@ -235,6 +236,15 @@ function PostApprovalCard({ jobCard, onChanged }: { jobCard: any; onChanged: () 
   const isCheckupCard = !!jobCard?.checkupOfJobCardId;
   const checkupDue = !!jobCard?.checkupDueAt && !jobCard?.checkupDoneAt && !isCheckupCard;
   const approvedish = ['PENDING_SALES_INVOICE', 'APPROVED', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED'].includes(jobCard?.status || '');
+  // Checkup can be scheduled for ANY time within 15 days of the job getting completed.
+  const [checkupDate, setCheckupDate] = useState('');
+  const toLocalInput = (d: Date) => {
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+  const checkupBase = jobCard?.completedAt ? new Date(jobCard.completedAt) : (jobCard?.approvedAt ? new Date(jobCard.approvedAt) : null);
+  const checkupMax = checkupBase ? new Date(checkupBase.getTime() + 15 * 24 * 60 * 60 * 1000)
+    : (jobCard?.checkupDueAt ? new Date(jobCard.checkupDueAt) : null);
 
   const call = async (method: any, url: string, body: any, okMsg: string) => {
     setBusy(true);
@@ -289,9 +299,29 @@ function PostApprovalCard({ jobCard, onChanged }: { jobCard: any; onChanged: () 
                 </div>
               </div>
               {checkupDue && (
-                <Button size="sm" className="bg-teal-600 hover:bg-teal-700" disabled={busy} onClick={() => call('POST', `/api/job-cards/${jobCard.id}/create-checkup`, {}, 'Checkup scheduled')} data-testid="button-schedule-checkup">
-                  Schedule 15-day checkup
-                </Button>
+                <div>
+                  <span className="text-xs text-muted-foreground">Checkup date (any time within 15 days of completion)</span>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <Input
+                      type="datetime-local"
+                      value={checkupDate}
+                      min={toLocalInput(new Date())}
+                      max={checkupMax ? toLocalInput(checkupMax) : undefined}
+                      onChange={(e) => setCheckupDate(e.target.value)}
+                      className="h-8 w-52"
+                      data-testid="input-checkup-date"
+                    />
+                    <Button
+                      size="sm"
+                      className="bg-teal-600 hover:bg-teal-700"
+                      disabled={busy || !checkupDate}
+                      onClick={() => call('POST', `/api/job-cards/${jobCard.id}/create-checkup`, { scheduledAt: new Date(checkupDate).toISOString() }, 'Checkup scheduled')}
+                      data-testid="button-schedule-checkup"
+                    >
+                      Schedule checkup
+                    </Button>
+                  </div>
+                </div>
               )}
               {jobCard?.checkupDoneAt && <span className="text-xs text-emerald-700">Checkup done ✓</span>}
             </div>
@@ -350,6 +380,10 @@ export default function JobCardsNew() {
     // Each affected part carries its own photos + FOC/cost.
     parts: [] as Array<{ name: string; photos: string[]; foc: boolean; cost: string }>,
     assignedInstallerId: '',
+    // Optional: hand the rework to a DIFFERENT partner (studio/installer). Empty = same partner.
+    partnerId: '',
+    // Same-team rework re-runs the visit flow — capture the new schedule time here.
+    scheduledAt: '',
   });
   const [partPhotoUploading, setPartPhotoUploading] = useState<string | null>(null);
   const [reworkPhotoUploading, setReworkPhotoUploading] = useState(false);
@@ -564,7 +598,7 @@ export default function JobCardsNew() {
   // even if it isn't on any current job card). Only fetched when the modal opens.
   const { data: allPartnersForAssign = [] } = useQuery({
     queryKey: ['partners-all-for-assign'],
-    enabled: showAssignModal,
+    enabled: showAssignModal || showReworkModal,
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/partners');
       const data = await response.json();
@@ -1319,6 +1353,19 @@ export default function JobCardsNew() {
     staleTime: 60000,
   });
 
+  // Staff for the partner chosen in the Rework form (its own partner by default, or a different one).
+  const reworkEffectivePartnerId = reworkForm.partnerId || detailedJobCard?.partnerId || '';
+  const { data: reworkStaff = [] } = useQuery({
+    queryKey: ['/api/partners', reworkEffectivePartnerId, 'staff', 'rework'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/partners/${reworkEffectivePartnerId}/staff`);
+      const data = await response.json();
+      return Array.isArray(data) ? data : (data.staff || []);
+    },
+    enabled: showReworkModal && !!reworkEffectivePartnerId,
+    staleTime: 60000,
+  });
+
   const openAssign = () => {
     setAssignPartnerId(detailedJobCard?.partnerId || '');
     setAssignInstallerId(detailedJobCard?.assignedInstallerId || '');
@@ -1353,6 +1400,26 @@ export default function JobCardsNew() {
   const REWORK_ALLOWED_FROM = ['COMPLETED', 'PENDING_APPROVAL', 'APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED'];
   const canRequestRework = ['SUPER_ADMIN', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'PARTNER_ADMIN'].includes(user?.role || '');
   const isPartnerAdminRework = user?.role === 'PARTNER_ADMIN';
+  // Same team = same partner AND same (or unchanged) installer → re-runs the visit flow on the same
+  // card (needs a new schedule time). A different partner OR installer spawns a new linked card.
+  const reworkPartnerChanged = !!reworkForm.partnerId && reworkForm.partnerId !== (detailedJobCard?.partnerId || '');
+  // Same partner (even if the installer is swapped) → the rework stays on THIS card and re-runs the
+  // visit flow, so we schedule it here. Only a PARTNER change hands it off as a new card.
+  const reworkSamePartner = !reworkPartnerChanged;
+  // /api/partners only returns ACTIVE partners, so a deactivated current partner would be missing.
+  // Always include the job's current partner (marked "current") so the default selection renders.
+  const reworkPartnerOptions = (() => {
+    const list = [...(allPartnersForAssign as any[])];
+    const curId = detailedJobCard?.partnerId;
+    if (curId && !list.some((p: any) => p.id === curId)) {
+      list.unshift({ id: curId, displayName: detailedJobCard?.partner?.displayName || 'Current partner' });
+    }
+    return list;
+  })();
+  // Once the job has started (or later), the standalone "Assign Partner / Team" is hidden — a team
+  // change from here would silently overwrite the Assigned Installer. Team changes belong in the
+  // Reschedule form (same card) or the Rework form (new card) instead.
+  const jobStartedOrLater = !!detailedJobCard?.startedAt || ['IN_PROGRESS', 'COMPLETED', 'PENDING_APPROVAL', 'APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED', 'REWORK_REQUESTED', 'REWORK_PERMISSION_REQUESTED'].includes(detailedJobCard?.status || '');
 
   const openRework = () => {
     const wo = detailedJobCard?.workOrder || {};
@@ -1369,6 +1436,8 @@ export default function JobCardsNew() {
       approxCost: '',
       parts: [],
       assignedInstallerId: '',
+      partnerId: '',
+      scheduledAt: '',
     });
     setShowReworkModal(true);
   };
@@ -1453,6 +1522,8 @@ export default function JobCardsNew() {
         ...(values.approxQuantitySq.trim() !== '' ? { approxQuantitySq: Number(values.approxQuantitySq) } : {}),
         ...(values.approxCost.trim() !== '' ? { approxCost: Number(values.approxCost) } : {}),
         ...(values.assignedInstallerId ? { assignedInstallerId: values.assignedInstallerId } : {}),
+        ...(values.partnerId ? { partnerId: values.partnerId } : {}),
+        ...(values.scheduledAt ? { scheduledAt: new Date(values.scheduledAt).toISOString() } : {}),
       };
       const response = await apiRequest('POST', `/api/job-cards/${jobCardId}/request-rework`, payload);
       return response.json();
@@ -2126,8 +2197,11 @@ export default function JobCardsNew() {
 
                     {/* Status Column */}
                     <div className="min-w-0 overflow-hidden" data-testid={`status-${jobCard.id}`}>
-                      <div className="mb-1">
+                      <div className="mb-1 flex flex-wrap items-center gap-1">
                         {getStatusBadge(jobCard.status)}
+                        {jobCard.reworkOfJobCardId && (
+                          <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] px-1.5 py-0" title={`Rework of JC-${jobCard.reworkOfJobCardId.slice(-6)}`}>Rework</Badge>
+                        )}
                       </div>
                       <div>
                         <Progress value={getProgressValue(jobCard.status)} className="h-1 w-full" />
@@ -2244,7 +2318,12 @@ export default function JobCardsNew() {
 
                     {/* Status Column */}
                     <div className="col-span-1" data-testid={`status-${jobCard.id}`}>
-                      {getStatusBadge(jobCard.status)}
+                      <div className="flex flex-wrap items-center gap-1">
+                        {getStatusBadge(jobCard.status)}
+                        {jobCard.reworkOfJobCardId && (
+                          <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] px-1.5 py-0" title={`Rework of JC-${jobCard.reworkOfJobCardId.slice(-6)}`}>Rework</Badge>
+                        )}
+                      </div>
                       <div className="mt-1">
                         <Progress value={getProgressValue(jobCard.status)} className="h-1 w-full" />
                       </div>
@@ -2765,7 +2844,7 @@ export default function JobCardsNew() {
                     Request Rework
                   </Button>
                 )}
-                {canEditDetails && detailedJobCard && detailedJobCard.status !== 'CLOSED' && (
+                {canEditDetails && detailedJobCard && !jobStartedOrLater && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -2879,7 +2958,7 @@ export default function JobCardsNew() {
                       </div>
                     )}
                     {(() => {
-                      const reworkChild = allJobCards.find((jc: any) => jc.reworkOfJobCardId === detailedJobCard.id);
+                      const reworkChild = allJobCards.find((jc: any) => jc.id === detailedJobCard.reworkJobCardId || jc.reworkOfJobCardId === detailedJobCard.id);
                       return reworkChild ? (
                         <div>
                           <span className="text-sm text-muted-foreground">Reworked as (new job)</span>
@@ -3924,6 +4003,73 @@ export default function JobCardsNew() {
               </div>
             )}
 
+            {/* Admin: optionally hand the rework to a different PARTNER, then a team member under it. */}
+            {!isPartnerAdminRework && (
+              <div className="space-y-2">
+                <Label htmlFor="rework-partner">Assign to partner</Label>
+                <Select
+                  value={reworkForm.partnerId || detailedJobCard?.partnerId || undefined}
+                  onValueChange={(v) => setReworkForm(prev => ({ ...prev, partnerId: v, assignedInstallerId: '' }))}
+                >
+                  <SelectTrigger id="rework-partner" data-testid="select-rework-partner">
+                    <SelectValue placeholder="Select partner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {reworkPartnerOptions.map((p: any) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {(p.displayName || p.display_name || p.name || 'Unnamed')}{p.id === detailedJobCard?.partnerId ? ' (current)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Choosing a different partner hands the rework to that studio/installer as a new linked job card.
+                </p>
+              </div>
+            )}
+            {!isPartnerAdminRework && (
+              <div className="space-y-2">
+                <Label htmlFor="rework-team">Team member {reworkPartnerChanged && <span className="text-red-500">*</span>}</Label>
+                <Select
+                  value={reworkForm.assignedInstallerId || undefined}
+                  onValueChange={(v) => setReworkForm(prev => ({ ...prev, assignedInstallerId: v }))}
+                >
+                  <SelectTrigger id="rework-team" data-testid="select-rework-team">
+                    <SelectValue placeholder="Keep current team member" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {reworkStaff.map((s: any) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name || 'Unnamed'}{s.role === 'DETAILING_PARTNER' ? ' (Detailing Partner)' : ''}{s.id === detailedJobCard?.assignedInstallerId ? ' (current)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Changing the partner or team member creates a new linked job card for the new team; leaving both
+                  as-is re-runs the visit flow on this same card.
+                </p>
+              </div>
+            )}
+
+            {/* Same-team rework re-runs the visit flow — capture the new schedule time. */}
+            {reworkSamePartner && (
+              <div className="space-y-2">
+                <Label htmlFor="rework-schedule">Schedule date &amp; time for the rework visit <span className="text-red-500">*</span></Label>
+                <Input
+                  id="rework-schedule"
+                  type="datetime-local"
+                  value={reworkForm.scheduledAt}
+                  onChange={(e) => setReworkForm(prev => ({ ...prev, scheduledAt: e.target.value }))}
+                  data-testid="input-rework-schedule"
+                />
+                <p className="text-xs text-muted-foreground">
+                  The same partner re-does the job on this card (you may swap the team member), so it goes back
+                  through the normal flow: scheduled → reached → pre-installation check → start work.
+                </p>
+              </div>
+            )}
+
             {/* Customer details — locked / read-only */}
             <div className="border-t pt-3">
               <p className="text-xs font-medium text-muted-foreground mb-2">Customer details (locked)</p>
@@ -3954,11 +4100,11 @@ export default function JobCardsNew() {
               </Button>
               <Button
                 onClick={() => {
-                  if (detailedJobCard?.id && reworkForm.remarks.trim() && (!isPartnerAdminRework || reworkForm.assignedInstallerId)) {
+                  if (detailedJobCard?.id && reworkForm.remarks.trim() && (!isPartnerAdminRework || reworkForm.assignedInstallerId) && (!reworkSamePartner || reworkForm.scheduledAt) && (!reworkPartnerChanged || reworkForm.assignedInstallerId)) {
                     reworkMutation.mutate({ jobCardId: detailedJobCard.id, values: reworkForm });
                   }
                 }}
-                disabled={!reworkForm.remarks.trim() || (isPartnerAdminRework && !reworkForm.assignedInstallerId) || reworkMutation.isPending}
+                disabled={!reworkForm.remarks.trim() || (isPartnerAdminRework && !reworkForm.assignedInstallerId) || (reworkSamePartner && !reworkForm.scheduledAt) || (reworkPartnerChanged && !reworkForm.assignedInstallerId) || reworkMutation.isPending}
                 className="bg-amber-600 hover:bg-amber-700"
                 data-testid="button-confirm-rework"
               >

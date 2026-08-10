@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Edit, X, Trash2, Building, Users, Wrench, Globe } from "lucide-react";
+import { Plus, Edit, X, Trash2, Building, Users, Wrench, Globe, UserCog } from "lucide-react";
 import type { PricingRule } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -20,7 +20,7 @@ export default function PricingPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingRule, setEditingRule] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('oem'); // dealership, detailer, oem
-  const [selectedPricingType, setSelectedPricingType] = useState<'DEALERSHIP_PRICING' | 'DETAILER_PRICING' | 'OEM_PRICING'>('OEM_PRICING');
+  const [selectedPricingType, setSelectedPricingType] = useState<'DEALERSHIP_PRICING' | 'DETAILER_PRICING' | 'OEM_PRICING' | 'STAFF_PRICING'>('OEM_PRICING');
   
   // Redirect if not SUPER_ADMIN, ADMIN, or MANAGER
   useEffect(() => {
@@ -73,6 +73,8 @@ export default function PricingPage() {
       setSelectedPricingType('DETAILER_PRICING');
     } else if (value === 'oem') {
       setSelectedPricingType('OEM_PRICING');
+    } else if (value === 'staff') {
+      setSelectedPricingType('STAFF_PRICING');
     }
   };
 
@@ -132,7 +134,7 @@ export default function PricingPage() {
     }).format(Number(amount));
   };
 
-  const renderPricingTable = (pricingType: 'DEALERSHIP_PRICING' | 'DETAILER_PRICING' | 'OEM_PRICING') => {
+  const renderPricingTable = (pricingType: 'DEALERSHIP_PRICING' | 'DETAILER_PRICING' | 'OEM_PRICING' | 'STAFF_PRICING') => {
     const filteredRules = pricingRules.filter(rule => rule.pricingType === pricingType);
     
     const getColumns = () => {
@@ -143,6 +145,8 @@ export default function PricingPage() {
           return ['Detailer', 'Vehicle Model', 'Service Category', 'Payout', 'Effective From', 'Status', 'Actions'];
         case 'OEM_PRICING':
           return ['OEM', 'Vehicle Model', 'Service', 'Base Price', 'Effective From', 'Status', 'Actions'];
+        case 'STAFF_PRICING':
+          return ['Staff', 'Billing Entity', 'Showroom', 'Service', 'Payout', 'Effective From', 'Status', 'Actions'];
         default:
           return [];
       }
@@ -172,6 +176,16 @@ export default function PricingPage() {
           return [
             rule.oemName || 'Unknown OEM',
             rule.vehicleModelName || 'Unknown Vehicle Model',
+            rule.serviceName || 'Unknown Service',
+            formatCurrency(rule.priceAmount),
+            new Date(rule.effectiveFrom).toLocaleDateString(),
+            rule.status
+          ];
+        case 'STAFF_PRICING':
+          return [
+            rule.staffName || 'Unknown Staff',
+            rule.billingEntityType === 'COMPANY' ? 'Company (P91)' : (rule.billingEntityName || 'Unknown Partner'),
+            rule.showroomName || 'Unknown Showroom',
             rule.serviceName || 'Unknown Service',
             formatCurrency(rule.priceAmount),
             new Date(rule.effectiveFrom).toLocaleDateString(),
@@ -315,7 +329,7 @@ export default function PricingPage() {
 
       {/* Pricing Rules Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="oem" className="flex items-center gap-2">
             <Globe className="h-4 w-4" />
             OEM Pricing
@@ -327,6 +341,10 @@ export default function PricingPage() {
           <TabsTrigger value="detailer" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Detailer Pricing
+          </TabsTrigger>
+          <TabsTrigger value="staff" className="flex items-center gap-2">
+            <UserCog className="h-4 w-4" />
+            Staff Pricing
           </TabsTrigger>
         </TabsList>
 
@@ -368,6 +386,20 @@ export default function PricingPage() {
             </CardHeader>
             <CardContent>
               {renderPricingTable('DETAILER_PRICING')}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="staff" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Staff Payout List</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Set what an individual staff member earns per showroom and service category, split by who the job is billed for — the company or a partner admin
+              </p>
+            </CardHeader>
+            <CardContent>
+              {renderPricingTable('STAFF_PRICING')}
             </CardContent>
           </Card>
         </TabsContent>

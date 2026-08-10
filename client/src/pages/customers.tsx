@@ -113,7 +113,10 @@ function RequestReworkDialog({
   const [installerId, setInstallerId] = useState('');
   const [materialId, setMaterialId] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [scheduledAt, setScheduledAt] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Same team (unassigned or the current installer) re-runs the visit flow → a new time is required.
+  const sameTeam = !installerId || installerId === (jobCard?.assignedInstallerId || '');
 
   const { data: options } = useQuery<{ installers: any[]; materials: any[] }>({
     queryKey: ["/api/job-cards", jobCard?.id, "rework-options"],
@@ -129,11 +132,12 @@ function RequestReworkDialog({
   const [lastId, setLastId] = useState<string | null>(null);
   if (open && jobCard && jobCard.id !== lastId) {
     setLastId(jobCard.id);
-    setReason(''); setInstallerId(''); setMaterialId(''); setQuantity('');
+    setReason(''); setInstallerId(''); setMaterialId(''); setQuantity(''); setScheduledAt('');
   }
 
   const submit = async () => {
     if (!jobCard || !reason.trim()) { toast({ title: 'Reason is required', variant: 'destructive' }); return; }
+    if (sameTeam && !scheduledAt) { toast({ title: 'A schedule date & time is required for a same-team rework', variant: 'destructive' }); return; }
     setSubmitting(true);
     try {
       const material = options?.materials.find((m) => m.id === materialId);
@@ -147,6 +151,7 @@ function RequestReworkDialog({
           plannedMaterialId: materialId || undefined,
           plannedMaterialName: material?.name || undefined,
           plannedQuantity: quantity ? Number(quantity) : undefined,
+          ...(scheduledAt ? { scheduledAt: new Date(scheduledAt).toISOString() } : {}),
         }),
       });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Rework request failed'); }
@@ -198,6 +203,21 @@ function RequestReworkDialog({
               <p className="text-xs text-muted-foreground mt-1">No detailers registered under this partner — assign later from Job Cards.</p>
             )}
           </div>
+          {sameTeam && (
+            <div>
+              <Label>Schedule date &amp; time for the rework visit <span className="text-red-500">*</span></Label>
+              <Input
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                className="mt-1"
+                data-testid="input-rework-schedule"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Same team re-does the job, so it re-runs the normal flow: scheduled → reached → pre-installation check → start.
+              </p>
+            </div>
+          )}
           <div className="flex gap-2">
             <div className="flex-1">
               <Label>Roll / material</Label>

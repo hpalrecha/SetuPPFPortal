@@ -76,7 +76,8 @@ export const pricingTypeEnum = pgEnum('pricing_type', [
   'PARTNER_PRICING',     // What partner charges for services (existing)
   'DEALERSHIP_PRICING',  // What dealership is charged for services
   'DETAILER_PRICING',    // What detailer/installer earns for completing jobs
-  'OEM_PRICING'          // OEM-level base pricing (fallback for all dealerships under OEM)
+  'OEM_PRICING',         // OEM-level base pricing (fallback for all dealerships under OEM)
+  'STAFF_PRICING'        // What an individual staff member earns: staff × billing entity × showroom × service category
 ]);
 
 export const scopeEnum = pgEnum('scope', ['DEALERSHIP', 'SHOWROOM']);
@@ -476,7 +477,15 @@ export const pricingRules = pgTable("pricing_rules", {
   
   // For OEM_PRICING (OEM-level base pricing - fallback for all dealerships)
   oemId: uuid("oem_id").references(() => oems.id),
-  
+
+  // For STAFF_PRICING (individual staff payout: staff × billing entity × showroom × service category)
+  // All four are NULL for the other pricing types. serviceCategoryId / priceAmount /
+  // effectiveFrom / effectiveTo / status are reused from the common fields below.
+  staffUserId: uuid("staff_user_id").references(() => users.id), // PARTNER_STAFF / DETAILING_PARTNER user
+  billingEntityType: text("billing_entity_type"), // 'COMPANY' (Plus Nine One) or 'PARTNER'
+  billingEntityId: uuid("billing_entity_id").references(() => partners.id), // partner when billingEntityType = 'PARTNER', NULL for COMPANY
+  showroomId: uuid("showroom_id").references(() => showrooms.id),
+
   // Common fields for all pricing types
   vehicleModelId: uuid("vehicle_model_id").references(() => vehicleModels.id), // Optional: Not needed for DETAILER_PRICING
   vehicleVariantId: uuid("vehicle_variant_id").references(() => vehicleVariants.id), // Optional
@@ -610,6 +619,10 @@ export const jobCards = pgTable("job_cards", {
   // Rework chaining: when a card is reworked, a NEW card is created against the same work order
   // and this points back to the original card it reworks (soft link, like work_orders.assigned_job_card_id).
   reworkOfJobCardId: uuid("rework_of_job_card_id"),
+  // Reverse link on the PRIMARY card: the latest rework card spawned from it (so the primary shows
+  // "Rework: JC-XXXX"). Set when a rework card is created; the rework card closes on completion and
+  // the primary returns to PENDING_APPROVAL.
+  reworkJobCardId: uuid("rework_job_card_id"),
   // Cluster 2 — reschedule + reached tracking.
   rescheduleCount: integer("reschedule_count").default(0), // times rescheduled (limit 3, super admin unlimited)
   rescheduleReason: text("reschedule_reason"),             // reason for the latest reschedule
@@ -1006,7 +1019,9 @@ export type PartnerBrand = z.infer<typeof selectPartnerBrandSchema>;
 export const insertPricingRuleSchema = createInsertSchema(pricingRules).omit({ id: true, createdAt: true, updatedAt: true }).extend({
   effectiveFrom: z.string().or(z.date()).transform((val) => typeof val === 'string' ? new Date(val) : val),
   effectiveTo: z.string().or(z.date()).transform((val) => val ? (typeof val === 'string' ? new Date(val) : val) : null).optional(),
-  
+  // Accept the payout/price as a number or string (number inputs may send a number) → store as string.
+  priceAmount: z.union([z.string(), z.number()]).transform((v) => String(v)),
+
   // Preserve UUID validation while handling empty strings properly
   serviceCategoryId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
   serviceId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
@@ -1016,6 +1031,9 @@ export const insertPricingRuleSchema = createInsertSchema(pricingRules).omit({ i
   scopeId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
   vehicleVariantId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
   vehicleModelId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()), // Optional for DETAILER_PRICING
+  staffUserId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
+  billingEntityId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
+  showroomId: z.preprocess((v) => v === "" ? undefined : v, z.string().uuid().optional()),
 }).refine(
   (data) => {
     // DEALERSHIP_PRICING requires dealershipId, serviceId, vehicleModelId
@@ -1029,6 +1047,13 @@ export const insertPricingRuleSchema = createInsertSchema(pricingRules).omit({ i
     // PARTNER_PRICING requires partnerId, scope, scopeId, serviceId, vehicleModelId
     if (data.pricingType === "PARTNER_PRICING") {
       return data.partnerId && data.scope && data.scopeId && data.serviceId && data.vehicleModelId;
+    }
+    // STAFF_PRICING requires staffUserId, billingEntityType, showroomId, serviceId
+    // (per individual service, no vehicle model). billingEntityId required only for PARTNER.
+    if (data.pricingType === "STAFF_PRICING") {
+      if (!data.staffUserId || !data.billingEntityType || !data.showroomId || !data.serviceId) return false;
+      if (data.billingEntityType === "PARTNER" && !data.billingEntityId) return false;
+      return true;
     }
     return true;
   },

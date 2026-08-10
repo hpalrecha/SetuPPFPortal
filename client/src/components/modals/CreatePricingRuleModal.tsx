@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -37,7 +38,7 @@ import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const pricingRuleSchema = z.object({
-  pricingType: z.enum(["DEALERSHIP_PRICING", "DETAILER_PRICING", "OEM_PRICING"], {
+  pricingType: z.enum(["DEALERSHIP_PRICING", "DETAILER_PRICING", "OEM_PRICING", "STAFF_PRICING"], {
     required_error: "Pricing type is required",
   }),
   dealershipId: z.string().optional(),
@@ -45,7 +46,12 @@ const pricingRuleSchema = z.object({
   oemId: z.string().optional(),
   vehicleModelId: z.string().optional(),
   serviceId: z.string().optional(), // For DEALERSHIP_PRICING and OEM_PRICING
-  serviceCategoryId: z.string().optional(), // For DETAILER_PRICING
+  serviceCategoryId: z.string().optional(), // For DETAILER_PRICING and STAFF_PRICING
+  // STAFF_PRICING fields
+  staffUserId: z.string().optional(),
+  billingEntityType: z.enum(["COMPANY", "PARTNER"]).optional(),
+  billingEntityId: z.string().optional(),
+  showroomId: z.string().optional(),
   priceAmount: z.string().min(1, "Price amount is required"),
   effectiveFrom: z.string().min(1, "Effective date is required"),
 }).refine(
@@ -62,6 +68,14 @@ const pricingRuleSchema = z.object({
     if (data.pricingType === "OEM_PRICING") {
       return data.oemId && data.oemId.length > 0 && data.serviceId && data.serviceId.length > 0 && data.vehicleModelId && data.vehicleModelId.length > 0;
     }
+    // For STAFF_PRICING, require staff, billing entity type, and the individual service.
+    // Showroom(s) are validated separately: edit mode uses form.showroomId, add mode
+    // uses the multi-select bulk builder state. billingEntityId required only for PARTNER.
+    if (data.pricingType === "STAFF_PRICING") {
+      if (!data.staffUserId || !data.billingEntityType || !data.serviceId) return false;
+      if (data.billingEntityType === "PARTNER" && !data.billingEntityId) return false;
+      return true;
+    }
     return true;
   },
   {
@@ -77,7 +91,7 @@ interface CreatePricingRuleModalProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   editingRule?: any;
-  pricingType?: 'DEALERSHIP_PRICING' | 'DETAILER_PRICING' | 'OEM_PRICING';
+  pricingType?: 'DEALERSHIP_PRICING' | 'DETAILER_PRICING' | 'OEM_PRICING' | 'STAFF_PRICING';
 }
 
 export function CreatePricingRuleModal({
@@ -92,6 +106,15 @@ export function CreatePricingRuleModal({
   const [isLoading, setIsLoading] = useState(false);
   const [dealershipSearch, setDealershipSearch] = useState("");
   const [dealershipSearchOpen, setDealershipSearchOpen] = useState(false);
+  // STAFF_PRICING (edit mode): dealership is a UI-only cascade filter that narrows the
+  // showroom dropdown — it is NOT part of the submitted rule (showroom implies dealership).
+  const [staffDealershipFilter, setStaffDealershipFilter] = useState<string>("");
+  // STAFF_PRICING (add mode): OEM → multi-dealership → multi-showroom bulk scope builder.
+  // On save this fans out to one rule per selected showroom, all sharing the same
+  // staff / billing entity / service category / price.
+  const [addOemId, setAddOemId] = useState<string>("");
+  const [addDealershipIds, setAddDealershipIds] = useState<string[]>([]);
+  const [addShowroomIds, setAddShowroomIds] = useState<string[]>([]);
   const isEditing = !!editingRule;
 
   const form = useForm<PricingRuleFormData>({
@@ -104,6 +127,10 @@ export function CreatePricingRuleModal({
       vehicleModelId: editingRule?.vehicleModelId || "",
       serviceId: editingRule?.serviceId || "",
       serviceCategoryId: editingRule?.serviceCategoryId || "",
+      staffUserId: editingRule?.staffUserId || undefined,
+      billingEntityType: editingRule?.billingEntityType || undefined,
+      billingEntityId: editingRule?.billingEntityId || undefined,
+      showroomId: editingRule?.showroomId || undefined,
       priceAmount: editingRule?.priceAmount || "",
       effectiveFrom: editingRule?.effectiveFrom ? new Date(editingRule.effectiveFrom).toISOString().split('T')[0] : "",
     },
@@ -122,7 +149,7 @@ export function CreatePricingRuleModal({
       if (!response.ok) throw new Error('Failed to fetch dealerships');
       return response.json();
     },
-    enabled: open && pricingType === 'DEALERSHIP_PRICING',
+    enabled: open && (pricingType === 'DEALERSHIP_PRICING' || pricingType === 'STAFF_PRICING'),
     staleTime: 300000, // Cache for 5 minutes - dealerships rarely change
   });
 
@@ -153,7 +180,7 @@ export function CreatePricingRuleModal({
       if (!response.ok) throw new Error('Failed to fetch partners');
       return response.json();
     },
-    enabled: open && pricingType === 'DETAILER_PRICING',
+    enabled: open && (pricingType === 'DETAILER_PRICING' || pricingType === 'STAFF_PRICING'),
     staleTime: 300000, // Cache for 5 minutes - partners rarely change
   });
 
@@ -170,7 +197,7 @@ export function CreatePricingRuleModal({
       if (!response.ok) throw new Error('Failed to fetch OEMs');
       return response.json();
     },
-    enabled: open && pricingType === 'OEM_PRICING',
+    enabled: open && (pricingType === 'OEM_PRICING' || pricingType === 'STAFF_PRICING'),
     staleTime: 300000, // Cache for 5 minutes - OEMs don't change often
   });
 
@@ -187,7 +214,7 @@ export function CreatePricingRuleModal({
       if (!response.ok) throw new Error('Failed to fetch services');
       return response.json();
     },
-    enabled: open && (pricingType === 'DEALERSHIP_PRICING' || pricingType === 'OEM_PRICING'),
+    enabled: open && (pricingType === 'DEALERSHIP_PRICING' || pricingType === 'OEM_PRICING' || pricingType === 'STAFF_PRICING'),
     staleTime: 300000, // Cache for 5 minutes - services rarely change
   });
 
@@ -207,6 +234,73 @@ export function CreatePricingRuleModal({
     enabled: open && pricingType === 'DETAILER_PRICING',
     staleTime: 300000, // Cache for 5 minutes - service categories rarely change
   });
+
+  // STAFF_PRICING: all staff (any partner or freelancer) — the picker is intentionally
+  // unfiltered, since any team can work a job for the company or any partner admin.
+  const { data: allStaff = [] } = useQuery({
+    queryKey: ["/api/admin/staff-users"],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/staff-users', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch staff');
+      return response.json();
+    },
+    enabled: open && pricingType === 'STAFF_PRICING',
+    staleTime: 300000,
+  });
+
+  // STAFF_PRICING (edit mode): showrooms narrowed by the single dealership cascade filter.
+  const { data: staffShowroomsData } = useQuery({
+    queryKey: ["/api/showrooms", "staff-pricing", staffDealershipFilter],
+    queryFn: async () => {
+      const response = await fetch(`/api/showrooms?dealershipId=${staffDealershipFilter}&limit=1000`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch showrooms');
+      return response.json();
+    },
+    enabled: open && pricingType === 'STAFF_PRICING' && !!staffDealershipFilter,
+    staleTime: 300000,
+  });
+  const staffShowrooms = staffShowroomsData?.showrooms || [];
+
+  // STAFF_PRICING (add mode): dealerships under the selected OEM.
+  const { data: addOemDealershipsData } = useQuery({
+    queryKey: ["/api/dealerships", "staff-add", addOemId],
+    queryFn: async () => {
+      const response = await fetch(`/api/dealerships?oemId=${addOemId}&limit=1000`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch dealerships');
+      return response.json();
+    },
+    enabled: open && pricingType === 'STAFF_PRICING' && !isEditing && !!addOemId,
+    staleTime: 300000,
+  });
+  const addOemDealerships = addOemDealershipsData?.dealerships || [];
+
+  // STAFF_PRICING (add mode): all showrooms under the selected OEM (filtered client-side
+  // to the chosen dealerships). One query per OEM keeps the cascade simple.
+  const { data: addOemShowroomsData } = useQuery({
+    queryKey: ["/api/showrooms", "staff-add", addOemId],
+    queryFn: async () => {
+      const response = await fetch(`/api/showrooms?oemId=${addOemId}&limit=1000`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch showrooms');
+      return response.json();
+    },
+    enabled: open && pricingType === 'STAFF_PRICING' && !isEditing && !!addOemId,
+    staleTime: 300000,
+  });
+  const addOemShowrooms = addOemShowroomsData?.showrooms || [];
+  // Showroom options shown = those under the selected dealerships.
+  const addShowroomOptions = addOemShowrooms.filter((sh: any) => addDealershipIds.includes(sh.dealershipId));
 
   // Get selected dealership's OEM ID for DEALERSHIP_PRICING or use selected OEM for OEM_PRICING
   const selectedDealership = dealerships?.find((d: any) => d.id === form.watch('dealershipId'));
@@ -237,9 +331,20 @@ export function CreatePricingRuleModal({
         vehicleModelId: editingRule.vehicleModelId || "",
         serviceId: editingRule.serviceId || "",
         serviceCategoryId: editingRule.serviceCategoryId || "",
+        staffUserId: editingRule.staffUserId || undefined,
+        billingEntityType: editingRule.billingEntityType || undefined,
+        billingEntityId: editingRule.billingEntityId || undefined,
+        showroomId: editingRule.showroomId || undefined,
         priceAmount: editingRule.priceAmount?.toString() || "",
         effectiveFrom: editingRule.effectiveFrom ? new Date(editingRule.effectiveFrom).toISOString().split('T')[0] : "",
       });
+      // Seed the dealership cascade filter from the rule's showroom, so the showroom
+      // dropdown is populated when editing an existing STAFF_PRICING rule.
+      setStaffDealershipFilter(editingRule.showroomDealershipId || "");
+      // Bulk builder is add-mode only.
+      setAddOemId("");
+      setAddDealershipIds([]);
+      setAddShowroomIds([]);
     } else if (!editingRule && open) {
       form.reset({
         pricingType: pricingType,
@@ -249,9 +354,17 @@ export function CreatePricingRuleModal({
         vehicleModelId: "",
         serviceId: "",
         serviceCategoryId: "",
+        staffUserId: undefined,
+        billingEntityType: undefined,
+        billingEntityId: undefined,
+        showroomId: undefined,
         priceAmount: "",
         effectiveFrom: "",
       });
+      setStaffDealershipFilter("");
+      setAddOemId("");
+      setAddDealershipIds([]);
+      setAddShowroomIds([]);
     }
   }, [editingRule, open, pricingType, form]);
 
@@ -281,6 +394,60 @@ export function CreatePricingRuleModal({
   });
 
   const onSubmit = async (data: PricingRuleFormData) => {
+    // STAFF_PRICING add mode: fan out to one rule per selected showroom.
+    if (pricingType === 'STAFF_PRICING' && !isEditing) {
+      if (addShowroomIds.length === 0) {
+        toast({ title: "Pick at least one showroom", description: "Select the showroom(s) this rate applies to.", variant: "destructive" });
+        return;
+      }
+      setIsLoading(true);
+      let created = 0, skipped = 0, failed = 0;
+      let lastError = "";
+      try {
+        for (const showroomId of addShowroomIds) {
+          const res = await fetch("/api/pricing-rules", {
+            method: "POST",
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              pricingType: 'STAFF_PRICING',
+              staffUserId: data.staffUserId,
+              billingEntityType: data.billingEntityType,
+              billingEntityId: data.billingEntityType === 'PARTNER' ? data.billingEntityId : undefined,
+              showroomId,
+              serviceId: data.serviceId,
+              priceAmount: String(data.priceAmount),
+              effectiveFrom: data.effectiveFrom,
+            }),
+          });
+          if (res.ok) created++;
+          else if (res.status === 409) skipped++;   // already priced for this combo
+          else {
+            failed++;
+            try { const b = await res.json(); lastError = b?.error || JSON.stringify(b); } catch { /* ignore */ }
+          }
+        }
+        toast({
+          title: failed ? "Some rules could not be saved" : "Staff pricing saved",
+          description: `${created} created${skipped ? `, ${skipped} already existed` : ''}${failed ? `, ${failed} failed${lastError ? ` — ${lastError}` : ''}` : ''}.`,
+          variant: failed ? "destructive" : "default",
+        });
+        if (created > 0) {
+          form.reset();
+          onSuccess();
+        }
+      } catch (error) {
+        console.error("Error creating staff pricing rules:", error);
+        toast({ title: "Error", description: "Failed to create staff pricing rules", variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     setIsLoading(true);
     try {
       const endpoint = isEditing ? `/api/pricing-rules/${editingRule.id}` : "/api/pricing-rules";
@@ -300,13 +467,22 @@ export function CreatePricingRuleModal({
           // For DETAILER_PRICING, vehicleModelId is optional (can be undefined)
           vehicleModelId: data.vehicleModelId || undefined,
           // Remove fields based on pricing type
-          ...(pricingType === 'DEALERSHIP_PRICING' ? { 
+          ...(pricingType === 'DEALERSHIP_PRICING' ? {
             detailerId: undefined,
-            oemId: undefined 
+            oemId: undefined
           } : pricingType === 'DETAILER_PRICING' ? {
             dealershipId: undefined,
             oemId: undefined
-          } : { 
+          } : pricingType === 'STAFF_PRICING' ? {
+            // STAFF_PRICING carries staff/billing-entity/showroom + service (individual) only
+            dealershipId: undefined,
+            detailerId: undefined,
+            oemId: undefined,
+            serviceCategoryId: undefined,
+            vehicleModelId: undefined,
+            // billing entity id only applies when billing to a partner
+            billingEntityId: data.billingEntityType === 'PARTNER' ? data.billingEntityId : undefined,
+          } : {
             // OEM_PRICING
             dealershipId: undefined,
             detailerId: undefined
@@ -340,7 +516,7 @@ export function CreatePricingRuleModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit' : 'Create'} Pricing Rule</DialogTitle>
         </DialogHeader>
@@ -350,6 +526,344 @@ export function CreatePricingRuleModal({
             {/* Pricing Type (hidden field) */}
             <input type="hidden" {...form.register('pricingType')} value={pricingType} />
 
+            {pricingType === 'STAFF_PRICING' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Staff — unfiltered across all partners/freelancers */}
+                  <FormField
+                    control={form.control}
+                    name="staffUserId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Staff Name</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-staff">
+                              <SelectValue placeholder="Select staff member" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="bg-white dark:bg-gray-800">
+                            {allStaff?.map((s: any) => (
+                              <SelectItem
+                                key={s.id}
+                                value={s.id}
+                                className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                              >
+                                {s.name}
+                                {s.partners?.length ? ` (${s.partners.map((p: any) => p.displayName).join(', ')})` : ' (unassigned)'}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Billing entity type — Company or a specific Partner */}
+                  <FormField
+                    control={form.control}
+                    name="billingEntityType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Billing Entity</FormLabel>
+                        <Select
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            if (value === 'COMPANY') form.setValue('billingEntityId', undefined);
+                          }}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-billing-entity-type">
+                              <SelectValue placeholder="Company or Partner" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="bg-white dark:bg-gray-800">
+                            <SelectItem value="COMPANY" className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700">Company (P91)</SelectItem>
+                            <SelectItem value="PARTNER" className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700">Partner Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Partner picker — only when billing to a Partner */}
+                {form.watch('billingEntityType') === 'PARTNER' && (
+                  <FormField
+                    control={form.control}
+                    name="billingEntityId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Partner Admin</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-billing-entity">
+                              <SelectValue placeholder="Select partner" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="bg-white dark:bg-gray-800">
+                            {detailers?.map((p: any) => (
+                              <SelectItem
+                                key={p.id}
+                                value={p.id}
+                                className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                              >
+                                {p.displayName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* EDIT mode: a single rule is one showroom — keep the single cascade. */}
+                {isEditing && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Dealership — UI-only cascade filter, narrows the showroom list */}
+                    <FormItem>
+                      <Label>Dealership <span className="text-muted-foreground text-sm">(filter)</span></Label>
+                      <Select
+                        value={staffDealershipFilter}
+                        onValueChange={(value) => {
+                          setStaffDealershipFilter(value);
+                          form.setValue('showroomId', undefined); // reset showroom when dealership changes
+                        }}
+                      >
+                        <SelectTrigger data-testid="select-staff-dealership">
+                          <SelectValue placeholder="Select dealership to filter showrooms" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white dark:bg-gray-800">
+                          {dealerships?.map((d: any) => (
+                            <SelectItem
+                              key={d.id}
+                              value={d.id}
+                              className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
+                              {d.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+
+                    {/* Showroom — narrowed by dealership */}
+                    <FormField
+                      control={form.control}
+                      name="showroomId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Showroom</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value} disabled={!staffDealershipFilter}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-staff-showroom">
+                                <SelectValue placeholder={staffDealershipFilter ? "Select showroom" : "Pick a dealership first"} />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="bg-white dark:bg-gray-800">
+                              {staffShowrooms?.map((sh: any) => (
+                                <SelectItem
+                                  key={sh.id}
+                                  value={sh.id}
+                                  className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                                >
+                                  {sh.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
+                {/* ADD mode: OEM → dealerships → showrooms bulk builder. Saving fans out
+                    to one rule per selected showroom, all sharing the same price. */}
+                {!isEditing && (
+                  <div className="space-y-3 rounded-md border border-border p-3">
+                    <FormItem>
+                      <Label>OEM</Label>
+                      <Select
+                        value={addOemId}
+                        onValueChange={(value) => {
+                          setAddOemId(value);
+                          setAddDealershipIds([]);
+                          setAddShowroomIds([]);
+                        }}
+                      >
+                        <SelectTrigger data-testid="select-staff-oem">
+                          <SelectValue placeholder="Select OEM" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white dark:bg-gray-800">
+                          {oems?.map((oem: any) => (
+                            <SelectItem
+                              key={oem.id}
+                              value={oem.id}
+                              className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
+                              {oem.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+
+                    {/* Dealerships + Showrooms side by side to save vertical space */}
+                    {!!addOemId && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <Label>Dealerships</Label>
+                          <button
+                            type="button"
+                            className="text-xs text-primary hover:underline"
+                            data-testid="button-select-all-dealerships"
+                            onClick={() => {
+                              const allIds = addOemDealerships.map((d: any) => d.id);
+                              const allSelected = allIds.length > 0 && allIds.every((id: string) => addDealershipIds.includes(id));
+                              if (allSelected) {
+                                setAddDealershipIds([]);
+                                setAddShowroomIds([]);
+                              } else {
+                                setAddDealershipIds(allIds);
+                              }
+                            }}
+                          >
+                            {addOemDealerships.length > 0 && addOemDealerships.every((d: any) => addDealershipIds.includes(d.id)) ? 'Clear all' : 'Select all'}
+                          </button>
+                        </div>
+                        <ScrollArea className="h-[120px] rounded border border-border p-2">
+                          {addOemDealerships.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No dealerships for this OEM.</p>
+                          ) : addOemDealerships.map((d: any) => (
+                            <label key={d.id} className="flex items-center gap-2 py-1 cursor-pointer text-sm">
+                              <input
+                                type="checkbox"
+                                checked={addDealershipIds.includes(d.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setAddDealershipIds([...addDealershipIds, d.id]);
+                                  } else {
+                                    setAddDealershipIds(addDealershipIds.filter((id) => id !== d.id));
+                                    // drop showrooms belonging to the removed dealership
+                                    setAddShowroomIds(addShowroomIds.filter((sid) => {
+                                      const sh = addOemShowrooms.find((s: any) => s.id === sid);
+                                      return sh && sh.dealershipId !== d.id;
+                                    }));
+                                  }
+                                }}
+                              />
+                              {d.name}
+                            </label>
+                          ))}
+                        </ScrollArea>
+                      </div>
+
+                    {/* Showrooms multi-select (only under chosen dealerships) */}
+                    {addDealershipIds.length > 0 && (
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <Label>Showrooms</Label>
+                          <button
+                            type="button"
+                            className="text-xs text-primary hover:underline"
+                            data-testid="button-select-all-showrooms"
+                            onClick={() => {
+                              const allIds = addShowroomOptions.map((s: any) => s.id);
+                              const allSelected = allIds.length > 0 && allIds.every((id: string) => addShowroomIds.includes(id));
+                              setAddShowroomIds(allSelected ? [] : allIds);
+                            }}
+                          >
+                            {addShowroomOptions.length > 0 && addShowroomOptions.every((s: any) => addShowroomIds.includes(s.id)) ? 'Clear all' : 'Select all'}
+                          </button>
+                        </div>
+                        <ScrollArea className="h-[120px] rounded border border-border p-2">
+                          {addShowroomOptions.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No showrooms under the selected dealerships.</p>
+                          ) : addShowroomOptions.map((s: any) => (
+                            <label key={s.id} className="flex items-center gap-2 py-1 cursor-pointer text-sm">
+                              <input
+                                type="checkbox"
+                                checked={addShowroomIds.includes(s.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setAddShowroomIds([...addShowroomIds, s.id]);
+                                  } else {
+                                    setAddShowroomIds(addShowroomIds.filter((id) => id !== s.id));
+                                  }
+                                }}
+                              />
+                              {s.name}
+                            </label>
+                          ))}
+                        </ScrollArea>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {addShowroomIds.length} showroom{addShowroomIds.length === 1 ? '' : 's'} selected — one rule will be created for each.
+                        </p>
+                      </div>
+                    )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Service — individual service (all services listed) */}
+                  <FormField
+                    control={form.control}
+                    name="serviceId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Service</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-staff-service">
+                              <SelectValue placeholder="Select service" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="bg-white dark:bg-gray-800">
+                            {services?.map((service: any) => (
+                              <SelectItem
+                                key={service.id}
+                                value={service.id}
+                                className="text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                              >
+                                {service.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Payout amount */}
+                  <FormField
+                    control={form.control}
+                    name="priceAmount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Payout Amount</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" placeholder="Enter amount" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+            )}
+
+            {pricingType !== 'STAFF_PRICING' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {pricingType === 'DEALERSHIP_PRICING' && (
                 <FormField
@@ -553,7 +1067,9 @@ export function CreatePricingRuleModal({
                 />
               )}
             </div>
+            )}
 
+            {pricingType !== 'STAFF_PRICING' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -620,6 +1136,7 @@ export function CreatePricingRuleModal({
                 )}
               />
             </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField

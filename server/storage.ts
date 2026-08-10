@@ -85,6 +85,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count, avg, sum, lte, gte, or, isNull, isNotNull, asc, inArray, ne, like, ilike, notInArray, notExists } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { formatPlaceholderPhone, placeholderEmailFor, isBlankContact, isPlaceholderPhone, isPlaceholderEmail } from "./services/placeholderContact";
 
 // A job card counts as "completed" once the install is approved. After approval it
@@ -291,17 +292,23 @@ export interface IStorage {
   getPartnerServiceRates(partnerId: string): Promise<any[]>;
 
   // Pricing Rules
-  getPricingRules(filters?: { 
-    partnerId?: string; 
-    scopeId?: string; 
+  getPricingRules(filters?: {
+    partnerId?: string;
+    scopeId?: string;
     pricingType?: string;
     dealershipId?: string;
     detailerId?: string;
+    serviceCategoryId?: string;
     oemId?: string;
+    staffUserId?: string;
+    billingEntityType?: string;
+    billingEntityId?: string;
+    showroomId?: string;
   }): Promise<PricingRule[]>;
   createPricingRule(rule: InsertPricingRule): Promise<PricingRule>;
   updatePricingRule(id: string, updates: Partial<InsertPricingRule>): Promise<PricingRule | undefined>;
   deletePricingRule(id: string): Promise<boolean>;
+  resolveStaffPricing(params: { staffUserId: string; billingEntityType: 'COMPANY' | 'PARTNER'; billingEntityId?: string | null; showroomId: string; serviceId: string; asOf?: Date }): Promise<PricingRule | null>;
 
   // Commission Rules
   getCommissionRules(filters?: { oemId?: string; dealershipId?: string; showroomId?: string; salesPersonId?: string }): Promise<CommissionRule[]>;
@@ -2867,15 +2874,22 @@ export class DatabaseStorage implements IStorage {
       .orderBy(serviceCategories.name, services.name, vehicleModels.modelName);
   }
 
-  async getPricingRules(filters?: { 
-    partnerId?: string; 
-    scopeId?: string; 
+  async getPricingRules(filters?: {
+    partnerId?: string;
+    scopeId?: string;
     pricingType?: string;
     dealershipId?: string;
     detailerId?: string;
     serviceCategoryId?: string;
     oemId?: string;
+    staffUserId?: string;
+    billingEntityType?: string;
+    billingEntityId?: string;
+    showroomId?: string;
   }): Promise<any[]> {
+    // Separate partners alias for the STAFF_PRICING billing entity, since the
+    // `partners` join below is keyed on detailerId (used by DETAILER_PRICING).
+    const billingPartners = alias(partners, "billing_partners");
     let query = db.select({
       id: pricingRules.id,
       pricingType: pricingRules.pricingType,
@@ -2896,6 +2910,11 @@ export class DatabaseStorage implements IStorage {
       status: pricingRules.status,
       createdAt: pricingRules.createdAt,
       updatedAt: pricingRules.updatedAt,
+      // STAFF_PRICING columns
+      staffUserId: pricingRules.staffUserId,
+      billingEntityType: pricingRules.billingEntityType,
+      billingEntityId: pricingRules.billingEntityId,
+      showroomId: pricingRules.showroomId,
       // Join related data
       dealershipName: dealerships.name,
       oemName: oems.name,
@@ -2903,6 +2922,10 @@ export class DatabaseStorage implements IStorage {
       serviceName: services.name,
       serviceCategoryName: serviceCategories.name,
       detailerName: partners.displayName,
+      staffName: users.name,
+      showroomName: showrooms.name,
+      showroomDealershipId: showrooms.dealershipId,
+      billingEntityName: billingPartners.displayName,
     })
     .from(pricingRules)
     .leftJoin(dealerships, eq(pricingRules.dealershipId, dealerships.id))
@@ -2910,8 +2933,11 @@ export class DatabaseStorage implements IStorage {
     .leftJoin(vehicleModels, eq(pricingRules.vehicleModelId, vehicleModels.id))
     .leftJoin(services, eq(pricingRules.serviceId, services.id))
     .leftJoin(serviceCategories, eq(pricingRules.serviceCategoryId, serviceCategories.id))
-    .leftJoin(partners, eq(pricingRules.detailerId, partners.id));
-    
+    .leftJoin(partners, eq(pricingRules.detailerId, partners.id))
+    .leftJoin(users, eq(pricingRules.staffUserId, users.id))
+    .leftJoin(showrooms, eq(pricingRules.showroomId, showrooms.id))
+    .leftJoin(billingPartners, eq(pricingRules.billingEntityId, billingPartners.id));
+
     const conditions = [eq(pricingRules.status, "ACTIVE")];
     if (filters?.partnerId) conditions.push(eq(pricingRules.partnerId, filters.partnerId));
     if (filters?.scopeId) conditions.push(eq(pricingRules.scopeId, filters.scopeId));
@@ -2920,6 +2946,10 @@ export class DatabaseStorage implements IStorage {
     if (filters?.detailerId) conditions.push(eq(pricingRules.detailerId, filters.detailerId));
     if (filters?.serviceCategoryId) conditions.push(eq(pricingRules.serviceCategoryId, filters.serviceCategoryId));
     if (filters?.oemId) conditions.push(eq(pricingRules.oemId, filters.oemId));
+    if (filters?.staffUserId) conditions.push(eq(pricingRules.staffUserId, filters.staffUserId));
+    if (filters?.billingEntityType) conditions.push(eq(pricingRules.billingEntityType, filters.billingEntityType));
+    if (filters?.billingEntityId) conditions.push(eq(pricingRules.billingEntityId, filters.billingEntityId));
+    if (filters?.showroomId) conditions.push(eq(pricingRules.showroomId, filters.showroomId));
 
     return await query.where(and(...conditions));
   }
@@ -3776,6 +3806,56 @@ export class DatabaseStorage implements IStorage {
       return null; // No pricing rule found
     } catch (error) {
       console.error('Error resolving detailer pricing:', error);
+      return null;
+    }
+  }
+
+  // STAFF_PRICING resolver (Phase A). Matches an individual staff member's payout on the
+  // exact combination of staff × billing entity × showroom × service category, honouring
+  // the rule's effective window. Returns null when no active rule covers the combination
+  // (callers decide how to surface "missing rule" — never silently defaults to 0 here).
+  //
+  // NOTE: intentionally NOT wired into job-card payout creation yet. Job cards do not
+  // reliably record which individual did the work until multi-team assignment (Phase B)
+  // ships, so switching live payouts to this resolver now would break unassigned cards.
+  async resolveStaffPricing(params: {
+    staffUserId: string;
+    billingEntityType: 'COMPANY' | 'PARTNER';
+    billingEntityId?: string | null;
+    showroomId: string;
+    serviceId: string;
+    asOf?: Date;
+  }): Promise<PricingRule | null> {
+    try {
+      const now = params.asOf ?? new Date();
+      const conditions = [
+        eq(pricingRules.status, 'ACTIVE'),
+        eq(pricingRules.pricingType, 'STAFF_PRICING'),
+        eq(pricingRules.staffUserId, params.staffUserId),
+        eq(pricingRules.billingEntityType, params.billingEntityType),
+        eq(pricingRules.showroomId, params.showroomId),
+        eq(pricingRules.serviceId, params.serviceId),
+        lte(pricingRules.effectiveFrom, now),
+        or(
+          isNull(pricingRules.effectiveTo),
+          gte(pricingRules.effectiveTo, now)
+        ),
+      ];
+      // COMPANY rules carry a NULL billing entity; PARTNER rules match the exact partner.
+      if (params.billingEntityType === 'PARTNER') {
+        conditions.push(eq(pricingRules.billingEntityId, params.billingEntityId as string));
+      } else {
+        conditions.push(isNull(pricingRules.billingEntityId));
+      }
+
+      const rules = await db.select().from(pricingRules)
+        .where(and(...conditions))
+        .orderBy(desc(pricingRules.effectiveFrom))
+        .limit(1);
+
+      return rules[0] ?? null;
+    } catch (error) {
+      console.error('Error resolving staff pricing:', error);
       return null;
     }
   }

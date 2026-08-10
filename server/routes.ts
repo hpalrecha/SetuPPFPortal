@@ -5707,6 +5707,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const assignedInstallerId = req.body?.assignedInstallerId || primary.assignedInstallerId || null;
         const scheduledAt = req.body?.scheduledAt ? new Date(req.body.scheduledAt) : undefined;
 
+        // The checkup may be scheduled for ANY time within 15 days of the job getting completed.
+        if (scheduledAt) {
+          const base = primary.completedAt ? new Date(primary.completedAt)
+            : (primary.approvedAt ? new Date(primary.approvedAt) : null);
+          const windowEnd = base ? new Date(base.getTime() + 15 * 24 * 60 * 60 * 1000)
+            : (primary.checkupDueAt ? new Date(primary.checkupDueAt) : null);
+          if (windowEnd && scheduledAt.getTime() > windowEnd.getTime()) {
+            return res.status(400).json({ error: "Checkup must be scheduled within 15 days of completion." });
+          }
+        }
+
         const checkup = await storage.createJobCard({
           workOrderId: primary.workOrderId,
           partnerId: primary.partnerId,
@@ -5948,15 +5959,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
 
-      const jobCard = await storage.updateJobCard(req.params.id, {
-        status: 'PENDING_APPROVAL',
+      // A REWORK card (reworkOfJobCardId set) closes straight to CLOSED on completion, and its PRIMARY
+      // card returns to PENDING_APPROVAL. A normal card goes to PENDING_APPROVAL as usual.
+      const existingJc = await storage.getJobCard(req.params.id);
+      if (!existingJc) {
+        return res.status(404).json({ error: "Job card not found" });
+      }
+      const isReworkCard = !!existingJc.reworkOfJobCardId;
+
+      const completionUpdate: any = {
+        status: isReworkCard ? 'CLOSED' : 'PENDING_APPROVAL',
         completedAt: new Date(),
-        approvalRequestedAt: new Date(),
-        ...validatedData
-      });
-      
+        ...validatedData,
+      };
+      if (!isReworkCard) completionUpdate.approvalRequestedAt = new Date();
+
+      const jobCard = await storage.updateJobCard(req.params.id, completionUpdate);
+
       if (!jobCard) {
         return res.status(404).json({ error: "Job card not found" });
+      }
+
+      // Rework done → the primary job card returns to PENDING_APPROVAL and the work order points back to it.
+      if (isReworkCard && existingJc.reworkOfJobCardId) {
+        try {
+          await storage.updateJobCard(existingJc.reworkOfJobCardId, { status: 'PENDING_APPROVAL', approvalRequestedAt: new Date() });
+          await storage.updateWorkOrder(existingJc.workOrderId, { assignedJobCardId: existingJc.reworkOfJobCardId });
+          console.log(`🔵 Rework card ${req.params.id.slice(0, 8)} completed → CLOSED; primary ${existingJc.reworkOfJobCardId.slice(0, 8)} → PENDING_APPROVAL`);
+        } catch (e) { console.error('rework completion: primary restore failed', e); }
       }
 
       // 🚀 AUTO-CREATE DETAILER PAYOUT when job card is completed
@@ -6341,6 +6371,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const reworkSchema = z.object({
           remarks: z.string().min(1, "Reason is required for rework requests"),
           assignedInstallerId: z.string().uuid().optional(),
+          // Optionally hand the rework to a DIFFERENT partner (studio/installer) — spawns a new card.
+          partnerId: z.string().uuid().optional(),
+          // Same-team rework runs the full visit flow again — a new schedule time is required.
+          scheduledAt: z.string().optional(),
           plannedMaterialId: z.string().uuid().optional(),
           plannedMaterialName: z.string().trim().optional(),
           plannedQuantity: z.number().positive().optional(),
@@ -6361,7 +6395,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ])).optional(),
         });
 
-        const { remarks, assignedInstallerId, plannedMaterialId, plannedMaterialName, plannedQuantity, photos, approxQuantitySq, approxCost, parts } = reworkSchema.parse(req.body);
+        const { remarks, assignedInstallerId, partnerId: reworkPartnerId, plannedMaterialId, plannedMaterialName, plannedQuantity, photos, approxQuantitySq, approxCost, parts, scheduledAt } = reworkSchema.parse(req.body);
         // Normalize parts to the object shape; FOC parts carry no cost.
         const normalizedParts = (parts || []).map((p) =>
           typeof p === 'string'
@@ -6429,6 +6463,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ...(reworkDetailsJson || { photos: [], approxQuantitySq: null, approxCost: null, parts: [] }),
             requestedAssigneeId: assignedInstallerId,
             priorStatus: jobCard.status,
+            // Preferred rework visit time (used if the super admin approves a same-team rework).
+            scheduledAt: scheduledAt || null,
           };
           const updated = await storage.updateJobCard(jobCardId, {
             status: 'REWORK_PERMISSION_REQUESTED',
@@ -6457,9 +6493,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           woUpdates[field] = value;
         }
 
-        // Optional up-front assignment: validate the chosen detailer belongs to this card's partner.
-        if (assignedInstallerId && !(await storage.staffHasPartner(assignedInstallerId, jobCard.partnerId))) {
-          return res.status(400).json({ error: "Selected detailer is not part of this job's partner" });
+        // A rework may be handed to a DIFFERENT partner (studio/installer). Resolve the target partner
+        // (defaults to the current one) and validate any chosen detailer belongs to THAT partner.
+        const targetPartnerId = reworkPartnerId || jobCard.partnerId;
+        const differentPartner = targetPartnerId !== jobCard.partnerId;
+        if (differentPartner && !(await storage.getPartner(targetPartnerId))) {
+          return res.status(400).json({ error: "Selected partner was not found" });
+        }
+        if (assignedInstallerId && !(await storage.staffHasPartner(assignedInstallerId, targetPartnerId))) {
+          return res.status(400).json({ error: "Selected detailer is not part of the chosen partner" });
+        }
+        if (differentPartner && !assignedInstallerId) {
+          return res.status(400).json({ error: "Please pick a team member for the new partner" });
         }
 
         // Optional up-front roll/material choice (with quantity), stored as the rework card's planned material.
@@ -6467,20 +6512,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? { plannedMaterial: plannedMaterialName || null, plannedRawMaterialId: plannedMaterialId || null, plannedQuantity: plannedQuantity ?? null, plannedByRole: req.user!.role }
           : undefined;
 
-        // SAME team (no team change) → keep the SAME job card (which also carries the warranty
-        // through to close); reopen it and log a trail entry. Only a DIFFERENT team spawns a card.
-        const sameTeam = !assignedInstallerId || assignedInstallerId === jobCard.assignedInstallerId;
+        // Truly SAME team (same partner AND same installer) → reopen the SAME card (carries the warranty
+        // through to close). A DIFFERENT installer or partner spawns a NEW linked rework card.
+        const differentInstaller = !!assignedInstallerId && assignedInstallerId !== jobCard.assignedInstallerId;
+        const sameCard = !differentPartner && !differentInstaller;
 
-        if (sameTeam) {
+        if (sameCard) {
+          // Same team re-does the job → run the FULL visit flow again on the SAME card. A new schedule
+          // time is required; the card goes back to SCHEDULED and re-runs Reached → pre-install → Start.
+          if (!scheduledAt) {
+            return res.status(400).json({ error: "A schedule date & time is required for a same-team rework." });
+          }
+          const whenStr = new Date(scheduledAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' });
           const reopened = await storage.appendJobCardTrail(
             jobCardId,
-            { type: 'REWORK_SAME_TEAM', detail: remarks, by: req.user!.id, byRole: req.user!.role },
+            { type: 'REWORK_SAME_TEAM', detail: `${remarks} · scheduled ${whenStr}`, by: req.user!.id, byRole: req.user!.role },
             {
-              status: 'IN_PROGRESS',
+              status: 'SCHEDULED',
+              scheduledAt: new Date(scheduledAt),
               reworkReason: remarks,
               reworkDetailsJson,
               reworkRequestedAt: new Date(),
               reworkRequestedBy: req.user!.id,
+              // Reset the visit flow so it runs again exactly like a normal job card.
+              startedAt: null,
+              reachedAt: null,
+              preInstallResult: null,
+              preInstallationCompletedAt: null,
               completedAt: null,
               approvalRequestedAt: null,
               approvedAt: null,
@@ -6489,16 +6547,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
           await storage.updateWorkOrder(jobCard.workOrderId, { ...woUpdates, status: 'IN_PROGRESS', assignedJobCardId: jobCardId });
           await storage.createApproval({ jobCardId, approverUserId: req.user!.id, status: 'REWORK_REQUESTED', remarks });
-          console.log(`🟡 Rework (same team) on ${jobCard.id} — reopened same card by ${req.user!.role}: '${remarks}'`);
-          res.json({ message: "Rework requested — same team, job card reopened", jobCard: reopened, reason: remarks });
+          console.log(`🟡 Rework (same team) on ${jobCard.id} — re-scheduled same card by ${req.user!.role}: '${remarks}'`);
+          setImmediate(async () => {
+            try {
+              const { notifyScheduled } = await import('./services/jobCardNotifications');
+              await notifyScheduled(jobCardId);
+            } catch (e) { console.error('rework notifyScheduled failed', e); }
+          });
+          res.json({ message: "Rework requested — same team, job re-scheduled for the visit flow", jobCard: reopened, reason: remarks });
         } else {
-          // DIFFERENT team → new linked card following the lifecycle from AWAITING_ACK; original frozen.
+          // DIFFERENT installer/partner → a NEW linked rework card. Same-partner reworks are pre-scheduled
+          // with the given time (run the visit flow now); different-partner reworks start at AWAITING_ACK so
+          // the new partner acknowledges + schedules. The primary is frozen (REWORK_REQUESTED) and remembers
+          // this rework card; on the rework card's completion it CLOSES and the primary → PENDING_APPROVAL.
+          if (!differentPartner && !scheduledAt) {
+            return res.status(400).json({ error: "A schedule date & time is required for a same-partner rework." });
+          }
+          const newStatus = differentPartner ? 'AWAITING_ACK' : 'SCHEDULED';
           const newJobCard = await storage.createJobCard({
             workOrderId: jobCard.workOrderId,
-            partnerId: jobCard.partnerId,
-            status: 'AWAITING_ACK',
+            partnerId: targetPartnerId,
+            status: newStatus as any,
+            scheduledAt: (!differentPartner && scheduledAt) ? new Date(scheduledAt) : null,
             reworkOfJobCardId: jobCard.id,
             reworkReason: remarks,
+            reworkDetailsJson,
             assignedInstallerId: assignedInstallerId || null,
             materialConsumptionJson: plannedMaterialJson,
             billingValue: '0',
@@ -6507,14 +6580,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             shipTo: jobCard.shipTo || workOrder.shipTo || null,
             partnerBilledDirectly: jobCard.partnerBilledDirectly || false
           });
+          const partnerNote = differentPartner ? ` · partner → ${targetPartnerId.slice(0, 8)}` : '';
           const updatedJobCard = await storage.appendJobCardTrail(
             jobCardId,
-            { type: 'REWORK_NEW_TEAM', detail: `${remarks} · new card ${newJobCard.id.slice(0, 8)}`, by: req.user!.id, byRole: req.user!.role },
-            { status: 'REWORK_REQUESTED', reworkReason: remarks, reworkDetailsJson, reworkRequestedAt: new Date(), reworkRequestedBy: req.user!.id },
+            { type: 'REWORK_NEW_TEAM', detail: `${remarks} · new card ${newJobCard.id.slice(0, 8)}${partnerNote}`, by: req.user!.id, byRole: req.user!.role },
+            { status: 'REWORK_REQUESTED', reworkJobCardId: newJobCard.id, reworkReason: remarks, reworkDetailsJson, reworkRequestedAt: new Date(), reworkRequestedBy: req.user!.id },
           );
           await storage.updateWorkOrder(jobCard.workOrderId, { ...woUpdates, status: 'ASSIGNED', assignedJobCardId: newJobCard.id });
           await storage.createApproval({ jobCardId, approverUserId: req.user!.id, status: 'REWORK_REQUESTED', remarks });
-          console.log(`🟡 Rework on ${jobCard.id} → new card ${newJobCard.id} by ${req.user!.role}: '${remarks}'`);
+          console.log(`🟡 Rework on ${jobCard.id} → new card ${newJobCard.id} (${newStatus}) by ${req.user!.role}: '${remarks}'`);
+          if (!differentPartner) {
+            setImmediate(async () => {
+              try {
+                const { notifyScheduled } = await import('./services/jobCardNotifications');
+                await notifyScheduled(newJobCard.id);
+              } catch (e) { console.error('rework notifyScheduled(new) failed', e); }
+            });
+          }
           res.json({
             message: "Rework requested — a new job card was created against the same work order",
             jobCard: newJobCard,
@@ -6645,15 +6727,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const sameTeam = !requestedAssigneeId || requestedAssigneeId === jobCard.assignedInstallerId;
 
         if (sameTeam) {
+          // Same team → re-run the full visit flow on the SAME card. Use the partner's requested time
+          // (or one the approver supplies); the card goes back to SCHEDULED.
+          const schedAt = req.body?.scheduledAt || details.scheduledAt;
+          if (!schedAt) {
+            return res.status(400).json({ error: "A schedule date & time is required to approve a same-team rework." });
+          }
+          const whenStr = new Date(schedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' });
           const reopened = await storage.appendJobCardTrail(
             jobCardId,
-            { type: 'REWORK_SAME_TEAM', detail: jobCard.reworkReason || remarks, by: req.user!.id, byRole: req.user!.role },
-            { status: 'IN_PROGRESS', completedAt: null, approvalRequestedAt: null, approvedAt: null, approvedByUserId: null },
+            { type: 'REWORK_SAME_TEAM', detail: `${jobCard.reworkReason || remarks} · scheduled ${whenStr}`, by: req.user!.id, byRole: req.user!.role },
+            {
+              status: 'SCHEDULED',
+              scheduledAt: new Date(schedAt),
+              startedAt: null,
+              reachedAt: null,
+              preInstallResult: null,
+              preInstallationCompletedAt: null,
+              completedAt: null,
+              approvalRequestedAt: null,
+              approvedAt: null,
+              approvedByUserId: null,
+            },
           );
           await storage.updateWorkOrder(jobCard.workOrderId, { status: 'IN_PROGRESS', assignedJobCardId: jobCardId });
           await storage.createApproval({ jobCardId, approverUserId: req.user!.id, status: 'REWORK_PERMISSION_GRANTED', remarks });
-          console.log(`🟢 Rework permission GRANTED on ${jobCard.id} (same team) — reopened same card`);
-          return res.json({ message: "Rework approved — same team, job card reopened", jobCard: reopened });
+          console.log(`🟢 Rework permission GRANTED on ${jobCard.id} (same team) — re-scheduled same card`);
+          setImmediate(async () => {
+            try {
+              const { notifyScheduled } = await import('./services/jobCardNotifications');
+              await notifyScheduled(jobCardId);
+            } catch (e) { console.error('rework notifyScheduled failed', e); }
+          });
+          return res.json({ message: "Rework approved — same team, job re-scheduled for the visit flow", jobCard: reopened });
         }
 
         const newJobCard = await storage.createJobCard({
@@ -7728,8 +7834,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Pricing Rules Routes
   app.get("/api/pricing-rules", authenticate, requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), async (req, res) => {
     try {
-      const { partnerId, scopeId, pricingType, dealershipId, detailerId, serviceCategoryId, oemId } = req.query;
-      
+      const { partnerId, scopeId, pricingType, dealershipId, detailerId, serviceCategoryId, oemId, staffUserId, billingEntityType, billingEntityId, showroomId } = req.query;
+
       const filters: any = {};
       if (partnerId) filters.partnerId = partnerId as string;
       if (scopeId) filters.scopeId = scopeId as string;
@@ -7738,6 +7844,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (detailerId) filters.detailerId = detailerId as string;
       if (serviceCategoryId) filters.serviceCategoryId = serviceCategoryId as string;
       if (oemId) filters.oemId = oemId as string;
+      if (staffUserId) filters.staffUserId = staffUserId as string;
+      if (billingEntityType) filters.billingEntityType = billingEntityType as string;
+      if (billingEntityId) filters.billingEntityId = billingEntityId as string;
+      if (showroomId) filters.showroomId = showroomId as string;
 
       const rules = await storage.getPricingRules(filters);
       res.json(rules);
@@ -7756,10 +7866,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const ruleData = insertPricingRuleSchema.parse(req.body);
         const rule = await storage.createPricingRule(ruleData);
         res.status(201).json(rule);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Create pricing rule error:", error);
         if (error instanceof z.ZodError) {
           return res.status(400).json({ error: "Invalid pricing rule data", details: error.errors });
+        }
+        if (error?.code === '23505') {
+          return res.status(409).json({ error: "A pricing rule already exists for this exact Staff + Billing Entity + Showroom + Service Category combination — edit that rule instead." });
         }
         res.status(500).json({ error: "Failed to create pricing rule" });
       }
@@ -7785,10 +7898,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Pricing rule not found" });
         }
         res.json(updated);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Update pricing rule error:", error);
         if (error instanceof z.ZodError) {
           return res.status(400).json({ error: "Invalid pricing rule data", details: error.errors });
+        }
+        if (error?.code === '23505') {
+          return res.status(409).json({ error: "A pricing rule already exists for this exact Staff + Billing Entity + Showroom + Service Category combination — edit that rule instead." });
         }
         res.status(500).json({ error: "Failed to update pricing rule" });
       }
