@@ -235,6 +235,7 @@ export interface IStorage {
   // Customer management (customers are derived from work_orders — there is no customers table)
   getCustomers(filters?: { search?: string; sortBy?: string; sortDir?: 'asc' | 'desc'; onlyRepeat?: boolean; onlyRework?: boolean; limit?: number; offset?: number }): Promise<{ customers: any[]; total: number; totalWorkOrders: number }>;
   getWorkOrdersByCustomerPhone(phone: string): Promise<any[]>;
+  getWorkOrdersByRegNo(regNo: string, oemId?: string): Promise<any[]>;
   updateCustomerByPhone(phone: string, updates: { customerName?: string | null; customerEmail?: string | null; customerAddress?: string | null; customerPhone?: string | null }): Promise<number>;
   
   // Job Card Media management
@@ -1148,6 +1149,20 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(workOrders)
       .where(eq(workOrders.customerPhone, phone))
+      .orderBy(desc(workOrders.createdAt));
+  }
+
+  // Match a reg/VIN ignoring case + internal spaces (stored values are inconsistent —
+  // some normalized uppercase-no-space, some raw). Optionally scope to one OEM.
+  async getWorkOrdersByRegNo(regNo: string, oemId?: string): Promise<any[]> {
+    const normalized = regNo.trim().toUpperCase().replace(/\s+/g, '');
+    if (!normalized) return [];
+    const conds = [sql`UPPER(REPLACE(COALESCE(${workOrders.regNo}, ''), ' ', '')) = ${normalized}`];
+    if (oemId) conds.push(eq(workOrders.oemId, oemId));
+    return await db
+      .select()
+      .from(workOrders)
+      .where(and(...conds))
       .orderBy(desc(workOrders.createdAt));
   }
 

@@ -18,6 +18,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogAction,
+  AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -99,6 +100,11 @@ export function CreateWorkOrderModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdWorkOrder, setCreatedWorkOrder] = useState<any>(null);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  // Duplicate-VIN guard: prior orders on the same reg/VIN + the form data held back
+  // pending the "repeat customer?" confirmation.
+  const [isCheckingVin, setIsCheckingVin] = useState(false);
+  const [vinCheck, setVinCheck] = useState<{ count: number; matches: any[] } | null>(null);
+  const [pendingWorkOrderData, setPendingWorkOrderData] = useState<any>(null);
   const [dealershipSearch, setDealershipSearch] = useState("");
   const [showroomSearch, setShowroomSearch] = useState("");
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
@@ -429,29 +435,54 @@ export function CreateWorkOrderModal({
       };
     }
 
+    // New work orders: warn if this reg/VIN was serviced before (possible repeat customer).
+    // Never blocks — a failed check just proceeds. Edits skip it.
+    if (!isEditMode) {
+      try {
+        setIsCheckingVin(true);
+        const res = await apiRequest('GET', `/api/work-orders/vin-check?regNo=${encodeURIComponent((data.regNo || '').trim())}`);
+        const result = await res.json();
+        if (result?.exists) {
+          setVinCheck({ count: result.count, matches: result.matches || [] });
+          setPendingWorkOrderData(workOrderData);
+          return; // hold submission until the user answers the "repeat customer?" prompt
+        }
+      } catch (e) {
+        console.error('VIN check failed (continuing):', e);
+      } finally {
+        setIsCheckingVin(false);
+      }
+    }
+
+    await performSubmit(workOrderData);
+  };
+
+  // Actual create/update. Called directly for edits and non-duplicate VINs, or after the
+  // "repeat customer?" confirmation for a duplicate VIN.
+  const performSubmit = async (workOrderData: any) => {
     setIsLoading(true);
     try {
       if (isEditMode) {
         // Update existing work order
         await apiRequest('PUT', `/api/work-orders/${workOrderId}`, workOrderData);
-        
+
         toast({
           title: "Success",
           description: "Work order updated successfully",
         });
-        
+
         onOpenChange(false);
         onSuccess();
       } else {
         // Create new work order
         const response = await ApiClient.post("/api/work-orders", workOrderData);
-        
+
         // Store the created work order and show success dialog
         setCreatedWorkOrder(response);
         setShowSuccessDialog(true);
         form.reset();
       }
-      
+
     } catch (error) {
       console.error(`Error ${isEditMode ? 'updating' : 'creating'} work order:`, error);
       toast({
@@ -462,6 +493,14 @@ export function CreateWorkOrderModal({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // User confirmed the duplicate VIN is a repeat customer → create with the held data.
+  const handleConfirmDuplicateVin = async () => {
+    const dataToSubmit = pendingWorkOrderData;
+    setVinCheck(null);
+    setPendingWorkOrderData(null);
+    if (dataToSubmit) await performSubmit(dataToSubmit);
   };
 
   // Handle submitting the draft work order
@@ -1096,11 +1135,11 @@ export function CreateWorkOrderModal({
               </Button>
               <Button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || isCheckingVin}
                 data-testid="button-create-work-order"
                 className="w-full sm:w-auto order-1 sm:order-2"
               >
-                {isLoading ? "Creating..." : "Create Work Order"}
+                {isCheckingVin ? "Checking VIN..." : isLoading ? (isEditMode ? "Saving..." : "Creating...") : (isEditMode ? "Save Changes" : "Create Work Order")}
               </Button>
             </DialogFooter>
           </form>
@@ -1156,6 +1195,46 @@ export function CreateWorkOrderModal({
               </>
             )}
           </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    {/* Duplicate-VIN "repeat customer?" confirmation */}
+    <AlertDialog
+      open={!!vinCheck}
+      onOpenChange={(o) => { if (!o) { setVinCheck(null); setPendingWorkOrderData(null); } }}
+    >
+      <AlertDialogContent data-testid="dialog-vin-duplicate">
+        <AlertDialogHeader>
+          <AlertDialogTitle>This VIN already exists</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-3 text-sm">
+              <p>
+                This registration / VIN already has{' '}
+                {vinCheck?.count === 1 ? 'a previous work order' : `${vinCheck?.count} previous work orders`}.
+                Is this a <span className="font-semibold">repeat customer</span>?
+              </p>
+              {vinCheck?.matches?.length ? (
+                <ul className="rounded-md border bg-muted/40 divide-y max-h-44 overflow-auto">
+                  {vinCheck.matches.map((m: any) => (
+                    <li key={m.id} className="px-3 py-2 flex items-center justify-between gap-2">
+                      <span className="truncate">{m.customerName || 'Unknown customer'} · {m.regNo || '—'}</span>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {m.status}{m.createdAt ? ` · ${new Date(m.createdAt).toLocaleDateString()}` : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <p>Do you want to create the work order anyway?</p>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel data-testid="button-vin-cancel">No, go back</AlertDialogCancel>
+          <AlertDialogAction onClick={handleConfirmDuplicateVin} data-testid="button-vin-confirm">
+            Yes, create anyway
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

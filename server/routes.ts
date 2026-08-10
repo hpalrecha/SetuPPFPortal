@@ -3249,8 +3249,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/work-orders", 
-    authenticate, 
+  // Duplicate-VIN check for the create-work-order form. Returns any prior orders on the
+  // same reg/VIN (scoped to the caller's OEM; super admin sees all) so the UI can ask
+  // "this VIN already exists — repeat customer?" before creating a fresh work order.
+  // Declared before /api/work-orders/:id so the literal path isn't captured as an id.
+  app.get("/api/work-orders/vin-check", authenticate, async (req, res) => {
+    try {
+      const regNo = String(req.query.regNo || '').trim();
+      if (!regNo) return res.json({ exists: false, count: 0, matches: [] });
+      const oemId = req.user!.role === 'SUPER_ADMIN' ? undefined : (req.user!.oemId || undefined);
+      const rows = await storage.getWorkOrdersByRegNo(regNo, oemId);
+      const matches = rows.slice(0, 10).map((w: any) => ({
+        id: w.id,
+        customerName: w.customerName,
+        status: w.status,
+        createdAt: w.createdAt,
+        regNo: w.regNo,
+      }));
+      res.json({ exists: rows.length > 0, count: rows.length, matches });
+    } catch (error) {
+      console.error("VIN check error:", error);
+      res.status(500).json({ error: "Failed to check VIN" });
+    }
+  });
+
+  app.post("/api/work-orders",
+    authenticate,
     requireRole(['SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'MANAGER', 'SUPER_ADMIN', 'ADMIN', 'PARTNER_ADMIN']),
     auditLog('work_order', 'create'),
     async (req, res) => {

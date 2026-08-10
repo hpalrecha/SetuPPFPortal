@@ -2222,6 +2222,9 @@ export default function JobCardsNew() {
                         {jobCard.reworkOfJobCardId && (
                           <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] px-1.5 py-0" title={`Rework of JC-${jobCard.reworkOfJobCardId.slice(-6)}`}>Rework</Badge>
                         )}
+                        {jobCard.eWarrantyApplied && (
+                          <Badge className="bg-green-100 text-green-800 border border-green-300 text-[10px] px-1.5 py-0" title="e-Warranty registered">e-Warranty ✓</Badge>
+                        )}
                       </div>
                       <div>
                         <Progress value={getProgressValue(jobCard.status)} className="h-1 w-full" />
@@ -2342,6 +2345,9 @@ export default function JobCardsNew() {
                         {getStatusBadge(jobCard.status)}
                         {jobCard.reworkOfJobCardId && (
                           <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] px-1.5 py-0" title={`Rework of JC-${jobCard.reworkOfJobCardId.slice(-6)}`}>Rework</Badge>
+                        )}
+                        {jobCard.eWarrantyApplied && (
+                          <Badge className="bg-green-100 text-green-800 border border-green-300 text-[10px] px-1.5 py-0" title="e-Warranty registered">e-Warranty ✓</Badge>
                         )}
                       </div>
                       <div className="mt-1">
