@@ -1437,8 +1437,9 @@ export default function JobCardsNew() {
   // Rework: a job at approval stage or later can be reworked. This creates a NEW job card
   // against the same work order, freezes the current one as REWORK_REQUESTED, and links them.
   const REWORK_ALLOWED_FROM = ['COMPLETED', 'PENDING_APPROVAL', 'APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED'];
-  const canRequestRework = ['SUPER_ADMIN', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'PARTNER_ADMIN'].includes(user?.role || '');
-  const isPartnerAdminRework = user?.role === 'PARTNER_ADMIN';
+  // DETAILING_PARTNER has the same job-card powers as PARTNER_ADMIN (one-person studios act as their own admin).
+  const canRequestRework = ['SUPER_ADMIN', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'PARTNER_ADMIN', 'DETAILING_PARTNER'].includes(user?.role || '');
+  const isPartnerAdminRework = user?.role === 'PARTNER_ADMIN' || user?.role === 'DETAILING_PARTNER';
   // Same team = same partner AND same (or unchanged) installer → re-runs the visit flow on the same
   // card (needs a new schedule time). A different partner OR installer spawns a new linked card.
   const reworkPartnerChanged = !!reworkForm.partnerId && reworkForm.partnerId !== (detailedJobCard?.partnerId || '');
@@ -3652,7 +3653,7 @@ export default function JobCardsNew() {
                   // (their own) → partner admin settles; P91-created (commission) → admin settles.
                   // SUPER_ADMIN/ADMIN always get override access on top of that.
                   (detailedJobCard.workOrderCreatedByPartner
-                    ? ((user?.role === 'PARTNER_ADMIN' && detailedJobCard.partnerId === user?.partnerId) || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN')
+                    ? (((user?.role === 'PARTNER_ADMIN' || user?.role === 'DETAILING_PARTNER') && detailedJobCard.partnerId === user?.partnerId) || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN')
                     : isAdmin)
                 ) && (
                   <Card className={`col-span-1 lg:col-span-2 xl:col-span-3 border-2 ${detailedJobCard.status === 'CLOSED' ? 'border-gray-200 bg-gray-50/50' : 'border-dashed border-green-200 bg-green-50/50'}`}>
