@@ -5105,8 +5105,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           hasAccess = true;
         } else if (workOrderCreatedByPartner) {
           // The owning partner admin settles their own work order
-          if (req.user!.role === 'PARTNER_ADMIN') {
-            hasAccess = jobCard.partnerId === req.user!.partnerId;
+          if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'DETAILING_PARTNER') {
+            hasAccess = userPartnerIds(req.user!).includes(jobCard.partnerId);
           }
         } else {
           // Admin roles settle P91-created (commission) work orders
@@ -5763,12 +5763,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 15-day checkup — create the linked checkup job card (manually scheduled by admin/partner).
   app.post("/api/job-cards/:id/create-checkup",
     authenticate,
-    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'PARTNER_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'PARTNER_ADMIN', 'DETAILING_PARTNER']),
     async (req, res) => {
       try {
         const primary = await storage.getJobCard(req.params.id);
         if (!primary) return res.status(404).json({ error: "Job card not found" });
-        if (req.user!.role === 'PARTNER_ADMIN' && !userPartnerIds(req.user!).includes(primary.partnerId)) {
+        if ((req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'DETAILING_PARTNER') && !userPartnerIds(req.user!).includes(primary.partnerId)) {
           return res.status(403).json({ error: "Access denied - job card belongs to a different partner" });
         }
         const assignedInstallerId = req.body?.assignedInstallerId || primary.assignedInstallerId || null;
@@ -6505,7 +6505,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/job-cards/:id/request-rework",
     authenticate,
-    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'PARTNER_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'SHOWROOM_MANAGER', 'DEALERSHIP_ADMIN', 'PARTNER_ADMIN', 'DETAILING_PARTNER']),
     auditLog('job_card', 'request_rework'),
     async (req, res) => {
       try {
@@ -6584,8 +6584,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           hasAccess = workOrder.dealershipId === req.user!.dealershipId;
         } else if (req.user!.role === 'SHOWROOM_MANAGER') {
           hasAccess = workOrder.showroomId === req.user!.showroomId;
-        } else if (req.user!.role === 'PARTNER_ADMIN') {
-          hasAccess = jobCard.partnerId === req.user!.partnerId;
+        } else if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'DETAILING_PARTNER') {
+          hasAccess = userPartnerIds(req.user!).includes(jobCard.partnerId);
         }
 
         if (!hasAccess) {
@@ -6595,7 +6595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Partner-initiated rework does NOT execute immediately — it needs a super
         // admin's permission first. Freeze the card as REWORK_PERMISSION_REQUESTED,
         // record the request details + the staff the partner wants to assign, and stop.
-        if (req.user!.role === 'PARTNER_ADMIN') {
+        if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'DETAILING_PARTNER') {
           if (!assignedInstallerId) {
             return res.status(400).json({ error: "Please assign a detailing partner / staff member for the rework" });
           }
@@ -6768,13 +6768,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Edit a rework part's FOC / cost after submission (manual assessment) — until the card is closed.
   app.patch("/api/job-cards/:id/rework-cost",
     authenticate,
-    requireRole(['SUPER_ADMIN', 'ADMIN', 'PARTNER_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'PARTNER_ADMIN', 'DETAILING_PARTNER']),
     async (req, res) => {
       try {
         const jobCard = await storage.getJobCard(req.params.id);
         if (!jobCard) return res.status(404).json({ error: "Job card not found" });
         if (jobCard.status === 'CLOSED') return res.status(400).json({ error: "Job card is closed — cost can no longer be edited" });
-        if (req.user!.role === 'PARTNER_ADMIN' && !userPartnerIds(req.user!).includes(jobCard.partnerId)) {
+        if ((req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'DETAILING_PARTNER') && !userPartnerIds(req.user!).includes(jobCard.partnerId)) {
           return res.status(403).json({ error: "Access denied - job card belongs to a different partner" });
         }
 
@@ -6806,7 +6806,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Edit the post-approval billing price (variable — depends on team/manual assessment) until invoiced.
   app.patch("/api/job-cards/:id/billing-price",
     authenticate,
-    requireRole(['SUPER_ADMIN', 'ADMIN', 'PARTNER_ADMIN']),
+    requireRole(['SUPER_ADMIN', 'ADMIN', 'PARTNER_ADMIN', 'DETAILING_PARTNER']),
     async (req, res) => {
       try {
         const jobCard = await storage.getJobCard(req.params.id);
@@ -6814,7 +6814,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (['INVOICE_RAISED', 'PAYMENT_PENDING', 'CLOSED'].includes(jobCard.status || '')) {
           return res.status(400).json({ error: "Price can no longer be edited after the invoice is raised" });
         }
-        if (req.user!.role === 'PARTNER_ADMIN' && !userPartnerIds(req.user!).includes(jobCard.partnerId)) {
+        if ((req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'DETAILING_PARTNER') && !userPartnerIds(req.user!).includes(jobCard.partnerId)) {
           return res.status(403).json({ error: "Access denied - job card belongs to a different partner" });
         }
         const price = req.body?.billingPrice;
