@@ -71,6 +71,7 @@ import DetailerJobDetailModal from "@/components/job-cards/detailer-job-detail-m
 import ApprovalModal from "@/components/job-cards/approval-modal";
 import { ImageModal } from "@/components/ui/image-modal";
 import { ViewPreInstallationModal } from "@/components/modals/ViewPreInstallationModal";
+import { PreInstallationModal } from "@/components/modals/PreInstallationModal";
 import logoGreen from "@assets/P91 PULSE logo-01_1761139835394.png";
 import { displayContact } from "@shared/placeholderContact";
 
@@ -355,6 +356,8 @@ export default function JobCardsNew() {
   const [warrantyVin, setWarrantyVin] = useState('');
   const [showApplyWarrantyModal, setShowApplyWarrantyModal] = useState(false);
   const [showViewPreInstallationModal, setShowViewPreInstallationModal] = useState(false);
+  // Add missing pre-installation photos late (e.g. approval blocked because they were never captured).
+  const [showAddPreInstallModal, setShowAddPreInstallModal] = useState(false);
   // Admin-only safe edit of customer / work-order fields
   const [showEditDetailsModal, setShowEditDetailsModal] = useState(false);
   const [editDetailsForm, setEditDetailsForm] = useState({
@@ -1172,9 +1175,11 @@ export default function JobCardsNew() {
     onError: (error: any) => {
       // Pre-installation photos are required before approval — surface the gate clearly.
       if (String(error?.message || '').includes('PRE_INSTALL_PHOTOS_REQUIRED')) {
+        // Open the upload dialog right here so the reviewer can add the missing photos and retry.
+        setShowAddPreInstallModal(true);
         toast({
           title: "Pre-installation photos required",
-          description: "This job can't be approved without pre-installation photos. Add them on the job card (pre-installation step), then approve.",
+          description: "This job can't be approved without pre-installation photos. Add the 4 photos in the dialog that just opened, then approve again.",
           variant: "destructive",
         });
         return;
@@ -3551,6 +3556,37 @@ export default function JobCardsNew() {
                   </Card>
                 )}
 
+                {/* Add Pre-Installation Photos — when they were never captured (this blocks approval).
+                    Anyone with the card open can add them; the upload endpoint accepts them at any status. */}
+                {detailedJobCard && (!detailedJobCard.preInstallationPhotos || detailedJobCard.preInstallationPhotos.length === 0)
+                  && !['CANCELLED', 'CANCELLED_BY_CUSTOMER', 'NO_SHOW', 'AWAITING_ACK'].includes(detailedJobCard.status || '') && (
+                  <Card className="col-span-1 lg:col-span-2 xl:col-span-3 border-2 border-dashed border-indigo-300 bg-indigo-50/40">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <Image className="h-5 w-5 text-indigo-600" />
+                          <CardTitle className="text-base text-indigo-900">Pre-Installation Photos</CardTitle>
+                          <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700 border-amber-300">Missing</Badge>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => setShowAddPreInstallModal(true)}
+                          className="bg-indigo-600 hover:bg-indigo-700"
+                          data-testid="button-add-pre-installation"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Pre-Installation Photos
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-indigo-700">
+                        Pre-installation photos (Front, Back, Left, Right) were never captured for this job. They are required before it can be approved — add them here.
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Post-Installation Photos Section - Show only if there are post-installation media */}
                 {detailedJobCard?.media && detailedJobCard.media.length > 0 && (
                   <Card className="col-span-1 lg:col-span-2 xl:col-span-3">
@@ -3875,6 +3911,18 @@ export default function JobCardsNew() {
       />
 
       {/* View Pre-Installation Photos Modal */}
+      {detailedJobCard && (
+        <PreInstallationModal
+          open={showAddPreInstallModal}
+          onOpenChange={setShowAddPreInstallModal}
+          jobCardId={detailedJobCard.id}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/job-cards', selectedJobCardId] });
+          }}
+        />
+      )}
+
       {detailedJobCard?.preInstallationPhotos && detailedJobCard.preInstallationPhotos.length > 0 && (
         <ViewPreInstallationModal
           open={showViewPreInstallationModal}
