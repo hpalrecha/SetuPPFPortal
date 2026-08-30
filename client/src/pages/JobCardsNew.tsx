@@ -373,6 +373,10 @@ export default function JobCardsNew() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignPartnerId, setAssignPartnerId] = useState('');
   const [assignInstallerId, setAssignInstallerId] = useState('');
+  // Delete (soft): removes the work order + this job card from every view, with a reason.
+  const [showDeleteWO, setShowDeleteWO] = useState(false);
+  const [deleteWOReason, setDeleteWOReason] = useState('');
+  const [isDeletingWO, setIsDeletingWO] = useState(false);
   // Rework: creates a new linked job card against the same work order
   const [showReworkModal, setShowReworkModal] = useState(false);
   const [reworkForm, setReworkForm] = useState({
@@ -1328,6 +1332,32 @@ export default function JobCardsNew() {
 
   // Admin-only: edit the safe (non-cascading) customer / work-order fields shown on the detail.
   const canEditDetails = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+
+  // Admin-only: soft-delete the work order (and this job card) with a reason. Nothing is
+  // erased from the DB — the rows are hidden from every view and can be restored later.
+  const handleDeleteWorkOrder = async () => {
+    const workOrderId = detailedJobCard?.workOrderId;
+    if (!workOrderId || !deleteWOReason.trim()) {
+      toast({ title: 'Please provide a deletion reason', variant: 'destructive' });
+      return;
+    }
+    setIsDeletingWO(true);
+    try {
+      await apiRequest('DELETE', `/api/work-orders/${workOrderId}`, { reason: deleteWOReason.trim() });
+      toast({ title: 'Work order deleted' });
+      setShowDeleteWO(false);
+      setDeleteWOReason('');
+      setSelectedJobCardId(null);
+      setSelectedJobCard(null);
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['jobCards'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/work-orders'] });
+    } catch (error: any) {
+      toast({ title: error.message || 'Failed to delete work order', variant: 'destructive' });
+    } finally {
+      setIsDeletingWO(false);
+    }
+  };
 
   // Showrooms under this job card's dealership — for the Edit Details showroom picker.
   const editDealershipId = detailedJobCard?.workOrder?.dealershipId;
@@ -2875,6 +2905,45 @@ export default function JobCardsNew() {
         </div>
       )}
 
+      {/* Delete Work Order Dialog (soft-delete, from the job card detail) */}
+      <Dialog open={showDeleteWO} onOpenChange={(open) => { setShowDeleteWO(open); if (!open) setDeleteWOReason(''); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-red-600" />
+              Delete Work Order
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This removes the work order and its job card from all views. The data is not permanently
+            erased and can be restored by an administrator. Please provide a reason.
+          </p>
+          <Textarea
+            placeholder="Enter deletion reason..."
+            value={deleteWOReason}
+            onChange={(e) => setDeleteWOReason(e.target.value)}
+            data-testid="textarea-delete-wo-reason"
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setShowDeleteWO(false); setDeleteWOReason(''); }}
+              disabled={isDeletingWO}
+            >
+              Close
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteWorkOrder}
+              disabled={isDeletingWO || !deleteWOReason.trim()}
+              data-testid="button-confirm-delete-wo"
+            >
+              {isDeletingWO ? 'Deleting...' : 'Confirm Deletion'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Job Card Detail Modal - Enhanced UI */}
       <Dialog open={!!selectedJobCardId} onOpenChange={() => {
         setSelectedJobCardId(null);
@@ -2931,6 +3000,18 @@ export default function JobCardsNew() {
                   >
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit Details
+                  </Button>
+                )}
+                {canEditDetails && detailedJobCard && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setDeleteWOReason(''); setShowDeleteWO(true); }}
+                    className="border-red-300 text-red-700 hover:bg-red-50"
+                    data-testid="button-delete-work-order"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
                   </Button>
                 )}
               </div>

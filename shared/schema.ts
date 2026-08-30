@@ -567,11 +567,19 @@ export const workOrders = pgTable("work_orders", {
   cancelledReason: text("cancelled_reason"), // Reason for cancellation
   cancelledAt: timestamp("cancelled_at"), // When it was cancelled
   cancelledBy: uuid("cancelled_by").references(() => users.id), // Who cancelled it
+  // Soft-delete (admin "delete" of a work order + its job card). The row is NOT removed
+  // from the DB — it is stamped here and excluded from every list/detail read path, so it
+  // vanishes from the UI while remaining recoverable (clear these three columns to restore).
+  // Distinct from cancel: cancel keeps the WO visible with a CANCELLED status.
+  deletedAt: timestamp("deleted_at"),
+  deletedReason: text("deleted_reason"),
+  deletedBy: uuid("deleted_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 }, (table) => {
   return {
     showroomIdx: index("work_orders_showroom_idx").on(table.showroomId),
+    deletedAtIdx: index("work_orders_deleted_at_idx").on(table.deletedAt),
     dealershipIdx: index("work_orders_dealership_idx").on(table.dealershipId),
     oemIdx: index("work_orders_oem_idx").on(table.oemId),
     statusIdx: index("work_orders_status_idx").on(table.status),
@@ -661,6 +669,12 @@ export const jobCards = pgTable("job_cards", {
   // Sq ft of PPF roll consumed so far — captured (mandatory) when a STARTED job is rescheduled, so the
   // material used before the pause is recorded. Latest value here; each capture is also logged to the trail.
   rollUsedSqft: decimal("roll_used_sqft", { precision: 10, scale: 2 }),
+  // Soft-delete — set when the parent work order is deleted (admin). Excluded from every job-card
+  // list/detail read path so the card disappears from the UI while staying recoverable. See the
+  // matching columns on work_orders above.
+  deletedAt: timestamp("deleted_at"),
+  deletedReason: text("deleted_reason"),
+  deletedBy: uuid("deleted_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });

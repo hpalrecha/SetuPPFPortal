@@ -836,6 +836,26 @@ Please acknowledge receipt and provide estimated completion time.
     return updatedWorkOrder;
   }
 
+  // Soft-delete a work order and its job card(s) with an audit reason. Unlike cancel
+  // (which keeps the WO visible with a CANCELLED status), delete removes the WO + job
+  // card from every list/detail view. Nothing is removed from the DB — the rows are
+  // stamped deleted_at/deleted_reason/deleted_by and can be restored by clearing them.
+  // Admin/super-admin only (enforced at the route).
+  async deleteWorkOrder(workOrderId: string, userId: string, reason: string): Promise<WorkOrder> {
+    const workOrder = await storage.getWorkOrder(workOrderId);
+    if (!workOrder) {
+      throw new Error('Work order not found');
+    }
+
+    const deleted = await storage.softDeleteWorkOrder(workOrderId, userId, reason);
+    if (!deleted) {
+      throw new Error('Failed to delete work order');
+    }
+
+    console.log(`🗑️ Work order ${workOrderId} soft-deleted by user ${userId}. Reason: ${reason}`);
+    return deleted;
+  }
+
   async allocatePartnerManually(workOrderId: string, partnerId: string, userId: string): Promise<WorkOrder> {
     const workOrder = await storage.getWorkOrder(workOrderId);
     if (!workOrder) {

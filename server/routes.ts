@@ -3537,8 +3537,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  app.post("/api/work-orders/:id/allocate", 
-    authenticate, 
+  // Soft-delete a work order + its job card(s) with a mandatory reason. The rows are NOT
+  // removed from the DB — they are stamped deleted and hidden from every UI list/detail.
+  // Super Admin / Admin only. (Deliberately NOT using blockAdminDelete: ADMIN is allowed here.)
+  app.delete("/api/work-orders/:id",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    auditLog('work_order', 'delete'),
+    async (req, res) => {
+      try {
+        const { reason } = req.body;
+        if (!reason || reason.trim().length === 0) {
+          return res.status(400).json({ error: "Deletion reason is required" });
+        }
+
+        const { workOrderService } = await import('./services/workOrderService');
+        const workOrder = await workOrderService.deleteWorkOrder(req.params.id, req.user!.id, reason.trim());
+        res.json({ message: "Work order deleted", workOrder });
+      } catch (error: any) {
+        console.error("Delete work order error:", error);
+        const status = error.message === 'Work order not found' ? 404 : 500;
+        res.status(status).json({ error: error.message || "Failed to delete work order" });
+      }
+    }
+  );
+
+  app.post("/api/work-orders/:id/allocate",
+    authenticate,
     requireRole(['SUPER_ADMIN']),
     auditLog('work_order', 'manual_allocate'),
     async (req, res) => {

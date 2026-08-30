@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Eye, Edit, ArrowLeft, Save, XCircle, UserPlus, Send, User, Wrench, Car, Download, Printer } from "lucide-react";
+import { Plus, Search, Eye, Edit, ArrowLeft, Save, XCircle, UserPlus, Send, User, Wrench, Car, Download, Printer, Trash2 } from "lucide-react";
 import type { WorkOrder } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -77,11 +77,14 @@ export default function WorkOrdersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showAllocateDialog, setShowAllocateDialog] = useState(false);
   const [selectedWorkOrder, setSelectedWorkOrder] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
   const [selectedPartnerId, setSelectedPartnerId] = useState("");
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isAllocating, setIsAllocating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [filters, setFilters] = useState({
@@ -579,6 +582,8 @@ export default function WorkOrdersPage() {
   // Check if user can cancel work orders (admins only)
   const canEditWorkOrder = user && ['SUPER_ADMIN', 'ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'SALES_PERSON'].includes(user.role);
   const canCancelWorkOrder = user && ['SUPER_ADMIN', 'OEM_ADMIN', 'DEALERSHIP_ADMIN'].includes(user.role);
+  // Delete (soft) is a super-admin/admin-only power — removes the WO + its job card from every view.
+  const canDeleteWorkOrder = user && ['SUPER_ADMIN', 'ADMIN'].includes(user.role);
   const canAllocatePartner = user?.role === 'SUPER_ADMIN';
 
   // Fetch partners for manual allocation (only for SUPER_ADMIN)
@@ -676,6 +681,52 @@ export default function WorkOrdersPage() {
     setShowCancelDialog(true);
   };
 
+  // Handle delete work order (soft-delete: moves WO + job card out of every view)
+  const handleDeleteWorkOrder = async () => {
+    if (!selectedWorkOrder || !deleteReason.trim()) {
+      toast({
+        title: "Error",
+        description: "Please provide a deletion reason",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await apiRequest('DELETE', `/api/work-orders/${selectedWorkOrder}`, { reason: deleteReason });
+
+      toast({
+        title: "Success",
+        description: "Work order deleted",
+      });
+
+      setShowDeleteDialog(false);
+      const wasViewing = selectedWorkOrder === workOrderId;
+      setSelectedWorkOrder(null);
+      setDeleteReason("");
+      queryClient.invalidateQueries({ queryKey: ['/api/work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
+      // If we deleted the work order we were viewing, return to the list.
+      if (wasViewing) setLocation('/work-orders');
+    } catch (error: any) {
+      console.error("Delete work order error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete work order",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Open delete dialog
+  const openDeleteDialog = (workOrderId: string) => {
+    setSelectedWorkOrder(workOrderId);
+    setShowDeleteDialog(true);
+  };
+
   // Open allocate dialog
   const openAllocateDialog = (workOrderId: string) => {
     setSelectedWorkOrder(workOrderId);
@@ -744,6 +795,47 @@ export default function WorkOrdersPage() {
               data-testid="button-confirm-cancel"
             >
               {isCancelling ? "Cancelling..." : "Confirm Cancellation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog (soft-delete) */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Work Order</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for deleting this work order. The work order and its job card
+              will be removed from all views. This does not permanently erase the data — it can be
+              restored by an administrator if needed.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder="Enter deletion reason..."
+            value={deleteReason}
+            onChange={(e) => setDeleteReason(e.target.value)}
+            data-testid="textarea-delete-reason"
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setDeleteReason("");
+              }}
+              disabled={isDeleting}
+              data-testid="button-delete-dialog-close"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={handleDeleteWorkOrder}
+              disabled={isDeleting || !deleteReason.trim()}
+              variant="destructive"
+              data-testid="button-confirm-delete"
+            >
+              {isDeleting ? "Deleting..." : "Confirm Deletion"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1138,6 +1230,17 @@ export default function WorkOrdersPage() {
                   Cancel Work Order
                 </Button>
               )}
+              {canDeleteWorkOrder && (
+                <Button
+                  onClick={() => openDeleteDialog(workOrder.id)}
+                  variant="destructive"
+                  className="w-full sm:w-auto"
+                  data-testid="button-delete-from-detail"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Work Order
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -1517,6 +1620,18 @@ export default function WorkOrdersPage() {
                             title="Cancel"
                           >
                             <XCircle className="h-3 w-3" />
+                          </Button>
+                        )}
+                        {canDeleteWorkOrder && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => openDeleteDialog(order.id)}
+                            data-testid={`button-delete-${order.id}`}
+                            className="text-xs px-2 bg-red-700 hover:bg-red-800"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-3 w-3" />
                           </Button>
                         )}
                       </div>
