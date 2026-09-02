@@ -13,6 +13,13 @@ const AWS_REGION = process.env.AWS_REGION || "ap-south-1";
 
 export const s3Client = new S3Client({
   region: AWS_REGION,
+  // The SDK's default integrity protections (v3.729+) fold an
+  // x-amz-checksum-crc32 into presigned PUT URLs. getObjectEntityUploadURL()
+  // builds its PutObjectCommand with no Body, so that checksum is the CRC32 of
+  // an empty payload ("AAAAAA==") and S3 rejects the real image bytes the
+  // browser uploads to that URL afterwards. "WHEN_REQUIRED" omits the checksum
+  // unless the API actually demands one, which is what presigned PUT needs.
+  requestChecksumCalculation: "WHEN_REQUIRED",
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
