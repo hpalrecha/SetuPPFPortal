@@ -85,6 +85,12 @@ cd /home/ubuntu/p91/setuppfportal/repo
 git fetch origin && git status          # expect a clean tree on main
 git pull --ff-only origin main
 
+# STOP HERE until this prints the commit you actually intend to ship.
+# `git pull` saying "Already up to date." proves nothing: it says exactly that
+# when the fix you mean to deploy was never pushed, and the build then succeeds
+# and deploys the OLD code. This happened on 2026-09-07 and cost a full build.
+git log --oneline -1
+
 TAG=$(date +%Y%m%d-%H%M)
 docker build -t setuppfportal:$TAG .    # NOT `docker compose build`
 
@@ -110,18 +116,69 @@ container, the shared network, or any volume.
 
 ## 4. Verify before walking away
 
+Run these **one at a time** — pasted as a block, the outputs run together and are easy
+to misread.
+
+Two of them are the discriminators that tell you whether the new code is actually
+running. The others pass on the old code too, so they prove nothing on their own.
+
 ```bash
-docker logs setuppfportal 2>&1 | grep '\[auth\] JWT'   # fingerprint MUST match step 1
-# VAS has no health endpoint; the SPA index is the liveness check.
-curl -s -o /dev/null -w '%{http_code}\n' localhost:8090/                  # 200
+# DISCRIMINATOR 1 — blank means the new build is NOT running.
+docker logs setuppfportal 2>&1 | grep '\[auth\] JWT'
+# expect: [auth] JWT signing key fingerprint=<8 hex> source=JWT_SECRET env var expiresIn=7d
+# Baseline as of 2026-09-07: b733bffc. A DIFFERENT value means JWT_SECRET moved and every
+# user's token was just invalidated -- check env.list before doing anything else.
+# "source=built-in development fallback" means NODE_ENV is not production: stop.
+
+# DISCRIMINATOR 2 — the SPA catch-all answers unknown paths with index.html at 200,
+# so 200 here means the route is MISSING, i.e. old code.
+curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:8090/api/auth/refresh   # expect 401
+
+# Dependency pinning actually reached the image (client-ses is the sharper test --
+# it was pinned DOWN, so a stale layer would report something else).
+docker exec setuppfportal node -p "require('/app/node_modules/@aws-sdk/client-s3/package.json').version"   # 3.1088.0
+docker exec setuppfportal node -p "require('/app/node_modules/@aws-sdk/client-ses/package.json').version"  # 3.1079.0
+
+# Liveness + auth plumbing. These pass on old code too.
+curl -s -o /dev/null -w '%{http_code}\n' localhost:8090/                  # 200 (no health endpoint; SPA index)
 curl -s -X POST localhost:8090/api/objects/upload-file                    # {"error":"Authentication required"}
 curl -s -X POST localhost:8090/api/objects/upload-file \
   -H 'Authorization: Bearer bogus'                                        # {"error":"Invalid token"}
-curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:8090/api/auth/refresh  # 401 without a token
 ```
 
-Then, in a browser as a real installer — this is the step that has never actually been
-observed end to end, and the only one that proves the pipeline works:
+### Then prove the upload pipeline itself
+
+Nothing above touches S3. From DevTools on a logged-in `pulsevas.p91india.com` tab, this
+reuses the operator's own session, so no production credential has to be handed around:
+
+```js
+(async () => {
+  const t = localStorage.getItem('auth_token');
+  if (!t) return console.error('NOT LOGGED IN');
+  const png = await (await fetch('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==')).blob();
+  const fd = new FormData();
+  fd.append('file', new File([png], 'test.png', { type: 'image/png' }));
+  const a = await fetch('/api/objects/upload-file', { method: 'POST', headers: { Authorization: `Bearer ${t}` }, body: fd });
+  console.log('A) server-proxied :', a.status, await a.text());
+  const p = await fetch('/api/objects/upload', { method: 'POST', headers: { Authorization: `Bearer ${t}` } });
+  console.log('B) presign        :', p.status);
+  if (p.ok) {
+    const { uploadURL } = await p.json();
+    const put = await fetch(uploadURL, { method: 'PUT', body: png, headers: { 'Content-Type': 'image/png' } });
+    console.log('B) direct S3 PUT  :', put.status, put.ok ? 'OK' : await put.text());
+  }
+})();
+```
+
+Expect `200` / `200` / `200 OK`. **B is the one that matters** — that direct S3 PUT is the
+request that 403'd for ~7 weeks. Confirmed green on 2026-09-07. Then open the returned
+`/objects/uploads/<uuid>.png` to check retrieval as well.
+
+It writes two tiny orphan objects under `setuppf-uploads/uploads/`, attached to no job card.
+
+Finally, as a real installer in the UI — the snippet exercises the network layer only and
+skips the client's image compression and HEIC conversion, which is where a phone photo
+actually goes:
 
 1. Log in. Confirm no immediate bounce back to `/login`.
 2. Open a job card and **upload a pre-installation photo and a batch-number photo.**
