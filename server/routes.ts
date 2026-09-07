@@ -313,6 +313,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sliding session. Tokens are stateless and last 7 days with no way to renew
+  // them, so an installer part-way through a job could have their session die
+  // under them — surfacing as a cryptic 401 on whatever they clicked next,
+  // usually a photo upload. `authenticate` means this only ever extends a
+  // session that is still valid: an already-expired token gets 401 here just
+  // like anywhere else, so this widens no authentication hole. Logout is
+  // unchanged (it is client-side only; these tokens have never been revocable).
+  app.post("/api/auth/refresh", authenticate, async (req, res) => {
+    try {
+      const refreshed = await authService.refreshTokenForUserId(req.user!.id);
+      if (!refreshed) {
+        return res.status(401).json({ error: 'User not found or inactive' });
+      }
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      res.json(refreshed);
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      res.status(500).json({ error: 'Failed to refresh session' });
+    }
+  });
+
   // OTP Verification Routes
   app.post("/api/auth/send-email-otp", authenticate, async (req, res) => {
     try {

@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { createHash } from 'crypto';
 import { storage } from './storage';
 import type { User } from '@shared/schema';
 
@@ -26,6 +27,19 @@ const JWT_SECRET = (() => {
   }
 })();
 const JWT_EXPIRES_IN = '7d';
+
+// Fingerprint of the signing key — never the key itself. If this value changes
+// between two container starts, every existing user's token was silently
+// invalidated and they will all be bounced to the login page; that is the one
+// failure mode indistinguishable from ordinary expiry at the client. Grep the
+// container logs for "[auth] JWT" after a redeploy to confirm it did NOT move.
+// 32 bits of a SHA-256 digest reveals nothing about the secret.
+const JWT_SECRET_FINGERPRINT = createHash('sha256').update(JWT_SECRET).digest('hex').slice(0, 8);
+console.log(
+  `[auth] JWT signing key fingerprint=${JWT_SECRET_FINGERPRINT} ` +
+  `source=${process.env.JWT_SECRET ? 'JWT_SECRET env var' : 'built-in development fallback'} ` +
+  `expiresIn=${JWT_EXPIRES_IN}`
+);
 
 export interface AuthUser {
   id: string;
@@ -237,6 +251,24 @@ export class AuthService {
     if (!user) user = await storage.getUserByUsername(id);
     if (!user || !user.isActive) return null;
 
+    return this.mintTokenForUser(user);
+  }
+
+  // Re-issue a token for a still-valid session (see POST /api/auth/refresh).
+  // Reads the user fresh from the database, so a deactivated account or a
+  // changed role/partner assignment takes effect at the next refresh rather
+  // than lingering in a 7-day token. Returns null if the user is gone or
+  // inactive, which the caller turns into a 401.
+  async refreshTokenForUserId(userId: string): Promise<LoginResponse | null> {
+    const user = await storage.getUser(userId);
+    if (!user || !user.isActive) return null;
+    return this.mintTokenForUser(user);
+  }
+
+  // Shared claim-building + signing for every password-less token path
+  // (Pulse SSO and refresh). Extracted verbatim from mintTokenForIdentifier so
+  // both paths cannot drift apart in what they put in the JWT.
+  private async mintTokenForUser(user: User): Promise<LoginResponse> {
     // Resolve OEM scope the same way login() does (partner roles are multi-OEM).
     let allowedOemIds: string[] | undefined;
     if (user.role === 'PARTNER_STAFF' || user.role === 'DETAILING_PARTNER') {

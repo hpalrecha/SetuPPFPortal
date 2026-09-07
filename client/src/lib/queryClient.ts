@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { isOwnApiRequest } from "./session";
 
 const TOKEN_KEY = 'auth_token';
 
@@ -65,6 +66,14 @@ export async function apiRequest(
     body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
     credentials: "include",
   });
+
+  // installSessionGuards() has already started the redirect to /login by now
+  // (it wraps window.fetch); this only replaces the raw `401: {"error":"Invalid
+  // token"}` that callers would otherwise toast with something a person can act
+  // on, for the moment before the navigation lands.
+  if (res.status === 401 && isOwnApiRequest(url)) {
+    throw new Error('Your session has expired. Please sign in again.');
+  }
 
   await throwIfResNotOk(res);
   return res;

@@ -1,3 +1,5 @@
+import { handleSessionExpired, isOwnApiRequest } from './session';
+
 const TOKEN_KEY = 'auth_token';
 
 function getAuthToken(): string | null {
@@ -38,11 +40,6 @@ function setAuthHeader(headers: Record<string, string> = {}): Record<string, str
   return headers;
 }
 
-function clearAuth(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem('auth_user');
-}
-
 export async function apiRequest(
   method: string,
   url: string,
@@ -64,11 +61,13 @@ export async function apiRequest(
 
   const response = await fetch(url, config);
 
-  // Handle authentication errors
-  if (response.status === 401) {
-    clearAuth();
-    window.location.href = '/login';
-    throw new Error('Authentication required');
+  // Handle authentication errors. isOwnApiRequest() excludes /api/auth/login,
+  // whose 401 is "Invalid credentials" — that has to fall through to the
+  // generic error branch below so the login form can show it, instead of
+  // navigating to /login and destroying the toast that says what went wrong.
+  if (response.status === 401 && isOwnApiRequest(url)) {
+    handleSessionExpired();
+    throw new Error('Your session has expired. Please sign in again.');
   }
 
   if (!response.ok) {
