@@ -20,6 +20,7 @@ import { format } from 'date-fns';
 import { PreInstallationModal } from '@/components/modals/PreInstallationModal';
 import { ViewPreInstallationModal } from '@/components/modals/ViewPreInstallationModal';
 import { PostInstallationPhotoUpload } from '@/components/job-cards/PostInstallationPhotoUpload';
+import { WarrantyCard } from '@/components/job-cards/warranty-card';
 
 interface JobCard {
   id: string;
@@ -755,6 +756,21 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
                 </Button>
               )}
             </div>
+
+            {/* The e-warranty card P91Elite issued, once this job has one. */}
+            {jobCard?.eWarrantyApplied && jobCard?.isP91Warranty && jobCardId && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-green-600" />
+                    E-Warranty Card
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <WarrantyCard jobCardId={jobCardId} />
+                </CardContent>
+              </Card>
+            )}
 
             {/* Pre-installation FAILED notice — the job must be rescheduled. */}
             {preInstallFailed && jobCard?.status === 'REACHED' && (

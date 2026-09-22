@@ -622,6 +622,12 @@ export const jobCards = pgTable("job_cards", {
   // E-Warranty application tracking
   eWarrantyApplied: boolean("e_warranty_applied").default(false),
   eWarrantyAppliedAt: timestamp("e_warranty_applied_at"),
+  // P91 flow only: snapshot of the warranty card P91Elite issued, captured at
+  // registration from the payload we sent plus the code it returned. Lets the job
+  // card render the card without calling Elite, and carries the lot numbers that
+  // Elite's public verify endpoint deliberately withholds. Null for STEK cards and
+  // for P91 cards registered before this field existed (those render live by code).
+  warrantyCardJson: jsonb("warranty_card_json"),
   pricingSnapshotJson: jsonb("pricing_snapshot_json"),
   commissionSnapshotJson: jsonb("commission_snapshot_json"),
   billingValue: decimal("billing_value", { precision: 10, scale: 2 }), // Auto-populated from Work Order total

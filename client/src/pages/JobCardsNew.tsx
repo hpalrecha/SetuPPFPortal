@@ -74,6 +74,7 @@ import { ViewPreInstallationModal } from "@/components/modals/ViewPreInstallatio
 import { PreInstallationModal } from "@/components/modals/PreInstallationModal";
 import logoGreen from "@assets/P91 PULSE logo-01_1761139835394.png";
 import { displayContact } from "@shared/placeholderContact";
+import { WarrantyCard } from "@/components/job-cards/warranty-card";
 
 // Enhanced Job Card types to match API structure
 interface JobCard {
@@ -3826,46 +3827,56 @@ export default function JobCardsNew() {
                           )}
                         </div>
 
-                        {/* Warranty Application Status */}
+                        {/* Warranty Application Status.
+                            The e-warranty step is complete under either billing path: the P91
+                            cross-app flow stamps eWarrantyAppliedAt and works regardless of
+                            billing type (see the request-e-warranty route), while the legacy
+                            STEK flow stamps warrantyAppliedAt. Keying the display off
+                            partnerBilledDirectly mis-read every P91 job as "not recorded yet". */}
+                        {(() => {
+                          const eWarrantyDone = !!(detailedJobCard.eWarrantyApplied || detailedJobCard.warrantyAppliedAt);
+                          const warrantyCode = (detailedJobCard as any).warrantyCardJson?.warrantyCode
+                            || detailedJobCard.warrantyReferenceNumber;
+                          const isP91 = !!(detailedJobCard as any).isP91Warranty || !!(detailedJobCard as any).warrantyCardJson;
+                          return (
                         <div className="flex items-start gap-3 p-3 bg-white rounded-lg border">
-                          <Shield className={`h-5 w-5 mt-0.5 ${(detailedJobCard.partnerBilledDirectly ? detailedJobCard.eWarrantyApplied : detailedJobCard.warrantyAppliedAt) ? 'text-blue-600' : 'text-gray-400'}`} />
-                          <div className="flex-1">
+                          <Shield className={`h-5 w-5 mt-0.5 ${eWarrantyDone ? 'text-blue-600' : 'text-gray-400'}`} />
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="font-medium text-sm">E-Warranty</span>
-                              {(detailedJobCard.partnerBilledDirectly ? detailedJobCard.eWarrantyApplied : detailedJobCard.warrantyAppliedAt) && (
-                                <CheckCircle className="h-4 w-4 text-blue-600" />
-                              )}
+                              {eWarrantyDone && <CheckCircle className="h-4 w-4 text-blue-600" />}
                             </div>
-                            {detailedJobCard.partnerBilledDirectly ? (
-                              detailedJobCard.eWarrantyApplied ? (
-                                <>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Requested on {formatDateTime(detailedJobCard.eWarrantyAppliedAt)}
-                                  </p>
-                                  <p className="text-xs text-amber-700 mt-1">
-                                    {(detailedJobCard as any).isP91Warranty ? 'Registered with P91 Elite' : 'Notification sent to STEK India'}
-                                  </p>
-                                </>
-                              ) : (
+                            {eWarrantyDone ? (
+                              <>
                                 <p className="text-xs text-muted-foreground mt-1">
-                                  E-warranty not requested yet
+                                  {detailedJobCard.eWarrantyApplied
+                                    ? `Requested on ${formatDateTime(detailedJobCard.eWarrantyAppliedAt)}`
+                                    : `Applied on ${formatDateTime(detailedJobCard.warrantyAppliedAt)}`}
                                 </p>
-                              )
-                            ) : (
-                              detailedJobCard.warrantyAppliedAt ? (
-                                <>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Applied on {formatDateTime(detailedJobCard.warrantyAppliedAt)}
-                                  </p>
+                                <p className="text-xs text-amber-700 mt-1">
+                                  {isP91 ? 'Registered with P91 Elite' : 'Notification sent to STEK India'}
+                                </p>
+                                {warrantyCode && !isP91 && (
                                   <p className="text-xs font-mono mt-1 text-blue-700">
-                                    Ref: {detailedJobCard.warrantyReferenceNumber}
+                                    Ref: {warrantyCode}
                                   </p>
-                                </>
-                              ) : (
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Warranty reference not recorded yet
-                                </p>
-                              )
+                                )}
+                                {/* Only P91 warranties have a card in Elite to show. */}
+                                {isP91 && warrantyCode && (
+                                  <div className="mt-3">
+                                    <WarrantyCard jobCardId={detailedJobCard.id} />
+                                  </div>
+                                )}
+                                {isP91 && !warrantyCode && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Registered before warranty codes were recorded — no card available.
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                E-warranty not requested yet
+                              </p>
                             )}
                           </div>
                           {detailedJobCard.partnerBilledDirectly ? (
@@ -3909,6 +3920,8 @@ export default function JobCardsNew() {
                             )
                           )}
                         </div>
+                          );
+                        })()}
                       </div>
 
                       {detailedJobCard.status !== 'CLOSED' && (
