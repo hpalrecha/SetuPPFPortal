@@ -211,10 +211,11 @@ export interface IStorage {
     limit?: number;
     offset?: number;
   }): Promise<WorkOrder[]>;
-  getWorkOrder(id: string): Promise<WorkOrder | undefined>;
+  getWorkOrder(id: string, opts?: { includeDeleted?: boolean }): Promise<WorkOrder | undefined>;
   getWorkOrdersWithoutCommissions(): Promise<any[]>;
   createWorkOrder(workOrder: InsertWorkOrder): Promise<WorkOrder>;
   updateWorkOrder(id: string, updates: Partial<InsertWorkOrder>): Promise<WorkOrder | undefined>;
+  softDeleteWorkOrder(id: string, userId: string, reason: string): Promise<WorkOrder | undefined>;
   submitWorkOrder(id: string, userId: string): Promise<{ success: boolean; workOrder?: WorkOrder; jobCard?: JobCard; error?: string }>;
   cancelWorkOrder(id: string, userId: string, reason: string): Promise<{ success: boolean; error?: string }>;
   allocatePartnerManually(workOrderId: string, partnerId: string, userId: string): Promise<{ success: boolean; workOrder?: WorkOrder; jobCard?: JobCard; error?: string }>;
@@ -231,7 +232,7 @@ export interface IStorage {
     limit?: number;
     offset?: number;
   }): Promise<JobCard[]>;
-  getJobCard(id: string): Promise<JobCard | undefined>;
+  getJobCard(id: string, opts?: { includeDeleted?: boolean }): Promise<JobCard | undefined>;
   createJobCard(jobCard: InsertJobCard): Promise<JobCard>;
   updateJobCard(id: string, updates: Partial<InsertJobCard>): Promise<JobCard | undefined>;
 
@@ -1151,7 +1152,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(workOrders)
-      .where(eq(workOrders.customerPhone, phone))
+      .where(and(eq(workOrders.customerPhone, phone), isNull(workOrders.deletedAt)))
       .orderBy(desc(workOrders.createdAt));
   }
 
@@ -1161,6 +1162,7 @@ export class DatabaseStorage implements IStorage {
     const normalized = regNo.trim().toUpperCase().replace(/\s+/g, '');
     if (!normalized) return [];
     const conds = [sql`UPPER(REPLACE(COALESCE(${workOrders.regNo}, ''), ' ', '')) = ${normalized}`];
+    conds.push(isNull(workOrders.deletedAt));
     if (oemId) conds.push(eq(workOrders.oemId, oemId));
     return await db
       .select()
@@ -1508,6 +1510,7 @@ export class DatabaseStorage implements IStorage {
     let query = db.select().from(workOrders);
 
     const conditions = [];
+    conditions.push(isNull(workOrders.deletedAt)); // never surface soft-deleted work orders
     if (filters?.oemId) conditions.push(eq(workOrders.oemId, filters.oemId));
     if (filters?.dealershipId) conditions.push(eq(workOrders.dealershipId, filters.dealershipId));
     if (filters?.showroomId) conditions.push(eq(workOrders.showroomId, filters.showroomId));
@@ -1596,8 +1599,10 @@ export class DatabaseStorage implements IStorage {
     return enrichedWorkOrders;
   }
 
-  async getWorkOrder(id: string): Promise<any | undefined> {
-    const [workOrder] = await db.select().from(workOrders).where(eq(workOrders.id, id));
+  async getWorkOrder(id: string, opts?: { includeDeleted?: boolean }): Promise<any | undefined> {
+    const [workOrder] = await db.select().from(workOrders).where(
+      opts?.includeDeleted ? eq(workOrders.id, id) : and(eq(workOrders.id, id), isNull(workOrders.deletedAt))
+    );
     if (!workOrder) return undefined;
 
     // Enrich with related data like the list view does
@@ -1723,7 +1728,8 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           isNull(commissions.id), // No commission exists
-          ne(workOrders.salesPersonId, null) // Has sales person assigned
+          ne(workOrders.salesPersonId, null), // Has sales person assigned
+          isNull(workOrders.deletedAt) // skip soft-deleted work orders
         )
       );
     
@@ -1808,6 +1814,24 @@ export class DatabaseStorage implements IStorage {
     return workOrder || undefined;
   }
 
+  // Soft-delete a work order and cascade the same stamp to all of its (still-live) job
+  // cards, in a single pair of writes. The rows stay in the DB but are excluded from every
+  // list/detail read path (see the isNull(deletedAt) filters above), so they disappear from
+  // the UI. Reversible: clearing deleted_at/deleted_reason/deleted_by restores the rows.
+  async softDeleteWorkOrder(id: string, userId: string, reason: string): Promise<WorkOrder | undefined> {
+    const deletedAt = new Date();
+    await db
+      .update(jobCards)
+      .set({ deletedAt, deletedReason: reason, deletedBy: userId, updatedAt: deletedAt })
+      .where(and(eq(jobCards.workOrderId, id), isNull(jobCards.deletedAt)));
+    const [workOrder] = await db
+      .update(workOrders)
+      .set({ deletedAt, deletedReason: reason, deletedBy: userId, updatedAt: deletedAt })
+      .where(eq(workOrders.id, id))
+      .returning();
+    return workOrder || undefined;
+  }
+
   // Job cards currently in any of the given statuses. Used by the pending-reminder
   // sweep to fetch every not-yet-completed card in one query.
   async getJobCardsByStatuses(statuses: string[]): Promise<JobCard[]> {
@@ -1815,7 +1839,7 @@ export class DatabaseStorage implements IStorage {
     const rows = await db
       .select()
       .from(jobCards)
-      .where(inArray(jobCards.status, statuses as any))
+      .where(and(inArray(jobCards.status, statuses as any), isNull(jobCards.deletedAt)))
       .orderBy(desc(jobCards.createdAt));
     return rows as unknown as JobCard[];
   }
@@ -1839,7 +1863,7 @@ export class DatabaseStorage implements IStorage {
       let query = filters.showroomIds?.length
         ? db.select(jobCards).from(jobCards).innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
         : db.select().from(jobCards);
-      const conditions: any[] = [inArray(jobCards.partnerId, filters.partnerIds)];
+      const conditions: any[] = [inArray(jobCards.partnerId, filters.partnerIds), isNull(jobCards.deletedAt)];
       if (filters.showroomIds?.length) conditions.push(inArray(workOrders.showroomId, filters.showroomIds));
       if (filters.assignedInstallerId) conditions.push(eq(jobCards.assignedInstallerId, filters.assignedInstallerId));
       if (filters.status) conditions.push(eq(jobCards.status, filters.status as any));
@@ -1857,6 +1881,7 @@ export class DatabaseStorage implements IStorage {
       const conditions: any[] = [
         eq(jobCards.partnerId, filters.partnerId),
         inArray(workOrders.showroomId, filters.showroomIds),
+        isNull(jobCards.deletedAt),
       ];
       if (filters.status) conditions.push(eq(jobCards.status, filters.status as any));
       if (filters.workOrderId) conditions.push(eq(jobCards.workOrderId, filters.workOrderId));
@@ -1880,13 +1905,14 @@ export class DatabaseStorage implements IStorage {
     // Need to join with workOrders for showroomId, dealershipId, and oemId filtering
     if (filters?.showroomId || filters?.dealershipId || filters?.oemId) {
       let query = db.select(jobCards).from(jobCards).innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id));
-      
+
       // For dealership filtering, we need to join through showrooms to get dealershipId
       if (filters?.dealershipId) {
         query = query.innerJoin(showrooms, eq(workOrders.showroomId, showrooms.id));
       }
-      
+
       const conditions = [];
+      conditions.push(isNull(jobCards.deletedAt)); // hide soft-deleted job cards
       if (filters?.partnerId) conditions.push(eq(jobCards.partnerId, filters.partnerId));
       if (filters?.workOrderId) conditions.push(eq(jobCards.workOrderId, filters.workOrderId));
       if (filters?.status) conditions.push(eq(jobCards.status, filters.status as any));
@@ -1912,8 +1938,9 @@ export class DatabaseStorage implements IStorage {
     } else {
       // Simple query without join for better performance
       let query = db.select().from(jobCards);
-      
+
       const conditions = [];
+      conditions.push(isNull(jobCards.deletedAt)); // hide soft-deleted job cards
       if (filters?.partnerId) conditions.push(eq(jobCards.partnerId, filters.partnerId));
       if (filters?.workOrderId) conditions.push(eq(jobCards.workOrderId, filters.workOrderId));
       if (filters?.status) conditions.push(eq(jobCards.status, filters.status as any));
@@ -1981,8 +2008,8 @@ export class DatabaseStorage implements IStorage {
     // Also include directly assigned job cards
     allocationConditions.push(eq(jobCards.partnerId, partnerId));
 
-    const conditions = [or(...allocationConditions)];
-    
+    const conditions = [or(...allocationConditions), isNull(jobCards.deletedAt)];
+
     if (filters?.workOrderId) conditions.push(eq(jobCards.workOrderId, filters.workOrderId));
     if (filters?.status) conditions.push(eq(jobCards.status, filters.status as any));
     if (filters?.assignedInstallerId) conditions.push(eq(jobCards.assignedInstallerId, filters.assignedInstallerId));
@@ -2000,8 +2027,10 @@ export class DatabaseStorage implements IStorage {
     return await query;
   }
 
-  async getJobCard(id: string): Promise<JobCard | undefined> {
-    const [jobCard] = await db.select().from(jobCards).where(eq(jobCards.id, id));
+  async getJobCard(id: string, opts?: { includeDeleted?: boolean }): Promise<JobCard | undefined> {
+    const [jobCard] = await db.select().from(jobCards).where(
+      opts?.includeDeleted ? eq(jobCards.id, id) : and(eq(jobCards.id, id), isNull(jobCards.deletedAt))
+    );
     return jobCard || undefined;
   }
 
@@ -4783,7 +4812,10 @@ export class DatabaseStorage implements IStorage {
     thisMonthEarnings?: number;
   }> {
     // When oemId is omitted (SUPER_ADMIN / ADMIN / MANAGER), aggregate across ALL OEMs.
+    // Every query in this method filters/joins work_orders, so excluding soft-deleted
+    // work orders here keeps deleted jobs out of all dashboard counts in one place.
     const conditions = [];
+    conditions.push(isNull(workOrders.deletedAt));
     if (oemId) conditions.push(eq(workOrders.oemId, oemId));
     if (showroomId) {
       conditions.push(eq(workOrders.showroomId, showroomId));

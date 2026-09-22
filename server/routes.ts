@@ -180,6 +180,45 @@ function isWarrantyDone(jobCard: any): boolean {
   return !!(jobCard.eWarrantyApplied || jobCard.warrantyAppliedAt);
 }
 
+/**
+ * Can this user see this job card? Admins see everything, MANAGERs are scoped to their
+ * allowed states, partner users to their own partnerId, and org roles to the work order
+ * they own. Extracted from the job-card detail route so every route that exposes job-card
+ * data enforces one definition rather than its own copy.
+ */
+async function canAccessJobCard(user: any, jobCard: any): Promise<boolean> {
+  if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') return true;
+
+  if (user.role === 'MANAGER') {
+    const allowedStates = (user.allowedStates as string[]) || [];
+    const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+    if (!workOrder) return false;
+
+    let dealershipId = workOrder.dealershipId;
+    if (!dealershipId && workOrder.showroomId) {
+      const showroom = await storage.getShowroom(workOrder.showroomId);
+      dealershipId = showroom?.dealershipId ?? null;
+    }
+    if (!dealershipId) return false;
+
+    const dealership = await storage.getDealership(dealershipId);
+    return !!(dealership?.state && allowedStates.includes(dealership.state));
+  }
+
+  if (user.role === 'PARTNER_ADMIN' || user.role === 'PARTNER_STAFF' || user.role === 'DETAILING_PARTNER') {
+    return jobCard.partnerId === user.partnerId;
+  }
+
+  const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+  if (!workOrder) return false;
+  if (user.role === 'OEM_ADMIN') return workOrder.oemId === user.oemId;
+  if (user.role === 'DEALERSHIP_ADMIN') return workOrder.dealershipId === user.dealershipId;
+  if (user.role === 'SHOWROOM_MANAGER' || user.role === 'SALES_PERSON') {
+    return workOrder.showroomId === user.showroomId;
+  }
+  return false;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication Routes
   app.post("/api/auth/login", async (req, res) => {
@@ -3558,8 +3597,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  app.post("/api/work-orders/:id/allocate", 
-    authenticate, 
+  // Soft-delete a work order + its job card(s) with a mandatory reason. The rows are NOT
+  // removed from the DB — they are stamped deleted and hidden from every UI list/detail.
+  // Super Admin / Admin only. (Deliberately NOT using blockAdminDelete: ADMIN is allowed here.)
+  app.delete("/api/work-orders/:id",
+    authenticate,
+    requireRole(['SUPER_ADMIN', 'ADMIN']),
+    auditLog('work_order', 'delete'),
+    async (req, res) => {
+      try {
+        const { reason } = req.body;
+        if (!reason || reason.trim().length === 0) {
+          return res.status(400).json({ error: "Deletion reason is required" });
+        }
+
+        const { workOrderService } = await import('./services/workOrderService');
+        const workOrder = await workOrderService.deleteWorkOrder(req.params.id, req.user!.id, reason.trim());
+        res.json({ message: "Work order deleted", workOrder });
+      } catch (error: any) {
+        console.error("Delete work order error:", error);
+        const status = error.message === 'Work order not found' ? 404 : 500;
+        res.status(status).json({ error: error.message || "Failed to delete work order" });
+      }
+    }
+  );
+
+  app.post("/api/work-orders/:id/allocate",
+    authenticate,
     requireRole(['SUPER_ADMIN']),
     auditLog('work_order', 'manual_allocate'),
     async (req, res) => {
@@ -4341,51 +4405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Check access permissions first
         const selectedOemId = req.headers['x-oem-id'] as string;
-        let hasAccess = false;
-        
-        // SUPER_ADMIN and ADMIN can access any job card
-        if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN') {
-          hasAccess = true;
-        } else if (req.user!.role === 'MANAGER') {
-          // MANAGER can access job cards only from allowed states
-          const allowedStates = (req.user!.allowedStates as string[]) || [];
-          const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
-          
-          if (workOrder) {
-            let dealershipId = workOrder.dealershipId;
-            
-            // If no direct dealership, get it from showroom
-            if (!dealershipId && workOrder.showroomId) {
-              const showroom = await storage.getShowroom(workOrder.showroomId);
-              if (showroom) {
-                dealershipId = showroom.dealershipId;
-              }
-            }
-            
-            // Check if dealership is in allowed states
-            if (dealershipId) {
-              const dealership = await storage.getDealership(dealershipId);
-              if (dealership && dealership.state && allowedStates.includes(dealership.state)) {
-                hasAccess = true;
-              }
-            }
-          }
-        } else if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
-          // Partner users can access job cards assigned to them
-          hasAccess = jobCard.partnerId === req.user!.partnerId;
-        } else {
-          // For other roles, get work order to check access
-          const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
-          if (workOrder) {
-            if (req.user!.role === 'OEM_ADMIN') {
-              hasAccess = workOrder.oemId === req.user!.oemId;
-            } else if (req.user!.role === 'DEALERSHIP_ADMIN') {
-              hasAccess = workOrder.dealershipId === req.user!.dealershipId;
-            } else if (req.user!.role === 'SHOWROOM_MANAGER' || req.user!.role === 'SALES_PERSON') {
-              hasAccess = workOrder.showroomId === req.user!.showroomId;
-            }
-          }
-        }
+        const hasAccess = await canAccessJobCard(req.user!, jobCard);
 
         if (!hasAccess) {
           console.log(`Access denied: job card ${jobCardId}, user.role=${req.user!.role}, user.partnerId=${req.user!.partnerId}`);
@@ -6438,6 +6458,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
 
+          // Snapshot the issued card from what we just sent plus what Elite returned.
+          // Everything here is already in scope — nothing is recomputed or re-fetched.
+          // Elite's public verify endpoint withholds lot numbers, so this snapshot is
+          // the only place the job card can show them.
+          const warrantyCardSnapshot = {
+            warrantyCode: result.warranty?.code ?? null,
+            status: result.warranty?.status ?? "approved",
+            name: [customerFirstName, customerLastName].filter(Boolean).join(" "),
+            installer: installer?.name || null,
+            installerMobile: installer?.phone || null,
+            storeName: showroom?.name || null,
+            storeLocation: showroomLocation || null,
+            vehicleMake: oem?.name || null,
+            vehicleModel: vehicleModel?.modelName || null,
+            vehicleVIN: regOrVin || null,
+            vehicleYear: null,
+            productType: "Full Car PPF",
+            lotNumbers,
+            installationDate: installDate.toISOString().slice(0, 10),
+            registeredAt: new Date().toISOString(),
+          };
+
           // Only now mark the job card applied (left re-tryable on any failure above).
           // If payment was already settled, warranty is the last step — close it.
           const p91NextStatus = jobCard.paymentSettledAt ? "CLOSED" : "WARRANTY_REGISTRATION";
@@ -6445,6 +6487,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             eWarrantyApplied: true,
             eWarrantyAppliedAt: new Date(),
             status: p91NextStatus,
+            // Mirrored into the existing reference field so the print template
+            // (which already renders "Ref:") picks the code up for free.
+            warrantyReferenceNumber: result.warranty?.code ?? undefined,
+            warrantyCardJson: warrantyCardSnapshot,
           });
           await syncWorkOrderStatus(jobCard.workOrderId, p91NextStatus);
 
@@ -6520,6 +6566,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Apply e-warranty error:", error);
         res.status(500).json({ error: "Failed to apply e-warranty" });
+      }
+    }
+  );
+
+  // The P91 warranty card for a job card: our stored snapshot, with the live status
+  // merged in from P91Elite's public verify endpoint. The snapshot wins for the fields
+  // we own (it carries lot numbers, which Elite's public endpoint withholds); Elite wins
+  // for status and expiry, so a warranty revoked there stops reading as approved here.
+  // Cards registered before the snapshot column existed have only a code — those render
+  // entirely from the live lookup.
+  app.get("/api/job-cards/:id/warranty-card",
+    authenticate,
+    requireRole(['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER', 'SHOWROOM_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SALES_PERSON']),
+    async (req, res) => {
+      try {
+        const jobCard = await storage.getJobCard(req.params.id);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+        if (!(await canAccessJobCard(req.user!, jobCard))) {
+          return res.status(403).json({ error: "Access denied - insufficient permissions" });
+        }
+
+        const snapshot = (jobCard.warrantyCardJson as any) || null;
+        const code = snapshot?.warrantyCode || jobCard.warrantyReferenceNumber || null;
+        if (!code) {
+          return res.status(404).json({
+            error: "No P91 warranty registered for this job card",
+            errorCode: "NO_WARRANTY",
+          });
+        }
+
+        // Best-effort live lookup. Any failure degrades to the snapshot rather than
+        // failing the request — a slow or down Elite must not blank the card.
+        let live: any = null;
+        let statusStale = true;
+        const base = (process.env.PULSE_API_URL || '').replace(/\/$/, '');
+        if (base) {
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 3000);
+            const response = await fetch(
+              `${base}/api/erp/public/verify/${encodeURIComponent(code)}`,
+              { signal: controller.signal },
+            );
+            clearTimeout(timer);
+            const body = await response.json().catch(() => ({} as any));
+            if (response.ok && body?.success && body.data) {
+              live = body.data;
+              statusStale = false;
+            }
+          } catch (err) {
+            console.warn(`Warranty verify lookup failed for ${code}:`, (err as any)?.message);
+          }
+        }
+
+        if (!snapshot && !live) {
+          return res.status(502).json({
+            error: "Warranty details are unavailable right now. Please try again shortly.",
+            errorCode: "VERIFY_UNAVAILABLE",
+            warrantyCode: code,
+          });
+        }
+
+        return res.json({
+          ...(live || {}),
+          ...(snapshot || {}),
+          warrantyCode: code,
+          status: live?.status ?? snapshot?.status ?? 'approved',
+          expiryDate: live?.expiryDate ?? snapshot?.expiryDate ?? null,
+          statusStale,
+        });
+      } catch (error) {
+        console.error("Fetch warranty card error:", error);
+        res.status(500).json({ error: "Failed to load warranty card" });
       }
     }
   );
