@@ -233,6 +233,8 @@ export interface IStorage {
     offset?: number;
   }): Promise<JobCard[]>;
   getJobCard(id: string, opts?: { includeDeleted?: boolean }): Promise<JobCard | undefined>;
+  /** Live job cards (other than excludeId) already holding this warranty code. */
+  getJobCardsByWarrantyCode(code: string, excludeId?: string): Promise<JobCard[]>;
   createJobCard(jobCard: InsertJobCard): Promise<JobCard>;
   updateJobCard(id: string, updates: Partial<InsertJobCard>): Promise<JobCard | undefined>;
 
@@ -2032,6 +2034,12 @@ export class DatabaseStorage implements IStorage {
       opts?.includeDeleted ? eq(jobCards.id, id) : and(eq(jobCards.id, id), isNull(jobCards.deletedAt))
     );
     return jobCard || undefined;
+  }
+
+  async getJobCardsByWarrantyCode(code: string, excludeId?: string): Promise<JobCard[]> {
+    const conditions = [eq(jobCards.warrantyReferenceNumber, code), isNull(jobCards.deletedAt)];
+    if (excludeId) conditions.push(ne(jobCards.id, excludeId));
+    return db.select().from(jobCards).where(and(...conditions));
   }
 
   async createJobCard(insertJobCard: InsertJobCard): Promise<JobCard> {

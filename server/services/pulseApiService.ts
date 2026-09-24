@@ -71,6 +71,30 @@ export interface WarrantyRegistrationResponse {
   error?: string;
 }
 
+/** Job-card facts sent to P91Elite to rank warranties that may belong to it. */
+export interface WarrantyCandidateQuery {
+  vin?: string | null;
+  phone?: string | null;
+  customerName?: string | null;
+  completedAt?: string | null;
+  showroomName?: string | null;
+}
+
+export interface WarrantyCandidate {
+  warrantyCode: string;
+  name: string | null;
+  phoneLast4: string | null;
+  vehicleMake: string | null;
+  vehicleModel: string | null;
+  vehicleVIN: string | null;
+  storeName: string | null;
+  installer: string | null;
+  installationDate: string | null;
+  registeredAt: string | null;
+  score: number;
+  reasons: string[];
+}
+
 export class PulseApiService {
   private readonly baseUrl: string;
   private readonly secret: string;
@@ -193,3 +217,38 @@ export class PulseApiService {
 }
 
 export const pulseApiService = new PulseApiService();
+
+/**
+ * Ask P91Elite for approved warranties that may belong to a job card, ranked with
+ * the reasons each matched. Read-only on Elite's side. Throws on transport or auth
+ * failure so the caller can tell "no candidates" from "couldn't search".
+ */
+export async function findWarrantyCandidates(query: WarrantyCandidateQuery): Promise<WarrantyCandidate[]> {
+  const baseUrl = (process.env.PULSE_API_URL || '').replace(/\/$/, '');
+  const secret = process.env.PULSE_WEBHOOK_SECRET || '';
+  if (!baseUrl || !secret) {
+    throw new Error('Pulse integration is not configured (PULSE_API_URL / PULSE_WEBHOOK_SECRET)');
+  }
+
+  const body = JSON.stringify({ ...query, timestamp: new Date().toISOString() });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(`${baseUrl}/api/integrations/setu/warranty-candidates`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-setu-signature': crypto.createHmac('sha256', secret).update(body).digest('hex'),
+      },
+      body,
+      signal: controller.signal,
+    });
+    const data = await response.json().catch(() => ({} as any));
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || `Pulse responded with status ${response.status}`);
+    }
+    return Array.isArray(data.candidates) ? data.candidates : [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
