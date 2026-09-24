@@ -75,6 +75,7 @@ import { PreInstallationModal } from "@/components/modals/PreInstallationModal";
 import logoGreen from "@assets/P91 PULSE logo-01_1761139835394.png";
 import { displayContact } from "@shared/placeholderContact";
 import { WarrantyCard } from "@/components/job-cards/warranty-card";
+import { LinkWarrantyDialog } from "@/components/job-cards/link-warranty-dialog";
 
 // Enhanced Job Card types to match API structure
 interface JobCard {
@@ -354,6 +355,8 @@ export default function JobCardsNew() {
   // than one batch/roll (e.g. topped up from another stock), each with its own qty.
   const [warrantyDialogOpen, setWarrantyDialogOpen] = useState(false);
   const [warrantyRolls, setWarrantyRolls] = useState<Array<{ lotNumber: string; quantity: string }>>([{ lotNumber: '', quantity: '' }]);
+  // SUPER_ADMIN: attach a warranty that already exists in P91 Elite to this job card.
+  const [linkWarrantyOpen, setLinkWarrantyOpen] = useState(false);
   const [warrantyVin, setWarrantyVin] = useState('');
   const [showApplyWarrantyModal, setShowApplyWarrantyModal] = useState(false);
   const [showViewPreInstallationModal, setShowViewPreInstallationModal] = useState(false);
@@ -3877,6 +3880,24 @@ export default function JobCardsNew() {
                               <p className="text-xs text-muted-foreground mt-1">
                                 E-warranty not requested yet
                               </p>
+                            )}
+                            {user?.role === 'SUPER_ADMIN' && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="link"
+                                  className="h-auto p-0 mt-2 text-xs"
+                                  onClick={() => setLinkWarrantyOpen(true)}
+                                  data-testid="button-link-warranty"
+                                >
+                                  {warrantyCode ? 'Change linked warranty' : 'Link existing P91 warranty'}
+                                </Button>
+                                <LinkWarrantyDialog
+                                  jobCardId={detailedJobCard.id}
+                                  open={linkWarrantyOpen}
+                                  onOpenChange={setLinkWarrantyOpen}
+                                />
+                              </>
                             )}
                           </div>
                           {detailedJobCard.partnerBilledDirectly ? (

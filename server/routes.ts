@@ -175,6 +175,34 @@ async function syncWorkOrderStatus(workOrderId: string, status: string) {
   }
 }
 
+/**
+ * Look up a warranty in P91Elite by code, via its public verify endpoint.
+ * Returns the public card data; null when Elite has no approved warranty with that
+ * code (the endpoint answers 404 for both "missing" and "not approved"); throws when
+ * Elite cannot be reached, so callers can tell "doesn't exist" from "can't check".
+ */
+async function lookupEliteWarranty(code: string, timeoutMs = 3000): Promise<any | null> {
+  const base = (process.env.PULSE_API_URL || '').replace(/\/$/, '');
+  if (!base) throw new Error('PULSE_API_URL is not configured');
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(
+      `${base}/api/erp/public/verify/${encodeURIComponent(code)}`,
+      { signal: controller.signal },
+    );
+    if (response.status === 404) return null;
+    const body = await response.json().catch(() => ({} as any));
+    if (!response.ok || !body?.success) {
+      throw new Error(`P91 Elite responded with status ${response.status}`);
+    }
+    return body.data ?? null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Has this job card's warranty step already been completed (either billing path)? */
 function isWarrantyDone(jobCard: any): boolean {
   return !!(jobCard.eWarrantyApplied || jobCard.warrantyAppliedAt);
@@ -6581,24 +6609,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // failing the request — a slow or down Elite must not blank the card.
         let live: any = null;
         let statusStale = true;
-        const base = (process.env.PULSE_API_URL || '').replace(/\/$/, '');
-        if (base) {
-          try {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 3000);
-            const response = await fetch(
-              `${base}/api/erp/public/verify/${encodeURIComponent(code)}`,
-              { signal: controller.signal },
-            );
-            clearTimeout(timer);
-            const body = await response.json().catch(() => ({} as any));
-            if (response.ok && body?.success && body.data) {
-              live = body.data;
-              statusStale = false;
-            }
-          } catch (err) {
-            console.warn(`Warranty verify lookup failed for ${code}:`, (err as any)?.message);
-          }
+        try {
+          live = await lookupEliteWarranty(code);
+          statusStale = !live;
+        } catch (err) {
+          console.warn(`Warranty verify lookup failed for ${code}:`, (err as any)?.message);
         }
 
         if (!snapshot && !live) {
@@ -6620,6 +6635,198 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error("Fetch warranty card error:", error);
         res.status(500).json({ error: "Failed to load warranty card" });
+      }
+    }
+  );
+
+  // SUPER_ADMIN: warranties in P91Elite that may belong to this job card, ranked by
+  // how many job-card facts they share (VIN, phone, name, install date, store). Each is
+  // flagged when another job card already holds it, since one warranty = one job.
+  app.get("/api/job-cards/:id/link-warranty/candidates",
+    authenticate,
+    requireRole(['SUPER_ADMIN']),
+    async (req, res) => {
+      try {
+        const jobCard = await storage.getJobCard(req.params.id);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+        const showroom = workOrder?.showroomId ? await storage.getShowroom(workOrder.showroomId) : undefined;
+
+        const { findWarrantyCandidates } = await import('./services/pulseApiService');
+        let candidates;
+        try {
+          candidates = await findWarrantyCandidates({
+            vin: workOrder?.regNo ?? null,
+            phone: workOrder?.customerPhone ?? null,
+            customerName: workOrder?.customerName ?? null,
+            completedAt: jobCard.completedAt ? new Date(jobCard.completedAt).toISOString() : null,
+            showroomName: showroom?.name ?? null,
+          });
+        } catch (err) {
+          console.warn('Warranty candidate search failed:', (err as any)?.message);
+          return res.status(502).json({
+            error: "Could not search P91 Elite right now. You can still enter a code manually.",
+            errorCode: "SEARCH_UNAVAILABLE",
+          });
+        }
+
+        const annotated = await Promise.all(candidates.map(async (c) => {
+          const holders = await storage.getJobCardsByWarrantyCode(c.warrantyCode, jobCard.id);
+          return { ...c, linkedToJobCardId: holders[0]?.id ?? null };
+        }));
+
+        return res.json({
+          jobCard: {
+            regNo: workOrder?.regNo ?? null,
+            customerName: workOrder?.customerName ?? null,
+            customerPhoneLast4: workOrder?.customerPhone
+              ? String(workOrder.customerPhone).replace(/\D/g, '').slice(-4) || null
+              : null,
+            completedAt: jobCard.completedAt ?? null,
+            showroomName: showroom?.name ?? null,
+            currentCode: jobCard.warrantyReferenceNumber || null,
+          },
+          candidates: annotated,
+        });
+      } catch (error) {
+        console.error("Warranty candidates error:", error);
+        res.status(500).json({ error: "Failed to search warranties" });
+      }
+    }
+  );
+
+  // SUPER_ADMIN reconciliation: warranties registered by hand on both sides (a code
+  // typed into Elite, the job done in VAS) share no key, so they can only be joined by
+  // a person. Preview shows the Elite record next to the job card before committing.
+  app.get("/api/job-cards/:id/link-warranty/preview",
+    authenticate,
+    requireRole(['SUPER_ADMIN']),
+    async (req, res) => {
+      try {
+        const code = String(req.query.code || '').trim();
+        if (!code) {
+          return res.status(400).json({ error: "Warranty code is required" });
+        }
+        const jobCard = await storage.getJobCard(req.params.id);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+
+        let warranty: any;
+        try {
+          warranty = await lookupEliteWarranty(code, 5000);
+        } catch (err) {
+          return res.status(502).json({
+            error: "Could not reach P91 Elite to verify this code. Try again shortly.",
+            errorCode: "VERIFY_UNAVAILABLE",
+          });
+        }
+        if (!warranty) {
+          return res.status(404).json({
+            error: `No approved warranty with code ${code} in P91 Elite`,
+            errorCode: "WARRANTY_NOT_FOUND",
+          });
+        }
+
+        const workOrder = await storage.getWorkOrder(jobCard.workOrderId);
+        const others = await storage.getJobCardsByWarrantyCode(code, jobCard.id);
+        const normalize = (v: any) => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const regNo = normalize(workOrder?.regNo);
+
+        return res.json({
+          warranty,
+          jobCardRegNo: workOrder?.regNo ?? null,
+          jobCardCustomer: workOrder?.customerName ?? null,
+          vehicleMatches: !!regNo && regNo === normalize(warranty.vehicleVIN),
+          linkedToJobCardIds: others.map((o) => o.id),
+          currentCode: jobCard.warrantyReferenceNumber || null,
+        });
+      } catch (error) {
+        console.error("Link warranty preview error:", error);
+        res.status(500).json({ error: "Failed to look up warranty" });
+      }
+    }
+  );
+
+  // SUPER_ADMIN: attach a P91Elite warranty to a job card. Verifies the code in Elite,
+  // refuses a code already attached to another job card, stores the code plus a card
+  // snapshot, and advances the job exactly as Exchange Data would have.
+  app.post("/api/job-cards/:id/link-warranty",
+    authenticate,
+    requireRole(['SUPER_ADMIN']),
+    auditLog('job_card', 'link_warranty'),
+    async (req, res) => {
+      try {
+        const code = String(req.body?.warrantyCode || '').trim();
+        if (!code) {
+          return res.status(400).json({ error: "Warranty code is required" });
+        }
+        const jobCard = await storage.getJobCard(req.params.id);
+        if (!jobCard) {
+          return res.status(404).json({ error: "Job card not found" });
+        }
+        if (jobCard.status === 'CANCELLED') {
+          return res.status(400).json({ error: "Cannot attach a warranty to a cancelled job card" });
+        }
+
+        const others = await storage.getJobCardsByWarrantyCode(code, jobCard.id);
+        if (others.length > 0) {
+          return res.status(409).json({
+            error: `Warranty ${code} is already linked to another job card`,
+            errorCode: "WARRANTY_ALREADY_LINKED",
+            jobCardIds: others.map((o) => o.id),
+          });
+        }
+
+        let warranty: any;
+        try {
+          warranty = await lookupEliteWarranty(code, 5000);
+        } catch (err) {
+          return res.status(502).json({
+            error: "Could not reach P91 Elite to verify this code. Try again shortly.",
+            errorCode: "VERIFY_UNAVAILABLE",
+          });
+        }
+        if (!warranty) {
+          return res.status(404).json({
+            error: `No approved warranty with code ${code} in P91 Elite`,
+            errorCode: "WARRANTY_NOT_FOUND",
+          });
+        }
+
+        const snapshot = {
+          ...warranty,
+          warrantyCode: code,
+          status: warranty.status ?? 'approved',
+          linkedManually: true,
+          linkedByUserId: req.user!.id,
+          linkedAt: new Date().toISOString(),
+        };
+
+        // Same statuses Exchange Data accepts; earlier or terminal statuses keep their status.
+        const advanceFrom = ['COMPLETED', 'PENDING_APPROVAL', 'APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING'];
+        const previousStatus = jobCard.status || '';
+        const nextStatus = advanceFrom.includes(previousStatus)
+          ? (jobCard.paymentSettledAt ? 'CLOSED' : 'WARRANTY_REGISTRATION')
+          : previousStatus;
+
+        const updated = await storage.updateJobCard(jobCard.id, {
+          warrantyReferenceNumber: code,
+          warrantyCardJson: snapshot,
+          eWarrantyApplied: true,
+          eWarrantyAppliedAt: jobCard.eWarrantyAppliedAt ?? new Date(),
+          status: nextStatus as any,
+        });
+        if (nextStatus !== previousStatus) {
+          await syncWorkOrderStatus(jobCard.workOrderId, nextStatus);
+        }
+
+        return res.json({ jobCard: updated, warranty, previousStatus, status: nextStatus });
+      } catch (error) {
+        console.error("Link warranty error:", error);
+        res.status(500).json({ error: "Failed to link warranty" });
       }
     }
   );
