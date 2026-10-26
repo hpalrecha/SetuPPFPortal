@@ -617,6 +617,11 @@ export const jobCards = pgTable("job_cards", {
   // Settlement fields (post-approval)
   paymentSettledAt: timestamp("payment_settled_at"),
   salesInvoiceNumber: text("sales_invoice_number"),
+  // Which company billing entity issued the invoice (billing_entities key, derived from the
+  // invoice-number prefix: ST → Plus Nine One Inc, P91TFPL → PlusNineOne Tech Films). Null for
+  // partner-billed invoices and legacy free-text numbers. See migrations/0015_invoice_company.sql.
+  invoiceCompany: text("invoice_company"),
+  invoiceRaisedAt: timestamp("invoice_raised_at"),
   warrantyAppliedAt: timestamp("warranty_applied_at"),
   warrantyReferenceNumber: text("warranty_reference_number"),
   // E-Warranty application tracking

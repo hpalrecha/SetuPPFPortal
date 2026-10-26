@@ -15,6 +15,7 @@ import { ApiClient } from "@/lib/api";
 import { apiRequest } from "@/lib/queryClient";
 import { CreateUserModal } from "@/components/modals/CreateUserModal";
 import { EditUserModal } from "@/components/modals/EditUserModal";
+import { BillingEntitiesCard } from "@/components/settings/BillingEntitiesCard";
 import { INDIAN_STATES } from "@shared/constants";
 
 export default function SettingsPage() {
@@ -528,6 +529,9 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Billing Entities (Bill From company + invoice prefix + cutover date) — SUPER_ADMIN / ADMIN only */}
+      {isAdminOrAbove && <BillingEntitiesCard />}
 
       {/* Organization Management for Super Admin, Admin, and Manager */}
       {isAdminOrManager && (

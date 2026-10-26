@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
@@ -22,7 +23,11 @@ import {
   MapPin,
   Building2,
   Target,
-  Eye
+  Eye,
+  Filter,
+  FileWarning,
+  CalendarClock,
+  RotateCcw
 } from "lucide-react";
 import { 
   BarChart, 
@@ -48,6 +53,21 @@ interface DashboardMetrics {
   pendingApprovals: number;
   thisMonthRevenue: number;
   avgTAT: number;
+  // Admin/OEM analytics (server/services/dashboardAnalytics.ts); absent for partner roles.
+  revenue?: number;
+  revenueGrowthPct?: number | null;
+  unpricedJobs?: number;
+  tatMedianDays?: number;
+  tatAvgDays?: number;
+  ordersRegistered?: number;
+  ordersGrowthPct?: number | null;
+  overdueSchedules?: number;
+  unscheduledJobs?: number;
+  invoiceBacklog?: { count: number; amount: number; avgAgeDays: number };
+  reschedules?: number;
+  reworkRequests?: number;
+  reworkRatePct?: number | null;
+  cancellations?: number;
   pendingJobs?: number;
   inProgressJobs?: number;
   completedJobs?: number;
@@ -57,6 +77,52 @@ interface DashboardMetrics {
 }
 
 // Real-time dashboard with database-driven insights
+
+type PeriodKey = 'this_month' | 'last_month' | 'last_7' | 'last_30' | 'this_quarter' | 'this_fy' | 'custom';
+
+const PERIOD_LABELS: Record<PeriodKey, string> = {
+  this_month: 'This month',
+  last_month: 'Last month',
+  last_7: 'Last 7 days',
+  last_30: 'Last 30 days',
+  this_quarter: 'This quarter',
+  this_fy: 'This financial year',
+  custom: 'Custom range',
+};
+
+const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+
+// Inclusive IST date range for a period preset. Dates are computed on an IST-shifted clock and
+// read with UTC getters so the browser's own timezone never moves a day boundary.
+function periodRange(period: PeriodKey, customFrom: string, customTo: string): { from: string; to: string } {
+  const now = new Date(Date.now() + 330 * 60_000);
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  const today = isoDate(now);
+  const daysAgo = (n: number) => isoDate(new Date(now.getTime() - n * 86_400_000));
+  switch (period) {
+    case 'last_month':
+      return { from: isoDate(new Date(Date.UTC(y, m - 1, 1))), to: isoDate(new Date(Date.UTC(y, m, 0))) };
+    case 'last_7':
+      return { from: daysAgo(6), to: today };
+    case 'last_30':
+      return { from: daysAgo(29), to: today };
+    case 'this_quarter':
+      return { from: isoDate(new Date(Date.UTC(y, m - (m % 3), 1))), to: today };
+    case 'this_fy':
+      return { from: isoDate(new Date(Date.UTC(m >= 3 ? y : y - 1, 3, 1))), to: today };
+    case 'custom':
+      if (customFrom && customTo) return customFrom <= customTo ? { from: customFrom, to: customTo } : { from: customTo, to: customFrom };
+      return { from: isoDate(new Date(Date.UTC(y, m, 1))), to: today };
+    default:
+      return { from: isoDate(new Date(Date.UTC(y, m, 1))), to: today };
+  }
+}
+
+const formatRange = (r: { from: string; to: string }) => {
+  const f = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return r.from === r.to ? f(r.from) : `${f(r.from)} – ${f(r.to)}`;
+};
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff88'];
 
@@ -73,8 +139,30 @@ export default function DashboardPage() {
     return allowedRoles.includes(effectiveRole || '');
   };
 
+  // Dashboard-wide filters. Partner roles keep their own fixed partner dashboard.
+  const isPartnerUser = ['PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER'].includes(user?.role || '');
+  const isAdminUser = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.role || '');
+  const [period, setPeriod] = useState<PeriodKey>('this_month');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [brand, setBrand] = useState('all');
+  const [oemFilter, setOemFilter] = useState('all');
+  const range = periodRange(period, customFrom, customTo);
+  const filterParams = new URLSearchParams();
+  if (brand !== 'all') filterParams.set('brand', brand);
+  if (oemFilter !== 'all') filterParams.set('oemId', oemFilter);
+  const filterQs = filterParams.toString();
+  const rangeQs = `from=${range.from}&to=${range.to}${filterQs ? `&${filterQs}` : ''}`;
+  const periodLabel = period === 'custom' ? formatRange(range) : PERIOD_LABELS[period];
+
+  const { data: filterOptions } = useQuery<{ brands: string[]; oems: { id: string; name: string }[] }>({
+    queryKey: ["/api/dashboard/filters"],
+    staleTime: 300000,
+    enabled: !!user && !isPartnerUser,
+  });
+
   const { data: metrics, isLoading} = useQuery<DashboardMetrics>({
-    queryKey: ["/api/dashboard/metrics"],
+    queryKey: [`/api/dashboard/metrics?${rangeQs}`],
     refetchOnWindowFocus: true, // Active users get fresh data on focus
     refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
     refetchIntervalInBackground: true,
@@ -87,7 +175,7 @@ export default function DashboardPage() {
     orders: number;
     revenue: number;
   }[]>({
-    queryKey: ["/api/dashboard/charts/orders-trend"],
+    queryKey: [`/api/dashboard/charts/orders-trend?${filterQs}`],
     refetchOnWindowFocus: true, // Active users get fresh data on focus
     refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
     refetchIntervalInBackground: true,
@@ -98,10 +186,11 @@ export default function DashboardPage() {
   const { data: dealershipPerformance = [] } = useQuery<{
     name: string;
     orders: number;
+    completedJobs: number;
     revenue: number;
-    growth: number;
+    growth: number | null;
   }[]>({
-    queryKey: ["/api/dashboard/charts/dealership-performance"],
+    queryKey: [`/api/dashboard/charts/dealership-performance?${rangeQs}`],
     refetchOnWindowFocus: true, // Active users get fresh data on focus
     refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
     refetchIntervalInBackground: true,
@@ -114,9 +203,9 @@ export default function DashboardPage() {
     name: string;
     completedJobs: number;
     revenue: number;
-    growth: number;
+    growth: number | null;
   }[]>({
-    queryKey: ["/api/dashboard/charts/top-partners"],
+    queryKey: [`/api/dashboard/charts/top-partners?${rangeQs}`],
     refetchOnWindowFocus: true, // Active users get fresh data on focus
     refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
     refetchIntervalInBackground: true,
@@ -128,10 +217,11 @@ export default function DashboardPage() {
     id: string;
     name: string;
     orders: number;
+    completedJobs: number;
     revenue: number;
-    growth: number;
+    growth: number | null;
   }[]>({
-    queryKey: ["/api/dashboard/charts/top-showrooms"],
+    queryKey: [`/api/dashboard/charts/top-showrooms?${rangeQs}`],
     refetchOnWindowFocus: true, // Active users get fresh data on focus
     refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
     refetchIntervalInBackground: true,
@@ -177,8 +267,9 @@ export default function DashboardPage() {
     territory: string;
     orders: number;
     revenue: number;
+    completedJobs: number;
   }[]>({
-    queryKey: ["/api/dashboard/charts/territory-performance"],
+    queryKey: [`/api/dashboard/charts/territory-performance?${rangeQs}`],
     refetchOnWindowFocus: true, // Active users get fresh data on focus
     refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
     refetchIntervalInBackground: true,
@@ -254,7 +345,7 @@ export default function DashboardPage() {
     value: number;
     color: string;
   }[]>({
-    queryKey: ["/api/dashboard/charts/service-popularity"],
+    queryKey: [`/api/dashboard/charts/service-popularity?${rangeQs}`],
     refetchOnWindowFocus: true, // Active users get fresh data on focus
     refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
     refetchIntervalInBackground: true,
@@ -265,9 +356,9 @@ export default function DashboardPage() {
   const { data: monthlyTrends = [] } = useQuery<{
     month: string;
     completedOrders: number;
-    avgTAT: number;
+    avgTAT: number | null;
   }[]>({
-    queryKey: ["/api/dashboard/charts/monthly-trends"],
+    queryKey: [`/api/dashboard/charts/monthly-trends?${filterQs}`],
     refetchOnWindowFocus: true, // Active users get fresh data on focus
     refetchInterval: 900000, // 15-min fallback keeps unattended showroom displays live
     refetchIntervalInBackground: true,
@@ -291,6 +382,36 @@ export default function DashboardPage() {
   const orgName = myOem?.name || myDealership?.name || myShowroom?.name || myPartner?.displayName || '';
   const identityLine = `${orgName ? orgName + ' ' : ''}${roleLabel}`;
 
+  // Compact growth label for ranked lists: null = no activity in the previous period.
+  const renderGrowthText = (growth: number | null | undefined) => {
+    if (growth === null || growth === undefined) {
+      return <p className="text-sm text-blue-600">New</p>;
+    }
+    return (
+      <p className={`text-sm ${growth > 0 ? 'text-green-600' : growth < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+        {growth > 0 ? '+' : ''}{growth}%
+      </p>
+    );
+  };
+
+  // Growth vs the previous period of equal length (admin analytics).
+  const renderPeriodGrowth = (growthPct?: number | null) => {
+    if (growthPct === null || growthPct === undefined) {
+      return <span className="text-muted-foreground">No data for the previous period</span>;
+    }
+    const isUp = growthPct >= 0;
+    const Icon = isUp ? TrendingUp : TrendingDown;
+    return (
+      <>
+        <span className={`flex items-center ${isUp ? 'text-green-600' : 'text-red-600'}`}>
+          <Icon className="h-3 w-3 mr-1" />
+          {isUp ? '+' : ''}{growthPct}%
+        </span>
+        vs previous period
+      </>
+    );
+  };
+
   const renderGrowthBadge = (growthPct?: number | null) => {
     if (growthPct === null || growthPct === undefined) {
       return <span className="text-muted-foreground">No data from last month</span>;
@@ -307,6 +428,8 @@ export default function DashboardPage() {
       </>
     );
   };
+
+  const formatLakh = (amount: number) => `₹${(amount / 100000).toFixed(1)}L`;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -347,7 +470,7 @@ export default function DashboardPage() {
             <span className="font-medium text-foreground">{identityLine}</span>
             {' · '}Overview of your PPF installation operations
             {viewAsRole && (
-              <span className="text-orange-600 font-medium"> (Viewing as {viewAsRole.replace('_', ' ')})</span>
+              <span className="text-orange-600 font-medium"> (Previewing the {viewAsRole.replace('_', ' ')} layout — numbers are still Super Admin totals)</span>
             )}
           </p>
         </div>
@@ -386,8 +509,63 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Dashboard filters: period drives KPIs and ranked lists; brand/OEM apply everywhere */}
+      {!isPartnerUser && (
+        <Card>
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
+                <SelectTrigger className="w-44" data-testid="select-dashboard-period">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(PERIOD_LABELS) as PeriodKey[]).map((k) => (
+                    <SelectItem key={k} value={k}>{PERIOD_LABELS[k]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {period === 'custom' && (
+                <>
+                  <Input type="date" className="w-40" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} data-testid="input-dashboard-from" />
+                  <span className="text-muted-foreground text-sm">to</span>
+                  <Input type="date" className="w-40" value={customTo} onChange={(e) => setCustomTo(e.target.value)} data-testid="input-dashboard-to" />
+                </>
+              )}
+              <Select value={brand} onValueChange={setBrand}>
+                <SelectTrigger className="w-36" data-testid="select-dashboard-brand">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All brands</SelectItem>
+                  {(filterOptions?.brands ?? []).map((b) => (
+                    <SelectItem key={b} value={b}>{b}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {isAdminUser && (filterOptions?.oems?.length ?? 0) > 1 && (
+                <Select value={oemFilter} onValueChange={setOemFilter}>
+                  <SelectTrigger className="w-48" data-testid="select-dashboard-oem">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All OEMs</SelectItem>
+                    {filterOptions!.oems.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <span className="text-xs text-muted-foreground sm:ml-auto">
+                {formatRange(range)} · IST
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Activity Calendar - registrations & completions by day/month */}
-      <ActivityTimeline />
+      <ActivityTimeline filters={filterQs} />
 
       {/* KPI Cards */}
       <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 ${effectiveRole === 'PARTNER_ADMIN' ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
@@ -407,7 +585,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground mt-2">
-                Current active orders
+                Open installs right now (not yet approved)
               </p>
             </CardContent>
           </Card>
@@ -428,7 +606,7 @@ export default function DashboardPage() {
                   <Clock className="h-6 w-6 text-orange-600" />
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground mt-2">Requires your attention</p>
+              <p className="text-sm text-muted-foreground mt-2">Completed jobs awaiting approval</p>
             </CardContent>
           </Card>
         )}
@@ -439,18 +617,23 @@ export default function DashboardPage() {
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-muted-foreground text-sm">This Month Revenue</p>
+                  <p className="text-muted-foreground text-sm">Billed Revenue · {periodLabel}</p>
                   <p className="text-2xl font-semibold text-foreground" data-testid="text-revenue">
-                    {formatCurrency(metrics?.thisMonthRevenue ?? 0)}
+                    {formatCurrency(metrics?.revenue ?? metrics?.thisMonthRevenue ?? 0)}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
                   <DollarSign className="h-6 w-6 text-green-600" />
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground mt-2">
-                Revenue generated this month
+              <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1 flex-wrap">
+                {renderPeriodGrowth(metrics?.revenueGrowthPct)}
               </p>
+              {(metrics?.unpricedJobs ?? 0) > 0 && (
+                <p className="text-xs text-amber-600 mt-1" data-testid="text-unpriced-jobs">
+                  {metrics!.unpricedJobs} approved job{metrics!.unpricedJobs === 1 ? '' : 's'} have no billing price
+                </p>
+              )}
             </CardContent>
           </Card>
         )}
@@ -461,9 +644,9 @@ export default function DashboardPage() {
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-muted-foreground text-sm">Avg. TAT</p>
+                  <p className="text-muted-foreground text-sm">{isPartnerUser ? 'Avg. TAT' : 'Median TAT'}</p>
                   <p className="text-2xl font-semibold text-foreground" data-testid="text-avg-tat">
-                    {metrics?.avgTAT ?? 0} days
+                    {metrics?.tatMedianDays ?? metrics?.avgTAT ?? 0} days
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
@@ -471,7 +654,9 @@ export default function DashboardPage() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground mt-2">
-                Average turnaround time
+                {metrics?.tatMedianDays !== undefined
+                  ? `Order created → approved · avg ${metrics.tatAvgDays ?? 0} days`
+                  : 'Average turnaround time'}
               </p>
             </CardContent>
           </Card>
@@ -567,6 +752,114 @@ export default function DashboardPage() {
           </Card>
         )}
       </div>
+
+      {/* Period throughput + backlog - Admin, OEM, Dealership, Showroom */}
+      {!isPartnerUser && canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']) && metrics?.invoiceBacklog && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-sm">Jobs Approved · {periodLabel}</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-period-completed">
+                    {metrics.completedJobs ?? 0}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                  <CheckCircle className="h-6 w-6 text-green-600" />
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1 flex-wrap">
+                {renderPeriodGrowth(metrics.completedJobsGrowthPct)}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-sm">Orders Registered · {periodLabel}</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-period-orders">
+                    {metrics.ordersRegistered ?? 0}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <Plus className="h-6 w-6 text-blue-600" />
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1 flex-wrap">
+                {renderPeriodGrowth(metrics.ordersGrowthPct)}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-sm">Approved, Not Invoiced</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-invoice-backlog">
+                    {metrics.invoiceBacklog.count}
+                    <span className="text-base font-normal text-muted-foreground"> · {formatCurrency(metrics.invoiceBacklog.amount)}</span>
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
+                  <FileWarning className="h-6 w-6 text-amber-600" />
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                {metrics.invoiceBacklog.count > 0
+                  ? `Waiting ${metrics.invoiceBacklog.avgAgeDays} days on average since approval`
+                  : 'Every approved job is invoiced'}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-muted-foreground text-sm">Overdue Schedules</p>
+                  <p className="text-2xl font-semibold text-foreground" data-testid="text-overdue-schedules">
+                    {metrics.overdueSchedules ?? 0}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                  <CalendarClock className="h-6 w-6 text-red-600" />
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Scheduled date passed, job not started
+                {(metrics.unscheduledJobs ?? 0) > 0 ? ` · ${metrics.unscheduledJobs} with no date` : ''}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Operations health in the selected period */}
+      {!isPartnerUser && canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER']) && metrics?.invoiceBacklog && (
+        <Card>
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+              <span className="font-medium text-foreground flex items-center gap-2">
+                <RotateCcw className="h-4 w-4 text-muted-foreground" />
+                Operations · {periodLabel}
+              </span>
+              <span data-testid="text-ops-in-progress"><span className="font-semibold">{metrics.inProgressJobs ?? 0}</span> <span className="text-muted-foreground">in progress now</span></span>
+              <span data-testid="text-ops-reschedules"><span className="font-semibold">{metrics.reschedules ?? 0}</span> <span className="text-muted-foreground">reschedules</span></span>
+              <span data-testid="text-ops-rework">
+                <span className="font-semibold">{metrics.reworkRequests ?? 0}</span>{' '}
+                <span className="text-muted-foreground">
+                  rework requests{metrics.reworkRatePct !== null && metrics.reworkRatePct !== undefined ? ` (${metrics.reworkRatePct}% of approved jobs)` : ''}
+                </span>
+              </span>
+              <span data-testid="text-ops-cancellations"><span className="font-semibold">{metrics.cancellations ?? 0}</span> <span className="text-muted-foreground">cancelled orders</span></span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Connections - assigned dealerships/showrooms/partners + territory */}
       {canViewSection(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OEM_ADMIN', 'DEALERSHIP_ADMIN', 'SHOWROOM_MANAGER', 'PARTNER_ADMIN', 'PARTNER_STAFF', 'DETAILING_PARTNER']) && (
@@ -667,7 +960,7 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <BarChart3 className="h-5 w-5" />
-              <span>PPF Orders & Revenue Trend</span>
+              <span>Orders & Billed Revenue · last 9 months</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -678,12 +971,12 @@ export default function DashboardPage() {
                 <YAxis yAxisId="left" />
                 <YAxis yAxisId="right" orientation="right" />
                 <Tooltip formatter={(value, name) => [
-                  name === 'orders' ? value : `₹${(value as number).toLocaleString('en-IN')}`,
-                  name === 'orders' ? 'Orders' : 'Revenue'
+                  name === 'Billed revenue' ? `₹${(value as number).toLocaleString('en-IN')}` : value,
+                  name
                 ]} />
                 <Legend />
-                <Bar yAxisId="left" dataKey="orders" fill="#8884d8" name="Orders" />
-                <Line yAxisId="right" type="monotone" dataKey="revenue" stroke="#82ca9d" strokeWidth={3} name="Revenue" />
+                <Bar yAxisId="left" dataKey="orders" fill="#8884d8" name="Orders registered" />
+                <Line yAxisId="right" type="monotone" dataKey="revenue" stroke="#82ca9d" strokeWidth={3} name="Billed revenue" />
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
@@ -696,7 +989,7 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Building2 className="h-5 w-5" />
-              <span>Top Performing Dealerships</span>
+              <span>Top Performing Dealerships · {periodLabel}</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -705,12 +998,10 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
                 <YAxis />
-                <Tooltip formatter={(value, name) => [
-                  name === 'growth' ? `${value}%` : value,
-                  name === 'orders' ? 'Orders' : name === 'growth' ? 'Growth' : 'Revenue'
-                ]} />
+                <Tooltip />
                 <Legend />
-                <Bar dataKey="orders" fill="#8884d8" name="Orders" />
+                <Bar dataKey="orders" fill="#8884d8" name="Orders registered" />
+                <Bar dataKey="completedJobs" fill="#82ca9d" name="Jobs approved" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -724,7 +1015,7 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <MapPin className="h-5 w-5" />
-                <span>Territory Performance Analysis</span>
+                <span>Territory (showroom city) · {periodLabel}</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -745,10 +1036,13 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Target className="h-5 w-5" />
-                <span>Service Category Popularity</span>
+                <span>Orders by Service Category · {periodLabel}</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {servicePopularity.length === 0 ? (
+                <div className="h-[250px] flex items-center justify-center text-sm text-muted-foreground">No orders in this period</div>
+              ) : (
               <ResponsiveContainer width="100%" height={250} className="sm:!h-[300px]">
                 <PieChart>
                   <Pie
@@ -768,6 +1062,7 @@ export default function DashboardPage() {
                   <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -779,7 +1074,7 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Activity className="h-5 w-5" />
-              <span>Monthly Performance Trends</span>
+              <span>Jobs Approved & Median TAT · last 9 months</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -790,12 +1085,12 @@ export default function DashboardPage() {
                 <YAxis yAxisId="left" />
                 <YAxis yAxisId="right" orientation="right" />
                 <Tooltip formatter={(value, name) => [
-                  name === 'avgTAT' ? `${value} days` : value,
-                  name === 'completedOrders' ? 'Completed Orders' : 'Avg TAT'
+                  name === 'Median TAT (days)' ? `${value} days` : value,
+                  name
                 ]} />
                 <Legend />
-                <Bar yAxisId="left" dataKey="completedOrders" fill="#8884d8" name="Completed Orders" />
-                <Line yAxisId="right" type="monotone" dataKey="avgTAT" stroke="#ff7300" strokeWidth={2} name="Avg TAT (days)" />
+                <Bar yAxisId="left" dataKey="completedOrders" fill="#8884d8" name="Jobs approved" />
+                <Line yAxisId="right" type="monotone" dataKey="avgTAT" stroke="#ff7300" strokeWidth={2} connectNulls={false} name="Median TAT (days)" />
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
@@ -808,7 +1103,7 @@ export default function DashboardPage() {
           {/* Top Dealerships Table */}
           <Card>
             <CardHeader>
-              <CardTitle>Dealership Performance Summary</CardTitle>
+              <CardTitle>Dealership Performance · {periodLabel}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -822,20 +1117,18 @@ export default function DashboardPage() {
                       </div>
                       <div>
                         <p className="font-medium text-foreground">{dealership.name}</p>
-                        <p className="text-sm text-muted-foreground">{dealership.orders} orders</p>
+                        <p className="text-sm text-muted-foreground">{dealership.orders} orders · {dealership.completedJobs} approved</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium text-foreground">₹{(dealership.revenue / 100000).toFixed(1)}L</p>
-                      <p className={`text-sm ${dealership.growth > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {dealership.growth > 0 ? '+' : ''}{dealership.growth}%
-                      </p>
+                      <p className="font-medium text-foreground">{formatLakh(dealership.revenue)}</p>
+                      {renderGrowthText(dealership.growth)}
                     </div>
                   </div>
                 ))}
                 {dealershipPerformance.length === 0 && (
                   <div className="text-center py-8 text-muted-foreground">
-                    No dealership data available yet
+                    No dealership activity in this period
                   </div>
                 )}
               </div>
@@ -845,7 +1138,7 @@ export default function DashboardPage() {
           {/* Territory Performance Table */}
           <Card>
             <CardHeader>
-              <CardTitle>Territory Performance</CardTitle>
+              <CardTitle>Territory Performance · {periodLabel}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -855,17 +1148,17 @@ export default function DashboardPage() {
                       <MapPin className="h-5 w-5 text-blue-600" />
                       <div>
                         <p className="font-medium text-foreground">{territory.territory}</p>
-                        <p className="text-sm text-muted-foreground">{territory.orders} orders</p>
+                        <p className="text-sm text-muted-foreground">{territory.orders} orders · {territory.completedJobs} approved</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium text-foreground">₹{(territory.revenue / 100000).toFixed(1)}L revenue</p>
+                      <p className="font-medium text-foreground">{formatLakh(territory.revenue)} billed</p>
                     </div>
                   </div>
                 ))}
                 {territoryPerformance.length === 0 && (
                   <div className="text-center py-8 text-muted-foreground">
-                    No territory data available yet
+                    No territory activity in this period
                   </div>
                 )}
               </div>
@@ -881,7 +1174,7 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Users className="h-5 w-5" />
-                <span>Top Detailing Partners</span>
+                <span>Top Detailing Partners · {periodLabel}</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -896,20 +1189,18 @@ export default function DashboardPage() {
                       </div>
                       <div>
                         <p className="font-medium text-foreground">{partner.name}</p>
-                        <p className="text-sm text-muted-foreground">{partner.completedJobs} jobs completed</p>
+                        <p className="text-sm text-muted-foreground">{partner.completedJobs} jobs approved</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium text-foreground">₹{(partner.revenue / 100000).toFixed(1)}L</p>
-                      <p className={`text-sm ${partner.growth > 0 ? 'text-green-600' : partner.growth < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
-                        {partner.growth > 0 ? '+' : ''}{partner.growth}%
-                      </p>
+                      <p className="font-medium text-foreground">{formatLakh(partner.revenue)}</p>
+                      {renderGrowthText(partner.growth)}
                     </div>
                   </div>
                 ))}
                 {topPartners.length === 0 && (
                   <div className="text-center py-8 text-muted-foreground">
-                    No partner data available yet
+                    No approved jobs in this period
                   </div>
                 )}
               </div>
@@ -920,7 +1211,7 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Building2 className="h-5 w-5" />
-                <span>Top Performing Showrooms</span>
+                <span>Top Performing Showrooms · {periodLabel}</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -935,20 +1226,18 @@ export default function DashboardPage() {
                       </div>
                       <div>
                         <p className="font-medium text-foreground">{showroom.name}</p>
-                        <p className="text-sm text-muted-foreground">{showroom.orders} orders</p>
+                        <p className="text-sm text-muted-foreground">{showroom.orders} orders · {showroom.completedJobs} approved</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium text-foreground">₹{(showroom.revenue / 100000).toFixed(1)}L</p>
-                      <p className={`text-sm ${showroom.growth > 0 ? 'text-green-600' : showroom.growth < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
-                        {showroom.growth > 0 ? '+' : ''}{showroom.growth}%
-                      </p>
+                      <p className="font-medium text-foreground">{formatLakh(showroom.revenue)}</p>
+                      {renderGrowthText(showroom.growth)}
                     </div>
                   </div>
                 ))}
                 {topShowrooms.length === 0 && (
                   <div className="text-center py-8 text-muted-foreground">
-                    No showroom data available yet
+                    No showroom activity in this period
                   </div>
                 )}
               </div>

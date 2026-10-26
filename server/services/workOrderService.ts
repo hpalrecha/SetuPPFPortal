@@ -3,6 +3,7 @@ import { displayContact } from './placeholderContact';
 import { pricingService } from './pricingService';
 import { commissionService } from './commissionService';
 import { notificationService } from './notificationService';
+import { getBillingEntities, matchCompanyBillFrom, pickDefaultBillingEntity, toBillFromSnapshot } from './billingEntities';
 import type { 
   WorkOrder, 
   InsertWorkOrder, 
@@ -16,24 +17,25 @@ export class WorkOrderService {
     oemId: string,
     dealershipId: string,
     showroomId: string,
-    partnerId?: string
+    partnerId?: string,
+    existingBillFrom?: any
   ): Promise<{
     billFrom: any;
     billTo: any;
     shipTo: any;
     partnerBilledDirectly: boolean;
   }> {
-    // Default billing entity - Plus Nine One Inc
-    const plusNineOneInc = {
-      name: "Plus Nine One Inc",
-      addressLine1: "Ward 117, 49, Bannerghatta Rd, Ayappa Garden, Shanti Nagar",
-      city: "Bengaluru",
-      state: "Karnataka",
-      pincode: "560030",
-      gstin: "29AMIPP3288M1Z6"
-    };
+    // Company billing entity (configurable, effective-dated — see services/billingEntities.ts).
+    // Never silently switch an existing work order's company: if it already carries a company
+    // bill_from snapshot, keep it. Only a missing snapshot (or a previous partner-billed one)
+    // gets the entity that is the default *now*.
+    const entities = await getBillingEntities();
+    const existingCompany = matchCompanyBillFrom(entities, existingBillFrom);
+    const companyBillFrom: any = existingCompany
+      ? { ...existingBillFrom, entityKey: existingBillFrom.entityKey || existingCompany.key }
+      : toBillFromSnapshot(pickDefaultBillingEntity(entities, new Date()));
 
-    let billFrom = plusNineOneInc;
+    let billFrom: any = companyBillFrom;
     let partnerBilledDirectly = false;
 
     // Check if partner bills directly (if partner is assigned)
@@ -145,7 +147,8 @@ export class WorkOrderService {
       workOrder.oemId,
       workOrder.dealershipId,
       newShowroomId,
-      jobCard.partnerId || undefined
+      jobCard.partnerId || undefined,
+      jobCard.billFrom || workOrder.billFrom
     );
 
     const updatedWorkOrder = await storage.updateWorkOrder(workOrder.id, {
@@ -387,7 +390,8 @@ export class WorkOrderService {
         workOrder.oemId,
         workOrder.dealershipId,
         workOrder.showroomId,
-        partnerId
+        partnerId,
+        workOrder.billFrom
       );
       console.log(`💵 Billing details recalculated with partner - Bill From: ${billingDetails.billFrom?.name}, Partner Bills Directly: ${billingDetails.partnerBilledDirectly}`);
     } catch (error) {

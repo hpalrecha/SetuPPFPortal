@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
@@ -22,10 +22,12 @@ import {
 import { storage } from "./storage";
 import { authService, AuthUser } from "./auth";
 import { emailService } from "./services/email-service";
+import { getBillingEntities, getDefaultBillingEntity, normaliseInvoiceNumber, buildInvoiceRegex, invoiceFormatHint, entityForInvoiceNumberSync, toBillFromSnapshot, billingEntitiesSchema, invalidateBillingEntitiesCache, BILLING_ENTITIES_SETTING_KEY, type BillingEntity } from "./services/billingEntities";
 import { whatsappService } from "./services/whatsapp-service";
 import smsService from "./services/sms-service";
 import { notificationService } from "./services/notificationService";
 import { runPendingJobCardReminders } from "./services/jobCardReminderService";
+import * as dashboardAnalytics from "./services/dashboardAnalytics";
 import { authenticate, requireRole, requireOEMAccess, auditLog, blockAdminDelete, hasStateAccess, userPartnerIds } from "./middleware";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { generateOTP, hashOTP, verifyOTP, getOTPExpiry } from "./utils/otp";
@@ -87,6 +89,40 @@ class SimpleCache {
 }
 
 const dashboardCache = new SimpleCache();
+
+// Dashboard scope from the caller's role + the dashboard's filter query (?from&to&brand&oemId).
+// SUPER_ADMIN/ADMIN/MANAGER see every OEM unless they pick one; everyone else is pinned to
+// their own OEM / dealership / showroom. Returns null when a scoped role has no OEM.
+function resolveDashboardScope(req: Request): dashboardAnalytics.DashboardScope | null {
+  const q = req.query;
+  const isDate = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+  const def = dashboardAnalytics.defaultRange();
+  let from = isDate(q.from) ? q.from : def.from;
+  let to = isDate(q.to) ? q.to : def.to;
+  if (from > to) [from, to] = [to, from];
+  const brand = typeof q.brand === 'string' && q.brand && q.brand !== 'all' ? q.brand.slice(0, 40) : undefined;
+  const role = req.user!.role;
+  if (role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'MANAGER') {
+    const oemId = typeof q.oemId === 'string' && /^[0-9a-f-]{36}$/i.test(q.oemId) ? q.oemId : undefined;
+    return { from, to, brand, oemId };
+  }
+  if (!req.user!.oemId) return null;
+  return {
+    from, to, brand,
+    oemId: req.user!.oemId,
+    dealershipId: role === 'DEALERSHIP_ADMIN' ? req.user!.dealershipId || undefined : undefined,
+    showroomId: req.user!.showroomId || undefined,
+  };
+}
+
+async function dashboardCached<T>(name: string, scope: object, load: () => Promise<T>): Promise<T> {
+  const key = `dash:${name}:${JSON.stringify(scope)}`;
+  const hit = dashboardCache.get(key);
+  if (hit) return hit as T;
+  const data = await load();
+  dashboardCache.set(key, data);
+  return data;
+}
 // Run cleanup every 5 minutes
 setInterval(() => dashboardCache.cleanup(), 300000);
 
@@ -2856,159 +2892,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // For SUPER_ADMIN, ADMIN, and MANAGER, aggregate metrics across ALL OEMs
-      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
-        const availableOems = await storage.getOems();
-        if (availableOems.length === 0) {
-          // No OEMs available, return zero metrics
-          return res.json({
-            activeWorkOrders: 0,
-            pendingApprovals: 0,
-            thisMonthRevenue: 0,
-            avgTAT: 0,
-            completedJobs: 0,
-            inProgressJobs: 0,
-            pendingJobs: 0,
-            thisMonthEarnings: 0
-          });
-        }
-        
-        // Use first OEM for dashboard
-        // Pass no oemId so metrics aggregate across every OEM, not just the first
-        const metrics = await storage.getDashboardMetrics();
-        return res.json(metrics);
-      }
-      
-      // For other non-partner users, use their assigned OEM
-      if (!req.user!.oemId) {
-        return res.status(400).json({ error: "OEM ID required for this user role" });
-      }
-      
-      const showroomId = req.user!.showroomId;
-      const dealershipId = req.user!.role === 'DEALERSHIP_ADMIN' ? req.user!.dealershipId : undefined;
-      
-      console.log(`🎯 Dashboard metrics request for user: ${req.user!.email} (${req.user!.role})`);
-      console.log(`📊 Filters: oemId=${req.user!.oemId}, showroomId=${showroomId}, dealershipId=${dealershipId}`);
-      
-      const metrics = await storage.getDashboardMetrics(req.user!.oemId, showroomId, dealershipId);
-      
-      console.log(`📈 Metrics result:`, metrics);
-      
-      res.json(metrics);
+      // Everyone else: admin/OEM/dealership/showroom analytics, scoped by role and filtered by
+      // the dashboard's period + brand selectors.
+      const scope = resolveDashboardScope(req);
+      if (!scope) return res.status(400).json({ error: "OEM ID required for this user role" });
+      res.json(await dashboardCached('metrics', scope, () => dashboardAnalytics.getDashboardMetrics(scope)));
     } catch (error) {
       console.error("Dashboard metrics error:", error);
       res.status(500).json({ error: "Failed to fetch dashboard metrics" });
     }
   });
 
-  app.get("/api/dashboard/charts/orders-trend", authenticate, async (req, res) => {
+  // Admin/OEM/dealership/showroom analytics. Definitions (IST periods, billed revenue, primary
+  // job cards only, median TAT) live in server/services/dashboardAnalytics.ts.
+  const dashboardChart = (name: string, fn: (scope: dashboardAnalytics.DashboardScope) => Promise<unknown>) =>
+    async (req: Request, res: Response) => {
+      try {
+        const scope = resolveDashboardScope(req);
+        if (!scope) return res.status(400).json({ error: "OEM ID required" });
+        res.json(await dashboardCached(name, scope, () => fn(scope)));
+      } catch (error) {
+        console.error(`Dashboard ${name} error:`, error);
+        res.status(500).json({ error: `Failed to fetch ${name} data` });
+      }
+    };
+
+  app.get("/api/dashboard/filters", authenticate, async (req, res) => {
     try {
-      let oemId: string | undefined;
-      let showroomId: string | undefined;
-      let dealershipId: string | undefined;
-      
-      // Handle different user roles
-      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
-        const availableOems = await storage.getOems();
-        if (availableOems.length === 0) return res.json([]);
-        oemId = undefined; // aggregate across all OEMs
-      } else {
-        if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
-        oemId = req.user!.oemId;
-        dealershipId = req.user!.dealershipId;
-        showroomId = req.user!.showroomId;
-      }
-      
-      // Check cache first
-      const cacheKey = `orders-trend:${oemId}:${showroomId || 'all'}:${dealershipId || 'all'}`;
-      const cachedData = dashboardCache.get(cacheKey);
-      if (cachedData) {
-        return res.json(cachedData);
-      }
-      
-      const data = await storage.getOrdersRevenueTrend(oemId, showroomId, dealershipId);
-      dashboardCache.set(cacheKey, data);
-      res.json(data);
+      const isAdmin = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(req.user!.role);
+      const [brands, oems] = await Promise.all([
+        dashboardAnalytics.getDashboardBrands(),
+        isAdmin ? storage.getOems() : Promise.resolve([]),
+      ]);
+      res.json({
+        brands,
+        oems: (oems as any[]).map(o => ({ id: o.id, name: o.name })),
+        defaultRange: dashboardAnalytics.defaultRange(),
+      });
     } catch (error) {
-      console.error("Orders trend error:", error);
-      res.status(500).json({ error: "Failed to fetch orders trend data" });
+      console.error("Dashboard filters error:", error);
+      res.status(500).json({ error: "Failed to fetch dashboard filters" });
     }
   });
 
-  app.get("/api/dashboard/charts/dealership-performance", authenticate, async (req, res) => {
-    try {
-      let oemId: string | undefined;
-      
-      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
-        const availableOems = await storage.getOems();
-        if (availableOems.length === 0) return res.json([]);
-        oemId = undefined; // aggregate across all OEMs
-      } else {
-        if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
-        oemId = req.user!.oemId;
-      }
-      
-      // Check cache first
-      const cacheKey = `dealership-performance:${oemId}`;
-      const cachedData = dashboardCache.get(cacheKey);
-      if (cachedData) {
-        return res.json(cachedData);
-      }
-      
-      const data = await storage.getDealershipPerformance(oemId);
-      dashboardCache.set(cacheKey, data);
-      res.json(data);
-    } catch (error) {
-      console.error("Dealership performance error:", error);
-      res.status(500).json({ error: "Failed to fetch dealership performance data" });
-    }
-  });
-
-  app.get("/api/dashboard/charts/top-partners", authenticate, async (req, res) => {
-    try {
-      let oemId: string | undefined;
-      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
-        const availableOems = await storage.getOems();
-        if (availableOems.length === 0) return res.json([]);
-        oemId = undefined; // aggregate across all OEMs
-      } else {
-        if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
-        oemId = req.user!.oemId;
-      }
-      const cacheKey = `top-partners:${oemId}`;
-      const cachedData = dashboardCache.get(cacheKey);
-      if (cachedData) return res.json(cachedData);
-      const data = await storage.getTopDetailingPartners(oemId);
-      dashboardCache.set(cacheKey, data);
-      res.json(data);
-    } catch (error) {
-      console.error("Top detailing partners error:", error);
-      res.status(500).json({ error: "Failed to fetch top detailing partners data" });
-    }
-  });
-
-  app.get("/api/dashboard/charts/top-showrooms", authenticate, async (req, res) => {
-    try {
-      let oemId: string | undefined;
-      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
-        const availableOems = await storage.getOems();
-        if (availableOems.length === 0) return res.json([]);
-        oemId = undefined; // aggregate across all OEMs
-      } else {
-        if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
-        oemId = req.user!.oemId;
-      }
-      const cacheKey = `top-showrooms:${oemId}`;
-      const cachedData = dashboardCache.get(cacheKey);
-      if (cachedData) return res.json(cachedData);
-      const data = await storage.getTopPerformingShowrooms(oemId);
-      dashboardCache.set(cacheKey, data);
-      res.json(data);
-    } catch (error) {
-      console.error("Top performing showrooms error:", error);
-      res.status(500).json({ error: "Failed to fetch top performing showrooms data" });
-    }
-  });
+  app.get("/api/dashboard/charts/orders-trend", authenticate,
+    dashboardChart('orders-trend', s => dashboardAnalytics.getOrdersRevenueTrend(s)));
+  app.get("/api/dashboard/charts/monthly-trends", authenticate,
+    dashboardChart('monthly-trends', s => dashboardAnalytics.getMonthlyTrends(s)));
+  app.get("/api/dashboard/charts/dealership-performance", authenticate,
+    dashboardChart('dealership-performance', dashboardAnalytics.getDealershipPerformance));
+  app.get("/api/dashboard/charts/top-partners", authenticate,
+    dashboardChart('top-partners', dashboardAnalytics.getTopDetailingPartners));
+  app.get("/api/dashboard/charts/top-showrooms", authenticate,
+    dashboardChart('top-showrooms', dashboardAnalytics.getTopPerformingShowrooms));
+  app.get("/api/dashboard/charts/territory-performance", authenticate,
+    dashboardChart('territory-performance', s => dashboardAnalytics.getTerritoryPerformance(s)));
+  app.get("/api/dashboard/charts/service-popularity", authenticate,
+    dashboardChart('service-popularity', dashboardAnalytics.getServicePopularity));
 
   app.get("/api/dashboard/charts/partner-top-showrooms", authenticate, async (req, res) => {
     try {
@@ -3044,130 +2984,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/dashboard/charts/territory-performance", authenticate, async (req, res) => {
-    try {
-      let oemId: string | undefined;
-      let dealershipId: string | undefined;
-      let showroomId: string | undefined;
-      
-      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
-        const availableOems = await storage.getOems();
-        if (availableOems.length === 0) return res.json([]);
-        oemId = undefined; // aggregate across all OEMs
-      } else {
-        if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
-        oemId = req.user!.oemId;
-        dealershipId = req.user!.dealershipId;
-        showroomId = req.user!.showroomId;
-      }
-      
-      // Check cache first
-      const cacheKey = `territory-performance:${oemId}:${dealershipId || 'all'}:${showroomId || 'all'}`;
-      const cachedData = dashboardCache.get(cacheKey);
-      if (cachedData) {
-        return res.json(cachedData);
-      }
-      
-      const data = await storage.getTerritoryPerformance(oemId, dealershipId, showroomId);
-      dashboardCache.set(cacheKey, data);
-      res.json(data);
-    } catch (error) {
-      console.error("Territory performance error:", error);
-      res.status(500).json({ error: "Failed to fetch territory performance data" });
-    }
-  });
-
-  app.get("/api/dashboard/charts/service-popularity", authenticate, async (req, res) => {
-    try {
-      let oemId: string | undefined;
-      let dealershipId: string | undefined;
-      let showroomId: string | undefined;
-      
-      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
-        const availableOems = await storage.getOems();
-        if (availableOems.length === 0) return res.json([]);
-        oemId = undefined; // aggregate across all OEMs
-      } else {
-        if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
-        oemId = req.user!.oemId;
-        dealershipId = req.user!.dealershipId;
-        showroomId = req.user!.showroomId;
-      }
-      
-      // Check cache first
-      const cacheKey = `service-popularity:${oemId}:${showroomId || 'all'}:${dealershipId || 'all'}`;
-      const cachedData = dashboardCache.get(cacheKey);
-      if (cachedData) {
-        return res.json(cachedData);
-      }
-      
-      const data = await storage.getServicePopularity(oemId, showroomId, dealershipId);
-      dashboardCache.set(cacheKey, data);
-      res.json(data);
-    } catch (error) {
-      console.error("Service popularity error:", error);
-      res.status(500).json({ error: "Failed to fetch service popularity data" });
-    }
-  });
-
-  app.get("/api/dashboard/charts/monthly-trends", authenticate, async (req, res) => {
-    try {
-      let oemId: string | undefined;
-      let dealershipId: string | undefined;
-      let showroomId: string | undefined;
-      
-      if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN' || req.user!.role === 'MANAGER') {
-        const availableOems = await storage.getOems();
-        if (availableOems.length === 0) return res.json([]);
-        oemId = undefined; // aggregate across all OEMs
-      } else {
-        if (!req.user!.oemId) return res.status(400).json({ error: "OEM ID required" });
-        oemId = req.user!.oemId;
-        dealershipId = req.user!.dealershipId;
-        showroomId = req.user!.showroomId;
-      }
-      
-      // Check cache first
-      const cacheKey = `monthly-trends:${oemId}:${showroomId || 'all'}:${dealershipId || 'all'}`;
-      const cachedData = dashboardCache.get(cacheKey);
-      if (cachedData) {
-        return res.json(cachedData);
-      }
-      
-      const data = await storage.getMonthlyTrends(oemId, showroomId, dealershipId);
-      dashboardCache.set(cacheKey, data);
-      res.json(data);
-    } catch (error) {
-      console.error("Monthly trends error:", error);
-      res.status(500).json({ error: "Failed to fetch monthly trends data" });
-    }
-  });
-
   // Activity timeline (calendar/date-range): work orders registered + jobs
-  // completed, bucketed by day or month, scoped to the caller's tenant.
-  app.get("/api/dashboard/activity", authenticate, async (req: AuthRequest, res) => {
+  // completed, bucketed by IST day or month, scoped to the caller's tenant.
+  app.get("/api/dashboard/activity", authenticate, async (req, res) => {
     try {
       const granularity = (req.query.granularity === 'month' ? 'month' : 'day') as 'day' | 'month';
 
-      // Default range: last 30 days (day view) or last 12 months (month view)
-      const today = new Date();
-      const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const defFrom = new Date(today);
-      if (granularity === 'month') defFrom.setMonth(defFrom.getMonth() - 11);
-      else defFrom.setDate(defFrom.getDate() - 29);
+      // Default range: last 30 days (day view) or last 12 months (month view), in IST
+      const today = dashboardAnalytics.istToday();
+      const defFrom = new Date(`${today}T00:00:00Z`);
+      if (granularity === 'month') defFrom.setUTCMonth(defFrom.getUTCMonth() - 11, 1);
+      else defFrom.setUTCDate(defFrom.getUTCDate() - 29);
 
-      const from = typeof req.query.from === 'string' && req.query.from ? req.query.from : fmt(defFrom);
-      const to = typeof req.query.to === 'string' && req.query.to ? req.query.to : fmt(today);
+      const isDate = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+      const from = isDate(req.query.from) ? req.query.from : defFrom.toISOString().slice(0, 10);
+      const to = isDate(req.query.to) ? req.query.to : today;
 
-      // Tenant scoping by role (SUPER_ADMIN/ADMIN/MANAGER => all OEMs)
-      const opts: any = { from, to, granularity };
+      // Tenant scoping by role (SUPER_ADMIN/ADMIN/MANAGER => all OEMs, or the OEM they picked)
+      const opts: Parameters<typeof dashboardAnalytics.getActivityTimeline>[0] = { from, to, granularity };
+      const scope = resolveDashboardScope(req);
+      opts.brand = scope?.brand;
       const role = req.user!.role;
-      if (role === 'OEM_ADMIN') opts.oemId = req.user!.oemId;
-      else if (role === 'DEALERSHIP_ADMIN') opts.dealershipId = req.user!.dealershipId;
-      else if (role === 'SHOWROOM_MANAGER' || role === 'SALES_PERSON') opts.showroomId = req.user!.showroomId;
-      else if (role === 'PARTNER_ADMIN' || role === 'PARTNER_STAFF' || role === 'DETAILING_PARTNER') opts.partnerId = req.user!.partnerId;
+      if (role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'MANAGER') opts.oemId = scope?.oemId;
+      else if (role === 'OEM_ADMIN') opts.oemId = req.user!.oemId || undefined;
+      else if (role === 'DEALERSHIP_ADMIN') opts.dealershipId = req.user!.dealershipId || undefined;
+      else if (role === 'SHOWROOM_MANAGER' || role === 'SALES_PERSON') opts.showroomId = req.user!.showroomId || undefined;
+      else if (role === 'PARTNER_ADMIN' || role === 'PARTNER_STAFF' || role === 'DETAILING_PARTNER') opts.partnerId = req.user!.partnerId || undefined;
 
-      const data = await storage.getActivityTimeline(opts);
+      const data = await dashboardAnalytics.getActivityTimeline(opts);
       res.json(data);
     } catch (error) {
       console.error("Activity timeline error:", error);
@@ -5034,29 +4878,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const priceAmount = pricing?.priceAmount || workOrder.estimatedPrice || 0;
               const formattedPrice = `₹${Number(priceAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
-              // Get bill from/to entity names
-              let billFromName = '';
-              let billToName = '';
-              
-              if (jobCard.billFromType && jobCard.billFromId) {
-                if (jobCard.billFromType === 'PARTNER') {
-                  const billFromPartner = await storage.getPartner(jobCard.billFromId);
-                  billFromName = billFromPartner?.displayName || '';
-                } else if (jobCard.billFromType === 'SHOWROOM') {
-                  billFromName = showroom?.name || '';
-                }
-              }
-              
-              if (jobCard.billToType && jobCard.billToId) {
-                if (jobCard.billToType === 'DEALERSHIP') {
-                  billToName = dealership?.name || '';
-                } else if (jobCard.billToType === 'SHOWROOM') {
-                  const billToShowroom = await storage.getShowroom(jobCard.billToId);
-                  billToName = billToShowroom?.name || '';
-                } else if (jobCard.billToType === 'CUSTOMER') {
-                  billToName = workOrder.customerName || 'Customer';
-                }
-              }
+              // Bill from/to come from the jsonb snapshots (job card first, then work order).
+              // (The old code read nonexistent billFromType/billFromId columns, so this was always blank.)
+              const billFromSnap: any = updatedJobCard.billFrom || jobCard.billFrom || workOrder.billFrom || null;
+              const billToSnap: any = updatedJobCard.billTo || jobCard.billTo || workOrder.billTo || null;
+              const billFromName: string = billFromSnap?.name
+                ? `${billFromSnap.name}${billFromSnap.gstin ? ` (GSTIN: ${billFromSnap.gstin})` : ''}`
+                : '';
+              const billToName: string = billToSnap?.entityName
+                ? `${billToSnap.entityName}${billToSnap.entityType ? ` [${billToSnap.entityType}]` : ''}${billToSnap.gstin ? ` (GSTIN: ${billToSnap.gstin})` : ''}`
+                : '';
 
               const jobCardLink = `${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000'}/job-cards/${updatedJobCard.id}`;
 
@@ -5114,9 +4945,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     async (req, res) => {
       try {
         const jobCardId = req.params.id;
-        const { salesInvoiceNumber } = req.body;
+        const salesInvoiceNumber: string = typeof req.body?.salesInvoiceNumber === 'string' ? req.body.salesInvoiceNumber : '';
 
-        if (!salesInvoiceNumber || !salesInvoiceNumber.trim()) {
+        if (!salesInvoiceNumber.trim()) {
           return res.status(400).json({ error: "Sales invoice number is required" });
         }
 
@@ -5173,13 +5004,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Access denied - insufficient permissions" });
         }
 
+        // Invoice-number validation. Company-billed cards (P91/OEM-created work order, partner
+        // not billing directly) must carry an ERPNext company invoice number — <PREFIX>/<n>/<YY-YY>,
+        // prefixes from Settings → Billing Entities (ST = Plus Nine One Inc, P91TFPL = PlusNineOne
+        // Tech Films). The prefix decides which company issued it, and the invoice is the source of
+        // truth for who billed, so the job card's bill_from is re-snapshotted to that entity.
+        // Partner-billed / partner-created cards keep free-text entry (the partner's own invoice).
+        const billingEntities = await getBillingEntities();
+        const companyBilled = !workOrderCreatedByPartner && !jobCard.partnerBilledDirectly;
+        let invoiceNo = salesInvoiceNumber.trim();
+        let issuingEntity: BillingEntity | undefined;
+        if (companyBilled) {
+          invoiceNo = normaliseInvoiceNumber(salesInvoiceNumber);
+          if (!buildInvoiceRegex(billingEntities).test(invoiceNo)) {
+            const examples = billingEntities.map(e => `${e.invoicePrefix}/1060/26-27`).join(', ');
+            return res.status(400).json({
+              error: `Invalid invoice number "${invoiceNo}". Expected format ${invoiceFormatHint(billingEntities)} (e.g. ${examples}).`
+            });
+          }
+          issuingEntity = entityForInvoiceNumberSync(billingEntities, invoiceNo);
+          const duplicates = await storage.findJobCardsBySalesInvoiceNumber(invoiceNo, jobCardId);
+          if (duplicates.length > 0) {
+            return res.status(400).json({
+              error: `Invoice number ${invoiceNo} is already recorded on job card ${duplicates.map(d => `JC-${d.id.slice(-6)}`).join(', ')}. Each invoice can be entered only once.`
+            });
+          }
+        }
+
         // If warranty was already applied (P91 flow allows that before payment),
         // this settlement is the last remaining step — close the job card now
         // instead of leaving it in a limbo status forever.
         const nextStatus = isWarrantyDone(jobCard) ? 'CLOSED' : 'INVOICE_RAISED';
+        const now = new Date();
         const updatedJobCard = await storage.updateJobCard(jobCardId, {
-          paymentSettledAt: new Date(),
-          salesInvoiceNumber: salesInvoiceNumber.trim(),
+          paymentSettledAt: now,
+          salesInvoiceNumber: invoiceNo,
+          invoiceRaisedAt: now,
+          invoiceCompany: issuingEntity?.key ?? null,
+          ...(issuingEntity ? { billFrom: toBillFromSnapshot(issuingEntity) } : {}),
           status: nextStatus
         });
 
@@ -11597,9 +11459,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: `Invalid email addresses: ${invalid.join(', ')}` });
         }
       }
+      if (key === BILLING_ENTITIES_SETTING_KEY) {
+        return res.status(400).json({ error: 'Use PUT /api/settings/billing-entities for billing entities' });
+      }
 
       const setting = await storage.upsertSystemSetting(key, value);
       res.json(setting);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============================================================
+  // Billing Entities (company that issues invoices; effective-dated)
+  // GET: any authenticated user (the invoice-entry dialog needs the prefixes for its format hint).
+  // PUT: SUPER_ADMIN / ADMIN only.
+  // ============================================================
+  app.get('/api/settings/billing-entities', authenticate, async (_req, res) => {
+    try {
+      const entities = await getBillingEntities();
+      const setting = await storage.getSystemSetting(BILLING_ENTITIES_SETTING_KEY);
+      res.json({
+        entities,
+        source: setting ? 'settings' : 'defaults',
+        currentDefaultKey: (await getDefaultBillingEntity(new Date())).key,
+        invoiceFormatHint: invoiceFormatHint(entities),
+        updatedAt: setting?.updatedAt ?? null,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put('/api/settings/billing-entities', authenticate, requireRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
+    try {
+      const parsed = billingEntitiesSchema.safeParse(req.body?.entities);
+      if (!parsed.success) {
+        const msg = parsed.error.issues
+          .map(i => `${i.path.length ? `#${Number(i.path[0]) + 1} ${i.path.slice(1).join('.')}`.trim() + ': ' : ''}${i.message}`)
+          .join('; ');
+        return res.status(400).json({ error: `Invalid billing entities — ${msg}` });
+      }
+      // Entity keys are referenced by job_cards.invoice_company — never drop one that is in use.
+      const previous = await getBillingEntities();
+      const removed = previous.filter(p => !parsed.data.some(e => e.key === p.key)).map(p => p.key);
+      if (removed.length > 0) {
+        return res.status(400).json({ error: `Billing entities cannot be removed (referenced by invoices): ${removed.join(', ')}` });
+      }
+      await storage.upsertSystemSetting(BILLING_ENTITIES_SETTING_KEY, parsed.data);
+      invalidateBillingEntitiesCache();
+      const entities = await getBillingEntities();
+      res.json({
+        entities,
+        source: 'settings',
+        currentDefaultKey: (await getDefaultBillingEntity(new Date())).key,
+        invoiceFormatHint: invoiceFormatHint(entities),
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

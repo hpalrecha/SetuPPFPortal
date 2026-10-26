@@ -533,7 +533,11 @@ Calculate Billing (Job Card Approval)
    │   ├─► Check: Partner bills directly?
    │   │   │
    │   │   ├─► YES: Use Partner's billing address
-   │   │   └─► NO: Use default (Plus Nine One Inc)
+   │   │   └─► NO: Use the company billing entity (Settings → Billing Entities;
+   │   │          effective-dated: Plus Nine One Inc [ST/…] until the cutover date,
+   │   │          then PLUSNINEONE TECH FILMS PVT LTD [P91TFPL/…]). An existing WO
+   │   │          keeps its company on reassignment; at invoice entry the invoice
+   │   │          prefix (ST/ or P91TFPL/) re-snapshots the job card bill_from.
    │   │
    │   └─► Priority Check:
    │       ├─► 1. Showroom-level allocation (partnerBillsDirectly = true)
