@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
@@ -216,7 +217,7 @@ export function EditUserModal({
                 <FormItem>
                   <FormLabel>New Password (leave blank to keep current)</FormLabel>
                   <FormControl>
-                    <Input type="password" {...field} placeholder="Enter new password..." data-testid="input-edit-user-password" />
+                    <PasswordInput {...field} placeholder="Enter new password..." data-testid="input-edit-user-password" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

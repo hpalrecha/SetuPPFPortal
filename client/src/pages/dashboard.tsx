@@ -68,6 +68,7 @@ interface DashboardMetrics {
   reworkRequests?: number;
   reworkRatePct?: number | null;
   cancellations?: number;
+  overdueJobs?: number;
   pendingJobs?: number;
   inProgressJobs?: number;
   completedJobs?: number;
@@ -644,7 +645,7 @@ export default function DashboardPage() {
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-muted-foreground text-sm">{isPartnerUser ? 'Avg. TAT' : 'Median TAT'}</p>
+                  <p className="text-muted-foreground text-sm">Median TAT</p>
                   <p className="text-2xl font-semibold text-foreground" data-testid="text-avg-tat">
                     {metrics?.tatMedianDays ?? metrics?.avgTAT ?? 0} days
                   </p>
@@ -656,7 +657,7 @@ export default function DashboardPage() {
               <p className="text-sm text-muted-foreground mt-2">
                 {metrics?.tatMedianDays !== undefined
                   ? `Order created → approved · avg ${metrics.tatAvgDays ?? 0} days`
-                  : 'Average turnaround time'}
+                  : 'Job assigned → completed · last 90 days'}
               </p>
             </CardContent>
           </Card>
@@ -677,7 +678,12 @@ export default function DashboardPage() {
                   <Clock className="h-6 w-6 text-orange-600" />
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground mt-2">Awaiting your action</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Awaiting your action
+                {(metrics?.overdueJobs ?? 0) > 0 && (
+                  <span className="text-red-600"> · {metrics!.overdueJobs} past scheduled date</span>
+                )}
+              </p>
             </CardContent>
           </Card>
         )}
@@ -714,7 +720,7 @@ export default function DashboardPage() {
             <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-muted-foreground text-sm">Jobs Completed</p>
+                  <p className="text-muted-foreground text-sm">Jobs Completed · this month</p>
                   <p className="text-2xl font-semibold text-foreground" data-testid="text-jobs-completed">
                     {metrics?.completedJobs || 0}
                   </p>
@@ -895,7 +901,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium text-foreground">₹{(showroom.revenue / 100000).toFixed(1)}L</p>
+                      <p className="font-medium text-foreground">₹{(showroom.revenue / 100000).toFixed(1)}L earned</p>
                       <p className="text-sm">{renderGrowthBadge(showroom.growth)}</p>
                     </div>
                   </div>
@@ -939,7 +945,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium text-foreground">₹{(dp.revenue / 100000).toFixed(1)}L</p>
+                      <p className="font-medium text-foreground">₹{(dp.revenue / 100000).toFixed(1)}L earned</p>
                     </div>
                   </div>
                 ))}

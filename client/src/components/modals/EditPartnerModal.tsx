@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -822,8 +823,7 @@ export function EditPartnerModal({
                           <FormItem>
                             <FormLabel>New Password</FormLabel>
                             <FormControl>
-                              <Input
-                                type="password"
+                              <PasswordInput
                                 placeholder="Enter new password (min 6 characters)"
                                 {...field}
                                 data-testid="input-new-password"

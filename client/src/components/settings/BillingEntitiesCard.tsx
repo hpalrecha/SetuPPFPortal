@@ -60,7 +60,7 @@ export function BillingEntitiesCard() {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<BillingEntity[]>([]);
 
-  const { data, isLoading } = useQuery<BillingEntitiesResponse>({ queryKey: BILLING_ENTITIES_QUERY_KEY });
+  const { data, isLoading, isError, error, refetch } = useQuery<BillingEntitiesResponse>({ queryKey: BILLING_ENTITIES_QUERY_KEY });
 
   useEffect(() => {
     if (data?.entities) setDraft(data.entities.map((e) => ({ ...e, pan: e.pan || "" })));
@@ -102,6 +102,19 @@ export function BillingEntitiesCard() {
       <CardContent className="space-y-4">
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
+        ) : isError || !data?.entities ? (
+          // Most often: the server was not restarted after deploy, so this route doesn't exist yet.
+          <div className="space-y-2" data-testid="billing-entities-error">
+            <p className="text-sm text-destructive">
+              Could not load billing entities{isError ? `: ${apiErrorMessage(error, "request failed")}` : "."}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              If this is right after an update, restart the server so the new settings API is available.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => refetch()} data-testid="button-retry-billing-entities">
+              Retry
+            </Button>
+          </div>
         ) : (
           <>
             {data?.source === "defaults" && (

@@ -397,3 +397,76 @@ export async function getActivityTimeline(opts: {
     LIMIT 1000`);
   return r.map(x => ({ period: x.period, label: x.label, orders: num(x.orders), completed: num(x.completed) }));
 }
+
+// ---------------------------------------------------------------------------------------------
+// Partner dashboards (PARTNER_ADMIN = whole partner; PARTNER_STAFF / DETAILING_PARTNER = only the
+// cards assigned to them). These count every live card the partner has to work on — rework and
+// checkup cards included — because each one is real work for the detailer.
+// ---------------------------------------------------------------------------------------------
+
+const PARTNER_PENDING = sql.raw(
+  `('AWAITING_ACK','ACKNOWLEDGED','SCHEDULED','RESCHEDULED','REACHED','PARTS_PENDING','REWORK_REQUESTED','CHECKUP_SCHEDULED')`
+);
+// Work the detailer has finished: waiting for approval, or approved and beyond.
+const PARTNER_DONE = sql.raw(
+  `('PENDING_APPROVAL','APPROVED','PENDING_SALES_INVOICE','INVOICE_RAISED','WARRANTY_REGISTRATION','PAYMENT_PENDING','CLOSED','CHECKUP_DONE')`
+);
+
+export async function getPartnerDashboardMetrics(partnerId: string, staffId?: string) {
+  const { from, to } = defaultRange();
+  const prev = previousMonthRange();
+  const staff = staffId ? sql`AND jc.assigned_installer_id = ${staffId}` : sql``;
+  const cards = sql`job_cards jc WHERE jc.partner_id = ${partnerId} AND jc.deleted_at IS NULL ${staff}`;
+  const doneIn = (f: string, t: string) => sql`
+    (SELECT COUNT(*) FROM ${cards} AND jc.status IN ${PARTNER_DONE}
+       AND jc.completed_at IS NOT NULL AND ${inRange(sql`jc.completed_at`, f, t)})`;
+  const earnedIn = (f: string, t: string) => sql`
+    (SELECT COALESCE(SUM(p.net_amount), 0) FROM payouts p JOIN job_cards jc ON jc.id = p.job_card_id
+       WHERE jc.partner_id = ${partnerId} AND jc.deleted_at IS NULL ${staff}
+         AND ${inRange(sql`p.created_at`, f, t)})`;
+  const ninetyDaysAgo = new Date(Date.parse(`${to}T00:00:00Z`) - 89 * 86_400_000).toISOString().slice(0, 10);
+
+  const [r] = await rows(sql`
+    SELECT
+      (SELECT COUNT(*) FROM ${cards} AND jc.status IN ${PARTNER_PENDING}) AS pending,
+      (SELECT COUNT(*) FROM ${cards} AND jc.status = 'IN_PROGRESS') AS in_progress,
+      (SELECT COUNT(*) FROM ${cards} AND jc.status = 'PENDING_APPROVAL') AS awaiting_approval,
+      (SELECT COUNT(*) FROM ${cards} AND jc.status IN ${PARTNER_PENDING}
+         AND jc.scheduled_at < (${istToday()}::date - ${IST})) AS overdue,
+      ${doneIn(from, to)} AS done_this_month,
+      ${doneIn(prev.from, prev.to)} AS done_last_month,
+      ${earnedIn(from, to)} AS earned_this_month,
+      ${earnedIn(prev.from, prev.to)} AS earned_last_month,
+      -- Turnaround = card assigned to the partner → install completed (primary cards, last 90 days).
+      (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (jc.completed_at - jc.created_at)) / 86400)
+         FROM ${cards} AND ${PRIMARY_JC} AND jc.status IN ${PARTNER_DONE}
+           AND jc.completed_at IS NOT NULL AND ${inRange(sql`jc.completed_at`, ninetyDaysAgo, to)}) AS tat_median
+  `);
+
+  const pending = num(r?.pending);
+  const inProgress = num(r?.in_progress);
+  const done = num(r?.done_this_month);
+  const earned = staffId ? 0 : num(r?.earned_this_month); // staff never see earnings
+  return {
+    activeWorkOrders: pending + inProgress,
+    pendingApprovals: num(r?.awaiting_approval),
+    thisMonthRevenue: earned,
+    avgTAT: round1(r?.tat_median),
+    completedJobs: done,
+    inProgressJobs: inProgress,
+    pendingJobs: pending,
+    overdueJobs: num(r?.overdue),
+    thisMonthEarnings: earned,
+    completedJobsGrowthPct: growthPct(done, num(r?.done_last_month)),
+    earningsGrowthPct: staffId ? null : growthPct(earned, num(r?.earned_last_month)),
+  };
+}
+
+/** The previous IST calendar month. */
+function previousMonthRange(): { from: string; to: string } {
+  const today = istToday();
+  const y = Number(today.slice(0, 4));
+  const m = Number(today.slice(5, 7)) - 1;
+  const d = (dt: Date) => dt.toISOString().slice(0, 10);
+  return { from: d(new Date(Date.UTC(y, m - 1, 1))), to: d(new Date(Date.UTC(y, m, 0))) };
+}

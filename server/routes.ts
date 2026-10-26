@@ -2883,11 +2883,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // PARTNER_STAFF and DETAILING_PARTNER get metrics only for their assigned job cards
         if (req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
-          const metrics = await storage.getPartnerStaffDashboardMetrics(req.user!.partnerId, req.user!.id);
+          const metrics = await dashboardAnalytics.getPartnerDashboardMetrics(req.user!.partnerId, req.user!.id);
           return res.json(metrics);
         } else {
           // Partner admin gets all partner metrics
-          const metrics = await storage.getPartnerDashboardMetrics(req.user!.partnerId);
+          const metrics = await dashboardAnalytics.getPartnerDashboardMetrics(req.user!.partnerId);
           return res.json(metrics);
         }
       }
