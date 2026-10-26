@@ -93,7 +93,7 @@ import { formatPlaceholderPhone, placeholderEmailFor, isBlankContact, isPlacehol
 
 // A job card counts as "completed" once the install is approved. After approval it
 // moves through the billing/settlement pipeline (sales invoice → warranty → payment →
-// closed) — all still completed work. Mirrors the definition getMonthlyTrends uses.
+// closed) — all still completed work. Same set as services/dashboardAnalytics.ts.
 const COMPLETED_JOB_STATUSES = [
   'APPROVED',
   'PENDING_SALES_INVOICE',
@@ -421,48 +421,9 @@ export interface IStorage {
     completedJobsGrowthPct: number | null;
     earningsGrowthPct: number | null;
   }>;
-  getDashboardMetrics(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
-    activeWorkOrders: number;
-    pendingApprovals: number;
-    thisMonthRevenue: number;
-    avgTAT: number;
-    completedJobs?: number;
-    inProgressJobs?: number;
-    pendingJobs?: number;
-    thisMonthEarnings?: number;
-  }>;
   getUserConnections(user: ConnectionScopeUser): Promise<ConnectionsResponse>;
 
-  // Dashboard chart data
-  getOrdersRevenueTrend(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
-    month: string;
-    orders: number;
-    revenue: number;
-  }[]>;
-  
-  getDealershipPerformance(oemId?: string): Promise<{
-    name: string;
-    orders: number;
-    revenue: number;
-    growth: number;
-  }[]>;
-  
-  getTopDetailingPartners(oemId?: string): Promise<{
-    id: string;
-    name: string;
-    completedJobs: number;
-    revenue: number;
-    growth: number;
-  }[]>;
-
-  getTopPerformingShowrooms(oemId?: string): Promise<{
-    id: string;
-    name: string;
-    orders: number;
-    revenue: number;
-    growth: number;
-  }[]>;
-
+  // Partner-admin dashboard lists (admin/OEM analytics live in services/dashboardAnalytics.ts)
   getPartnerTopShowrooms(partnerId: string): Promise<{
     id: string;
     name: string;
@@ -481,24 +442,6 @@ export interface IStorage {
     totalJobs: number;
     completedJobs: number;
     revenue: number;
-  }[]>;
-
-  getTerritoryPerformance(oemId?: string, dealershipId?: string, showroomId?: string): Promise<{
-    territory: string;
-    orders: number;
-    revenue: number;
-  }[]>;
-  
-  getServicePopularity(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
-    name: string;
-    value: number;
-    color: string;
-  }[]>;
-  
-  getMonthlyTrends(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
-    month: string;
-    completedOrders: number;
-    avgTAT: number;
   }[]>;
 
   // Reports metrics
@@ -574,6 +517,9 @@ export interface IStorage {
   // System Settings
   getSystemSetting(key: string): Promise<SystemSetting | undefined>;
   upsertSystemSetting(key: string, value: any): Promise<SystemSetting>;
+
+  // Sales invoice duplicate check (case-insensitive, trimmed; non-deleted job cards only)
+  findJobCardsBySalesInvoiceNumber(invoiceNumber: string, excludeJobCardId?: string): Promise<{ id: string; status: string | null }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -4809,339 +4755,6 @@ export class DatabaseStorage implements IStorage {
     return { count: items.length, items };
   }
 
-  async getDashboardMetrics(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
-    activeWorkOrders: number;
-    pendingApprovals: number;
-    thisMonthRevenue: number;
-    avgTAT: number;
-    completedJobs?: number;
-    inProgressJobs?: number;
-    pendingJobs?: number;
-    thisMonthEarnings?: number;
-  }> {
-    // When oemId is omitted (SUPER_ADMIN / ADMIN / MANAGER), aggregate across ALL OEMs.
-    // Every query in this method filters/joins work_orders, so excluding soft-deleted
-    // work orders here keeps deleted jobs out of all dashboard counts in one place.
-    const conditions = [];
-    conditions.push(isNull(workOrders.deletedAt));
-    if (oemId) conditions.push(eq(workOrders.oemId, oemId));
-    if (showroomId) {
-      conditions.push(eq(workOrders.showroomId, showroomId));
-    }
-    if (dealershipId) {
-      conditions.push(eq(workOrders.dealershipId, dealershipId));
-    }
-
-    // Active work orders
-    const [activeWOResult] = await db
-      .select({ count: count() })
-      .from(workOrders)
-      .where(and(...conditions, sql`status NOT IN ('CLOSED', 'CANCELLED')`));
-
-    // Pending approvals
-    const [pendingApprovalsResult] = await db
-      .select({ count: count() })
-      .from(workOrders)
-      .where(and(...conditions, eq(workOrders.status, 'COMPLETED_PENDING_APPROVAL')));
-
-    // This month revenue from completed jobs
-    const [revenueResult] = await db
-      .select({ total: sql<number>`COALESCE(SUM(payouts.net_amount), 0)` })
-      .from(payouts)
-      .innerJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
-      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
-      .where(and(
-        ...conditions,
-        sql`EXTRACT(MONTH FROM payouts.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)`,
-        sql`EXTRACT(YEAR FROM payouts.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`
-      ));
-
-    // Calculate average TAT from completed job cards
-    const completedJobsWithTAT = await db
-      .select({
-        startedAt: jobCards.startedAt,
-        completedAt: jobCards.completedAt
-      })
-      .from(jobCards)
-      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
-      .where(and(
-        ...conditions,
-        eq(jobCards.status, 'APPROVED'),
-        isNotNull(jobCards.startedAt),
-        isNotNull(jobCards.completedAt),
-        sql`job_cards.completed_at >= CURRENT_DATE - INTERVAL '3 months'`
-      ));
-
-    let avgTAT = 0;
-    if (completedJobsWithTAT.length > 0) {
-      const totalTATHours = completedJobsWithTAT.reduce((sum, job) => {
-        if (job.startedAt && job.completedAt) {
-          const diffInMs = job.completedAt.getTime() - job.startedAt.getTime();
-          const diffInHours = diffInMs / (1000 * 60 * 60);
-          return sum + diffInHours;
-        }
-        return sum;
-      }, 0);
-      avgTAT = Math.round((totalTATHours / completedJobsWithTAT.length / 24) * 10) / 10; // Convert to days with 1 decimal
-    }
-
-    // Additional metrics for partner/detailer views.
-    // Count jobs that have been approved OR moved further down the post-approval
-    // pipeline (a completed job rarely stays in the exact 'APPROVED' status).
-    const [completedJobsResult] = await db
-      .select({ count: count() })
-      .from(jobCards)
-      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
-      .where(and(
-        ...conditions,
-        inArray(jobCards.status, ['APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED'] as any),
-        sql`EXTRACT(MONTH FROM job_cards.completed_at) = EXTRACT(MONTH FROM CURRENT_DATE)`,
-        sql`EXTRACT(YEAR FROM job_cards.completed_at) = EXTRACT(YEAR FROM CURRENT_DATE)`
-      ));
-
-    const [inProgressJobsResult] = await db
-      .select({ count: count() })
-      .from(jobCards)
-      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
-      .where(and(
-        ...conditions,
-        eq(jobCards.status, 'IN_PROGRESS')
-      ));
-
-    const [pendingJobsResult] = await db
-      .select({ count: count() })
-      .from(jobCards)
-      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
-      .where(and(
-        ...conditions,
-        sql`job_cards.status IN ('AWAITING_ACK', 'ACKNOWLEDGED', 'SCHEDULED')`
-      ));
-
-    // Partner earnings (commission from completed jobs this month)
-    const [earningsResult] = await db
-      .select({ total: sql<number>`COALESCE(SUM(payouts.net_amount), 0)` })
-      .from(payouts)
-      .innerJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
-      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
-      .where(and(
-        ...conditions,
-        sql`EXTRACT(MONTH FROM payouts.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)`,
-        sql`EXTRACT(YEAR FROM payouts.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`
-      ));
-
-    return {
-      activeWorkOrders: activeWOResult?.count || 0,
-      pendingApprovals: pendingApprovalsResult?.count || 0,
-      thisMonthRevenue: Number(revenueResult?.total || 0),
-      avgTAT: avgTAT || 0,
-      completedJobs: completedJobsResult?.count || 0,
-      inProgressJobs: inProgressJobsResult?.count || 0,
-      pendingJobs: pendingJobsResult?.count || 0,
-      thisMonthEarnings: Number(earningsResult?.total || 0)
-    };
-  }
-
-  async getOrdersRevenueTrend(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
-    month: string;
-    orders: number;
-    revenue: number;
-  }[]> {
-    const conditions = [];
-    if (oemId) conditions.push(eq(workOrders.oemId, oemId));
-    if (dealershipId) {
-      conditions.push(eq(workOrders.dealershipId, dealershipId));
-    }
-    if (showroomId) {
-      conditions.push(eq(workOrders.showroomId, showroomId));
-    }
-
-    // Get monthly data for the last 9 months
-    const monthlyData = await db
-      .select({
-        month: sql<string>`TO_CHAR(work_orders.created_at, 'Mon')`,
-        monthNum: sql<number>`EXTRACT(MONTH FROM work_orders.created_at)`,
-        yearNum: sql<number>`EXTRACT(YEAR FROM work_orders.created_at)`,
-        orders: count(),
-        totalRevenue: sql<number>`COALESCE(SUM(payouts.net_amount), 0)`
-      })
-      .from(workOrders)
-      .leftJoin(jobCards, eq(workOrders.id, jobCards.workOrderId))
-      .leftJoin(payouts, eq(jobCards.id, payouts.jobCardId))
-      .where(and(
-        ...conditions,
-        sql`work_orders.created_at >= CURRENT_DATE - INTERVAL '9 months'`
-      ))
-      .groupBy(
-        sql`TO_CHAR(work_orders.created_at, 'Mon')`,
-        sql`EXTRACT(MONTH FROM work_orders.created_at)`,
-        sql`EXTRACT(YEAR FROM work_orders.created_at)`
-      )
-      .orderBy(
-        sql`EXTRACT(YEAR FROM work_orders.created_at)`,
-        sql`EXTRACT(MONTH FROM work_orders.created_at)`
-      );
-
-    return monthlyData.map(row => ({
-      month: row.month,
-      orders: row.orders || 0,
-      revenue: Number(row.totalRevenue || 0)
-    }));
-  }
-
-  async getDealershipPerformance(oemId?: string): Promise<{
-    name: string;
-    orders: number;
-    revenue: number;
-    growth: number;
-  }[]> {
-    // Get top performing dealerships in the OEM. COUNT(DISTINCT work_orders.id) so the
-    // jobCards/payouts joins (needed for revenue) don't inflate the order count via fan-out.
-    const performanceData = await db
-      .select({
-        dealershipId: workOrders.dealershipId,
-        name: dealerships.name,
-        thisMonthOrders: sql<number>`COUNT(DISTINCT work_orders.id)`,
-        thisMonthRevenue: sql<number>`COALESCE(SUM(payouts.net_amount), 0)`
-      })
-      .from(workOrders)
-      .innerJoin(dealerships, eq(workOrders.dealershipId, dealerships.id))
-      .leftJoin(jobCards, eq(workOrders.id, jobCards.workOrderId))
-      .leftJoin(payouts, eq(jobCards.id, payouts.jobCardId))
-      .where(and(
-        ...(oemId ? [eq(workOrders.oemId, oemId)] : []),
-        sql`EXTRACT(MONTH FROM work_orders.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)`,
-        sql`EXTRACT(YEAR FROM work_orders.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`
-      ))
-      .groupBy(workOrders.dealershipId, dealerships.name)
-      .orderBy(desc(sql`COUNT(DISTINCT work_orders.id)`))
-      .limit(5);
-
-    // Real month-over-month growth from last month's order counts for the same dealerships.
-    const topDealershipIds = performanceData.map(row => row.dealershipId).filter((id): id is string => !!id);
-    const lastMonthData = topDealershipIds.length > 0 ? await db
-      .select({
-        dealershipId: workOrders.dealershipId,
-        lastMonthOrders: count()
-      })
-      .from(workOrders)
-      .where(and(
-        inArray(workOrders.dealershipId, topDealershipIds),
-        sql`EXTRACT(MONTH FROM work_orders.created_at) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`,
-        sql`EXTRACT(YEAR FROM work_orders.created_at) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month')`
-      ))
-      .groupBy(workOrders.dealershipId) : [];
-    const lastMonthByDealership = new Map(lastMonthData.map(row => [row.dealershipId, row.lastMonthOrders]));
-
-    return performanceData.map(row => ({
-      name: row.name,
-      orders: Number(row.thisMonthOrders || 0),
-      revenue: Number(row.thisMonthRevenue || 0),
-      growth: this.growthPct(Number(row.thisMonthOrders || 0), lastMonthByDealership.get(row.dealershipId) || 0) ?? 0
-    }));
-  }
-
-  // Admin/OEM: top detailing partners by jobs completed this month (across the OEM).
-  async getTopDetailingPartners(oemId?: string): Promise<{
-    id: string;
-    name: string;
-    completedJobs: number;
-    revenue: number;
-    growth: number;
-  }[]> {
-    const performanceData = await db
-      .select({
-        partnerId: jobCards.partnerId,
-        name: partners.displayName,
-        completedJobs: sql<number>`COUNT(DISTINCT job_cards.id)`,
-        revenue: sql<number>`COALESCE(SUM(payouts.net_amount), 0)`
-      })
-      .from(jobCards)
-      .innerJoin(partners, eq(jobCards.partnerId, partners.id))
-      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
-      .leftJoin(payouts, eq(jobCards.id, payouts.jobCardId))
-      .where(and(
-        ...(oemId ? [eq(workOrders.oemId, oemId)] : []),
-        inArray(jobCards.status, COMPLETED_JOB_STATUSES as any),
-        isNotNull(jobCards.completedAt),
-        sql`EXTRACT(MONTH FROM job_cards.completed_at) = EXTRACT(MONTH FROM CURRENT_DATE)`,
-        sql`EXTRACT(YEAR FROM job_cards.completed_at) = EXTRACT(YEAR FROM CURRENT_DATE)`
-      ))
-      .groupBy(jobCards.partnerId, partners.displayName)
-      .orderBy(desc(sql`COUNT(DISTINCT job_cards.id)`))
-      .limit(5);
-
-    const topPartnerIds = performanceData.map(row => row.partnerId).filter((id): id is string => !!id);
-    const lastMonthData = topPartnerIds.length > 0 ? await db
-      .select({ partnerId: jobCards.partnerId, lastMonth: count() })
-      .from(jobCards)
-      .where(and(
-        inArray(jobCards.partnerId, topPartnerIds),
-        inArray(jobCards.status, COMPLETED_JOB_STATUSES as any),
-        isNotNull(jobCards.completedAt),
-        sql`EXTRACT(MONTH FROM job_cards.completed_at) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`,
-        sql`EXTRACT(YEAR FROM job_cards.completed_at) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month')`
-      ))
-      .groupBy(jobCards.partnerId) : [];
-    const lastMonthByPartner = new Map(lastMonthData.map(row => [row.partnerId, row.lastMonth]));
-
-    return performanceData.map(row => ({
-      id: row.partnerId,
-      name: row.name,
-      completedJobs: Number(row.completedJobs || 0),
-      revenue: Number(row.revenue || 0),
-      growth: this.growthPct(Number(row.completedJobs || 0), lastMonthByPartner.get(row.partnerId) || 0) ?? 0
-    }));
-  }
-
-  // Admin/OEM: top showrooms by work orders registered this month.
-  async getTopPerformingShowrooms(oemId?: string): Promise<{
-    id: string;
-    name: string;
-    orders: number;
-    revenue: number;
-    growth: number;
-  }[]> {
-    const performanceData = await db
-      .select({
-        showroomId: workOrders.showroomId,
-        name: showrooms.name,
-        thisMonthOrders: sql<number>`COUNT(DISTINCT work_orders.id)`,
-        thisMonthRevenue: sql<number>`COALESCE(SUM(payouts.net_amount), 0)`
-      })
-      .from(workOrders)
-      .innerJoin(showrooms, eq(workOrders.showroomId, showrooms.id))
-      .leftJoin(jobCards, eq(workOrders.id, jobCards.workOrderId))
-      .leftJoin(payouts, eq(jobCards.id, payouts.jobCardId))
-      .where(and(
-        ...(oemId ? [eq(workOrders.oemId, oemId)] : []),
-        sql`EXTRACT(MONTH FROM work_orders.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)`,
-        sql`EXTRACT(YEAR FROM work_orders.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`
-      ))
-      .groupBy(workOrders.showroomId, showrooms.name)
-      .orderBy(desc(sql`COUNT(DISTINCT work_orders.id)`))
-      .limit(5);
-
-    const topShowroomIds = performanceData.map(row => row.showroomId).filter((id): id is string => !!id);
-    const lastMonthData = topShowroomIds.length > 0 ? await db
-      .select({ showroomId: workOrders.showroomId, lastMonth: count() })
-      .from(workOrders)
-      .where(and(
-        inArray(workOrders.showroomId, topShowroomIds),
-        sql`EXTRACT(MONTH FROM work_orders.created_at) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`,
-        sql`EXTRACT(YEAR FROM work_orders.created_at) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month')`
-      ))
-      .groupBy(workOrders.showroomId) : [];
-    const lastMonthByShowroom = new Map(lastMonthData.map(row => [row.showroomId, row.lastMonth]));
-
-    return performanceData.map(row => ({
-      id: row.showroomId,
-      name: row.name,
-      orders: Number(row.thisMonthOrders || 0),
-      revenue: Number(row.thisMonthRevenue || 0),
-      growth: this.growthPct(Number(row.thisMonthOrders || 0), lastMonthByShowroom.get(row.showroomId) || 0) ?? 0
-    }));
-  }
-
   // Partner Admin: the partner's own showrooms ranked by the volume of work done there.
   async getPartnerTopShowrooms(partnerId: string): Promise<{
     id: string;
@@ -5272,136 +4885,6 @@ export class DatabaseStorage implements IStorage {
       totalJobs: Number(row.totalJobs || 0),
       completedJobs: Number(row.completedJobs || 0),
       revenue: Number(row.revenue || 0)
-    }));
-  }
-
-  async getTerritoryPerformance(oemId?: string, dealershipId?: string, showroomId?: string): Promise<{
-    territory: string;
-    orders: number;
-    revenue: number;
-  }[]> {
-    // Get performance by city/territory
-    const conditions = [
-      isNotNull(dealerships.city),
-      sql`work_orders.created_at >= CURRENT_DATE - INTERVAL '3 months'`
-    ];
-    if (oemId) conditions.push(eq(workOrders.oemId, oemId));
-
-    if (dealershipId) {
-      conditions.push(eq(workOrders.dealershipId, dealershipId));
-    }
-    if (showroomId) {
-      conditions.push(eq(workOrders.showroomId, showroomId));
-    }
-    
-    const territoryData = await db
-      .select({
-        territory: dealerships.city,
-        totalOrders: count(),
-        totalRevenue: sum(payouts.netAmount)
-      })
-      .from(workOrders)
-      .innerJoin(dealerships, eq(workOrders.dealershipId, dealerships.id))
-      .leftJoin(jobCards, eq(workOrders.id, jobCards.workOrderId))
-      .leftJoin(payouts, eq(jobCards.id, payouts.jobCardId))
-      .where(and(...conditions))
-      .groupBy(dealerships.city)
-      .orderBy(desc(count()))
-      .limit(5);
-
-    return territoryData.map(row => ({
-      territory: row.territory || 'Unknown',
-      orders: row.totalOrders || 0,
-      revenue: Number(row.totalRevenue || 0)
-    }));
-  }
-
-  async getServicePopularity(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
-    name: string;
-    value: number;
-    color: string;
-  }[]> {
-    const conditions = [];
-    if (oemId) conditions.push(eq(workOrders.oemId, oemId));
-    if (dealershipId) {
-      conditions.push(eq(workOrders.dealershipId, dealershipId));
-    }
-    if (showroomId) {
-      conditions.push(eq(workOrders.showroomId, showroomId));
-    }
-
-    const serviceData = await db
-      .select({
-        serviceName: services.name,
-        count: count()
-      })
-      .from(workOrders)
-      .innerJoin(services, eq(workOrders.serviceId, services.id))
-      .where(and(
-        ...conditions,
-        sql`work_orders.created_at >= CURRENT_DATE - INTERVAL '3 months'`
-      ))
-      .groupBy(services.name)
-      .orderBy(desc(count()))
-      .limit(5);
-
-    const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff88'];
-    
-    return serviceData.map((row, index) => ({
-      name: row.serviceName,
-      value: row.count || 0,
-      color: colors[index % colors.length]
-    }));
-  }
-
-  async getMonthlyTrends(oemId?: string, showroomId?: string, dealershipId?: string): Promise<{
-    month: string;
-    completedOrders: number;
-    avgTAT: number;
-  }[]> {
-    const conditions = [];
-    if (oemId) conditions.push(eq(workOrders.oemId, oemId));
-    if (dealershipId) {
-      conditions.push(eq(workOrders.dealershipId, dealershipId));
-    }
-    if (showroomId) {
-      conditions.push(eq(workOrders.showroomId, showroomId));
-    }
-
-    // Get monthly trends for the last 9 months
-    const monthlyTrends = await db
-      .select({
-        month: sql<string>`TO_CHAR(job_cards.completed_at, 'Mon')`,
-        monthNum: sql<number>`EXTRACT(MONTH FROM job_cards.completed_at)`,
-        yearNum: sql<number>`EXTRACT(YEAR FROM job_cards.completed_at)`,
-        completedCount: count(),
-        avgTATDays: sql<number>`AVG(EXTRACT(EPOCH FROM (job_cards.completed_at - job_cards.started_at)) / 86400)`
-      })
-      .from(jobCards)
-      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
-      .where(and(
-        ...conditions,
-        // Count jobs that have been approved OR moved further down the post-approval
-        // pipeline (a completed job rarely stays in the exact 'APPROVED' status).
-        inArray(jobCards.status, ['APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED'] as any),
-        isNotNull(jobCards.startedAt),
-        isNotNull(jobCards.completedAt),
-        sql`job_cards.completed_at >= CURRENT_DATE - INTERVAL '9 months'`
-      ))
-      .groupBy(
-        sql`TO_CHAR(job_cards.completed_at, 'Mon')`,
-        sql`EXTRACT(MONTH FROM job_cards.completed_at)`,
-        sql`EXTRACT(YEAR FROM job_cards.completed_at)`
-      )
-      .orderBy(
-        sql`EXTRACT(YEAR FROM job_cards.completed_at)`,
-        sql`EXTRACT(MONTH FROM job_cards.completed_at)`
-      );
-
-    return monthlyTrends.map(row => ({
-      month: row.month,
-      completedOrders: row.completedCount || 0,
-      avgTAT: Math.round((row.avgTATDays || 0) * 10) / 10
     }));
   }
 
@@ -5610,98 +5093,6 @@ export class DatabaseStorage implements IStorage {
       activeSalesPersons,
       avgCommissionRate: Math.round(avgCommissionRate * 10) / 10
     };
-  }
-
-  // Activity timeline: work orders registered + job cards completed, bucketed by
-  // day or month over a custom date range, scoped to the caller's tenant.
-  async getActivityTimeline(opts: {
-    oemId?: string;
-    dealershipId?: string;
-    showroomId?: string;
-    partnerId?: string;
-    from: string;
-    to: string;
-    granularity: 'day' | 'month';
-  }): Promise<{ period: string; label: string; orders: number; completed: number }[]> {
-    const trunc = opts.granularity === 'month' ? 'month' : 'day';
-    const { from, to } = opts;
-
-    // Tenant scoping applied to work_orders
-    const woScope = [] as any[];
-    if (opts.oemId) woScope.push(eq(workOrders.oemId, opts.oemId));
-    if (opts.dealershipId) woScope.push(eq(workOrders.dealershipId, opts.dealershipId));
-    if (opts.showroomId) woScope.push(eq(workOrders.showroomId, opts.showroomId));
-    if (opts.partnerId) woScope.push(eq(workOrders.assignedPartnerId, opts.partnerId));
-
-    // Shared bucket expressions (trunc is a safe literal: 'day' | 'month').
-    // Reuse the same sql object in SELECT and GROUP BY so Postgres treats them as identical.
-    const woBucket = sql<string>`to_char(date_trunc('${sql.raw(trunc)}', work_orders.created_at), 'YYYY-MM-DD')`;
-    const jcBucket = sql<string>`to_char(date_trunc('${sql.raw(trunc)}', job_cards.completed_at), 'YYYY-MM-DD')`;
-
-    // Orders registered, grouped by created_at bucket
-    const orderRows = await db
-      .select({ bucket: woBucket, n: count() })
-      .from(workOrders)
-      .where(and(
-        ...woScope,
-        sql`work_orders.created_at >= ${from}::date AND work_orders.created_at < (${to}::date + 1)`,
-      ))
-      .groupBy(woBucket);
-
-    // Jobs completed (approved-or-later), grouped by completed_at bucket
-    const jcScope = [] as any[];
-    if (opts.partnerId) {
-      jcScope.push(eq(jobCards.partnerId, opts.partnerId));
-    } else {
-      if (opts.oemId) jcScope.push(eq(workOrders.oemId, opts.oemId));
-      if (opts.dealershipId) jcScope.push(eq(workOrders.dealershipId, opts.dealershipId));
-      if (opts.showroomId) jcScope.push(eq(workOrders.showroomId, opts.showroomId));
-    }
-    const completedRows = await db
-      .select({ bucket: jcBucket, n: count() })
-      .from(jobCards)
-      .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
-      .where(and(
-        ...jcScope,
-        inArray(jobCards.status, ['APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING', 'CLOSED'] as any),
-        isNotNull(jobCards.completedAt),
-        sql`job_cards.completed_at >= ${from}::date AND job_cards.completed_at < (${to}::date + 1)`,
-      ))
-      .groupBy(jcBucket);
-
-    const orderMap = new Map(orderRows.map(r => [r.bucket, r.n]));
-    const completedMap = new Map(completedRows.map(r => [r.bucket, r.n]));
-
-    // Build the full ordered list of buckets so the chart has no gaps
-    const buckets: { period: string; label: string }[] = [];
-    const start = new Date(`${from}T00:00:00`);
-    const end = new Date(`${to}T00:00:00`);
-    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    if (trunc === 'month') {
-      const cur = new Date(start.getFullYear(), start.getMonth(), 1);
-      const last = new Date(end.getFullYear(), end.getMonth(), 1);
-      let guard = 0;
-      while (cur <= last && guard++ < 240) {
-        const period = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-01`;
-        buckets.push({ period, label: `${monthNames[cur.getMonth()]} ${cur.getFullYear()}` });
-        cur.setMonth(cur.getMonth() + 1);
-      }
-    } else {
-      const cur = new Date(start);
-      let guard = 0;
-      while (cur <= end && guard++ < 1000) {
-        const period = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
-        buckets.push({ period, label: `${cur.getDate()} ${monthNames[cur.getMonth()]}` });
-        cur.setDate(cur.getDate() + 1);
-      }
-    }
-
-    return buckets.map(b => ({
-      period: b.period,
-      label: b.label,
-      orders: Number(orderMap.get(b.period) || 0),
-      completed: Number(completedMap.get(b.period) || 0),
-    }));
   }
 
   // Allocation management implementation
@@ -6451,6 +5842,18 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return setting;
+  }
+
+  async findJobCardsBySalesInvoiceNumber(invoiceNumber: string, excludeJobCardId?: string): Promise<{ id: string; status: string | null }[]> {
+    const conditions = [
+      sql`upper(trim(${jobCards.salesInvoiceNumber})) = upper(trim(${invoiceNumber}))`,
+      isNull(jobCards.deletedAt),
+    ];
+    if (excludeJobCardId) conditions.push(ne(jobCards.id, excludeJobCardId));
+    return db
+      .select({ id: jobCards.id, status: jobCards.status })
+      .from(jobCards)
+      .where(and(...conditions));
   }
 }
 

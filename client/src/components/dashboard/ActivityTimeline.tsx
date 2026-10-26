@@ -20,7 +20,8 @@ type ActivityRow = { period: string; label: string; orders: number; completed: n
 const fmt = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-export default function ActivityTimeline() {
+// `filters` carries the dashboard-wide brand / OEM selection (e.g. "brand=Stek&oemId=...").
+export default function ActivityTimeline({ filters = "" }: { filters?: string }) {
   const [granularity, setGranularity] = useState<"day" | "month">("day");
   const [from, setFrom] = useState(() => {
     const d = new Date();
@@ -30,11 +31,11 @@ export default function ActivityTimeline() {
   const [to, setTo] = useState(() => fmt(new Date()));
 
   const { data = [], isLoading } = useQuery<ActivityRow[]>({
-    queryKey: ["/api/dashboard/activity", granularity, from, to],
+    queryKey: ["/api/dashboard/activity", granularity, from, to, filters],
     queryFn: async () => {
       const res = await apiRequest(
         "GET",
-        `/api/dashboard/activity?granularity=${granularity}&from=${from}&to=${to}`
+        `/api/dashboard/activity?granularity=${granularity}&from=${from}&to=${to}${filters ? `&${filters}` : ""}`
       );
       return res.json();
     },

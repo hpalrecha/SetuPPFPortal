@@ -76,6 +76,7 @@ import logoGreen from "@assets/P91 PULSE logo-01_1761139835394.png";
 import { displayContact } from "@shared/placeholderContact";
 import { WarrantyCard } from "@/components/job-cards/warranty-card";
 import { LinkWarrantyDialog } from "@/components/job-cards/link-warranty-dialog";
+import { BILLING_ENTITIES_QUERY_KEY, apiErrorMessage, type BillingEntitiesResponse } from "@/components/settings/BillingEntitiesCard";
 
 // Enhanced Job Card types to match API structure
 interface JobCard {
@@ -408,6 +409,15 @@ export default function JobCardsNew() {
   // Placeholder parts list — swap for the real one when provided.
   const REWORK_PARTS = ['A', 'B', 'C', 'D'];
   const [salesInvoiceNumber, setSalesInvoiceNumber] = useState('');
+  const [settleError, setSettleError] = useState<string | null>(null);
+  // Company billing entities — invoice-number format hint + invoice-company name lookup.
+  const { data: billingEntitiesData } = useQuery<BillingEntitiesResponse>({ queryKey: BILLING_ENTITIES_QUERY_KEY });
+  const invoiceCompanyName = (jc: any): string => {
+    if (!jc?.invoiceCompany) return '';
+    const entity = billingEntitiesData?.entities?.find(e => e.key === jc.invoiceCompany);
+    return entity?.name || (jc.billFrom?.entityKey === jc.invoiceCompany ? jc.billFrom?.name : '') || jc.invoiceCompany;
+  };
+  const invoicePrefixes = billingEntitiesData?.entities?.map(e => e.invoicePrefix) || ['ST', 'P91TFPL'];
   const [warrantyReferenceNumber, setWarrantyReferenceNumber] = useState('');
   
   // Handle direct link to specific job card
@@ -860,6 +870,12 @@ export default function JobCardsNew() {
       return;
     }
 
+    // Billing snapshots are jsonb objects on the job card (fallback: work order).
+    const printBillFrom: any = jobCard.billFrom || jobCard.workOrder?.billFrom || null;
+    const printBillTo: any = jobCard.billTo || jobCard.workOrder?.billTo || null;
+    const formatPrintAddress = (a: any) =>
+      a ? [a.addressLine1, a.city, a.state].filter(Boolean).join(', ') + (a.pincode ? ` - ${a.pincode}` : '') : '';
+
     const statusLabels: Record<string, string> = {
       'AWAITING_ACK': 'Awaiting Acknowledgment',
       'ACKNOWLEDGED': 'Acknowledged',
@@ -1088,15 +1104,15 @@ export default function JobCardsNew() {
           <div class="grid">
             <div class="billing-box">
               <div class="title">Bill From</div>
-              <div class="field-value">${jobCard.billFromName || jobCard.workOrder?.billFromName || 'N/A'}</div>
-              <div class="field-value" style="font-size: 9px; color: #666;">${jobCard.billFromAddress || jobCard.workOrder?.billFromAddress || ''}</div>
-              ${(jobCard.billFromGstin || jobCard.workOrder?.billFromGstin) ? `<div class="field-value" style="font-size: 9px;">GSTIN: ${jobCard.billFromGstin || jobCard.workOrder?.billFromGstin}</div>` : ''}
+              <div class="field-value">${printBillFrom?.name || 'N/A'}</div>
+              <div class="field-value" style="font-size: 9px; color: #666;">${formatPrintAddress(printBillFrom)}</div>
+              ${printBillFrom?.gstin ? `<div class="field-value" style="font-size: 9px;">GSTIN: ${printBillFrom.gstin}</div>` : ''}
             </div>
             <div class="billing-box">
-              <div class="title">Bill To${jobCard.billToType || jobCard.workOrder?.billToType ? ` (${jobCard.billToType || jobCard.workOrder?.billToType})` : ''}</div>
-              <div class="field-value">${jobCard.billToName || jobCard.workOrder?.billToName || 'N/A'}</div>
-              <div class="field-value" style="font-size: 9px; color: #666;">${jobCard.billToAddress || jobCard.workOrder?.billToAddress || ''}</div>
-              ${(jobCard.billToGstin || jobCard.workOrder?.billToGstin) ? `<div class="field-value" style="font-size: 9px;">GSTIN: ${jobCard.billToGstin || jobCard.workOrder?.billToGstin}</div>` : ''}
+              <div class="title">Bill To${printBillTo?.entityType ? ` (${printBillTo.entityType})` : ''}</div>
+              <div class="field-value">${printBillTo?.entityName || 'N/A'}</div>
+              <div class="field-value" style="font-size: 9px; color: #666;">${formatPrintAddress(printBillTo)}</div>
+              ${printBillTo?.gstin ? `<div class="field-value" style="font-size: 9px;">GSTIN: ${printBillTo.gstin}</div>` : ''}
             </div>
           </div>
         </div>
@@ -1139,7 +1155,7 @@ export default function JobCardsNew() {
             <div class="settlement-box">
               <div class="field-label">Payment Settlement</div>
               <div class="field-value">Settled${jobCard.settledAt ? ` on ${formatDateTime(jobCard.settledAt)}` : ''}</div>
-              <div class="field-value"><strong>Invoice:</strong> ${jobCard.salesInvoiceNumber}</div>
+              <div class="field-value"><strong>Invoice:</strong> ${jobCard.salesInvoiceNumber}${invoiceCompanyName(jobCard) ? ` (${invoiceCompanyName(jobCard)})` : ''}</div>
             </div>
             ` : ''}
             ${jobCard.warrantyReferenceNumber ? `
@@ -1225,15 +1241,18 @@ export default function JobCardsNew() {
       queryClient.invalidateQueries({ queryKey: ['/api/job-cards'] });
       setShowSettlePaymentModal(false);
       setSalesInvoiceNumber('');
+      setSettleError(null);
       toast({
         title: "Payment Settled",
         description: "Sales invoice number has been recorded successfully.",
       });
     },
     onError: (error: any) => {
+      const message = apiErrorMessage(error, "Failed to settle payment");
+      setSettleError(message);
       toast({
         title: "Error",
-        description: error.message || "Failed to settle payment",
+        description: message,
         variant: "destructive"
       });
     }
@@ -3811,6 +3830,11 @@ export default function JobCardsNew() {
                                 <p className="text-xs font-mono mt-1 text-green-700">
                                   Invoice: {detailedJobCard.salesInvoiceNumber}
                                 </p>
+                                {invoiceCompanyName(detailedJobCard) && (
+                                  <p className="text-xs mt-0.5 text-muted-foreground" data-testid="text-invoice-company">
+                                    Billed by {invoiceCompanyName(detailedJobCard)}
+                                  </p>
+                                )}
                               </>
                             ) : (
                               <p className="text-xs text-muted-foreground mt-1">
@@ -4572,11 +4596,22 @@ export default function JobCardsNew() {
               </label>
               <Input
                 id="invoice-number"
-                placeholder="e.g., INV-2025-001"
+                placeholder={`e.g., ${invoicePrefixes.map(p => `${p}/1060/26-27`).join(' or ')}`}
                 value={salesInvoiceNumber}
-                onChange={(e) => setSalesInvoiceNumber(e.target.value)}
+                onChange={(e) => { setSalesInvoiceNumber(e.target.value); setSettleError(null); }}
                 data-testid="input-invoice-number"
               />
+              <p className="text-xs text-muted-foreground">
+                ERPNext invoice number: {invoicePrefixes.map(p => `${p}/<number>/<YY-YY>`).join(' or ')}.
+                {' '}The prefix decides the billing company
+                {billingEntitiesData?.entities?.length
+                  ? ` (${billingEntitiesData.entities.map(e => `${e.invoicePrefix} = ${e.name}`).join('; ')})`
+                  : ''}.
+                {' '}Partner-billed jobs may use the partner's own number.
+              </p>
+              {settleError && (
+                <p className="text-sm text-destructive" data-testid="text-settle-error">{settleError}</p>
+              )}
             </div>
             <div className="flex gap-2 justify-end">
               <Button
@@ -4584,6 +4619,7 @@ export default function JobCardsNew() {
                 onClick={() => {
                   setShowSettlePaymentModal(false);
                   setSalesInvoiceNumber('');
+                  setSettleError(null);
                 }}
                 data-testid="button-cancel-settle"
               >
