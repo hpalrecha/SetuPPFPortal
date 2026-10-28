@@ -13,7 +13,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, Omit<React.ComponentPro
       <div className="relative">
         <Input
           type={visible ? "text" : "password"}
-          className={cn("pr-10", className)}
+          className={cn(className, "pr-10")}
           disabled={disabled}
           ref={ref}
           {...props}

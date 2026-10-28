@@ -18,7 +18,7 @@ export class WorkOrderService {
     dealershipId: string,
     showroomId: string,
     partnerId?: string,
-    existingBillFrom?: any
+    existingBillFrom?: any | any[]
   ): Promise<{
     billFrom: any;
     billTo: any;
@@ -29,10 +29,14 @@ export class WorkOrderService {
     // Never silently switch an existing work order's company: if it already carries a company
     // bill_from snapshot, keep it. Only a missing snapshot (or a previous partner-billed one)
     // gets the entity that is the default *now*.
+    // Several candidate snapshots may be passed (job card first, then work order); the first one
+    // that is a company snapshot wins.
     const entities = await getBillingEntities();
-    const existingCompany = matchCompanyBillFrom(entities, existingBillFrom);
+    const candidates = (Array.isArray(existingBillFrom) ? existingBillFrom : [existingBillFrom]).filter(Boolean);
+    const existing = candidates.find(c => matchCompanyBillFrom(entities, c));
+    const existingCompany = existing ? matchCompanyBillFrom(entities, existing) : undefined;
     const companyBillFrom: any = existingCompany
-      ? { ...existingBillFrom, entityKey: existingBillFrom.entityKey || existingCompany.key }
+      ? { ...existing, entityKey: existing.entityKey || existingCompany.key }
       : toBillFromSnapshot(pickDefaultBillingEntity(entities, new Date()));
 
     let billFrom: any = companyBillFrom;
@@ -148,7 +152,7 @@ export class WorkOrderService {
       workOrder.dealershipId,
       newShowroomId,
       jobCard.partnerId || undefined,
-      jobCard.billFrom || workOrder.billFrom
+      [jobCard.billFrom, workOrder.billFrom]
     );
 
     const updatedWorkOrder = await storage.updateWorkOrder(workOrder.id, {

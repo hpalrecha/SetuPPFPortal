@@ -244,6 +244,18 @@ function isWarrantyDone(jobCard: any): boolean {
   return !!(jobCard.eWarrantyApplied || jobCard.warrantyAppliedAt);
 }
 
+// Status a job card moves to once its warranty is registered. Warranty may now be
+// registered before approval and before the invoice, so it must not skip either step:
+//  - invoice already entered → warranty was the last step → CLOSED
+//  - still awaiting approval (COMPLETED / PENDING_APPROVAL) → keep the status; approval then
+//    moves it to PENDING_SALES_INVOICE and settle-payment closes it (isWarrantyDone)
+//  - approved, invoice pending → WARRANTY_REGISTRATION (settle-payment accepts this status)
+function statusAfterWarranty(jobCard: any): string {
+  if (jobCard.paymentSettledAt) return 'CLOSED';
+  if (['COMPLETED', 'PENDING_APPROVAL'].includes(jobCard.status || '')) return jobCard.status;
+  return 'WARRANTY_REGISTRATION';
+}
+
 /**
  * Can this user see this job card? Admins see everything, MANAGERs are scoped to their
  * allowed states, partner users to their own partnerId, and org roles to the work order
@@ -5014,7 +5026,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const companyBilled = !workOrderCreatedByPartner && !jobCard.partnerBilledDirectly;
         let invoiceNo = salesInvoiceNumber.trim();
         let issuingEntity: BillingEntity | undefined;
-        if (companyBilled) {
+        // SUPER_ADMIN / ADMIN may close a company-billed job that has no invoice (FOC, demo,
+        // warranty) by entering "NA" — recorded as NA with no issuing company, never deduped.
+        const noInvoice = /^n\/?a$/i.test(salesInvoiceNumber.trim());
+        if (companyBilled && noInvoice && !['SUPER_ADMIN', 'ADMIN'].includes(req.user!.role)) {
+          return res.status(400).json({ error: 'Only an admin can close a company-billed job without an invoice ("NA").' });
+        }
+        if (companyBilled && noInvoice) {
+          invoiceNo = 'NA';
+        } else if (companyBilled) {
           invoiceNo = normaliseInvoiceNumber(salesInvoiceNumber);
           if (!buildInvoiceRegex(billingEntities).test(invoiceNo)) {
             const examples = billingEntities.map(e => `${e.invoicePrefix}/1060/26-27`).join(', ');
@@ -5121,23 +5141,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(403).json({ error: "Access denied - insufficient permissions" });
         }
 
-        // This endpoint requires status === 'INVOICE_RAISED', which only ever
-        // follows settle-payment — so payment is always already settled here.
-        // Warranty is the last step, so close the job card directly.
+        // Warranty can be applied before the invoice, so only close when the invoice is in.
+        const warrantyNextStatus = statusAfterWarranty(jobCard);
         const updatedJobCard = await storage.updateJobCard(jobCardId, {
           warrantyAppliedAt: new Date(),
           warrantyReferenceNumber: warrantyReferenceNumber.trim(),
-          status: 'CLOSED'
+          status: warrantyNextStatus as any
         });
 
         if (!updatedJobCard) {
           return res.status(500).json({ error: "Failed to apply warranty" });
         }
 
-        // Sync work order status to CLOSED after warranty registration
-        await storage.updateWorkOrder(jobCard.workOrderId, {
-          status: 'CLOSED'
-        });
+        if (warrantyNextStatus !== jobCard.status) {
+          await syncWorkOrderStatus(jobCard.workOrderId, warrantyNextStatus);
+        }
 
         const finalJobCard = await storage.getJobCard(jobCardId);
         res.json({ message: "Warranty applied successfully", jobCard: finalJobCard });
@@ -6351,17 +6369,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Only now mark the job card applied (left re-tryable on any failure above).
           // If payment was already settled, warranty is the last step — close it.
-          const p91NextStatus = jobCard.paymentSettledAt ? "CLOSED" : "WARRANTY_REGISTRATION";
+          const p91NextStatus = statusAfterWarranty(jobCard);
           const p91UpdatedJobCard = await storage.updateJobCard(jobCardId, {
             eWarrantyApplied: true,
             eWarrantyAppliedAt: new Date(),
-            status: p91NextStatus,
+            status: p91NextStatus as any,
             // Mirrored into the existing reference field so the print template
             // (which already renders "Ref:") picks the code up for free.
             warrantyReferenceNumber: result.warranty?.code ?? undefined,
             warrantyCardJson: warrantyCardSnapshot,
           });
-          await syncWorkOrderStatus(jobCard.workOrderId, p91NextStatus);
+          if (p91NextStatus !== jobCard.status) await syncWorkOrderStatus(jobCard.workOrderId, p91NextStatus);
 
           return res.json({ ...p91UpdatedJobCard, warranty: result.warranty });
         }
@@ -6376,18 +6394,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // ---- STEK / other brands: existing behaviour ----
         // If payment was already settled, warranty is the last step — close it.
-        const stekNextStatus = jobCard.paymentSettledAt ? 'CLOSED' : 'WARRANTY_REGISTRATION';
+        const stekNextStatus = statusAfterWarranty(jobCard);
         const updatedJobCard = await storage.updateJobCard(jobCardId, {
           eWarrantyApplied: true,
           eWarrantyAppliedAt: new Date(),
-          status: stekNextStatus
+          status: stekNextStatus as any
         });
 
         if (!updatedJobCard) {
           return res.status(500).json({ error: "Failed to apply e-warranty" });
         }
 
-        await syncWorkOrderStatus(jobCard.workOrderId, stekNextStatus);
+        if (stekNextStatus !== jobCard.status) await syncWorkOrderStatus(jobCard.workOrderId, stekNextStatus);
 
         // Send e-warranty notification emails asynchronously
         setImmediate(async () => {
@@ -6671,7 +6689,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const advanceFrom = ['COMPLETED', 'PENDING_APPROVAL', 'APPROVED', 'PENDING_SALES_INVOICE', 'INVOICE_RAISED', 'WARRANTY_REGISTRATION', 'PAYMENT_PENDING'];
         const previousStatus = jobCard.status || '';
         const nextStatus = advanceFrom.includes(previousStatus)
-          ? (jobCard.paymentSettledAt ? 'CLOSED' : 'WARRANTY_REGISTRATION')
+          ? statusAfterWarranty(jobCard)
           : previousStatus;
 
         const updated = await storage.updateJobCard(jobCard.id, {

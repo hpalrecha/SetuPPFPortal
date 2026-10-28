@@ -3842,7 +3842,9 @@ export default function JobCardsNew() {
                               </p>
                             )}
                           </div>
-                          {detailedJobCard.status === 'PENDING_SALES_INVOICE' && (
+                          {/* Invoice can be entered once approved — also after the warranty was registered
+                              first (status WARRANTY_REGISTRATION), which the server accepts too. */}
+                          {!detailedJobCard.paymentSettledAt && ['PENDING_SALES_INVOICE', 'WARRANTY_REGISTRATION'].includes(detailedJobCard.status || '') && (
                             <Button
                               size="sm"
                               onClick={() => setShowSettlePaymentModal(true)}
@@ -4578,7 +4580,13 @@ export default function JobCardsNew() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showSettlePaymentModal} onOpenChange={setShowSettlePaymentModal}>
+      <Dialog
+        open={showSettlePaymentModal}
+        onOpenChange={(open) => {
+          setShowSettlePaymentModal(open);
+          if (!open) { setSalesInvoiceNumber(''); setSettleError(null); }
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -4607,7 +4615,7 @@ export default function JobCardsNew() {
                 {billingEntitiesData?.entities?.length
                   ? ` (${billingEntitiesData.entities.map(e => `${e.invoicePrefix} = ${e.name}`).join('; ')})`
                   : ''}.
-                {' '}Partner-billed jobs may use the partner's own number.
+                {' '}Partner-billed jobs may use the partner's own number. Admins can enter NA for a job with no invoice.
               </p>
               {settleError && (
                 <p className="text-sm text-destructive" data-testid="text-settle-error">{settleError}</p>
