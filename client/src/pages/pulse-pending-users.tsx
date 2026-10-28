@@ -13,6 +13,7 @@ import { UserPlus, Users, MapPin, ChevronDown, X, Edit, Search, Trash2 } from "l
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import type { User as StaffUser, Partner } from "@shared/schema";
+import { PasswordInput } from "@/components/ui/password-input";
 
 const authHeaders = () => ({ 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` });
 
@@ -621,9 +622,8 @@ export default function PulsePendingUsersPage() {
 
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-foreground">New Password (leave blank to keep current)</label>
-                <input
+                <PasswordInput
                   id="edit-user-password"
-                  type="password"
                   placeholder="Enter new password..."
                   className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-sm text-foreground"
                 />

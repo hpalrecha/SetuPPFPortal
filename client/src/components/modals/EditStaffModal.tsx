@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Switch } from "@/components/ui/switch";
 import {
   Form,
@@ -191,8 +192,7 @@ export function EditStaffModal({
                 <FormItem>
                   <FormLabel>New Password (Optional)</FormLabel>
                   <FormControl>
-                    <Input
-                      type="password"
+                    <PasswordInput
                       placeholder="Leave blank to keep current password"
                       data-testid="input-edit-staff-password"
                       {...field}

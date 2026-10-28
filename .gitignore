@@ -16,3 +16,6 @@ const workOrderIds = Array.from(new Set(   jobCards.map(jc => jc.workOrderId || 
 .env
 .env.local
 .claude/settings.local.json
+
+# Test-data cleanup backups (contain customer/user rows)
+scripts/backups/

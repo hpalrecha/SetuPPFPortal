@@ -52,7 +52,7 @@ export default function WorkOrderForm({ onSubmit, onCancel }: WorkOrderFormProps
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/work-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/metrics"] });
+      queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith("/api/dashboard") });
       toast({
         title: "Work Order Created",
         description: "Work order has been created successfully."

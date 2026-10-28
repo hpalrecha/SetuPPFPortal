@@ -409,18 +409,6 @@ export interface IStorage {
   deleteAllocation(id: string): Promise<boolean>;
 
   // Dashboard metrics
-  getPartnerDashboardMetrics(partnerId: string): Promise<{
-    activeWorkOrders: number;
-    pendingApprovals: number;
-    thisMonthRevenue: number;
-    avgTAT: number;
-    completedJobs: number;
-    inProgressJobs: number;
-    pendingJobs: number;
-    thisMonthEarnings: number;
-    completedJobsGrowthPct: number | null;
-    earningsGrowthPct: number | null;
-  }>;
   getUserConnections(user: ConnectionScopeUser): Promise<ConnectionsResponse>;
 
   // Partner-admin dashboard lists (admin/OEM analytics live in services/dashboardAnalytics.ts)
@@ -4305,231 +4293,6 @@ export class DatabaseStorage implements IStorage {
     return !!variant;
   }
 
-  async getPartnerDashboardMetrics(partnerId: string): Promise<{
-    activeWorkOrders: number;
-    pendingApprovals: number;
-    thisMonthRevenue: number;
-    avgTAT: number;
-    completedJobs: number;
-    inProgressJobs: number;
-    pendingJobs: number;
-    thisMonthEarnings: number;
-    completedJobsGrowthPct: number | null;
-    earningsGrowthPct: number | null;
-  }> {
-    // Get counts for different job card statuses
-    const [pendingJobsResult] = await db
-      .select({ count: count() })
-      .from(jobCards)
-      .where(and(
-        eq(jobCards.partnerId, partnerId),
-        or(
-          eq(jobCards.status, 'AWAITING_ACK'),
-          eq(jobCards.status, 'ACKNOWLEDGED'),
-          eq(jobCards.status, 'SCHEDULED')
-        )
-      ));
-
-    const [inProgressJobsResult] = await db
-      .select({ count: count() })
-      .from(jobCards)
-      .where(and(
-        eq(jobCards.partnerId, partnerId),
-        eq(jobCards.status, 'IN_PROGRESS')
-      ));
-
-    const [completedJobsResult] = await db
-      .select({ count: count() })
-      .from(jobCards)
-      .where(and(
-        eq(jobCards.partnerId, partnerId),
-        inArray(jobCards.status, COMPLETED_JOB_STATUSES as any)
-      ));
-
-    // Calculate average TAT for completed jobs
-    const completedJobsWithTAT = await db
-      .select({
-        startedAt: jobCards.startedAt,
-        completedAt: jobCards.completedAt
-      })
-      .from(jobCards)
-      .where(and(
-        eq(jobCards.partnerId, partnerId),
-        inArray(jobCards.status, COMPLETED_JOB_STATUSES as any),
-        isNotNull(jobCards.startedAt),
-        isNotNull(jobCards.completedAt),
-        sql`job_cards.completed_at >= CURRENT_DATE - INTERVAL '3 months'`
-      ));
-
-    let avgTAT = 0;
-    if (completedJobsWithTAT.length > 0) {
-      const totalTATHours = completedJobsWithTAT.reduce((sum, job) => {
-        if (job.startedAt && job.completedAt) {
-          const diffInMs = job.completedAt.getTime() - job.startedAt.getTime();
-          const diffInHours = diffInMs / (1000 * 60 * 60);
-          return sum + diffInHours;
-        }
-        return sum;
-      }, 0);
-      avgTAT = Math.round((totalTATHours / completedJobsWithTAT.length / 24) * 10) / 10; // Convert to days
-    }
-
-    // Get this month's earnings from payouts using SQL SUM
-    const [thisMonthEarnings] = await db
-      .select({
-        total: sql<number>`COALESCE(SUM(payouts.net_amount), 0)`
-      })
-      .from(payouts)
-      .innerJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
-      .where(and(
-        eq(jobCards.partnerId, partnerId),
-        sql`EXTRACT(MONTH FROM payouts.created_at) = EXTRACT(MONTH FROM CURRENT_DATE)`,
-        sql`EXTRACT(YEAR FROM payouts.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)`
-      ));
-
-    // Last month's earnings, for the growth comparison badge
-    const [lastMonthEarnings] = await db
-      .select({
-        total: sql<number>`COALESCE(SUM(payouts.net_amount), 0)`
-      })
-      .from(payouts)
-      .innerJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
-      .where(and(
-        eq(jobCards.partnerId, partnerId),
-        sql`EXTRACT(MONTH FROM payouts.created_at) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`,
-        sql`EXTRACT(YEAR FROM payouts.created_at) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month')`
-      ));
-
-    // Jobs completed this month vs last month, for the growth comparison badge
-    const [completedThisMonthResult] = await db
-      .select({ count: count() })
-      .from(jobCards)
-      .where(and(
-        eq(jobCards.partnerId, partnerId),
-        inArray(jobCards.status, COMPLETED_JOB_STATUSES as any),
-        isNotNull(jobCards.completedAt),
-        sql`EXTRACT(MONTH FROM job_cards.completed_at) = EXTRACT(MONTH FROM CURRENT_DATE)`,
-        sql`EXTRACT(YEAR FROM job_cards.completed_at) = EXTRACT(YEAR FROM CURRENT_DATE)`
-      ));
-
-    const [completedLastMonthResult] = await db
-      .select({ count: count() })
-      .from(jobCards)
-      .where(and(
-        eq(jobCards.partnerId, partnerId),
-        inArray(jobCards.status, COMPLETED_JOB_STATUSES as any),
-        isNotNull(jobCards.completedAt),
-        sql`EXTRACT(MONTH FROM job_cards.completed_at) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`,
-        sql`EXTRACT(YEAR FROM job_cards.completed_at) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month')`
-      ));
-
-    return {
-      activeWorkOrders: (pendingJobsResult?.count || 0) + (inProgressJobsResult?.count || 0),
-      pendingApprovals: pendingJobsResult?.count || 0,
-      thisMonthRevenue: Number(thisMonthEarnings?.total || 0),
-      avgTAT: avgTAT,
-      completedJobs: completedJobsResult?.count || 0,
-      inProgressJobs: inProgressJobsResult?.count || 0,
-      pendingJobs: pendingJobsResult?.count || 0,
-      thisMonthEarnings: Number(thisMonthEarnings?.total || 0),
-      completedJobsGrowthPct: this.growthPct(completedThisMonthResult?.count || 0, completedLastMonthResult?.count || 0),
-      earningsGrowthPct: this.growthPct(Number(thisMonthEarnings?.total || 0), Number(lastMonthEarnings?.total || 0))
-    };
-  }
-
-  async getPartnerStaffDashboardMetrics(partnerId: string, staffId: string): Promise<{
-    activeWorkOrders: number;
-    pendingApprovals: number;
-    thisMonthRevenue: number;
-    avgTAT: number;
-    completedJobs: number;
-    inProgressJobs: number;
-    pendingJobs: number;
-    thisMonthEarnings: number;
-  }> {
-    // Get counts for different job card statuses assigned to this staff member
-    const [pendingJobsResult] = await db
-      .select({ count: count() })
-      .from(jobCards)
-      .where(and(
-        eq(jobCards.partnerId, partnerId),
-        eq(jobCards.assignedInstallerId, staffId),
-        or(
-          eq(jobCards.status, 'AWAITING_ACK'),
-          eq(jobCards.status, 'ACKNOWLEDGED'),
-          eq(jobCards.status, 'SCHEDULED'),
-          eq(jobCards.status, 'PENDING_APPROVAL')
-        )
-      ));
-
-    const [inProgressJobsResult] = await db
-      .select({ count: count() })
-      .from(jobCards)
-      .where(and(
-        eq(jobCards.partnerId, partnerId),
-        eq(jobCards.assignedInstallerId, staffId),
-        eq(jobCards.status, 'IN_PROGRESS')
-      ));
-
-    const [completedJobsResult] = await db
-      .select({ count: count() })
-      .from(jobCards)
-      .where(and(
-        eq(jobCards.partnerId, partnerId),
-        eq(jobCards.assignedInstallerId, staffId),
-        or(
-          eq(jobCards.status, 'APPROVED'),
-          eq(jobCards.status, 'CLOSED'),
-          eq(jobCards.status, 'COMPLETED')
-        )
-      ));
-
-    // Calculate average TAT for completed jobs by this staff member
-    const completedJobsWithTAT = await db
-      .select({
-        startedAt: jobCards.startedAt,
-        completedAt: jobCards.completedAt
-      })
-      .from(jobCards)
-      .where(and(
-        eq(jobCards.partnerId, partnerId),
-        eq(jobCards.assignedInstallerId, staffId),
-        or(
-          eq(jobCards.status, 'APPROVED'),
-          eq(jobCards.status, 'CLOSED'),
-          eq(jobCards.status, 'COMPLETED')
-        ),
-        isNotNull(jobCards.startedAt),
-        isNotNull(jobCards.completedAt),
-        sql`job_cards.completed_at >= CURRENT_DATE - INTERVAL '3 months'`
-      ));
-
-    let avgTAT = 0;
-    if (completedJobsWithTAT.length > 0) {
-      const totalTATHours = completedJobsWithTAT.reduce((sum, job) => {
-        if (job.startedAt && job.completedAt) {
-          const diffInMs = job.completedAt.getTime() - job.startedAt.getTime();
-          const diffInHours = diffInMs / (1000 * 60 * 60);
-          return sum + diffInHours;
-        }
-        return sum;
-      }, 0);
-      avgTAT = Math.round((totalTATHours / completedJobsWithTAT.length / 24) * 10) / 10; // Convert to days
-    }
-
-    // For staff, we don't show earnings information - return 0 for earnings related fields
-    return {
-      activeWorkOrders: (pendingJobsResult?.count || 0) + (inProgressJobsResult?.count || 0),
-      pendingApprovals: pendingJobsResult?.count || 0,
-      thisMonthRevenue: 0, // Hidden for staff
-      avgTAT: avgTAT,
-      completedJobs: completedJobsResult?.count || 0,
-      inProgressJobs: inProgressJobsResult?.count || 0,
-      pendingJobs: pendingJobsResult?.count || 0,
-      thisMonthEarnings: 0 // Hidden for staff
-    };
-  }
-
   // Dashboard connections: role-scoped assigned dealerships/showrooms/partners + derived territory
   async getUserConnections(user: ConnectionScopeUser): Promise<ConnectionsResponse> {
     const dealershipCols = { id: dealerships.id, name: dealerships.name, city: dealerships.city, state: dealerships.state };
@@ -4784,6 +4547,9 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(payouts, eq(payouts.jobCardId, jobCards.id))
       .where(and(
         eq(jobCards.partnerId, partnerId),
+        isNull(jobCards.deletedAt),
+        isNull(workOrders.deletedAt),
+        isNull(jobCards.checkupOfJobCardId),
         sql`job_cards.created_at >= CURRENT_DATE - INTERVAL '3 months'`
       ))
       .groupBy(showrooms.id, showrooms.name, dealerships.name, showrooms.city)
@@ -4798,8 +4564,10 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         inArray(workOrders.showroomId, showroomIds),
         eq(jobCards.partnerId, partnerId),
-        sql`EXTRACT(MONTH FROM job_cards.created_at) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month' * ${offset})`,
-        sql`EXTRACT(YEAR FROM job_cards.created_at) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month' * ${offset})`
+        isNull(jobCards.deletedAt),
+        isNull(jobCards.checkupOfJobCardId),
+        // IST calendar month, `offset` months back
+        sql`date_trunc('month', job_cards.created_at + interval '5 hours 30 minutes') = date_trunc('month', now() + interval '5 hours 30 minutes') - make_interval(months => ${offset})`
       ))
       .groupBy(workOrders.showroomId);
     const [thisMonth, lastMonth] = await Promise.all([monthCounts(0), monthCounts(1)]);
@@ -4844,10 +4612,15 @@ export class DatabaseStorage implements IStorage {
         eq(detailingPartnerShowrooms.detailingPartnerId, users.id),
         eq(detailingPartnerShowrooms.status, 'active')
       ))
-      .leftJoin(workOrders, eq(workOrders.showroomId, detailingPartnerShowrooms.showroomId))
+      .leftJoin(workOrders, and(
+        eq(workOrders.showroomId, detailingPartnerShowrooms.showroomId),
+        isNull(workOrders.deletedAt)
+      ))
       .leftJoin(jobCards, and(
         eq(jobCards.workOrderId, workOrders.id),
-        eq(jobCards.partnerId, partnerId)
+        eq(jobCards.partnerId, partnerId),
+        isNull(jobCards.deletedAt),
+        isNull(jobCards.checkupOfJobCardId)
       ))
       .leftJoin(payouts, eq(payouts.jobCardId, jobCards.id))
       .where(and(

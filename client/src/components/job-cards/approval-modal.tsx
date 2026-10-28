@@ -42,7 +42,7 @@ export default function ApprovalModal({ jobCardId, isOpen, onClose }: ApprovalMo
       queryClient.invalidateQueries({ predicate: (query) => 
         query.queryKey[0] === "/api/job-cards" 
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/metrics"], exact: false });
+      queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith("/api/dashboard") });
       queryClient.invalidateQueries({ queryKey: ["/api/payouts"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["/api/earnings"], exact: false });
       toast({
