@@ -10361,33 +10361,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Send test password reset email directly to jaggi13js@gmail.com
-  app.post("/api/test-password-reset", async (req, res) => {
-    try {
-      const testEmail = "jaggi13js@gmail.com";
-      const testToken = "test_token_123456789abcdef";
-      
-      const success = await emailService.sendPasswordResetEmail(
-        testEmail,
-        testToken,
-        "Test User"
-      );
-
-      if (success) {
-        res.json({ 
-          message: "Test password reset email sent successfully to " + testEmail,
-          testToken: testToken,
-          note: "This is a test email with test data. In production, use /api/auth/forgot-password"
-        });
-      } else {
-        res.status(500).json({ error: "Failed to send test password reset email" });
-      }
-    } catch (error) {
-      console.error("Test password reset email error:", error);
-      res.status(500).json({ error: "Failed to send test password reset email" });
-    }
-  });
-
   // Test WhatsApp notification endpoint
   app.post("/api/test-whatsapp", async (req, res) => {
     try {
