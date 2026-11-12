@@ -5133,17 +5133,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ error: "Associated work order not found" });
         }
 
-        // Permission check: Admin for Plus Nine One billing, Partner for partner direct billing
-        const isPartnerDirectBilling = jobCard.partnerBilledDirectly === true;
+        // Permission check: the partner owns the job when it bills the customer directly OR when
+        // a PARTNER_ADMIN created the work order (same ownership rule as settle-payment and the
+        // job-card UI). Otherwise it is a Plus Nine One-billed job and admin roles apply.
+        const workOrderCreator = await storage.getUser(workOrder.createdByUserId);
+        const partnerOwnsJob = jobCard.partnerBilledDirectly === true || workOrderCreator?.role === 'PARTNER_ADMIN';
         let hasAccess = false;
 
         // SUPER_ADMIN/ADMIN always have override access, regardless of billing type.
         if (req.user!.role === 'SUPER_ADMIN' || req.user!.role === 'ADMIN') {
           hasAccess = true;
-        } else if (isPartnerDirectBilling) {
-          // Partner can apply warranty for their own direct billing
+        } else if (partnerOwnsJob) {
+          // Partner can apply warranty on its own jobs
           if (req.user!.role === 'PARTNER_ADMIN' || req.user!.role === 'PARTNER_STAFF' || req.user!.role === 'DETAILING_PARTNER') {
-            hasAccess = jobCard.partnerId === req.user!.partnerId;
+            hasAccess = userPartnerIds(req.user!).includes(jobCard.partnerId);
           }
         } else {
           // Admin roles can apply warranty for Plus Nine One billing
