@@ -6075,12 +6075,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (e) { console.error('Billing auto-fill at completion failed', e); }
       }
 
-      // Rework done → the primary job card returns to PENDING_APPROVAL and the work order points back to it.
+      // Rework done → the work order points back to the primary job card, and the primary moves on:
+      //  - already invoiced AND warranty registered before the rework → nothing left to do → CLOSED
+      //    (sending it back to approval would land it in PENDING_SALES_INVOICE with the invoice already
+      //    recorded, where no "Enter Invoice" action is offered and it could never close)
+      //  - otherwise → PENDING_APPROVAL, so the reworked job is approved as before.
       if (isReworkCard && existingJc.reworkOfJobCardId) {
         try {
-          await storage.updateJobCard(existingJc.reworkOfJobCardId, { status: 'PENDING_APPROVAL', approvalRequestedAt: new Date() });
+          const primary = await storage.getJobCard(existingJc.reworkOfJobCardId);
+          const primaryDone = !!(primary?.paymentSettledAt && isWarrantyDone(primary));
+          const primaryNext = primaryDone ? 'CLOSED' : 'PENDING_APPROVAL';
+          await storage.updateJobCard(existingJc.reworkOfJobCardId, {
+            status: primaryNext,
+            reworkCompletedAt: new Date(),
+            reworkCompletedBy: req.user!.id,
+            ...(primaryDone ? {} : { approvalRequestedAt: new Date() }),
+          });
           await storage.updateWorkOrder(existingJc.workOrderId, { assignedJobCardId: existingJc.reworkOfJobCardId });
-          console.log(`🔵 Rework card ${req.params.id.slice(0, 8)} completed → CLOSED; primary ${existingJc.reworkOfJobCardId.slice(0, 8)} → PENDING_APPROVAL`);
+          if (primaryDone) await syncWorkOrderStatus(existingJc.workOrderId, 'CLOSED');
+          console.log(`🔵 Rework card ${req.params.id.slice(0, 8)} completed → CLOSED; primary ${existingJc.reworkOfJobCardId.slice(0, 8)} → ${primaryNext}`);
         } catch (e) { console.error('rework completion: primary restore failed', e); }
       }
 
