@@ -5937,9 +5937,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Validate completion data
       const completionSchema = z.object({
-        remarks: z.string().optional(),
-        partnerRemarks: z.string().optional(),
-        batchNumbers: z.string().optional(),
+        // Empty optional fields arrive as null from the web form (e.g. no batch number on a rework).
+        remarks: z.string().nullable().optional(),
+        partnerRemarks: z.string().nullable().optional(),
+        batchNumbers: z.string().nullable().optional(),
         batchNumberImage: z.string().nullable().optional(), // Photo of batch number sticker/label
         materialConsumptionJson: z.any().optional(), // JSONB field
         checklistJson: z.any().optional(), // JSONB field
@@ -6186,7 +6187,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Invalid completion data", details: error.errors });
+        const fields = error.errors.map(e => `${e.path.join('.') || 'body'}: ${e.message}`).join('; ');
+        return res.status(400).json({ error: `Invalid completion data (${fields})`, details: error.errors });
       }
       console.error("Complete job card error:", error);
       res.status(500).json({ error: "Failed to complete job card" });

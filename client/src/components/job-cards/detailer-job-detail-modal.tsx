@@ -386,8 +386,8 @@ export default function DetailerJobDetailModal({ jobCardId, isOpen, onClose }: D
         remarks: completionRemarks,
         checklistJson: checklist,
         materialConsumptionJson: materialConsumptionData,
-        batchNumbers: materialBatchNumber.trim() || null,
-        batchNumberImage: batchNumberImage || null,
+        batchNumbers: materialBatchNumber.trim() || undefined,
+        batchNumberImage: batchNumberImage || undefined,
         rollUsedSqft: completionRollUsed.trim() ? Number(completionRollUsed) : undefined,
       });
       return response.json();
