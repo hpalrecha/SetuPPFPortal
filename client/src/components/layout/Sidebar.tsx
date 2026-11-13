@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
@@ -16,6 +17,8 @@ import {
   History, 
   Settings,
   ChevronLeft,
+  ChevronUp,
+  ChevronDown,
   ChevronRight,
   Building2,
   Store,
@@ -99,6 +102,15 @@ export function Sidebar({ collapsed, onToggle, className, isMobile = false }: Si
   
   const navigation = getFilteredNavigation(user?.role) || [];
 
+  // Organization / System headings collapse behind a chevron. The group holding the open page
+  // starts open; the other starts closed. Same behaviour as the VAS mobile app's drawer.
+  const orgHrefs = organizationNavigation.map((n) => n.href);
+  const groupOf = (href: string) =>
+    orgHrefs.includes(href) ? "Organization" : ["/notifications", "/audit", "/timeline", "/settings"].includes(href) ? "System" : null;
+  const [groupOpen, setGroupOpen] = useState<Record<string, boolean>>({});
+  const isGroupOpen = (g: string) =>
+    groupOpen[g] ?? navigation.some((n) => groupOf(n.href) === g && (location === n.href));
+
   // First visible item of the "System" group (Notifications/Audit/Settings)
   const systemHrefs = ["/notifications", "/audit", "/timeline", "/settings"];
   const firstSystemHref = navigation.find((n) => systemHrefs.includes(n.href))?.href;
@@ -139,13 +151,25 @@ export function Sidebar({ collapsed, onToggle, className, isMobile = false }: Si
           const isFirstOrgItem = (user?.role === "SUPER_ADMIN" || user?.role === "ADMIN" || user?.role === "MANAGER") && item.href === "/oems";
           const isFirstSystemItem = item.href === firstSystemHref;
           
+          const group = groupOf(item.href);
+          // In the icon-only rail there is no heading to open, so every item stays visible.
+          if (group && !collapsed && !isGroupOpen(group) && !(isFirstOrgItem || isFirstSystemItem)) return null;
+
           return (
             <div key={item.name}>
-              {(isFirstOrgItem || isFirstSystemItem) && !collapsed && (
-                <div className="px-2 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  {isFirstOrgItem ? "Organization" : "System"}
-                </div>
+              {(isFirstOrgItem || isFirstSystemItem) && !collapsed && group && (
+                <button
+                  type="button"
+                  onClick={() => setGroupOpen((o) => ({ ...o, [group]: !isGroupOpen(group) }))}
+                  aria-expanded={isGroupOpen(group)}
+                  data-testid={`nav-group-${group.toLowerCase()}`}
+                  className="flex w-full items-center justify-between px-2 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground"
+                >
+                  <span>{group}</span>
+                  {isGroupOpen(group) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
               )}
+              {group && !collapsed && !isGroupOpen(group) ? null : (
               <Button
                 variant={isActive ? "default" : "ghost"}
                 className={cn(
@@ -162,6 +186,7 @@ export function Sidebar({ collapsed, onToggle, className, isMobile = false }: Si
                   <span className="truncate">{item.name}</span>
                 )}
               </Button>
+              )}
             </div>
           );
         })}
