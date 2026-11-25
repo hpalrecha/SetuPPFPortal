@@ -2744,7 +2744,7 @@ export class DatabaseStorage implements IStorage {
         .from(payouts)
         .innerJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
         .innerJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
-        .where(eq(payouts.partnerId, partnerId))
+        .where(and(eq(payouts.partnerId, partnerId), isNull(jobCards.deletedAt), isNull(workOrders.deletedAt)))
         .orderBy(desc(payouts.createdAt));
 
       // Enrich with service and vehicle info
@@ -2812,7 +2812,9 @@ export class DatabaseStorage implements IStorage {
         createdAt: payouts.createdAt
       })
       .from(payouts)
-      .where(eq(payouts.partnerId, partnerId));
+      .leftJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
+      .leftJoin(workOrders, eq(jobCards.workOrderId, workOrders.id))
+      .where(and(eq(payouts.partnerId, partnerId), isNull(jobCards.deletedAt), isNull(workOrders.deletedAt)));
 
     // Calculate summary stats
     const totalEarnings = allPayouts.reduce((sum, p) => sum + parseFloat(p.netAmount), 0);
@@ -3322,7 +3324,9 @@ export class DatabaseStorage implements IStorage {
     .leftJoin(jobCards, eq(payouts.jobCardId, jobCards.id))
     .leftJoin(workOrders, eq(jobCards.workOrderId, workOrders.id));
 
-    const conditions = [];
+    // Payouts of soft-deleted job cards / work orders (duplicates, test data) are hidden like the
+    // cards themselves. Left joins: a payout without a job card has NULL deleted_at and stays.
+    const conditions = [isNull(jobCards.deletedAt), isNull(workOrders.deletedAt)];
     if (filters?.status) conditions.push(eq(payouts.status, filters.status));
     if (filters?.partnerId) conditions.push(eq(payouts.partnerId, filters.partnerId));
     if (filters?.jobCardId) conditions.push(eq(payouts.jobCardId, filters.jobCardId));
@@ -3332,9 +3336,7 @@ export class DatabaseStorage implements IStorage {
     if (filters?.dealershipId) conditions.push(eq(workOrders.dealershipId, filters.dealershipId));
     if (filters?.showroomId) conditions.push(eq(workOrders.showroomId, filters.showroomId));
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
+    query = query.where(and(...conditions));
 
     return await query.orderBy(desc(payouts.createdAt));
   }
